@@ -43,6 +43,9 @@
                     <a href="#" onclick="showSection('proveedores')" class="nav-link" data-section="proveedores">
                         <i data-lucide="truck"></i> <span>Proveedores</span>
                     </a>
+                    <a href="#" onclick="showSection('gastos')" class="nav-link" data-section="gastos">
+                        <i data-lucide="wallet"></i> <span>Gastos del Taller</span>
+                    </a>
                     <p class="text-xs uppercase text-gray-500 px-3 mt-4 mb-2">Administración</p>
                     <a href="#" onclick="showSection('clientes')" class="nav-link" data-section="clientes">
                         <i data-lucide="users"></i> <span>Clientes</span>
@@ -106,6 +109,11 @@
                         <i data-lucide="truck"></i> Cuentas por Pagar (Proveedores)
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="supplier-debts-dashboard"></div>
+
+                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2">
+                        <i data-lucide="trending-down"></i> Gastos del Mes en Curso
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" id="expenses-dashboard"></div>
 
                     <div class="flex justify-between items-center my-6">
                         <h3 class="text-lg font-semibold text-slate-600 flex items-center gap-2">
@@ -237,6 +245,31 @@
                                 </tr>
                             </thead>
                             <tbody></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Gastos Section -->
+                <section id="sec-gastos" class="content-section hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Gastos del Taller</h2>
+                        <button onclick="openExpenseModal()"
+                            class="bg-red-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-red-600 transition shadow-sm">
+                            <i data-lucide="minus-circle"></i> Registrar Gasto
+                        </button>
+                    </div>
+                    <div class="glass-card p-6 rounded-xl w-full">
+                        <table id="expensesTable" class="display w-full">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Descripción</th>
+                                    <th>Categoría</th>
+                                    <th>Monto</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expensesBody"></tbody>
                         </table>
                     </div>
                 </section>

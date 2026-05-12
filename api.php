@@ -15,7 +15,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? null;
 
 if ($action === 'init') {
-    $files = ['inventory_db', 'sales_db', 'drafts_db', 'clients_db', 'staff_db', 'suppliers_db', 'purchases_db', 'company_db'];
+    $files = ['inventory_db', 'sales_db', 'drafts_db', 'clients_db', 'staff_db', 'suppliers_db', 'purchases_db', 'company_db', 'expenses_db'];
     foreach ($files as $f) {
         $path = __DIR__ . '/json/' . $f . '.json';
         if (!file_exists($path) || filesize($path) === 0) {

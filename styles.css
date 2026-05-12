@@ -311,15 +311,62 @@ button.dt-button.btn-export:hover {
         box-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
     }
 }
+
 /* Fix for notification tooltip not being clickable */
 #notifications-area .group:hover .hidden {
     display: block !important;
     /* Override hidden to make it visible */
     pointer-events: auto !important;
     /* Allow mouse events */
-    display: block !important; /* Override hidden to make it visible */
-    pointer-events: auto !important; /* Allow mouse events */
+    display: block !important;
+    /* Override hidden to make it visible */
+    pointer-events: auto !important;
+    /* Allow mouse events */
     /* Ajuste para que el tooltip no se superponga al botón y sea clicable */
-    transform: translateY(0) translateX(0); /* Reset any previous transforms */
-    margin-top: 10px; /* Espacio entre el botón y el tooltip */
+    transform: translateY(0) translateX(0);
+    /* Reset any previous transforms */
+    margin-top: 10px;
+    /* Espacio entre el botón y el tooltip */
+}
+
+/* Animation for Clock when Pending Invoices */
+.clock-pending-alert {
+    animation: neon-pulse-green 1.5s infinite alternate;
+    text-shadow: 0 0 5px rgba(57, 255, 20, 0.6);
+    /* Initial text shadow */
+}
+
+@keyframes neon-pulse-green {
+    0% {
+        text-shadow: 0 0 5px rgba(57, 255, 20, 0.6);
+    }
+
+    50% {
+        text-shadow: 0 0 15px rgba(57, 255, 20, 1), 0 0 25px rgba(57, 255, 20, 0.8);
+    }
+
+    100% {
+        text-shadow: 0 0 5px rgba(57, 255, 20, 0.6);
+    }
+}
+
+/* Animation for Clock when Pending Invoices are older than 2 hours */
+.clock-pending-urgent {
+    animation: neon-pulse-red 1.5s infinite alternate;
+    color: var(--error-red) !important;
+    text-shadow: 0 0 5px rgba(255, 68, 68, 0.6);
+}
+
+@keyframes neon-pulse-red {
+    0% {
+        text-shadow: 0 0 5px rgba(255, 68, 68, 0.6);
+    }
+
+    50% {
+        text-shadow: 0 0 15px rgba(255, 68, 68, 1), 0 0 25px rgba(255, 68, 68, 0.8);
+    }
+
+    100% {
+        text-shadow: 0 0 5px rgba(255, 68, 68, 0.6);
+    }
 }

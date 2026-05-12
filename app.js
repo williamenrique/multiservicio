@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initStaff();
     await initSuppliers();
     await initPurchases();
+    await initExpenses();
 
     await refreshUI();
     await loadCompanySettings(); // This was already correct
@@ -48,6 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(renderFinancialCards, 5000);
     setInterval(renderPendingBillsDashboard, 5000);
     setInterval(renderSupplierDebtsDashboard, 5000);
+    setInterval(renderExpensesDashboard, 5000);
 });
 
 // Reloj Digital en tiempo real
@@ -93,17 +95,20 @@ async function refreshUI() {
     const staff = await AppUtils.loadData('staff_db');
     const suppliers = await AppUtils.loadData('suppliers_db');
     const purchases = await AppUtils.loadData('purchases_db');
+    const expenses = await AppUtils.loadData('expenses_db');
 
     if (salesTable) salesTable.clear().rows.add(sales).draw();
     if (clientsTable) clientsTable.clear().rows.add(clients).draw();
     if (staffTable) staffTable.clear().rows.add(staff).draw();
     if (suppliersTable) suppliersTable.clear().rows.add(suppliers).draw();
     if (purchasesTable) purchasesTable.clear().rows.add(purchases).draw();
+    if (expensesTable) expensesTable.clear().rows.add(expenses).draw();
 
     await renderDashboardCards();
     await renderFinancialCards();
     await renderPendingBillsDashboard();
     await renderSupplierDebtsDashboard();
+    await renderExpensesDashboard();
 }
 
 /**
@@ -611,9 +616,24 @@ async function saveCompanySettings(e) {
  */
 async function renderPendingBillsDashboard() {
     const container = document.getElementById('pending-bills-dashboard');
+    const clockElement = document.getElementById('digitalClock');
     if (!container) return;
 
     const drafts = await AppUtils.loadData('drafts_db');
+
+    // Verificar si hay facturas con más de 2 horas de antigüedad
+    const now = new Date();
+    const twoHoursInMs = 2 * 60 * 60 * 1000;
+    const hasUrgentDrafts = drafts.some(d => (now - new Date(d.date)) > twoHoursInMs);
+
+    // Lógica para activar/desactivar la vibración neón en el reloj
+    if (clockElement) {
+        clockElement.classList.remove('clock-pending-alert', 'clock-pending-urgent');
+        if (drafts.length > 0) {
+            const alertClass = hasUrgentDrafts ? 'clock-pending-urgent' : 'clock-pending-alert';
+            clockElement.classList.add(alertClass);
+        }
+    }
 
     if (drafts.length === 0) {
         container.innerHTML = `
@@ -668,14 +688,26 @@ async function renderFinancialCards() {
     if (!container) return;
 
     const sales = await AppUtils.loadData('sales_db');
+    const expenses = await AppUtils.loadData('expenses_db');
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const monthlyExpenses = expenses.filter(e => {
+        const d = new Date(e.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    }).reduce((sum, e) => sum + (e.amount || 0), 0);
+
     const totalFacturado = sales.reduce((sum, sale) => sum + (sale.total || 0), 0);
+    const balanceNeto = totalFacturado - monthlyExpenses;
     const totalVentas = sales.length;
     const ticketPromedio = totalVentas > 0 ? totalFacturado / totalVentas : 0;
 
     const stats = [
-        { label: 'Total Facturado', value: AppUtils.formatCurrency(totalFacturado), color: 'text-blue-600', border: 'border-blue-600', icon: 'dollar-sign' },
-        { label: 'Ventas Realizadas', value: totalVentas, color: 'text-purple-600', border: 'border-purple-600', icon: 'shopping-bag' },
-        { label: 'Ticket Promedio', value: AppUtils.formatCurrency(ticketPromedio), color: 'text-emerald-600', border: 'border-emerald-600', icon: 'pie-chart' }
+        { label: 'Ingresos Totales', value: AppUtils.formatCurrency(totalFacturado), color: 'text-blue-600', border: 'border-blue-600', icon: 'trending-up' },
+        { label: 'Gastos de este Mes', value: AppUtils.formatCurrency(monthlyExpenses), color: 'text-red-600', border: 'border-red-600', icon: 'trending-down' },
+        { label: 'Balance Neto (Mes)', value: AppUtils.formatCurrency(balanceNeto), color: 'text-emerald-600', border: 'border-emerald-600', icon: 'wallet' }
     ];
 
     container.innerHTML = stats.map(s => `
@@ -850,6 +882,137 @@ async function initPurchases() { // This was already correct
         responsive: true,
         drawCallback: () => lucide.createIcons()
     });
+}
+
+/** GESTIÓN DE GASTOS */
+async function initExpenses() {
+    const expenses = await AppUtils.loadData('expenses_db');
+    expensesTable = $('#expensesTable').DataTable({
+        data: expenses,
+        order: [[0, 'desc']],
+        columns: [
+            {
+                data: 'date',
+                render: d => new Date(d).toLocaleDateString('es-CO', { dateStyle: 'medium' })
+            },
+            { data: 'description' },
+            { data: 'category' },
+            {
+                data: 'amount',
+                render: d => `<span class="text-red-600 font-bold">${AppUtils.formatCurrency(d)}</span>`
+            },
+            {
+                data: null,
+                render: (data, type, row) => `
+                    <button onclick="genericDelete('${row.id}', 'expenses_db', 'Gasto')" class="p-1 text-slate-400 hover:text-red-500 transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                `
+            }
+        ],
+        responsive: true,
+        language: {
+            search: "Buscar gasto:",
+            emptyTable: "No hay gastos registrados en el taller",
+            zeroRecords: "No se encontraron coincidencias"
+        },
+        drawCallback: () => lucide.createIcons()
+    });
+}
+
+async function openExpenseModal() {
+    Swal.fire({
+        title: 'Registrar Gasto del Taller',
+        html: `
+            <div class="text-left space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción del Gasto</label>
+                    <input id="ex-desc" class="w-full p-2 border rounded-lg uppercase" placeholder="EJ: PAGO SERVICIO LUZ">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
+                    <select id="ex-cat" class="w-full p-2 border rounded-lg">
+                        <option value="Servicios">Servicios Públicos</option>
+                        <option value="Arriendo">Arriendo</option>
+                        <option value="Nómina">Nómina</option>
+                        <option value="Insumos">Insumos Taller</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto (COP)</label>
+                    <input id="ex-amount" type="number" class="w-full p-2 border rounded-lg" placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
+                    <input id="ex-date" type="date" class="w-full p-2 border rounded-lg" value="${new Date().toISOString().split('T')[0]}">
+                </div>
+            </div>
+        `,
+        confirmButtonColor: '#ff4444',
+        confirmButtonText: 'Registrar Gasto',
+        showCancelButton: true,
+        preConfirm: () => {
+            const description = document.getElementById('ex-desc').value.trim().toUpperCase();
+            const amount = parseFloat(document.getElementById('ex-amount').value);
+            if (!description || isNaN(amount) || amount <= 0) {
+                return Swal.showValidationMessage('Complete todos los campos correctamente');
+            }
+            return { id: Date.now(), date: document.getElementById('ex-date').value, description, category: document.getElementById('ex-cat').value, amount };
+        }
+    }).then(async result => {
+        if (result.isConfirmed) {
+            const expenses = await AppUtils.loadData('expenses_db');
+            expenses.push(result.value);
+            await AppUtils.saveData('expenses_db', expenses);
+            await refreshUI();
+            AppUtils.showToast('Gasto registrado correctamente');
+        }
+    });
+}
+
+/**
+ * Renderiza la vista previa de gastos del mes actual en el dashboard
+ */
+async function renderExpensesDashboard() {
+    const container = document.getElementById('expenses-dashboard');
+    if (!container) return;
+
+    const expenses = await AppUtils.loadData('expenses_db');
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Filtrar y ordenar por fecha (más recientes primero)
+    const monthlyExpenses = expenses.filter(e => {
+        const d = new Date(e.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if (monthlyExpenses.length === 0) {
+        container.innerHTML = `
+            <div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400">
+                <i data-lucide="wallet" class="w-12 h-12 mx-auto mb-3 opacity-20"></i>
+                <p class="italic font-medium">No se han registrado gastos para el mes de ${now.toLocaleString('es-ES', { month: 'long' }).toUpperCase()}.</p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
+    container.innerHTML = monthlyExpenses.slice(0, 6).map(e => `
+        <div class="glass-card p-4 rounded-xl border-l-4 border-red-500 flex justify-between items-center group hover:scale-[1.02] transition-transform cursor-default">
+            <div class="truncate mr-4">
+                <p class="text-[10px] text-slate-400 font-bold uppercase">${e.category}</p>
+                <h4 class="font-bold text-slate-800 uppercase text-sm truncate group-hover:text-red-600 transition-colors">${e.description}</h4>
+                <p class="text-[10px] text-slate-400">${new Date(e.date).toLocaleDateString()}</p>
+            </div>
+            <div class="text-right flex-shrink-0">
+                <span class="font-bold text-red-600 text-lg">-${AppUtils.formatCurrency(e.amount)}</span>
+            </div>
+        </div>
+    `).join('');
+    lucide.createIcons();
 }
 
 function switchProveedorTab(tab) {
