@@ -328,7 +328,6 @@ async function saveCurrentDraft() {
     if (index !== -1) {
         drafts[index].items = currentCart;
         drafts[index].carModel = carModel;
-        drafts[index].date = new Date().toISOString();
         await AppUtils.saveData('drafts_db', drafts);
     }
 }

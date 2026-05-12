@@ -1,10 +1,21 @@
 <?php
 // c:\xampp\htdocs\multiservicio\api.php
 
+// Turn off display of errors for API endpoints and log them instead
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Permite peticiones desde cualquier origen (para desarrollo)
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+
+// Include constants
+if (file_exists(__DIR__ . '/constants.php')) {
+    require_once __DIR__ . '/constants.php';
+} else {
+    die(json_encode(['error' => 'Archivo constants.php no encontrado en ' . __DIR__]));
+}
 
 // Manejar pre-vuelos OPTIONS (CORS)
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -15,9 +26,14 @@ $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? null;
 
 if ($action === 'init') {
+    $jsonDir = JSON_DIR;
+    if (!is_dir($jsonDir)) {
+        mkdir($jsonDir, 0777, true);
+    }
+
     $files = ['inventory_db', 'sales_db', 'drafts_db', 'clients_db', 'staff_db', 'suppliers_db', 'purchases_db', 'company_db', 'expenses_db'];
     foreach ($files as $f) {
-        $path = __DIR__ . '/json/' . $f . '.json';
+        $path = $jsonDir . '/' . $f . '.json';
         if (!file_exists($path) || filesize($path) === 0) {
             file_put_contents($path, '[]');
         }
@@ -27,7 +43,10 @@ if ($action === 'init') {
 }
 
 $key = $_GET['key'] ?? null; // Nombre del archivo JSON (ej: inventory_db)
-$filePath = __DIR__ . '/json/' . $key . '.json';
+// Seguridad: Limpiar el key para permitir solo caracteres alfanuméricos y guiones bajos
+$key = preg_replace('/[^a-zA-Z0-9_]/', '', (string)$key);
+
+$filePath = JSON_DIR . $key . '.json';
 
 if (!$key) {
     echo json_encode(['error' => 'Missing key parameter']);

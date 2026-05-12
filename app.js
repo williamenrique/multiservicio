@@ -616,7 +616,7 @@ async function saveCompanySettings(e) {
  */
 async function renderPendingBillsDashboard() {
     const container = document.getElementById('pending-bills-dashboard');
-    const clockElement = document.getElementById('digitalClock');
+    const pendingIcon = document.getElementById('pending-bills-icon');
     if (!container) return;
 
     const drafts = await AppUtils.loadData('drafts_db');
@@ -624,14 +624,14 @@ async function renderPendingBillsDashboard() {
     // Verificar si hay facturas con más de 2 horas de antigüedad
     const now = new Date();
     const twoHoursInMs = 2 * 60 * 60 * 1000;
-    const hasUrgentDrafts = drafts.some(d => (now - new Date(d.date)) > twoHoursInMs);
+    const hasUrgentDrafts = drafts.some(d => d.date && (now - new Date(d.date)) > twoHoursInMs);
 
-    // Lógica para activar/desactivar la vibración neón en el reloj
-    if (clockElement) {
-        clockElement.classList.remove('clock-pending-alert', 'clock-pending-urgent');
+    // Lógica para activar/desactivar la vibración neón en el icono del dashboard
+    if (pendingIcon) {
+        pendingIcon.classList.remove('clock-pending-alert', 'clock-pending-urgent');
         if (drafts.length > 0) {
             const alertClass = hasUrgentDrafts ? 'clock-pending-urgent' : 'clock-pending-alert';
-            clockElement.classList.add(alertClass);
+            pendingIcon.classList.add(alertClass);
         }
     }
 
@@ -876,6 +876,8 @@ async function initPurchases() { // This was already correct
                 data: null,
                 render: (data, type, row) => `
                     <button onclick="viewPurchaseDetail('${row.id}')" class="p-1 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                    ${(row.total - row.paid) > 0 ? `<button onclick="openRecordPaymentModal('${row.id}')" class="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Registrar Pago"><i data-lucide="dollar-sign" class="w-4 h-4"></i></button>` : ''}
+                    <button onclick="genericDelete('${row.id}', 'purchases_db', 'Compra')" class="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar Compra"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                 `
             }
         ],
@@ -1110,6 +1112,70 @@ async function viewPurchaseDetail(id) {
                 <p><b>Corte:</b> ${purchase.cutoff || 'No definida'}</p>
             </div>`,
         confirmButtonColor: '#0b1120'
+    });
+}
+
+/**
+ * Abre un modal para registrar un pago a una compra de proveedor.
+ * Permite abonar o pagar la totalidad del saldo pendiente.
+ * @param {string|number} purchaseId - ID de la compra a la que se le registrará el pago.
+ */
+async function openRecordPaymentModal(purchaseId) {
+    const purchases = await AppUtils.loadData('purchases_db');
+    const purchase = purchases.find(p => String(p.id) === String(purchaseId));
+
+    if (!purchase) {
+        AppUtils.showAlert('Error', 'Compra no encontrada.', 'error');
+        return;
+    }
+
+    const remainingBalance = purchase.total - purchase.paid;
+
+    Swal.fire({
+        title: `Registrar Pago para Compra #${purchaseId.toString().slice(-6)}`,
+        html: `
+            <div class="text-left space-y-4">
+                <p class="text-sm text-slate-600">Proveedor: <b>${purchase.supplierName}</b></p>
+                <p class="text-sm text-slate-600">Producto: <b>${purchase.productName}</b></p>
+                <p class="text-sm text-slate-600">Total: <b>${AppUtils.formatCurrency(purchase.total)}</b></p>
+                <p class="text-sm text-slate-600">Pagado: <b>${AppUtils.formatCurrency(purchase.paid)}</b></p>
+                <p class="text-lg font-bold text-navy-blue">Saldo Pendiente: <b>${AppUtils.formatCurrency(remainingBalance)}</b></p>
+                <hr class="my-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto a Pagar</label>
+                    <input id="payment-amount" type="number" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0.00" value="${remainingBalance}">
+                </div>
+            </div>
+        `,
+        confirmButtonColor: '#39FF14',
+        confirmButtonText: '<span class="text-black font-bold">Registrar Pago</span>',
+        showCancelButton: true,
+        preConfirm: () => {
+            const amount = parseFloat(document.getElementById('payment-amount').value);
+            if (isNaN(amount) || amount <= 0) {
+                Swal.showValidationMessage('Ingrese un monto válido mayor a cero.');
+                return false;
+            }
+            if (amount > remainingBalance) {
+                Swal.showValidationMessage(`El monto a pagar no puede exceder el saldo pendiente (${AppUtils.formatCurrency(remainingBalance)}).`);
+                return false;
+            }
+            return amount;
+        }
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            const paymentAmount = result.value;
+            purchase.paid += paymentAmount;
+
+            const index = purchases.findIndex(p => String(p.id) === String(purchaseId));
+            if (index !== -1) {
+                purchases[index] = purchase;
+            }
+
+            await AppUtils.saveData('purchases_db', purchases);
+            await refreshUI();
+            AppUtils.showToast('Pago registrado correctamente', 'success');
+        }
     });
 }
 

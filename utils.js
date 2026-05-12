@@ -76,7 +76,13 @@ const AppUtils = {
         if (!response.ok) {
             throw new Error(`Failed to save data for ${key}: ${response.statusText}`);
         }
-        return await response.json();
+        try {
+            return await response.json();
+        } catch (e) {
+            const errorText = await response.text();
+            console.error(`Error parsing JSON response for ${key}:`, errorText, e);
+            throw new Error(`Received non-JSON response when saving data for ${key}. Response: ${errorText.substring(0, 200)}`);
+        }
     },
 
     loadData: async (key) => {

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Página No Encontrada</title>
+    <link rel="shortcut icon" href="logo1.png" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body class="bg-main-dark text-slate-800 font-sans flex items-center justify-center h-screen">
+    <div class="text-center glass-card p-10 rounded-xl shadow-lg">
+        <i data-lucide="frown" class="w-24 h-24 text-red-500 mx-auto mb-6"></i>
+        <h1 class="text-5xl font-bold text-slate-800 mb-4">404</h1>
+        <p class="text-xl text-slate-600 mb-8">¡Oops! La página que buscas no existe.</p>
+        <a href="index.html"
+            class="bg-navy-blue text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition shadow-md mx-auto max-w-xs">
+            <i data-lucide="home" class="w-5 h-5"></i> Volver al Inicio
+        </a>
+    </div>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>
