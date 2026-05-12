@@ -269,3 +269,57 @@ button.dt-button.btn-export:hover {
         transform: none !important;
     }
 }
+
+/* --- Animations for Notifications --- */
+.alert-shake {
+    animation: shake-vibration 2s cubic-bezier(.36, .07, .19, .97) infinite;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+    box-shadow: 0 0 15px rgba(255, 68, 68, 0.2);
+}
+
+@keyframes shake-vibration {
+
+    10%,
+    90% {
+        transform: translate3d(-1px, 0, 0);
+    }
+
+    20%,
+    80% {
+        transform: translate3d(2px, 0, 0);
+    }
+
+    30%,
+    50%,
+    70% {
+        transform: translate3d(-3px, 0, 0);
+    }
+
+    40%,
+    60% {
+        transform: translate3d(3px, 0, 0);
+    }
+
+    0%,
+    100% {
+        box-shadow: 0 0 5px rgba(255, 68, 68, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
+    }
+}
+/* Fix for notification tooltip not being clickable */
+#notifications-area .group:hover .hidden {
+    display: block !important;
+    /* Override hidden to make it visible */
+    pointer-events: auto !important;
+    /* Allow mouse events */
+    display: block !important; /* Override hidden to make it visible */
+    pointer-events: auto !important; /* Allow mouse events */
+    /* Ajuste para que el tooltip no se superponga al botón y sea clicable */
+    transform: translateY(0) translateX(0); /* Reset any previous transforms */
+    margin-top: 10px; /* Espacio entre el botón y el tooltip */
+}

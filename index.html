@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TallerPro - Dashboard Multiservicios</title>
+    <title>TallerPro - Multiservicios</title>
     <link rel="shortcut icon" href="logo1.png" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
@@ -40,6 +40,9 @@
                     <a href="#" onclick="showSection('historial')" class="nav-link" data-section="historial">
                         <i data-lucide="history"></i> <span>Historial de Ventas</span>
                     </a>
+                    <a href="#" onclick="showSection('proveedores')" class="nav-link" data-section="proveedores">
+                        <i data-lucide="truck"></i> <span>Proveedores</span>
+                    </a>
                     <p class="text-xs uppercase text-gray-500 px-3 mt-4 mb-2">Administración</p>
                     <a href="#" onclick="showSection('clientes')" class="nav-link" data-section="clientes">
                         <i data-lucide="users"></i> <span>Clientes</span>
@@ -63,8 +66,11 @@
                     <button id="toggleSidebar" class="p-2 text-white hover:bg-gray-800 rounded-lg">
                         <i data-lucide="menu"></i>
                     </button>
-                    <div id="digitalClock" class="text-neon-green font-mono text-lg">00:00:00</div>
+                    <div id="digitalClock" class="text-neon-green font-mono text-lg flex-shrink-0 mr-4">00:00:00</div>
                 </div>
+                <!-- Área de Notificaciones -->
+                <div id="notifications-area" class="flex justify-end items-center ml-auto px-4"></div>
+
                 <div class="flex items-center gap-4">
                     <div class="text-right hidden md:block">
                         <p class="text-sm font-bold text-white">Admin User</p>
@@ -95,6 +101,11 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="pending-bills-dashboard">
                         <!-- Pending bills cards generated via JS -->
                     </div>
+
+                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2">
+                        <i data-lucide="truck"></i> Cuentas por Pagar (Proveedores)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="supplier-debts-dashboard"></div>
 
                     <div class="flex justify-between items-center my-6">
                         <h3 class="text-lg font-semibold text-slate-600 flex items-center gap-2">
@@ -167,6 +178,65 @@
                                 </tr>
                             </thead>
                             <tbody id="salesBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Proveedores Section -->
+                <section id="sec-proveedores" class="content-section hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Gestión de Proveedores</h2>
+                        <div class="flex gap-2">
+                            <button onclick="openPurchaseModal()"
+                                class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-700 transition shadow-sm">
+                                <i data-lucide="box"></i> Ingresar Mercancía
+                            </button>
+                            <button onclick="openSupplierModal()"
+                                class="bg-neon-green text-black px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:opacity-90 transition shadow-sm">
+                                <i data-lucide="user-plus"></i> Nuevo Proveedor
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tabs -->
+                    <div class="flex gap-4 mb-6 border-b border-slate-200">
+                        <button onclick="switchProveedorTab('lista')" id="tab-prov-lista"
+                            class="pb-2 px-1 border-b-2 border-neon-green font-bold text-navy-blue">Lista de
+                            Proveedores</button>
+                        <button onclick="switchProveedorTab('deudas')" id="tab-prov-deudas"
+                            class="pb-2 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue">Cuentas
+                            por Pagar</button>
+                    </div>
+
+                    <div id="prov-lista-content" class="glass-card p-6 rounded-xl w-full">
+                        <table id="suppliersTable" class="display w-full">
+                            <thead>
+                                <tr>
+                                    <th>NIT/ID</th>
+                                    <th>Nombre</th>
+                                    <th>Teléfono</th>
+                                    <th>Email</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+
+                    <div id="prov-deudas-content" class="glass-card p-6 rounded-xl w-full hidden">
+                        <table id="purchasesTable" class="display w-full">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Proveedor</th>
+                                    <th>Total</th>
+                                    <th>Abonado</th>
+                                    <th>Saldo</th>
+                                    <th>Corte</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
                         </table>
                     </div>
                 </section>
@@ -283,6 +353,7 @@
     <script src="./utils.js"></script>
     <script src="./app.js"></script>
     <script src="./facturacion.js"></script>
+    <script src="./notifications.js"></script>
     <script>
         lucide.createIcons();
     </script>

@@ -7,29 +7,51 @@ let activeBillId = null;
 let carModel = "";
 
 // Obtener IVA dinámicamente de la configuración
-function getIvaRate() {
-    const config = AppUtils.loadData('company_db');
+async function getIvaRate() {
+    const config = await AppUtils.loadData('company_db');
     if (config.length > 0) return config[0].iva / 100;
     return 0.19; // Default 19%
 }
 
-function initBilling() {
+async function initBilling() {
     const factSection = document.getElementById('sec-facturacion');
     if (!factSection) return;
 
-    // Cargar borradores o iniciar una factura nueva si no hay ID activo
-    const drafts = AppUtils.loadData('drafts_db');
+    const drafts = await AppUtils.loadData('drafts_db');
+
+    // 1. Si no hay ID activo, intentar recuperar el primero de la lista de borradores
     if (!activeBillId && drafts.length > 0) {
         activeBillId = drafts[0].id;
-        currentCart = drafts[0].items;
-        carModel = drafts[0].carModel;
-    } else if (!activeBillId) {
-        createNewBill();
-        return; // createNewBill volverá a llamar a initBilling
+    }
+
+    // 2. Si sigue sin haber ID activo (lista vacía), mostrar un estado inicial en lugar de crear una automáticamente
+    if (!activeBillId) {
+        factSection.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-20 bg-white rounded-xl shadow-sm border border-slate-100 animate-fadeIn">
+                <div class="bg-blue-50 p-6 rounded-full mb-6">
+                    <i data-lucide="receipt" class="w-16 h-16 text-blue-500"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">Módulo de Facturación</h2>
+                <p class="text-slate-500 mb-8 text-center max-w-md">No tienes facturas activas en este momento. Inicia una nueva venta para comenzar a registrar servicios y repuestos.</p>
+                <button onclick="createNewBill()" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition shadow-lg transform hover:scale-105">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i> INICIAR NUEVA FACTURA
+                </button>
+            </div>
+        `;
+        lucide.createIcons();
+        showSection('facturacion');
+        return;
+    }
+
+    // 3. Buscar los datos del borrador activo
+    const current = drafts.find(d => String(d.id) === String(activeBillId));
+    if (current) {
+        currentCart = current.items;
+        carModel = current.carModel;
     } else {
-        const current = drafts.find(d => d.id === activeBillId);
-        currentCart = current ? current.items : [];
-        carModel = current ? current.carModel : "";
+        // Si el ID activo ya no existe (fue eliminado), reseteamos y reintentamos inicializar
+        activeBillId = null;
+        return initBilling();
     }
 
     factSection.innerHTML = `
@@ -59,7 +81,7 @@ function initBilling() {
                                     <div onclick="switchBill('${d.id}')" class="flex-1 cursor-pointer">
                                         <p class="text-xs font-bold text-navy-blue">FACTURA #${d.id}</p>
                                         <p class="text-[10px] text-slate-500">${d.carModel || 'SIN MODELO'}</p>
-                                        <p class="text-[10px] text-emerald-600 font-bold">${AppUtils.formatCurrency(calculateTotal(d.items))}</p>
+                                        <p class="text-[10px] text-emerald-600 font-bold">${AppUtils.formatCurrency(d.items.reduce((sum, i) => sum + (i.price * i.quantity), 0) * 1.19)}</p>
                                     </div>
                                     <button onclick="deleteBill('${d.id}')" class="text-slate-300 hover:text-red-500 transition-colors p-1" title="Eliminar Borrador">
                                         <i data-lucide="x-circle" class="w-5 h-5"></i>
@@ -144,8 +166,8 @@ function initBilling() {
 /**
  * Crea una nueva factura en blanco
  */
-function createNewBill() {
-    const drafts = AppUtils.loadData('drafts_db');
+async function createNewBill() {
+    const drafts = await AppUtils.loadData('drafts_db'); // Await loadData
     const newId = Date.now().toString().slice(-6); // ID de 6 dígitos basado en tiempo
 
     const newDraft = {
@@ -156,38 +178,34 @@ function createNewBill() {
     };
 
     drafts.push(newDraft);
-    AppUtils.saveData('drafts_db', drafts);
+    await AppUtils.saveData('drafts_db', drafts); // Await save
     activeBillId = newId;
-    initBilling();
+    await initBilling();
     AppUtils.showToast('Nueva factura creada');
 }
 
 /**
  * Cambia entre facturas existentes
  */
-function switchBill(id) {
-    saveCurrentDraft(); // Guardar lo que se tiene antes de cambiar
+async function switchBill(id) {
+    await saveCurrentDraft(); // Await saveCurrentDraft
     activeBillId = id.toString();
-    initBilling();
+    await initBilling();
 }
 
 /**
  * Actualiza el modelo del carro en el estado
  */
-function updateCarModel(val) {
+async function updateCarModel(val) { // Mark as async
     carModel = val.toUpperCase();
-    saveCurrentDraft();
+    await saveCurrentDraft();
 }
 
-function calculateTotal(items) {
-    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    return subtotal * (1 + getIvaRate());
-}
 
 /**
  * Filtra el inventario en tiempo real y muestra los resultados
  */
-function handleProductSearch(query) {
+async function handleProductSearch(query) {
     const resultsDiv = document.getElementById('searchResults');
     const searchTerm = query.toLowerCase().trim();
 
@@ -224,7 +242,7 @@ function selectProduct(id, name) {
 /**
  * Agrega un producto seleccionado al carrito actual
  */
-function addToBill() {
+async function addToBill() {
     const productId = parseInt(document.getElementById('selectedProductId')?.value);
     const quantityInput = document.getElementById('productQuantity');
     const quantity = parseInt(quantityInput.value);
@@ -249,7 +267,7 @@ function addToBill() {
 
         // Descontar del inventario real de inmediato (Reserva)
         product.stock -= quantity;
-        AppUtils.saveData('inventory_db', inventory);
+        await AppUtils.saveData('inventory_db', inventory); // Await save
         if (typeof refreshUI === 'function') refreshUI();
 
         const existingItem = currentCart.find(item => item.id === productId);
@@ -260,7 +278,7 @@ function addToBill() {
         }
 
         renderCart();
-        saveCurrentDraft();
+        await saveCurrentDraft();
         AppUtils.showToast(`${product.name} agregado`);
         document.getElementById('productSearch').value = '';
         document.getElementById('selectedProductId').value = '';
@@ -271,7 +289,7 @@ function addToBill() {
 /**
  * Agrega un servicio manual (mano de obra, etc) al carrito
  */
-function addServiceToBill() {
+async function addServiceToBill() {
     const nameInput = document.getElementById('serviceName');
     const priceInput = document.getElementById('servicePrice');
     const name = nameInput.value.trim();
@@ -291,8 +309,8 @@ function addServiceToBill() {
     };
 
     currentCart.push(serviceItem);
-    renderCart();
-    saveCurrentDraft();
+    await renderCart(); // Await renderCart
+    await saveCurrentDraft();
     AppUtils.showToast('Servicio añadido');
 
     // Limpiar campos
@@ -303,22 +321,22 @@ function addServiceToBill() {
 /**
  * Persiste el estado actual de la factura en los borradores
  */
-function saveCurrentDraft() {
+async function saveCurrentDraft() {
     if (!activeBillId) return;
-    const drafts = AppUtils.loadData('drafts_db');
+    const drafts = await AppUtils.loadData('drafts_db');
     const index = drafts.findIndex(d => d.id === activeBillId);
     if (index !== -1) {
         drafts[index].items = currentCart;
         drafts[index].carModel = carModel;
         drafts[index].date = new Date().toISOString();
-        AppUtils.saveData('drafts_db', drafts);
+        await AppUtils.saveData('drafts_db', drafts);
     }
 }
 
 /**
  * Renderiza la lista de productos en el preview de la factura
  */
-function renderCart() {
+async function renderCart() {
     const preview = document.getElementById('billPreview');
     if (!preview) return;
 
@@ -347,7 +365,8 @@ function renderCart() {
     }
 
     const subtotal = currentCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const iva = subtotal * getIvaRate();
+    const ivaRate = await getIvaRate(); // Await getIvaRate
+    const iva = subtotal * ivaRate;
     const total = subtotal + iva;
 
     subtotalEl.textContent = AppUtils.formatCurrency(subtotal);
@@ -358,50 +377,51 @@ function renderCart() {
 /**
  * Elimina la factura activa con confirmación
  */
-function deleteActiveBill() {
+async function deleteActiveBill() { // Mark as async
     if (!activeBillId) return;
-    deleteBill(activeBillId);
+    await deleteBill(activeBillId);
 }
 
 /**
  * Elimina una factura específica y devuelve el stock
  */
-function deleteBill(id) {
+async function deleteBill(id) { // This was already correct
+    const idToDelete = String(id);
     Swal.fire({
-        title: '¿Eliminar factura?',
+        title: '¿Eliminar factura?', // This was already correct
         text: "Los productos agregados serán devueltos al inventario global.",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#ef4444',
         confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            const drafts = AppUtils.loadData('drafts_db');
-            const draftToDelete = drafts.find(d => d.id === id.toString());
+    }).then(async (result) => {
+        if (result.isConfirmed) { // This was already correct
+            const drafts = await AppUtils.loadData('drafts_db'); // This was already correct
+            const draftToDelete = drafts.find(d => String(d.id) === idToDelete);
 
             if (draftToDelete) {
                 // Devolver stock al inventario
                 draftToDelete.items.forEach(item => {
                     if (!item.isService) {
-                        const product = inventory.find(p => p.id === item.id);
+                        const product = inventory.find(p => String(p.id) === String(item.id));
                         if (product) product.stock += item.quantity;
                     }
                 });
-                AppUtils.saveData('inventory_db', inventory);
+                await AppUtils.saveData('inventory_db', inventory); // Await save
             }
 
-            const filteredDrafts = drafts.filter(d => d.id !== id.toString());
-            AppUtils.saveData('drafts_db', filteredDrafts);
+            const filteredDrafts = drafts.filter(d => String(d.id) !== idToDelete);
+            await AppUtils.saveData('drafts_db', filteredDrafts); // Await save
 
-            if (activeBillId === id.toString()) {
+            if (String(activeBillId) === idToDelete) {
                 activeBillId = null;
                 currentCart = [];
                 carModel = "";
             }
 
-            if (typeof refreshUI === 'function') refreshUI();
-            initBilling();
+            if (typeof refreshUI === 'function') await refreshUI(); // Await refreshUI
+            await initBilling(); // Await initBilling
             AppUtils.showToast('Factura eliminada y stock devuelto');
         }
     });
@@ -410,50 +430,50 @@ function deleteBill(id) {
 /**
  * Elimina un item del carrito
  */
-function removeFromCart(index) {
+async function removeFromCart(index) {
     const item = currentCart[index];
 
     // Devolver stock al inventario real si no es un servicio
     if (!item.isService) {
         const product = inventory.find(p => p.id === item.id);
         if (product) product.stock += item.quantity;
-        AppUtils.saveData('inventory_db', inventory);
-        if (typeof refreshUI === 'function') refreshUI();
+        await AppUtils.saveData('inventory_db', inventory);
+        if (typeof refreshUI === 'function') await refreshUI(); // Await refreshUI
     }
 
     currentCart.splice(index, 1);
-    renderCart();
-    saveCurrentDraft();
+    await renderCart();
+    await saveCurrentDraft();
 }
 
 /**
  * Procesa la venta: descuenta stock, guarda y limpia la UI
  */
-function processSale() {
+async function processSale() { // This was already correct
     if (currentCart.length === 0) {
-        AppUtils.showAlert('Carrito vacío', 'Agregue productos antes de procesar la venta', 'warning');
+        AppUtils.showAlert('Carrito vacío', 'Agregue productos antes de procesar la venta', 'warning'); // This was already correct
         return;
     }
 
     // Registrar la venta en el historial para estadísticas financieras
     const subtotal = currentCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const total = subtotal * (1 + getIvaRate());
-    const sales = AppUtils.loadData('sales_db');
+    const total = subtotal * (1 + await getIvaRate()); // Await getIvaRate
+    const sales = await AppUtils.loadData('sales_db'); // Await loadData
     sales.push({
         id: Date.now(),
         fecha: new Date().toISOString(),
         carModel: carModel,
         total: total
     });
-    AppUtils.saveData('sales_db', sales);
+    await AppUtils.saveData('sales_db', sales); // Await save
 
     // Persistir cambios
-    AppUtils.saveData('inventory_db', inventory);
+    await AppUtils.saveData('inventory_db', inventory); // Await save
 
     // Eliminar de borradores
-    const drafts = AppUtils.loadData('drafts_db');
+    const drafts = await AppUtils.loadData('drafts_db'); // Await loadData
     const filteredDrafts = drafts.filter(d => d.id !== activeBillId);
-    AppUtils.saveData('drafts_db', filteredDrafts);
+    await AppUtils.saveData('drafts_db', filteredDrafts); // Await save
 
     // Notificar y limpiar
     AppUtils.showAlert('Venta Exitosa', 'El stock ha sido actualizado y la factura procesada.', 'success');
@@ -463,10 +483,10 @@ function processSale() {
     carModel = "";
 
     // Refrescar UI global (Dashboard y Tabla de Inventario)
-    if (typeof refreshUI === 'function') refreshUI();
+    if (typeof refreshUI === 'function') await refreshUI(); // Await refreshUI
 
     // Reiniciar módulo de facturación para actualizar selectores de stock
-    initBilling();
+    await initBilling(); // Await initBilling
 }
 
 // Escuchar el click en el menú para inicializar el módulo

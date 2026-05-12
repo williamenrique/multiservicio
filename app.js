@@ -8,23 +8,46 @@ let salesChart = null;
 let salesTable = null;
 let clientsTable = null;
 let staffTable = null;
+let suppliersTable = null;
+let purchasesTable = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+// Variable global para el estado del inventario
+let inventory = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // Limpiar localStorage para asegurar que solo se usen los datos de los archivos JSON
+    localStorage.clear();
+
     initClock();
     initSidebar();
-    initInventory();
-    renderDashboardCards();
-    renderFinancialCards();
-    renderPendingBillsDashboard();
-    initSalesHistory();
-    initClients();
-    initStaff();
-    loadCompanySettings();
+
+    // 1. Asegurar que los archivos JSON existan y sean válidos []
+    await AppUtils.checkAndInitDB();
+
+    // Cargar datos iniciales de forma asíncrona
+    inventory = await AppUtils.loadData('inventory_db');
+
+    // Solo sembrar datos si es la primerísima vez (verificando una bandera en company_db)
+    const config = await AppUtils.loadData('company_db');
+    if (config.length === 0) {
+        await seedInitialData();
+    }
+
+    await initInventory();
+    await initSalesHistory();
+    await initClients();
+    await initStaff();
+    await initSuppliers();
+    await initPurchases();
+
+    await refreshUI();
+    await loadCompanySettings(); // This was already correct
 
     // Auto-update dashboard cards every 5 seconds
     setInterval(renderDashboardCards, 5000);
     setInterval(renderFinancialCards, 5000);
     setInterval(renderPendingBillsDashboard, 5000);
+    setInterval(renderSupplierDebtsDashboard, 5000);
 });
 
 // Reloj Digital en tiempo real
@@ -60,52 +83,54 @@ function showSection(sectionId) {
  * Centraliza la actualización de la UI cuando cambian los datos.
  * Debe llamarse después de cualquier operación CRUD o venta.
  */
-function refreshUI() {
+async function refreshUI() {
     if (inventoryTable) {
         inventoryTable.clear().rows.add(inventory).draw();
     }
-    if (salesTable) {
-        salesTable.clear().rows.add(AppUtils.loadData('sales_db')).draw();
-    }
-    if (clientsTable) {
-        clientsTable.clear().rows.add(AppUtils.loadData('clients_db')).draw();
-    }
-    if (staffTable) {
-        staffTable.clear().rows.add(AppUtils.loadData('staff_db')).draw();
-    }
-    renderDashboardCards();
-    renderFinancialCards();
-    renderPendingBillsDashboard();
+
+    const sales = await AppUtils.loadData('sales_db');
+    const clients = await AppUtils.loadData('clients_db');
+    const staff = await AppUtils.loadData('staff_db');
+    const suppliers = await AppUtils.loadData('suppliers_db');
+    const purchases = await AppUtils.loadData('purchases_db');
+
+    if (salesTable) salesTable.clear().rows.add(sales).draw();
+    if (clientsTable) clientsTable.clear().rows.add(clients).draw();
+    if (staffTable) staffTable.clear().rows.add(staff).draw();
+    if (suppliersTable) suppliersTable.clear().rows.add(suppliers).draw();
+    if (purchasesTable) purchasesTable.clear().rows.add(purchases).draw();
+
+    await renderDashboardCards();
+    await renderFinancialCards();
+    await renderPendingBillsDashboard();
+    await renderSupplierDebtsDashboard();
 }
 
-// Manejo de Inventario
-let inventory = AppUtils.loadData('inventory_db');
+/**
+ * Poblar datos iniciales si no existen (Simulación de DB vacía)
+ */
+async function seedInitialData() {
+    // Evitar duplicidad si ya existen datos
+    const currentInv = await AppUtils.loadData('inventory_db');
+    if (currentInv.length > 0) return;
 
-// Si está vacío, cargar datos de ejemplo
-if (inventory.length === 0) {
-    inventory = [
-        { id: 1, name: 'ACEITE SINTÉTICO 5W30', category: 'Mecánica', stock: 12, price: 45000, image: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=100&h=100&fit=crop' },
-        { id: 2, name: 'PASTILLAS FRENOS DEL.', category: 'Mecánica', stock: 3, price: 85000, image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=100&h=100&fit=crop' },
-        { id: 3, name: 'BOMBILLO LED H7', category: 'Electricidad', stock: 0, price: 25000, image: 'https://images.unsplash.com/photo-1552650278-b0a05e015930?w=100&h=100&fit=crop' }
+    const defaultInventory = [
+        { id: 1, name: 'ACEITE SINTÉTICO 5W30', category: 'Mecánica', stock: 12, price: 45000, image: '' },
+        { id: 2, name: 'PASTILLAS FRENOS DEL.', category: 'Mecánica', stock: 3, price: 85000, image: '' }
     ];
-    AppUtils.saveData('inventory_db', inventory);
-}
+    await AppUtils.saveData('inventory_db', defaultInventory);
+    inventory = defaultInventory;
 
-// Inicialización del Historial de Ventas (Datos de ejemplo para visualización y pruebas)
-let sales = AppUtils.loadData('sales_db');
-
-if (sales.length === 0) {
-    const now = new Date();
-    sales = [
-        { id: Date.now() - 259200000, fecha: new Date(now.getTime() - 259200000).toISOString(), carModel: 'TOYOTA COROLLA 2022', total: 185000 },
-        { id: Date.now() - 172800000, fecha: new Date(now.getTime() - 172800000).toISOString(), carModel: 'MAZDA 3 PLATEADO', total: 95000 },
-        { id: Date.now() - 86400000, fecha: new Date(now.getTime() - 86400000).toISOString(), carModel: 'RENAULT LOGAN BLANCO', total: 245000 },
-        { id: Date.now() - 3600000, fecha: new Date(now.getTime() - 3600000).toISOString(), carModel: 'CHEVROLET ONIX TURBO', total: 65000 }
+    const defaultSales = [
+        { id: Date.now(), fecha: new Date().toISOString(), carModel: 'DEMO VEHÍCULO', total: 50000 }
     ];
-    AppUtils.saveData('sales_db', sales);
+    await AppUtils.saveData('sales_db', defaultSales);
+
+    const defaultConfig = [{ name: 'Workshop Pro', nit: '00000000', iva: 19, address: 'Dirección taller' }];
+    await AppUtils.saveData('company_db', defaultConfig);
 }
 
-function initInventory() {
+async function initInventory() {
     inventoryTable = $('#inventoryTable').DataTable({
         data: inventory,
         dom: 'Bfrtip',
@@ -153,7 +178,7 @@ function initInventory() {
                 render: (data, type, row) => `
                     <div class="flex gap-2">
                         <button onclick="editProduct(${row.id})" class="p-1 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
-                        <button onclick="deleteProduct(${row.id})" class="p-1 text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button onclick="genericDelete(${row.id}, 'inventory_db', 'Producto')" class="p-1 text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 `
             }
@@ -182,8 +207,8 @@ function initInventory() {
 /**
  * Inicializa la tabla de historial de ventas
  */
-function initSalesHistory() {
-    const sales = AppUtils.loadData('sales_db');
+async function initSalesHistory() {
+    const sales = await AppUtils.loadData('sales_db');
     salesTable = $('#salesTable').DataTable({
         data: sales,
         order: [[1, 'desc']],
@@ -201,10 +226,16 @@ function initSalesHistory() {
             {
                 data: null,
                 render: (data, type, row) => `
-                    <button onclick="AppUtils.showToast('Función de reimpresión en desarrollo', 'info')" 
-                            class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Ver Detalle">
-                        <i data-lucide="eye" class="w-4 h-4"></i>
-                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="AppUtils.showToast('Función de reimpresión en desarrollo', 'info')" 
+                                class="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Ver Detalle">
+                            <i data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="genericDelete(${row.id}, 'sales_db', 'Venta del Historial')" 
+                                class="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar del Historial">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 `
             }
         ],
@@ -214,9 +245,9 @@ function initSalesHistory() {
     });
 }
 
-function renderDashboardCards() {
+async function renderDashboardCards() {
     const container = document.getElementById('dashboard-cards');
-    const drafts = AppUtils.loadData('drafts_db');
+    const drafts = await AppUtils.loadData('drafts_db');
 
     // Calcular cuántos repuestos hay "reservados" en borradores
     const reservedUnits = drafts.reduce((total, draft) => {
@@ -375,11 +406,11 @@ function openInventoryModal() {
             lucide.createIcons();
         },
         preConfirm: () => {
-            const image = document.getElementById('swal-image').value.trim();
-            const name = document.getElementById('swal-name').value.trim().toUpperCase();
-            const category = document.getElementById('swal-category').value;
-            const price = parseFloat(document.getElementById('swal-price').value);
-            const stock = parseInt(document.getElementById('swal-stock').value);
+            const image = document.getElementById('swal-image').value.trim(); // This was already correct
+            const name = document.getElementById('swal-name').value.trim().toUpperCase(); // This was already correct
+            const category = document.getElementById('swal-category').value; // This was already correct
+            const price = parseFloat(document.getElementById('swal-price').value); // This was already correct
+            const stock = parseInt(document.getElementById('swal-stock').value); // This was already correct
 
             if (!name || isNaN(price) || isNaN(stock)) {
                 Swal.showValidationMessage(`Por favor, completa todos los campos correctamente`);
@@ -387,7 +418,7 @@ function openInventoryModal() {
             }
             return { name, category, price, stock, image };
         }
-    }).then((result) => {
+    }).then(async (result) => {
         if (result.isConfirmed) {
             // Generar nuevo ID único
             const newId = inventory.length > 0 ? Math.max(...inventory.map(p => p.id)) + 1 : 1;
@@ -399,10 +430,10 @@ function openInventoryModal() {
 
             // Actualizar arreglo global y persistencia
             inventory.push(newProduct);
-            AppUtils.saveData('inventory_db', inventory);
+            await AppUtils.saveData('inventory_db', inventory); // Await save
 
             // Refrescar la tabla y los indicadores del dashboard sin recargar la página
-            refreshUI();
+            await refreshUI(); // Await refreshUI
 
             AppUtils.showToast('Producto agregado al inventario', 'success');
         }
@@ -412,8 +443,8 @@ function openInventoryModal() {
 /** 
  * GESTIÓN DE CLIENTES 
  */
-function initClients() {
-    const clients = AppUtils.loadData('clients_db');
+async function initClients() {
+    const clients = await AppUtils.loadData('clients_db');
     clientsTable = $('#clientsTable').DataTable({
         data: clients,
         columns: [
@@ -426,7 +457,7 @@ function initClients() {
                 render: (data, type, row) => `
                     <div class="flex gap-2">
                         <button onclick="openClientModal(${row.id})" class="p-1 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
-                        <button onclick="deleteClient(${row.id})" class="p-1 text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button onclick="genericDelete(${row.id}, 'clients_db', 'Cliente')" class="p-1 text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 `
             }
@@ -436,8 +467,8 @@ function initClients() {
     });
 }
 
-function openClientModal(id = null) {
-    const clients = AppUtils.loadData('clients_db');
+async function openClientModal(id = null) {
+    const clients = await AppUtils.loadData('clients_db');
     const client = id ? clients.find(c => c.id == id) : { id: '', name: '', phone: '', email: '', address: '' };
 
     Swal.fire({
@@ -461,22 +492,12 @@ function openClientModal(id = null) {
                 email: document.getElementById('c-email').value
             }
         }
-    }).then(result => {
+    }).then(async result => {
         if (result.isConfirmed) {
             let updatedClients = id ? clients.filter(c => c.id != id) : clients;
             updatedClients.push(result.value);
-            AppUtils.saveData('clients_db', updatedClients);
-            refreshUI();
-        }
-    });
-}
-
-function deleteClient(id) {
-    Swal.fire({ title: '¿Eliminar cliente?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444' }).then(r => {
-        if (r.isConfirmed) {
-            const clients = AppUtils.loadData('clients_db').filter(c => c.id != id);
-            AppUtils.saveData('clients_db', clients);
-            refreshUI();
+            await AppUtils.saveData('clients_db', updatedClients);
+            await refreshUI();
         }
     });
 }
@@ -484,8 +505,8 @@ function deleteClient(id) {
 /** 
  * GESTIÓN DE PERSONAL 
  */
-function initStaff() {
-    const staff = AppUtils.loadData('staff_db');
+async function initStaff() {
+    const staff = await AppUtils.loadData('staff_db');
     staffTable = $('#staffTable').DataTable({
         data: staff,
         columns: [
@@ -498,7 +519,7 @@ function initStaff() {
                 render: (data, type, row) => `
                     <div class="flex gap-2">
                         <button onclick="openStaffModal('${row.id}')" class="p-1 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
-                        <button onclick="deleteStaff('${row.id}')" class="p-1 text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button onclick="genericDelete('${row.id}', 'staff_db', 'Empleado')" class="p-1 text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 `
             }
@@ -508,8 +529,8 @@ function initStaff() {
     });
 }
 
-function openStaffModal(id = null) {
-    const staff = AppUtils.loadData('staff_db');
+async function openStaffModal(id = null) {
+    const staff = await AppUtils.loadData('staff_db');
     const member = id ? staff.find(s => s.id == id) : { id: '', name: '', role: 'Mecánico', phone: '' };
 
     Swal.fire({
@@ -537,22 +558,12 @@ function openStaffModal(id = null) {
                 phone: document.getElementById('s-phone').value
             }
         }
-    }).then(result => {
+    }).then(async result => {
         if (result.isConfirmed) {
             let updatedStaff = id ? staff.filter(s => s.id != id) : staff;
             updatedStaff.push(result.value);
-            AppUtils.saveData('staff_db', updatedStaff);
-            refreshUI();
-        }
-    });
-}
-
-function deleteStaff(id) {
-    Swal.fire({ title: '¿Eliminar empleado?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444' }).then(r => {
-        if (r.isConfirmed) {
-            const staff = AppUtils.loadData('staff_db').filter(s => s.id != id);
-            AppUtils.saveData('staff_db', staff);
-            refreshUI();
+            await AppUtils.saveData('staff_db', updatedStaff);
+            await refreshUI();
         }
     });
 }
@@ -560,11 +571,11 @@ function deleteStaff(id) {
 /** 
  * CONFIGURACIÓN DE EMPRESA 
  */
-function loadCompanySettings() {
-    const config = AppUtils.loadData('company_db');
+async function loadCompanySettings() {
+    const config = await AppUtils.loadData('company_db');
     if (config.length === 0) {
         const defaultConfig = { name: 'Workshop Pro', nit: '00000000', iva: 19, address: 'Dirección taller' };
-        AppUtils.saveData('company_db', [defaultConfig]);
+        await AppUtils.saveData('company_db', [defaultConfig]);
         setFormConfig(defaultConfig);
     } else {
         setFormConfig(config[0]);
@@ -578,7 +589,7 @@ function setFormConfig(config) {
     document.getElementById('config-address').value = config.address;
 }
 
-function saveCompanySettings(e) {
+async function saveCompanySettings(e) {
     e.preventDefault();
     const newConfig = {
         name: document.getElementById('config-name').value,
@@ -586,7 +597,7 @@ function saveCompanySettings(e) {
         iva: parseFloat(document.getElementById('config-iva').value),
         address: document.getElementById('config-address').value
     };
-    AppUtils.saveData('company_db', [newConfig]);
+    await AppUtils.saveData('company_db', [newConfig]);
     AppUtils.showToast('Configuración guardada correctamente');
 
     // Si el módulo de facturación está cargado, actualizar la tasa de IVA
@@ -598,11 +609,11 @@ function saveCompanySettings(e) {
 /**
  * Renderiza una vista rápida de las facturas pendientes en el dashboard
  */
-function renderPendingBillsDashboard() {
+async function renderPendingBillsDashboard() {
     const container = document.getElementById('pending-bills-dashboard');
     if (!container) return;
 
-    const drafts = AppUtils.loadData('drafts_db');
+    const drafts = await AppUtils.loadData('drafts_db');
 
     if (drafts.length === 0) {
         container.innerHTML = `
@@ -641,22 +652,22 @@ function renderPendingBillsDashboard() {
 /**
  * Función puente para retomar una factura directamente desde el dashboard
  */
-function resumeBillFromDashboard(id) {
+async function resumeBillFromDashboard(id) {
     if (typeof activeBillId !== 'undefined') {
         activeBillId = id.toString();
         showSection('facturacion');
-        if (typeof initBilling === 'function') initBilling();
+        if (typeof initBilling === 'function') await initBilling(); // Await initBilling
     }
 }
 
 /**
  * Calcula y renderiza las estadísticas financieras en el dashboard
  */
-function renderFinancialCards() {
+async function renderFinancialCards() {
     const container = document.getElementById('financial-cards');
     if (!container) return;
 
-    const sales = AppUtils.loadData('sales_db');
+    const sales = await AppUtils.loadData('sales_db');
     const totalFacturado = sales.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const totalVentas = sales.length;
     const ticketPromedio = totalVentas > 0 ? totalFacturado / totalVentas : 0;
@@ -678,6 +689,30 @@ function renderFinancialCards() {
     `).join('');
     lucide.createIcons();
     updateSalesChart(sales);
+}
+
+/**
+ * Función genérica para eliminar registros de cualquier base de datos JSON
+ * @param {string|number} id - ID del registro a eliminar
+ * @param {string} dbKey - Llave del archivo JSON (ej: 'inventory_db')
+ * @param {string} label - Nombre legible para el mensaje de confirmación
+ */
+async function genericDelete(id, dbKey, label) {
+    AppUtils.confirmAction(
+        `¿Eliminar ${label}?`,
+        "Esta acción no se puede deshacer y afectará los registros actuales.",
+        async () => {
+            const data = await AppUtils.loadData(dbKey);
+            const filteredData = data.filter(item => (item.id || item.nit) != id);
+
+            // Si eliminamos del inventario, actualizamos la variable global
+            if (dbKey === 'inventory_db') inventory = filteredData;
+
+            await AppUtils.saveData(dbKey, filteredData);
+            await refreshUI();
+            AppUtils.showToast(`${label} eliminado correctamente`, 'success');
+        }
+    );
 }
 
 /**
@@ -722,32 +757,207 @@ function updateSalesChart(sales) {
 /**
  * Elimina un producto del inventario con confirmación
  */
-function deleteProduct(id) {
+
+/**
+ * Calcula y renderiza el resumen de deudas con proveedores en el dashboard
+ */
+async function renderSupplierDebtsDashboard() {
+    const container = document.getElementById('supplier-debts-dashboard');
+    if (!container) return;
+
+    const purchases = await AppUtils.loadData('purchases_db');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const activeDebts = purchases.filter(p => (p.total - p.paid) > 0);
+
+    const totalOwed = activeDebts.reduce((sum, p) => sum + (p.total - p.paid), 0);
+
+    const overdue = activeDebts.filter(p => p.cutoff && new Date(p.cutoff) < today);
+    const totalOverdue = overdue.reduce((sum, p) => sum + (p.total - p.paid), 0);
+
+    const dueSoon = activeDebts.filter(p => {
+        if (!p.cutoff) return false;
+        const cutoffDate = new Date(p.cutoff);
+        const diffTime = cutoffDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 7;
+    });
+    const totalDueSoon = dueSoon.reduce((sum, p) => sum + (p.total - p.paid), 0);
+
+    const stats = [
+        { label: 'Deuda Total Proveedores', value: AppUtils.formatCurrency(totalOwed), color: 'text-slate-800', border: 'border-slate-800', icon: 'wallet' },
+        { label: 'Saldos Vencidos', value: AppUtils.formatCurrency(totalOverdue), color: 'text-error-red', border: 'border-error-red', icon: 'alert-octagon' },
+        { label: 'Vencen en 7 días', value: AppUtils.formatCurrency(totalDueSoon), color: 'text-amber-600', border: 'border-amber-600', icon: 'calendar-clock' }
+    ];
+
+    container.innerHTML = stats.map(s => `
+        <div class="glass-card p-4 rounded-xl flex items-center justify-between border-l-4 ${s.border}">
+            <div>
+                <p class="text-gray-400 text-sm">${s.label}</p>
+                <h3 class="text-2xl font-bold ${s.color}">${s.value}</h3>
+            </div>
+            <i data-lucide="${s.icon}" class="${s.color} w-8 h-8 opacity-20"></i>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+/** GESTIÓN DE PROVEEDORES */
+async function initSuppliers() {
+    const suppliers = await AppUtils.loadData('suppliers_db'); // This was already correct
+    suppliersTable = $('#suppliersTable').DataTable({
+        data: suppliers,
+        columns: [
+            { data: 'id' }, { data: 'name' }, { data: 'phone' }, { data: 'email' },
+            {
+                data: null,
+                render: (data, type, row) => `
+                    <div class="flex gap-2">
+                        <button onclick="openSupplierModal('${row.id}')" class="p-1 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                        <button onclick="genericDelete('${row.id}', 'suppliers_db', 'Proveedor')" class="p-1 text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                `
+            }
+        ],
+        responsive: true,
+        drawCallback: () => lucide.createIcons()
+    });
+}
+
+async function initPurchases() { // This was already correct
+    const purchases = await AppUtils.loadData('purchases_db'); // This was already correct
+    purchasesTable = $('#purchasesTable').DataTable({
+        data: purchases,
+        order: [[0, 'desc']],
+        columns: [
+            { data: 'date', render: d => new Date(d).toLocaleDateString() },
+            { data: 'supplierName' },
+            { data: 'total', render: d => AppUtils.formatCurrency(d) },
+            { data: 'paid', render: d => AppUtils.formatCurrency(d) },
+            {
+                data: null,
+                render: row => `<span class="font-bold ${row.total - row.paid > 0 ? 'text-red-500' : 'text-emerald-500'}">${AppUtils.formatCurrency(row.total - row.paid)}</span>`
+            },
+            { data: 'cutoff', render: d => d ? new Date(d).toLocaleDateString() : 'N/A' },
+            {
+                data: null,
+                render: (data, type, row) => `
+                    <button onclick="viewPurchaseDetail('${row.id}')" class="p-1 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                `
+            }
+        ],
+        responsive: true,
+        drawCallback: () => lucide.createIcons()
+    });
+}
+
+function switchProveedorTab(tab) {
+    const isLista = tab === 'lista';
+    document.getElementById('prov-lista-content').classList.toggle('hidden', !isLista);
+    document.getElementById('prov-deudas-content').classList.toggle('hidden', isLista);
+    document.getElementById('tab-prov-lista').className = isLista ? 'pb-2 px-1 border-b-2 border-neon-green font-bold text-navy-blue' : 'pb-2 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue';
+    document.getElementById('tab-prov-deudas').className = !isLista ? 'pb-2 px-1 border-b-2 border-neon-green font-bold text-navy-blue' : 'pb-2 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue';
+}
+
+async function openSupplierModal(id = null) {
+    const suppliers = await AppUtils.loadData('suppliers_db'); // Await loadData
+    const sup = id ? suppliers.find(s => s.id == id) : { id: '', name: '', phone: '', email: '' };
     Swal.fire({
-        title: '¿Eliminar producto?',
-        text: "Esta acción no se puede deshacer.",
-        icon: 'warning',
+        title: id ? 'Editar Proveedor' : 'Nuevo Proveedor',
+        html: `<div class="text-left space-y-4">
+                <input id="p-id" class="w-full p-2 border rounded-lg" placeholder="NIT o Cédula" value="${sup.id}">
+                <input id="p-name" class="w-full p-2 border rounded-lg uppercase" placeholder="Nombre de la empresa" value="${sup.name}">
+                <input id="p-phone" class="w-full p-2 border rounded-lg" placeholder="Teléfono de contacto" value="${sup.phone}">
+                <input id="p-email" class="w-full p-2 border rounded-lg" placeholder="Correo electrónico" value="${sup.email}">
+            </div>`,
+        confirmButtonColor: '#39FF14',
+        confirmButtonText: '<span class="text-black font-bold">Guardar</span>',
         showCancelButton: true,
-        confirmButtonColor: '#ef4444',
-        confirmButtonText: 'Sí, eliminar'
-    }).then((result) => {
+        preConfirm: () => ({
+            id: document.getElementById('p-id').value,
+            name: document.getElementById('p-name').value.toUpperCase(),
+            phone: document.getElementById('p-phone').value,
+            email: document.getElementById('p-email').value
+        })
+    }).then(async result => { // Mark callback as async
         if (result.isConfirmed) {
-            inventory = inventory.filter(p => p.id !== id);
-            AppUtils.saveData('inventory_db', inventory);
-            refreshUI();
-            AppUtils.showToast('Producto eliminado');
+            let data = id ? suppliers.filter(s => s.id != id) : suppliers;
+            data.push(result.value);
+            await AppUtils.saveData('suppliers_db', data); // Await save
+            await refreshUI(); // Await refreshUI
         }
+    });
+}
+
+async function openPurchaseModal() {
+    const suppliers = await AppUtils.loadData('suppliers_db');
+    if (suppliers.length === 0) return AppUtils.showAlert('Atención', 'Registre un proveedor primero', 'warning');
+    const prodOptions = inventory.map(p => `<option value="${p.id}">${p.name} (Disp: ${p.stock})</option>`).join('');
+    const supOptions = suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    Swal.fire({
+        title: 'Ingreso de Mercancía',
+        html: `<div class="text-left space-y-3">
+                <label class="block text-xs font-bold text-slate-500 uppercase">Proveedor y Producto</label>
+                <select id="pur-sup" class="w-full p-2 border rounded-lg">${supOptions}</select>
+                <select id="pur-prod" class="w-full p-2 border rounded-lg">${prodOptions}</select>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="number" id="pur-qty" class="p-2 border rounded-lg" placeholder="Cantidad">
+                    <input type="number" id="pur-cost" class="p-2 border rounded-lg" placeholder="Costo Unitario">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="number" id="pur-paid" class="p-2 border rounded-lg" value="0" placeholder="Abono">
+                    <input type="date" id="pur-cutoff" class="p-2 border rounded-lg" title="Fecha de Pago/Corte">
+                </div>
+            </div>`,
+        confirmButtonColor: '#39FF14', confirmButtonText: '<span class="text-black font-bold">Procesar</span>', showCancelButton: true,
+        preConfirm: () => {
+            const qty = parseInt(document.getElementById('pur-qty').value);
+            const cost = parseFloat(document.getElementById('pur-cost').value);
+            if (!qty || !cost) return Swal.showValidationMessage('Complete cantidad y costo');
+            return { supplierId: document.getElementById('pur-sup').value, productId: parseInt(document.getElementById('pur-prod').value), qty, cost, paid: parseFloat(document.getElementById('pur-paid').value), cutoff: document.getElementById('pur-cutoff').value };
+        }
+    }).then(async result => { // Mark callback as async
+        if (result.isConfirmed) {
+            const val = result.value;
+            const product = inventory.find(p => p.id == val.productId);
+            product.stock += val.qty;
+            await AppUtils.saveData('inventory_db', inventory); // Await save
+            const purchases = await AppUtils.loadData('purchases_db'); // Await loadData
+            purchases.push({ id: Date.now(), date: new Date().toISOString(), supplierId: val.supplierId, supplierName: suppliers.find(s => s.id == val.supplierId).name, productId: val.productId, productName: product.name, qty: val.qty, total: val.qty * val.cost, paid: val.paid, cutoff: val.cutoff });
+            await AppUtils.saveData('purchases_db', purchases); // Await save
+            await refreshUI(); // Await refreshUI
+            AppUtils.showToast('Stock actualizado y deuda registrada');
+        }
+    });
+}
+
+async function viewPurchaseDetail(id) {
+    const purchases = await AppUtils.loadData('purchases_db');
+    const purchase = purchases.find(p => p.id == id);
+    if (!purchase) return;
+    Swal.fire({
+        title: 'Detalle de Ingreso',
+        html: `<div class="text-left text-sm space-y-2">
+                <p><b>Proveedor:</b> ${purchase.supplierName}</p>
+                <p><b>Producto:</b> ${purchase.productName} (x${purchase.qty})</p>
+                <p><b>Total Factura:</b> ${AppUtils.formatCurrency(purchase.total)}</p>
+                <p><b>Abonado:</b> ${AppUtils.formatCurrency(purchase.paid)}</p>
+                <p class="text-red-600 font-bold"><b>Saldo:</b> ${AppUtils.formatCurrency(purchase.total - purchase.paid)}</p>
+                <p><b>Corte:</b> ${purchase.cutoff || 'No definida'}</p>
+            </div>`,
+        confirmButtonColor: '#0b1120'
     });
 }
 
 /**
  * Descarga todos los datos del taller en un archivo JSON
  */
-function downloadBackup() {
+async function downloadBackup() {
     const data = {
-        inventory: AppUtils.loadData('inventory_db'),
-        sales: AppUtils.loadData('sales_db'),
-        drafts: AppUtils.loadData('drafts_db'),
+        inventory: await AppUtils.loadData('inventory_db'),
+        sales: await AppUtils.loadData('sales_db'),
+        drafts: await AppUtils.loadData('drafts_db'),
         exportDate: new Date().toISOString()
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -761,7 +971,7 @@ function downloadBackup() {
 /**
  * Busca un producto por ID y abre el modal de edición con los datos cargados
  */
-function editProduct(id) {
+async function editProduct(id) {
     const product = inventory.find(p => p.id === id);
     if (!product) return;
 
@@ -871,12 +1081,12 @@ function editProduct(id) {
             }
             return { name, category, price, stock, image };
         }
-    }).then((result) => {
+    }).then(async (result) => {
         if (result.isConfirmed) {
             const index = inventory.findIndex(p => p.id === id);
             inventory[index] = { ...inventory[index], ...result.value };
-            AppUtils.saveData('inventory_db', inventory);
-            refreshUI();
+            await AppUtils.saveData('inventory_db', inventory);
+            await refreshUI();
             AppUtils.showToast('Producto actualizado correctamente');
         }
     });
