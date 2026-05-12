@@ -407,7 +407,7 @@ function openInventoryModal() {
         },
         preConfirm: () => {
             const image = document.getElementById('swal-image').value.trim(); // This was already correct
-            const name = document.getElementById('swal-name').value.trim().toUpperCase(); // This was already correct
+            const name = document.getElementById('swal-name').value.trim().toUpperCase();
             const category = document.getElementById('swal-category').value; // This was already correct
             const price = parseFloat(document.getElementById('swal-price').value); // This was already correct
             const stock = parseInt(document.getElementById('swal-stock').value); // This was already correct
@@ -485,8 +485,8 @@ async function openClientModal(id = null) {
         confirmButtonText: '<span class="text-black font-bold">Guardar</span>',
         showCancelButton: true,
         preConfirm: () => {
-            return {
-                id: document.getElementById('c-id').value,
+            return { // All text inputs are converted to uppercase
+                id: document.getElementById('c-id').value.toUpperCase(),
                 name: document.getElementById('c-name').value.toUpperCase(),
                 phone: document.getElementById('c-phone').value,
                 email: document.getElementById('c-email').value
@@ -551,8 +551,8 @@ async function openStaffModal(id = null) {
         confirmButtonText: '<span class="text-black font-bold">Guardar</span>',
         showCancelButton: true,
         preConfirm: () => {
-            return {
-                id: document.getElementById('s-id').value,
+            return { // All text inputs are converted to uppercase
+                id: document.getElementById('s-id').value.toUpperCase(),
                 name: document.getElementById('s-name').value.toUpperCase(),
                 role: document.getElementById('s-role').value,
                 phone: document.getElementById('s-phone').value
@@ -593,7 +593,7 @@ async function saveCompanySettings(e) {
     e.preventDefault();
     const newConfig = {
         name: document.getElementById('config-name').value,
-        nit: document.getElementById('config-nit').value,
+        nit: document.getElementById('config-nit').value.toUpperCase(),
         iva: parseFloat(document.getElementById('config-iva').value),
         address: document.getElementById('config-address').value
     };
@@ -875,7 +875,7 @@ async function openSupplierModal(id = null) {
         confirmButtonText: '<span class="text-black font-bold">Guardar</span>',
         showCancelButton: true,
         preConfirm: () => ({
-            id: document.getElementById('p-id').value,
+            id: document.getElementById('p-id').value.toUpperCase(),
             name: document.getElementById('p-name').value.toUpperCase(),
             phone: document.getElementById('p-phone').value,
             email: document.getElementById('p-email').value
@@ -1070,7 +1070,7 @@ async function editProduct(id) {
         },
         preConfirm: () => {
             const image = document.getElementById('swal-image').value.trim();
-            const name = document.getElementById('swal-name').value.trim().toUpperCase();
+            const name = document.getElementById('swal-name').value.trim().toUpperCase(); // Converted to uppercase
             const category = document.getElementById('swal-category').value;
             const price = parseFloat(document.getElementById('swal-price').value);
             const stock = parseInt(document.getElementById('swal-stock').value);

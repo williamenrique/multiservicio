@@ -63,7 +63,7 @@ async function initBilling() {
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-slate-500 uppercase">Modelo del Vehículo</label>
-                    <input type="text" id="carModelInput" value="${carModel}" onchange="updateCarModel(this.value)" 
+                    <input type="text" id="carModelInput" value="${carModel}" onchange="updateCarModel(this.value.toUpperCase())" 
                         class="bg-transparent border-b border-slate-300 focus:border-navy-blue outline-none font-bold text-slate-800 uppercase" 
                         placeholder="EJ: TOYOTA HILUX 2023">
                 </div>
@@ -129,7 +129,7 @@ async function initBilling() {
                     <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800 uppercase tracking-tight">
                         <i data-lucide="wrench" class="text-blue-600"></i> Mano de Obra / Servicios
                     </h3>
-                    <div class="space-y-3">
+                    <div class="space-y-3 no-print">
                         <input id="serviceName" class="w-full bg-white border border-gray-300 p-2 rounded text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="DESCRIPCIÓN DEL SERVICIO (EJ: MANO DE OBRA)">
                         <div class="flex flex-col sm:flex-row gap-2 w-full">
                             <input id="servicePrice" type="number" class="flex-1 min-w-0 bg-white border border-gray-300 p-2 rounded text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Precio">
@@ -197,7 +197,7 @@ async function switchBill(id) {
  * Actualiza el modelo del carro en el estado
  */
 async function updateCarModel(val) { // Mark as async
-    carModel = val.toUpperCase();
+    carModel = val; // Already converted to uppercase in the input's onchange
     await saveCurrentDraft();
 }
 
@@ -301,7 +301,7 @@ async function addServiceToBill() {
     }
 
     const serviceItem = {
-        id: `serv-${Date.now()}`, // ID único para evitar conflictos con inventario
+        id: `SERV-${Date.now()}`, // ID único para evitar conflictos con inventario, ahora en mayúsculas
         name: `${name.toUpperCase()}`,
         price: price,
         quantity: 1,
