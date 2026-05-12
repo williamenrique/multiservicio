@@ -1,16 +1,17 @@
+<?php require_once 'constants.php'; ?>
 <!DOCTYPE html>
 <html lang="es">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TallerPro - Multiservicios</title>
-    <link rel="shortcut icon" href="logo1.png" type="image/x-icon">
+    <title><?php echo APP_NAME; ?> - Multiservicios</title>
+    <link rel="shortcut icon" href="<?php echo IMG_DIR; ?>logo1.png" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
     <!-- Iconos -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -383,10 +384,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 
-    <script src="./utils.js"></script>
-    <script src="./app.js"></script>
-    <script src="./facturacion.js"></script>
-    <script src="./notifications.js"></script>
+    <script src="<?php echo URL_JS; ?>utils.js"></script>
+    <script src="<?php echo URL_JS; ?>app.js"></script>
+    <script src="<?php echo URL_JS; ?>facturacion.js"></script>
+    <script src="<?php echo URL_JS; ?>notifications.js"></script>
     <script>
         lucide.createIcons();
     </script>

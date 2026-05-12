@@ -57,7 +57,7 @@ function initClock() {
     const clockElement = document.getElementById('digitalClock');
     setInterval(() => {
         const now = new Date();
-        clockElement.textContent = now.toLocaleTimeString();
+        clockElement.textContent = now.toLocaleTimeString('es-CO', { hour12: true });
     }, 1000);
 }
 
@@ -221,7 +221,7 @@ async function initSalesHistory() {
             { data: 'id', render: (data) => `<span class="font-mono">#${data.toString().slice(-6)}</span>` },
             {
                 data: 'fecha',
-                render: (data) => new Date(data).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })
+                render: (data) => new Date(data).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short', hour12: true })
             },
             { data: 'carModel', render: (data) => data || 'N/A' },
             {
@@ -647,15 +647,45 @@ async function renderPendingBillsDashboard() {
     }
 
     container.innerHTML = drafts.map(d => {
+        const draftDate = new Date(d.date);
+        const diffMs = now - draftDate;
+        const isUrgent = d.date && diffMs > twoHoursInMs;
+
+        // Colores dinámicos según la antigüedad
+        const borderColor = isUrgent ? 'border-red-500' : 'border-blue-500';
+        const bgHighlight = isUrgent ? 'bg-red-50/50' : '';
+        const badgeColor = isUrgent ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700';
+
+        // Cálculo de tiempo transcurrido para la etiqueta
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        let timeLabel = "";
+        if (diffDays >= 1) {
+            timeLabel = `${diffDays}d ${diffHours % 24}h`;
+        } else if (diffHours >= 1) {
+            timeLabel = `${diffHours}h ${diffMins % 60}m`;
+        } else {
+            timeLabel = `${diffMins}m`;
+        }
+
         const subtotal = d.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         const total = subtotal * 1.19; // IVA incluido para visualización
         return `
-            <div onclick="resumeBillFromDashboard('${d.id}')" class="glass-card p-5 rounded-xl border-l-4 border-blue-500 hover:shadow-xl transition-all cursor-pointer group">
+            <div onclick="resumeBillFromDashboard('${d.id}')" 
+                 class="glass-card p-5 rounded-xl border-l-4 ${borderColor} ${bgHighlight} hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden">
+                ${isUrgent ? `<div class="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-bl-lg animate-pulse">URGENTE</div>` : ''}
                 <div class="flex justify-between items-start mb-3">
-                    <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded">#${d.id}</span>
-                    <span class="text-[10px] text-slate-400 font-medium">${new Date(d.date).toLocaleDateString()}</span>
+                    <span class="${badgeColor} text-[10px] font-bold px-2 py-1 rounded">#${d.id}</span>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[10px] text-slate-400 font-medium">${draftDate.toLocaleDateString()}</span>
+                        <span class="text-[9px] ${isUrgent ? 'text-red-600 font-bold' : 'text-slate-400'} flex items-center gap-1">
+                            <i data-lucide="clock" class="w-2.5 h-2.5"></i> Hace ${timeLabel}
+                        </span>
+                    </div>
                 </div>
-                <h4 class="font-bold text-slate-800 uppercase truncate group-hover:text-blue-600 transition-colors">${d.carModel || 'SIN MODELO'}</h4>
+                <h4 class="font-bold text-slate-800 uppercase truncate group-hover:${isUrgent ? 'text-red-600' : 'text-blue-600'} transition-colors">${d.carModel || 'SIN MODELO'}</h4>
                 <div class="flex justify-between items-center mt-4 pt-3 border-t border-slate-100">
                     <div class="flex items-center gap-1 text-slate-500">
                         <i data-lucide="shopping-cart" class="w-3 h-3"></i>
@@ -756,7 +786,7 @@ function updateSalesChart(sales) {
 
     // Agrupar ventas por fecha (últimos 7 registros)
     const lastSales = sales.slice(-7);
-    const labels = lastSales.map(s => new Date(s.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    const labels = lastSales.map(s => new Date(s.fecha).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true }));
     const data = lastSales.map(s => s.total);
 
     if (salesChart) {
