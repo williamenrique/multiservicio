@@ -223,7 +223,19 @@ async function initSalesHistory() {
                 data: 'fecha',
                 render: (data) => new Date(data).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short', hour12: true })
             },
-            { data: 'carModel', render: (data) => data || 'N/A' },
+            {
+                data: null,
+                render: (row) => `
+                    <div class="flex flex-col">
+                        <span class="font-bold text-xs">${row.placa || 'SIN PLACA'}</span>
+                        <span class="text-[10px] text-slate-400 uppercase">${row.carModel || 'N/A'}</span>
+                    </div>
+                `
+            },
+            {
+                data: 'items',
+                render: (data) => data ? data.length : 0
+            },
             {
                 data: 'total',
                 render: (data) => `<span class="font-bold text-navy-blue">${AppUtils.formatCurrency(data)}</span>`
@@ -232,7 +244,7 @@ async function initSalesHistory() {
                 data: null,
                 render: (data, type, row) => `
                     <div class="flex gap-2">
-                        <button onclick="AppUtils.showToast('Función de reimpresión en desarrollo', 'info')" 
+                        <button onclick="viewSaleDetail(${row.id})" 
                                 class="p-1 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Ver Detalle">
                             <i data-lucide="eye" class="w-4 h-4"></i>
                         </button>
@@ -247,6 +259,46 @@ async function initSalesHistory() {
         responsive: true,
         language: { search: "Buscar venta:" },
         drawCallback: () => lucide.createIcons()
+    });
+}
+
+/**
+ * Muestra un modal con el detalle de los productos/servicios de una venta
+ */
+async function viewSaleDetail(id) {
+    const sales = await AppUtils.loadData('sales_db');
+    const sale = sales.find(s => String(s.id) === String(id));
+    if (!sale) return;
+
+    const itemsHtml = sale.items && sale.items.length > 0
+        ? sale.items.map(item => `
+            <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
+                <div class="text-left">
+                    <p class="font-bold text-slate-800 text-xs">${item.name}</p>
+                    <p class="text-[10px] text-slate-500">${item.quantity} x ${AppUtils.formatCurrency(item.price)}</p>
+                </div>
+                <span class="font-bold text-navy-blue text-xs">${AppUtils.formatCurrency(item.price * item.quantity)}</span>
+            </div>
+        `).join('')
+        : '<p class="text-slate-400 italic text-center py-4">No hay detalles disponibles para esta venta.</p>';
+
+    Swal.fire({
+        title: `Detalle de Venta #${String(id).slice(-6)}`,
+        html: `
+            <div class="text-left mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <p class="text-[10px] font-bold text-slate-500 uppercase">Vehículo</p>
+                <p class="font-bold text-navy-blue text-sm">${sale.placa || 'SIN PLACA'} - ${sale.carModel || 'N/A'}</p>
+                <p class="text-[10px] text-slate-400 mt-1">${new Date(sale.fecha).toLocaleString('es-CO', { hour12: true })}</p>
+            </div>
+            <div class="max-h-60 overflow-y-auto pr-2">
+                ${itemsHtml}
+            </div>
+            <div class="mt-4 pt-3 border-t-2 border-slate-100 text-right">
+                <p class="text-lg font-bold text-navy-blue">Total: ${AppUtils.formatCurrency(sale.total)}</p>
+            </div>
+        `,
+        confirmButtonColor: '#0b1120',
+        confirmButtonText: 'Cerrar'
     });
 }
 
@@ -656,6 +708,16 @@ async function renderPendingBillsDashboard() {
         const bgHighlight = isUrgent ? 'bg-red-50/50' : '';
         const badgeColor = isUrgent ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700';
 
+        // Mapeo de estados a etiquetas visuales
+        const statusMap = {
+            'RECEPCION': { label: 'RECEPCIÓN', color: 'bg-slate-100 text-slate-600' },
+            'DIAGNOSTICO': { label: 'DIAGNÓSTICO', color: 'bg-amber-100 text-amber-700' },
+            'REPARACION': { label: 'REPARACIÓN', color: 'bg-orange-100 text-orange-700' },
+            'ESPERA_REPUESTOS': { label: 'ESPERA REP.', color: 'bg-rose-100 text-rose-700' },
+            'LISTO': { label: 'LISTO', color: 'bg-emerald-100 text-emerald-700' }
+        };
+        const statusInfo = statusMap[d.status] || statusMap['RECEPCION'];
+
         // Cálculo de tiempo transcurrido para la etiqueta
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMins / 60);
@@ -675,9 +737,12 @@ async function renderPendingBillsDashboard() {
         return `
             <div onclick="resumeBillFromDashboard('${d.id}')" 
                  class="glass-card p-5 rounded-xl border-l-4 ${borderColor} ${bgHighlight} hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden">
-                ${isUrgent ? `<div class="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-bold px-2 py-0.5 rounded-bl-lg animate-pulse">URGENTE</div>` : ''}
+                ${isUrgent ? `<div class="absolute top-0 right-0 bg-red-500 text-white text-[7px] font-bold px-1.5 py-0.5 rounded-bl-lg animate-pulse">URGENTE</div>` : ''}
                 <div class="flex justify-between items-start mb-3">
-                    <span class="${badgeColor} text-[10px] font-bold px-2 py-1 rounded">#${d.id}</span>
+                    <div class="flex flex-col gap-1">
+                        <span class="${badgeColor} text-[10px] font-bold px-2 py-1 rounded w-fit">#${d.id}</span>
+                        <span class="${statusInfo.color} text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter border border-black/5">${statusInfo.label}</span>
+                    </div>
                     <div class="flex flex-col items-end">
                         <span class="text-[10px] text-slate-400 font-medium">${draftDate.toLocaleDateString()}</span>
                         <span class="text-[9px] ${isUrgent ? 'text-red-600 font-bold' : 'text-slate-400'} flex items-center gap-1">
@@ -685,7 +750,10 @@ async function renderPendingBillsDashboard() {
                         </span>
                     </div>
                 </div>
-                <h4 class="font-bold text-slate-800 uppercase truncate group-hover:${isUrgent ? 'text-red-600' : 'text-blue-600'} transition-colors">${d.carModel || 'SIN MODELO'}</h4>
+                <h4 class="font-bold text-slate-800 uppercase truncate group-hover:${isUrgent ? 'text-red-600' : 'text-blue-600'} transition-colors">
+                    ${d.placa ? `<span class="bg-navy-blue text-white px-1.5 py-0.5 rounded text-[10px] mr-1">${d.placa}</span>` : ''}
+                    ${d.carModel || 'SIN MODELO'}
+                </h4>
                 <div class="flex justify-between items-center mt-4 pt-3 border-t border-slate-100">
                     <div class="flex items-center gap-1 text-slate-500">
                         <i data-lucide="shopping-cart" class="w-3 h-3"></i>

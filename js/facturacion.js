@@ -5,6 +5,8 @@
 let currentCart = [];
 let activeBillId = null;
 let carModel = "";
+let carPlate = "";
+let carKm = "";
 
 // Obtener IVA dinámicamente de la configuración
 async function getIvaRate() {
@@ -48,6 +50,8 @@ async function initBilling() {
     if (current) {
         currentCart = current.items;
         carModel = current.carModel;
+        carPlate = current.placa || "";
+        carKm = current.km || "";
     } else {
         // Si el ID activo ya no existe (fue eliminado), reseteamos y reintentamos inicializar
         activeBillId = null;
@@ -66,6 +70,32 @@ async function initBilling() {
                     <input type="text" id="carModelInput" value="${carModel}" onchange="updateCarModel(this.value.toUpperCase())" 
                         class="bg-transparent border-b border-slate-300 focus:border-navy-blue outline-none font-bold text-slate-800 uppercase" 
                         placeholder="EJ: TOYOTA HILUX 2023">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase">Placa</label>
+                    <input type="text" id="carPlateInput" value="${carPlate}" onchange="updateCarPlate(this.value.toUpperCase())" 
+                        class="bg-transparent border-b border-slate-300 focus:border-navy-blue outline-none font-bold text-slate-800 uppercase w-24" 
+                        placeholder="AAA-000">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase">KM</label>
+                    <input type="number" id="carKmInput" value="${carKm}" onchange="updateCarKm(this.value)" 
+                        class="bg-transparent border-b border-slate-300 focus:border-navy-blue outline-none font-bold text-slate-800 w-24" 
+                        placeholder="00000">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase">Estado del Trabajo</label>
+                    <select onchange="updateBillStatus(this.value)" 
+                        class="bg-transparent border-b border-slate-300 focus:border-navy-blue outline-none font-bold text-slate-800 cursor-pointer">
+                        <option value="RECEPCION" ${current.status === 'RECEPCION' ? 'selected' : ''}>🔵 RECEPCIÓN</option>
+                        <option value="DIAGNOSTICO" ${current.status === 'DIAGNOSTICO' ? 'selected' : ''}>🟡 DIAGNÓSTICO</option>
+                        <option value="REPARACION" ${current.status === 'REPARACION' ? 'selected' : ''}>🟠 EN REPARACIÓN</option>
+                        <option value="ESPERA_REPUESTOS" ${current.status === 'ESPERA_REPUESTOS' ? 'selected' : ''}>🔴 ESPERA REPUESTOS</option>
+                        <option value="LISTO" ${current.status === 'LISTO' ? 'selected' : ''}>🟢 LISTO PARA ENTREGA</option>
+                    </select>
                 </div>
             </div>
             
@@ -173,6 +203,9 @@ async function createNewBill() {
     const newDraft = {
         id: newId,
         carModel: "",
+        placa: "",
+        km: "",
+        status: "RECEPCION",
         items: [],
         date: new Date().toISOString()
     };
@@ -201,6 +234,35 @@ async function updateCarModel(val) { // Mark as async
     await saveCurrentDraft();
 }
 
+/**
+ * Actualiza la placa del vehículo
+ */
+async function updateCarPlate(val) {
+    carPlate = val;
+    await saveCurrentDraft();
+}
+
+/**
+ * Actualiza el kilometraje
+ */
+async function updateCarKm(val) {
+    carKm = val;
+    await saveCurrentDraft();
+}
+
+/**
+ * Actualiza el estado del trabajo y refresca la UI global
+ */
+async function updateBillStatus(val) {
+    const drafts = await AppUtils.loadData('drafts_db');
+    const index = drafts.findIndex(d => String(d.id) === String(activeBillId));
+    if (index !== -1) {
+        drafts[index].status = val;
+        await AppUtils.saveData('drafts_db', drafts);
+        AppUtils.showToast(`Estado actualizado a: ${val}`);
+        if (typeof refreshUI === 'function') await refreshUI();
+    }
+}
 
 /**
  * Filtra el inventario en tiempo real y muestra los resultados
@@ -328,6 +390,8 @@ async function saveCurrentDraft() {
     if (index !== -1) {
         drafts[index].items = currentCart;
         drafts[index].carModel = carModel;
+        drafts[index].placa = carPlate;
+        drafts[index].km = carKm;
         await AppUtils.saveData('drafts_db', drafts);
     }
 }
@@ -462,6 +526,9 @@ async function processSale() { // This was already correct
         id: Date.now(),
         fecha: new Date().toISOString(),
         carModel: carModel,
+        placa: carPlate,
+        km: carKm,
+        items: [...currentCart],
         total: total
     });
     await AppUtils.saveData('sales_db', sales); // Await save

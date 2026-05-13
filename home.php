@@ -182,6 +182,7 @@
                                     <th>ID Factura</th>
                                     <th>Fecha</th>
                                     <th>Vehículo</th>
+                                    <th>Items</th>
                                     <th>Total (con IVA)</th>
                                     <th>Acciones</th>
                                 </tr>
