@@ -4,7 +4,7 @@
  * Mapea la URL (controlador/metodo/parametros)
  */
 class App {
-    protected $controladorActual = 'Dashboard'; // Controlador por defecto al abrir la app
+    protected $controladorActual = 'ControllerDashboard'; // Controlador por defecto al abrir la app
     protected $metodoActual = 'index';          // Método por defecto
     protected $parametros = [];                 // Parámetros de la URL
 
@@ -13,12 +13,12 @@ class App {
 
         // 1. LÓGICA PARA EL CONTROLADOR
         if (isset($url[0])) {
-            if (file_exists('../app/Controllers/' . ucwords($url[0]) . '.php')) {
-                $this->controladorActual = ucwords($url[0]);
+            if (file_exists('../app/Controllers/Controller' . ucwords($url[0]) . '.php')) {
+                $this->controladorActual = 'Controller' . ucwords($url[0]);
                 unset($url[0]);
             } else {
                 // Si el controlador no existe, forzamos el controlador de Errores (404)
-                $this->controladorActual = 'Errores';
+                $this->controladorActual = 'ControllerErrores';
             }
         }
 
@@ -33,9 +33,9 @@ class App {
                 unset($url[1]);
             } else {
                 // Si el método no existe en el controlador, manejamos el 404
-                if (get_class($this->controladorActual) !== 'Errores') {
-                    require_once '../app/Controllers/Errores.php';
-                    $this->controladorActual = new Errores();
+            if (get_class($this->controladorActual) !== 'ControllerErrores') {
+                require_once '../app/Controllers/ControllerErrores.php';
+                $this->controladorActual = new ControllerErrores();
                     $this->metodoActual = 'index';
                 }
             }

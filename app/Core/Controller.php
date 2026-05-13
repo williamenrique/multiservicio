@@ -12,11 +12,12 @@ class Controller {
      * @return object Instancia del modelo solicitado
      */
     public function model($model) {
-        $path = APPROOT . '/Models/' . $model . '.php';
+        $modelName = 'Model' . $model;
+        $path = APPROOT . '/Models/' . $modelName . '.php';
 
         if (file_exists($path)) {
             require_once $path;
-            return new $model();
+            return new $modelName();
         } else {
             // Error crítico si el modelo no existe
             error_log("Error: El modelo {$model} no se encontró en {$path}");
