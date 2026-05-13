@@ -17,7 +17,9 @@
     <!-- Librería de Iconos Lucide (Cargada con versión específica para estabilidad) -->
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
 
-
+    <script src="<?php echo URL_JS; ?>utils.js"></script>
+    <script src="<?php echo URL_JS; ?>app.js"></script>
+    <script src="<?php echo URL_JS; ?>notifications.js"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {

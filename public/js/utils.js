@@ -66,28 +66,31 @@ const AppUtils = {
     // LocalStorage Helpers
     saveData: async (key, data) => {
         // Usar fetch para guardar en archivos JSON a través de PHP
-        const response = await fetch(`api.php?key=${key}`, {
+        const response = await fetch(`${URLROOT}/dashboard/api?key=${key}`, {
             method: 'POST', // O 'PUT'
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(data),
         });
+
+        const responseText = await response.text();
+
         if (!response.ok) {
-            throw new Error(`Failed to save data for ${key}: ${response.statusText}`);
+            throw new Error(`Failed to save data for ${key}: ${response.statusText}. Respuesta: ${responseText}`);
         }
+
         try {
-            return await response.json();
+            return JSON.parse(responseText);
         } catch (e) {
-            const errorText = await response.text();
-            console.error(`Error parsing JSON response for ${key}:`, errorText, e);
-            throw new Error(`Received non-JSON response when saving data for ${key}. Response: ${errorText.substring(0, 200)}`);
+            console.error(`Error interpretando JSON para ${key}:`, responseText, e);
+            throw new Error(`Respuesta del servidor no es JSON válido para ${key}.`);
         }
     },
 
     loadData: async (key) => {
         // Usar fetch para cargar desde archivos JSON a través de PHP
-        const response = await fetch(`api.php?key=${key}`, {
+        const response = await fetch(`${URLROOT}/dashboard/api?key=${key}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -98,11 +101,12 @@ const AppUtils = {
             console.error(`Failed to load data for ${key}: ${response.statusText}`);
             return [];
         }
+
         const text = await response.text();
         try {
-            return text ? JSON.parse(text) : [];
+            return (text && text.trim() !== "") ? JSON.parse(text) : [];
         } catch (e) {
-            console.warn(`Archivo JSON para ${key} está vacío o corrupto. Devolviendo [].`);
+            console.warn(`Archivo JSON para ${key} está vacío o corrupto. Contenido: ${text.substring(0, 100)}. Devolviendo [].`);
             return [];
         }
     },
@@ -110,7 +114,7 @@ const AppUtils = {
     // Verificar e inicializar archivos JSON en el servidor
     checkAndInitDB: async () => {
         try {
-            await fetch('api.php?action=init');
+            await fetch(`${URLROOT}/dashboard/api?action=init`);
         } catch (e) {
             console.error("Error al inicializar la base de datos JSON:", e);
         }

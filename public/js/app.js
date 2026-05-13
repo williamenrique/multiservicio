@@ -11,6 +11,10 @@ let staffTable = null;
 let suppliersTable = null;
 let purchasesTable = null;
 
+// Variables globales de estado y datos
+let users = [];
+let staff = [];
+let currentLoggedInUser = null;
 // Variable global para el estado del inventario
 let inventory = [];
 
@@ -88,20 +92,22 @@ function showSection(sectionId) {
 }
 
 async function refreshUI() {
+    // Obtener datos frescos del servidor antes de renderizar
+    inventory = await AppUtils.loadData('inventory_db');
+    const sales = await AppUtils.loadData('sales_db');
+    const clients = await AppUtils.loadData('clients_db');
+    const staffData = await AppUtils.loadData('staff_db');
+    const suppliers = await AppUtils.loadData('suppliers_db');
+    const purchases = await AppUtils.loadData('purchases_db');
+    const expenses = await AppUtils.loadData('expenses_db');
+    users = await AppUtils.loadData('users_db');
+
     if (inventoryTable) {
         inventoryTable.clear().rows.add(inventory).draw();
     }
 
-    const sales = await AppUtils.loadData('sales_db');
-    const clients = await AppUtils.loadData('clients_db');
-    const staff = await AppUtils.loadData('staff_db');
-    const suppliers = await AppUtils.loadData('suppliers_db');
-    const purchases = await AppUtils.loadData('purchases_db');
-    const expenses = await AppUtils.loadData('expenses_db');
-    users = await AppUtils.loadData('users_db'); // Recargar usuarios para asegurar datos frescos
-
     // Unir datos de empleados con datos de usuario para que la tabla muestre el estado correcto
-    const staffWithUsers = staff.map(s => {
+    const staffWithUsers = staffData.map(s => {
         const user = users.find(u => u.staffId === s.id);
         return {
             ...s,
@@ -133,6 +139,8 @@ async function refreshUI() {
 async function renderTopBarUserInfo() {
     const topbarUsername = document.getElementById('topbar-username');
     const topbarUserrole = document.getElementById('topbar-userrole');
+    if (!topbarUsername || !topbarUserrole) return;
+
     const userDropdownTrigger = document.getElementById('userDropdownTrigger');
     const userDropdownMenu = document.getElementById('userDropdownMenu');
 
@@ -252,7 +260,7 @@ async function seedInitialData() {
 
     const defaultSales = [
         // Añadir una venta de ejemplo con placa y modelo
-    
+
         { id: Date.now(), fecha: new Date().toISOString(), carModel: 'DEMO VEHÍCULO', total: 50000 }
     ];
     await AppUtils.saveData('sales_db', defaultSales);
@@ -269,7 +277,10 @@ async function seedInitialData() {
 }
 
 async function initInventory() {
-    inventoryTable = $('#inventoryTable').DataTable({
+    const tableEl = document.getElementById('inventoryTable');
+    if (!tableEl) return; // No inicializar si no estamos en la vista de inventario
+
+    inventoryTable = $(tableEl).DataTable({
         data: inventory,
         dom: 'Bfrtip',
         buttons: [
@@ -346,8 +357,11 @@ async function initInventory() {
  * Inicializa la tabla de historial de ventas
  */
 async function initSalesHistory() {
+    const tableEl = document.getElementById('salesTable');
+    if (!tableEl) return;
+
     const sales = await AppUtils.loadData('sales_db');
-    salesTable = $('#salesTable').DataTable({
+    salesTable = $(tableEl).DataTable({
         data: sales,
         order: [[1, 'desc']],
         columns: [
@@ -437,6 +451,8 @@ async function viewSaleDetail(id) {
 
 async function renderDashboardCards() {
     const container = document.getElementById('dashboard-cards');
+    if (!container) return;
+
     const drafts = await AppUtils.loadData('drafts_db');
 
     // Calcular cuántos repuestos hay "reservados" en borradores
@@ -634,8 +650,11 @@ function openInventoryModal() {
  * GESTIÓN DE CLIENTES 
  */
 async function initClients() {
+    const tableEl = document.getElementById('clientsTable');
+    if (!tableEl) return;
+
     const clients = await AppUtils.loadData('clients_db');
-    clientsTable = $('#clientsTable').DataTable({
+    clientsTable = $(tableEl).DataTable({
         data: clients,
         columns: [
             { data: 'id' },
@@ -696,6 +715,9 @@ async function openClientModal(id = null) {
  * GESTIÓN DE PERSONAL 
  */
 async function initStaff() {
+    const tableEl = document.getElementById('staffTable');
+    if (!tableEl) return;
+
     const staff = await AppUtils.loadData('staff_db'); // Cargar datos de empleados
     const users = await AppUtils.loadData('users_db'); // Cargar datos de usuarios
 
@@ -710,7 +732,7 @@ async function initStaff() {
         };
     });
 
-    staffTable = $('#staffTable').DataTable({
+    staffTable = $(tableEl).DataTable({
         data: staffWithUsers, // Usar los datos enriquecidos
         columns: [
             { data: 'id' },
@@ -923,10 +945,13 @@ async function loadCompanySettings() {
 }
 
 function setFormConfig(config) {
-    document.getElementById('config-name').value = config.name;
-    document.getElementById('config-nit').value = config.nit;
-    document.getElementById('config-iva').value = config.iva;
-    document.getElementById('config-address').value = config.address;
+    const nameEl = document.getElementById('config-name');
+    if (!nameEl) return; // Salir si no estamos en la vista de configuración
+
+    nameEl.value = config.name || '';
+    if (document.getElementById('config-nit')) document.getElementById('config-nit').value = config.nit || '';
+    if (document.getElementById('config-iva')) document.getElementById('config-iva').value = config.iva || 0;
+    if (document.getElementById('config-address')) document.getElementById('config-address').value = config.address || '';
 }
 
 async function saveCompanySettings(e) {
@@ -952,9 +977,13 @@ async function saveCompanySettings(e) {
 async function renderPendingBillsDashboard() {
     const container = document.getElementById('pending-bills-dashboard');
     const pendingIcon = document.getElementById('pending-bills-icon');
+    const ordersActiveEl = document.getElementById('dash-orders-active');
     if (!container) return;
 
     const drafts = await AppUtils.loadData('drafts_db');
+
+    // Actualizar contador de órdenes activas (borradores) en el resumen superior
+    if (ordersActiveEl) ordersActiveEl.textContent = drafts.length;
 
     // Verificar si hay facturas con más de 2 horas de antigüedad
     const now = new Date();
@@ -1102,6 +1131,21 @@ async function renderFinancialCards() {
     `).join('');
     lucide.createIcons();
     updateSalesChart(sales);
+    updateSummaryCards(sales);
+}
+
+/**
+ * Actualiza los contadores de resumen en la parte superior del dashboard
+ */
+function updateSummaryCards(sales) {
+    const salesTodayEl = document.getElementById('dash-sales-today');
+    if (!salesTodayEl) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todaySales = sales.filter(s => s.fecha && s.fecha.startsWith(todayStr))
+        .reduce((sum, s) => sum + (s.total || 0), 0);
+
+    salesTodayEl.textContent = AppUtils.formatCurrency(todaySales);
 }
 
 /**
@@ -1218,8 +1262,11 @@ async function renderSupplierDebtsDashboard() {
 
 /** GESTIÓN DE PROVEEDORES */
 async function initSuppliers() {
+    const tableEl = document.getElementById('suppliersTable');
+    if (!tableEl) return;
+
     const suppliers = await AppUtils.loadData('suppliers_db'); // This was already correct
-    suppliersTable = $('#suppliersTable').DataTable({
+    suppliersTable = $(tableEl).DataTable({
         data: suppliers,
         columns: [
             { data: 'id' }, { data: 'name' }, { data: 'phone' }, { data: 'email' },
@@ -1239,8 +1286,11 @@ async function initSuppliers() {
 }
 
 async function initPurchases() { // This was already correct
+    const tableEl = document.getElementById('purchasesTable');
+    if (!tableEl) return;
+
     const purchases = await AppUtils.loadData('purchases_db'); // This was already correct
-    purchasesTable = $('#purchasesTable').DataTable({
+    purchasesTable = $(tableEl).DataTable({
         data: purchases,
         order: [[0, 'desc']],
         columns: [
@@ -1269,8 +1319,11 @@ async function initPurchases() { // This was already correct
 
 /** GESTIÓN DE GASTOS */
 async function initExpenses() {
+    const tableEl = document.getElementById('expensesTable');
+    if (!tableEl) return;
+
     const expenses = await AppUtils.loadData('expenses_db');
-    expensesTable = $('#expensesTable').DataTable({
+    expensesTable = $(tableEl).DataTable({
         data: expenses,
         order: [[0, 'desc']],
         columns: [

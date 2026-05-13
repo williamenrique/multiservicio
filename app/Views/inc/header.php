@@ -11,6 +11,10 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
+    <script>
+        // Definimos la constante global para que todos los JS la usen
+        const URLROOT = "<?php echo URLROOT; ?>";
+    </script>
 </head>
 <body class="bg-main-dark text-slate-800 font-sans">
 
@@ -23,34 +27,34 @@
                         class="text-neon-green">PRO</span></span>
             </div>
             <nav class="mt-6 px-4">
-                <a href="#" onclick="showSection('dashboard')" class="nav-link active" data-section="dashboard">
+                <a href="<?php echo URLROOT; ?>/dashboard/index" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'dashboard') !== false) ? 'active' : ''; ?>">
                     <i data-lucide="layout-dashboard"></i> <span>Dashboard</span>
                 </a>
                 <div class="mt-4">
                     <p class="text-xs uppercase text-gray-500 px-3 mb-2">Gestión</p>
-                    <a href="#" onclick="showSection('inventario')" class="nav-link" data-section="inventario">
+                    <a href="<?php echo URLROOT; ?>/inventario/index" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'inventario') !== false) ? 'active' : ''; ?>">
                         <i data-lucide="package"></i> <span>Inventario</span>
                     </a>
-                    <a href="#" onclick="showSection('facturacion')" class="nav-link" data-section="facturacion">
+                    <a href="<?php echo URLROOT; ?>/facturacion/index" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'facturacion') !== false) ? 'active' : ''; ?>">
                         <i data-lucide="receipt"></i> <span>Facturación</span>
                     </a>
-                    <a href="#" onclick="showSection('historial')" class="nav-link" data-section="historial">
+                    <a href="<?php echo URLROOT; ?>/historial/index" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'historial') !== false) ? 'active' : ''; ?>">
                         <i data-lucide="history"></i> <span>Historial de Ventas</span>
                     </a>
-                    <a href="#" onclick="showSection('proveedores')" class="nav-link" data-section="proveedores">
+                    <a href="<?php echo URLROOT; ?>/proveedores" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'proveedores') !== false) ? 'active' : ''; ?>">
                         <i data-lucide="truck"></i> <span>Proveedores</span>
                     </a>
-                    <a href="#" onclick="showSection('gastos')" class="nav-link" data-section="gastos">
+                    <a href="<?php echo URLROOT; ?>/gastos" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'gastos') !== false) ? 'active' : ''; ?>">
                         <i data-lucide="wallet"></i> <span>Gastos del Taller</span>
                     </a>
                     <p class="text-xs uppercase text-gray-500 px-3 mt-4 mb-2">Administración</p>
-                    <a href="#" onclick="showSection('clientes')" class="nav-link" data-section="clientes">
+                    <a href="<?php echo URLROOT; ?>/clientes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'clientes') !== false) ? 'active' : ''; ?>">
                         <i data-lucide="users"></i> <span>Clientes</span>
                     </a>
-                    <a href="#" onclick="showSection('personal')" class="nav-link" data-section="personal">
+                    <a href="<?php echo URLROOT; ?>/personal" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'personal') !== false) ? 'active' : ''; ?>">
                         <i data-lucide="user-cog"></i> <span>Personal</span>
                     </a>
-                    <a href="#" onclick="showSection('empresa')" class="nav-link" data-section="empresa">
+                    <a href="<?php echo URLROOT; ?>/empresa" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'empresa') !== false) ? 'active' : ''; ?>">
                         <i data-lucide="settings"></i> <span>Configuración</span>
                     </a>
                 </div>

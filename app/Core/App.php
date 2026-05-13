@@ -13,7 +13,7 @@ class App {
 
         // 1. LÓGICA PARA EL CONTROLADOR
         if (isset($url[0])) {
-            if (file_exists('../app/Controllers/Controller' . ucwords($url[0]) . '.php')) {
+            if (file_exists(APPROOT . '/Controllers/Controller' . ucwords($url[0]) . '.php')) {
                 $this->controladorActual = 'Controller' . ucwords($url[0]);
                 unset($url[0]);
             } else {
@@ -23,7 +23,7 @@ class App {
         }
 
         // Cargar el archivo del controlador requerido
-        require_once '../app/Controllers/' . $this->controladorActual . '.php';
+        require_once APPROOT . '/Controllers/' . $this->controladorActual . '.php';
         $this->controladorActual = new $this->controladorActual;
 
         // 2. LÓGICA PARA EL MÉTODO
