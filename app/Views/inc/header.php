@@ -4,15 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo isset($titulo) ? s($titulo) : SITENAME; ?></title> 
-    <link rel="shortcut icon" href="img/logo1.png" type="image/x-icon"> 
+    <title><?php echo isset($titulo) ? s($titulo) : SITENAME; ?></title>
+    <link rel="shortcut icon" href="<?php echo URL_IMG; ?>logo1.png" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
-    <!-- Iconos -->
-    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="bg-main-dark text-slate-800 font-sans">
 
@@ -88,7 +86,7 @@
                         </a>
                         <hr class="border-gray-700">
                         <a href="<?php echo URLROOT; ?>/auth/logout" class="block px-4 py-2 text-sm text-red-400 hover:bg-gray-800 flex items-center gap-2">
-                            <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar Sesión
+                            <i data-lucide="log-out" class="w-4 h-4 flex-shrink-0"></i> Cerrar Sesión
                         </a>
                     </div>
                 </div>
