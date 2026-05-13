@@ -18,7 +18,7 @@ define('APPROOT', dirname(dirname(__FILE__)));
 // Cámbialo por tu dominio real cuando subas a producción
 // Ejemplo local: http://localhost/taller_pro
 // Ejemplo servidor: https://taller-pro.com
-define('URLROOT', 'http://multiservicio.test');
+define('URLROOT', 'http://tallerv1.test');
 
 // 4. Nombre del Sitio
 define('SITENAME', 'Taller Pro');
@@ -30,6 +30,10 @@ define('APPVERSION', '1.0.0');
 // En 'development' se muestran los errores, en 'production' se ocultan por seguridad
 define('ENVIRONMENT', 'development');
 
+// 7. Define paths for static assets (if needed in PHP)
+define('CSS_DIR', URLROOT . '/public/css/');
+define('JS_DIR', URLROOT . '/public/js/');
+define('IMG_DIR', URLROOT . '/public/img/');
 if (ENVIRONMENT == 'development') {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);

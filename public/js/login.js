@@ -1,10 +1,10 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const formLogin = document.getElementById('formLogin');
     const alertError = document.getElementById('alert-error');
     const btnSubmit = document.getElementById('btnSubmit');
 
     if (formLogin) {
-        formLogin.addEventListener('submit', async function(e) {
+        formLogin.addEventListener('submit', async function (e) {
             e.preventDefault(); // Evita el envío tradicional y la recarga de página
 
             // Bloquear botón para evitar múltiples clics
@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             try {
                 // Realizar la petición asíncrona hacia el controlador
-                const response = await fetch(`${URLROOT}/auth/login`, {
+                const response = await fetch(`${URLROOT}auth/login`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

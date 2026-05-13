@@ -18,7 +18,7 @@ class AuthGuard {
         // Si no existe el ID del usuario en la sesión, está intentando entrar ilegalmente
         if (!isset($_SESSION['user_id'])) {
             // Usamos el helper de redirección que definiremos luego
-            header('location: ' . URLROOT . '/auth/login');
+            header('location: ' . URLROOT . 'auth/login');
             exit();
         }
     }

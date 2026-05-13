@@ -5,8 +5,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo APP_NAME; ?> - Multiservicios</title> 
-    <link rel="shortcut icon" href="img/logo1.png" type="image/x-icon"> 
+    <title><?php echo APP_NAME; ?> - Multiservicios</title>
+    <link rel="shortcut icon" href="<?php echo IMG_DIR; ?>logo1.png" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
@@ -75,24 +75,14 @@
                 <!-- Área de Notificaciones -->
                 <div id="notifications-area" class="flex justify-end items-center ml-auto px-4"></div>
 
-                <div class="relative group">
-                    <button id="userDropdownTrigger" class="flex items-center gap-3 p-2 bg-gray-800 rounded-full text-white hover:bg-gray-700 transition-colors">
-                        <i data-lucide="user-circle" class="w-6 h-6 text-neon-green"></i>
-                        <div class="text-right hidden md:block">
-                            <p id="topbar-username" class="text-sm font-bold text-white">Cargando...</p>
-                            <p id="topbar-userrole" class="text-xs text-gray-400">Cargando...</p>
-                        </div>
-                        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 hidden md:block"></i>
-                    </button>
-                    <div id="userDropdownMenu" class="hidden absolute right-0 mt-2 w-48 bg-navy-blue border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden">
-                        <a href="#" onclick="openUserProfileModal()" class="block px-4 py-2 text-sm text-white hover:bg-gray-800 flex items-center gap-2">
-                            <i data-lucide="settings-2" class="w-4 h-4"></i> Mi Perfil
-                        </a>
-                        <hr class="border-gray-700">
-                        <a href="#" onclick="AppUtils.showToast('Funcionalidad de Logout en desarrollo', 'info')" class="block px-4 py-2 text-sm text-red-400 hover:bg-gray-800 flex items-center gap-2">
-                            <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar Sesión
-                        </a>
+                <div class="flex items-center gap-4">
+                    <div class="text-right hidden md:block">
+                        <p class="text-sm font-bold text-white">Admin User</p>
+                        <p class="text-xs text-gray-400">Senior Developer</p>
                     </div>
+                    <button class="p-2 bg-gray-800 rounded-full text-neon-green hover:text-red-500 transition-colors">
+                        <i data-lucide="log-out"></i>
+                    </button>
                 </div>
             </header>
 
@@ -328,8 +318,6 @@
                                     <th>Nombre</th>
                                     <th>Cargo</th>
                                     <th>Teléfono</th>
-                                    <th>Usuario</th>
-                                    <th>Rol Acceso</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
