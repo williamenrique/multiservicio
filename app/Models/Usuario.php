@@ -31,7 +31,7 @@ class Usuario {
      * Útil para perfiles o verificar permisos
      */
     public function obtenerUsuarioPorId($id) {
-        $this->db->query("SELECT id, nombre, email, rol, created_at FROM usuarios WHERE id = :id");
+        $this->db->query("SELECT id, nombre, email, role_id, created_at FROM table_usuarios WHERE id = :id");
         $this->db->bind(':id', $id);
 
         return $this->db->single();
@@ -41,7 +41,7 @@ class Usuario {
      * Ejemplo de registro (si decides añadir creación de usuarios)
      */
     public function registrar($datos) {
-        $this->db->query("INSERT INTO usuarios (nombre, email, password, rol) VALUES (:nombre, :email, :password, :rol)");
+        $this->db->query("INSERT INTO table_usuarios (nombre, email, password, role_id) VALUES (:nombre, :email, :password, :rol)");
         
         // Vincular valores
         $this->db->bind(':nombre', $datos['nombre']);
@@ -52,4 +52,3 @@ class Usuario {
         return $this->db->execute();
     }
 }
-

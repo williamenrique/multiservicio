@@ -26,9 +26,8 @@
         </div>
     </div>
 </div>
-<?php echo JS_DIR; ?>
 <!-- Inyectamos la URLROOT de PHP para que JavaScript sepa exactamente a dónde disparar -->
 <script>
-    const URLROOT = "<?php echo JS_DIR; ?>";
+    const URLROOT = "<?php echo URLROOT; ?>";
 </script>
-<script src="<?php echo JS_DIR; ?>login.js"></script>
+<script src="<?php echo URL_JS; ?>login.js"></script>

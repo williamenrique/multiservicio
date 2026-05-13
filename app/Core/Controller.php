@@ -40,7 +40,21 @@ class Controller {
             // Fallback en caso de que el helper no esté cargado
             $viewPath = APPROOT . '/Views/' . $view . '.php';
             if (file_exists($viewPath)) {
+                // Extraemos el array de datos para que las llaves sean variables ($titulo, etc.)
+                extract($data);
+
+                // Intentamos cargar el header
+                if (file_exists(APPROOT . '/Views/inc/header.php')) {
+                    require_once APPROOT . '/Views/inc/header.php';
+                }
+
+                // Cargamos la vista principal
                 require_once $viewPath;
+
+                // Intentamos cargar el footer
+                if (file_exists(APPROOT . '/Views/inc/footer.php')) {
+                    require_once APPROOT . '/Views/inc/footer.php';
+                }
             } else {
                 die("La vista solicitada no existe.");
             }

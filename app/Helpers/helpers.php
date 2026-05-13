@@ -10,6 +10,9 @@
  * @param array $data Datos dinámicos para pasar a la plantilla
  */
 function renderView($view, $data = []) {
+    // Convertimos las llaves del array en variables independientes (ej: $data['titulo'] -> $titulo)
+    extract($data);
+
     $header = APPROOT . '/Views/inc/header.php';
     $footer = APPROOT . '/Views/inc/footer.php';
     $viewFile = APPROOT . '/Views/' . $view . '.php';

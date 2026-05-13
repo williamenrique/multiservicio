@@ -31,9 +31,9 @@ define('APPVERSION', '1.0.0');
 define('ENVIRONMENT', 'development');
 
 // 7. Define paths for static assets (if needed in PHP)
-define('CSS_DIR', URLROOT . '/public/css/');
-define('JS_DIR', URLROOT . '/public/js/');
-define('IMG_DIR', URLROOT . '/public/img/');
+define('URL_CSS', URLROOT . '/public/css/');
+define('URL_JS', URLROOT . '/public/js/');
+define('URL_IMG', URLROOT . '/public/img/');
 if (ENVIRONMENT == 'development') {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
@@ -44,4 +44,3 @@ if (ENVIRONMENT == 'development') {
 
 // 7. Configuración de Zona Horaria (Crucial para registros de órdenes y facturas)
 date_default_timezone_set('America/Caracas'); // Ajusta según tu país
-

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo APP_NAME; ?> - Multiservicios</title> 
+    <title><?php echo isset($titulo) ? s($titulo) : SITENAME; ?></title> 
     <link rel="shortcut icon" href="img/logo1.png" type="image/x-icon"> 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
@@ -14,7 +14,6 @@
     <!-- Iconos -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-
 <body class="bg-main-dark text-slate-800 font-sans">
 
     <div class="flex h-screen overflow-hidden">
@@ -78,8 +77,8 @@
                     <button id="userDropdownTrigger" class="flex items-center gap-3 p-2 bg-gray-800 rounded-full text-white hover:bg-gray-700 transition-colors">
                         <i data-lucide="user-circle" class="w-6 h-6 text-neon-green"></i>
                         <div class="text-right hidden md:block">
-                            <p id="topbar-username" class="text-sm font-bold text-white">Cargando...</p>
-                            <p id="topbar-userrole" class="text-xs text-gray-400">Cargando...</p>
+                            <p id="topbar-username" class="text-sm font-bold text-white"><?php echo s($_SESSION['user_nombre'] ?? 'Invitado'); ?></p>
+                            <p id="topbar-userrole" class="text-xs text-gray-400"><?php echo s($_SESSION['user_role'] ?? 'Sin Rol'); ?></p>
                         </div>
                         <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 hidden md:block"></i>
                     </button>
@@ -88,7 +87,7 @@
                             <i data-lucide="settings-2" class="w-4 h-4"></i> Mi Perfil
                         </a>
                         <hr class="border-gray-700">
-                        <a href="#" onclick="AppUtils.showToast('Funcionalidad de Logout en desarrollo', 'info')" class="block px-4 py-2 text-sm text-red-400 hover:bg-gray-800 flex items-center gap-2">
+                        <a href="<?php echo URLROOT; ?>/auth/logout" class="block px-4 py-2 text-sm text-red-400 hover:bg-gray-800 flex items-center gap-2">
                             <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar Sesión
                         </a>
                     </div>
@@ -96,4 +95,3 @@
             </header>
             <!-- Sections Content -->
             <div id="content-area" class="p-8">
-
