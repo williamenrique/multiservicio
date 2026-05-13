@@ -27,34 +27,34 @@
                         class="text-neon-green">PRO</span></span>
             </div>
             <nav class="mt-6 px-4">
-                <a href="<?php echo URLROOT; ?>/dashboard/index" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'dashboard') !== false) ? 'active' : ''; ?>">
+                <a href="javascript:void(0)" onclick="showSection('dashboard')" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'dashboard') !== false) ? 'active' : ''; ?>" data-section="dashboard">
                     <i data-lucide="layout-dashboard"></i> <span>Dashboard</span>
                 </a>
                 <div class="mt-4">
                     <p class="text-xs uppercase text-gray-500 px-3 mb-2">Gestión</p>
-                    <a href="<?php echo URLROOT; ?>/inventario/index" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'inventario') !== false) ? 'active' : ''; ?>">
+                    <a href="javascript:void(0)" onclick="showSection('inventario')" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'inventario') !== false) ? 'active' : ''; ?>" data-section="inventario">
                         <i data-lucide="package"></i> <span>Inventario</span>
                     </a>
-                    <a href="<?php echo URLROOT; ?>/facturacion/index" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'facturacion') !== false) ? 'active' : ''; ?>">
+                    <a href="javascript:void(0)" onclick="showSection('facturacion')" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'facturacion') !== false) ? 'active' : ''; ?>" data-section="facturacion">
                         <i data-lucide="receipt"></i> <span>Facturación</span>
                     </a>
-                    <a href="<?php echo URLROOT; ?>/historial/index" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'historial') !== false) ? 'active' : ''; ?>">
+                    <a href="javascript:void(0)" onclick="showSection('historial')" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'historial') !== false) ? 'active' : ''; ?>" data-section="historial">
                         <i data-lucide="history"></i> <span>Historial de Ventas</span>
                     </a>
-                    <a href="<?php echo URLROOT; ?>/proveedores" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'proveedores') !== false) ? 'active' : ''; ?>">
+                    <a href="javascript:void(0)" onclick="showSection('proveedores')" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'proveedores') !== false) ? 'active' : ''; ?>" data-section="proveedores">
                         <i data-lucide="truck"></i> <span>Proveedores</span>
                     </a>
-                    <a href="<?php echo URLROOT; ?>/gastos" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'gastos') !== false) ? 'active' : ''; ?>">
+                    <a href="javascript:void(0)" onclick="showSection('gastos')" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'gastos') !== false) ? 'active' : ''; ?>" data-section="gastos">
                         <i data-lucide="wallet"></i> <span>Gastos del Taller</span>
                     </a>
                     <p class="text-xs uppercase text-gray-500 px-3 mt-4 mb-2">Administración</p>
-                    <a href="<?php echo URLROOT; ?>/clientes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'clientes') !== false) ? 'active' : ''; ?>">
+                    <a href="javascript:void(0)" onclick="showSection('clientes')" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'clientes') !== false) ? 'active' : ''; ?>" data-section="clientes">
                         <i data-lucide="users"></i> <span>Clientes</span>
                     </a>
-                    <a href="<?php echo URLROOT; ?>/personal" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'personal') !== false) ? 'active' : ''; ?>">
+                    <a href="javascript:void(0)" onclick="showSection('personal')" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'personal') !== false) ? 'active' : ''; ?>" data-section="personal">
                         <i data-lucide="user-cog"></i> <span>Personal</span>
                     </a>
-                    <a href="<?php echo URLROOT; ?>/empresa" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'empresa') !== false) ? 'active' : ''; ?>">
+                    <a href="javascript:void(0)" onclick="showSection('empresa')" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'empresa') !== false) ? 'active' : ''; ?>" data-section="empresa">
                         <i data-lucide="settings"></i> <span>Configuración</span>
                     </a>
                 </div>

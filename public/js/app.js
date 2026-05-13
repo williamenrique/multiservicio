@@ -53,6 +53,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await refreshUI();
     await loadCompanySettings(); // This was already correct
 
+    // Manejar la sección inicial basada en la URL (Deep Linking)
+    handleInitialNavigation();
+
     // Auto-update dashboard cards every 5 seconds
     renderTopBarUserInfo(); // Cargar info del usuario en la barra superior una vez que todo esté cargado
     setInterval(renderDashboardCards, 5000);
@@ -60,6 +63,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(renderPendingBillsDashboard, 5000);
     setInterval(renderSupplierDebtsDashboard, 5000);
     setInterval(renderExpensesDashboard, 5000);
+});
+
+// Escuchar los botones de Atrás/Adelante del navegador
+window.addEventListener('popstate', (event) => {
+    if (event.state && event.state.sectionId) {
+        showSection(event.state.sectionId, false);
+    }
 });
 
 // Reloj Digital en tiempo real
@@ -72,9 +82,12 @@ function initClock() {
 }
 
 // Navegación de Secciones (SPA simple)
-function showSection(sectionId) {
+function showSection(sectionId, updateHistory = true) {
     const targetSection = document.getElementById(`sec-${sectionId}`);
-    if (!targetSection) return;
+    if (!targetSection) {
+        console.warn(`La sección ${sectionId} no existe.`);
+        return;
+    }
 
     document.querySelectorAll('.content-section').forEach(section => section.classList.add('hidden'));
     targetSection.classList.remove('hidden');
@@ -85,10 +98,31 @@ function showSection(sectionId) {
         if (link.getAttribute('data-section') === sectionId) link.classList.add('active');
     });
 
+    // Actualizar la URL en la barra de direcciones sin recargar
+    if (updateHistory) {
+        const cleanPath = sectionId === 'dashboard' ? 'dashboard' : sectionId;
+        const newUrl = `${URLROOT}/${cleanPath}`;
+        window.history.pushState({ sectionId }, "", newUrl);
+    }
+
     // Resetear filtros de la tabla si se entra por el menú principal (Sidebar)
     if (sectionId === 'inventario' && inventoryTable) {
         inventoryTable.search('').columns().search('').draw();
     }
+}
+
+/**
+ * Determina qué sección mostrar al cargar la página analizando la URL actual
+ */
+function handleInitialNavigation() {
+    const fullPath = window.location.pathname;
+    const validSections = ['dashboard', 'inventario', 'facturacion', 'historial', 'proveedores', 'gastos', 'clientes', 'personal', 'empresa'];
+    
+    // Buscamos si la URL contiene alguna de nuestras secciones
+    const sectionFound = validSections.find(s => fullPath.includes(`/${s}`));
+    
+    // Si se encuentra una sección en la URL se muestra, de lo contrario por defecto va al dashboard
+    showSection(sectionFound || 'dashboard', false);
 }
 
 async function refreshUI() {

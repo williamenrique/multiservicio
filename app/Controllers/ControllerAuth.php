@@ -41,7 +41,7 @@ class ControllerAuth extends Controller {
                     $_SESSION['user_role'] = $userFound->nombre_rol; // Viene del JOIN con table_roles
 
                     // Retornar éxito en JSON
-                    echo json_encode(['success' => true, 'redirect' => URLROOT . '/dashboard/index']);
+                    echo json_encode(['success' => true, 'redirect' => URLROOT . '/dashboard']);
                     exit();
                 } else {
                     echo json_encode(['success' => false, 'error' => 'Contraseña incorrecta.']);
