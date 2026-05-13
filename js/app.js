@@ -25,10 +25,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     await AppUtils.checkAndInitDB();
 
     // Cargar datos iniciales de forma asíncrona
+    users = await AppUtils.loadData('users_db'); // Cargar usuarios
+    staff = await AppUtils.loadData('staff_db'); // Cargar empleados para la info del perfil
+    // Para efectos de desarrollo, asumimos que el primer admin es el usuario logueado
+    const defaultAdminUser = users.find(u => u.role === 'Administrador');
+    if (defaultAdminUser) currentLoggedInUser = defaultAdminUser;
     inventory = await AppUtils.loadData('inventory_db');
 
     // Solo sembrar datos si es la primerísima vez (verificando una bandera en company_db)
-    const config = await AppUtils.loadData('company_db');
+    const config = await AppUtils.loadData('company_db'); // Re-leer config después de seedInitialData
     if (config.length === 0) {
         await seedInitialData();
     }
@@ -45,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadCompanySettings(); // This was already correct
 
     // Auto-update dashboard cards every 5 seconds
+    renderTopBarUserInfo(); // Cargar info del usuario en la barra superior una vez que todo esté cargado
     setInterval(renderDashboardCards, 5000);
     setInterval(renderFinancialCards, 5000);
     setInterval(renderPendingBillsDashboard, 5000);
@@ -81,10 +87,6 @@ function showSection(sectionId) {
     }
 }
 
-/**
- * Centraliza la actualización de la UI cuando cambian los datos.
- * Debe llamarse después de cualquier operación CRUD o venta.
- */
 async function refreshUI() {
     if (inventoryTable) {
         inventoryTable.clear().rows.add(inventory).draw();
@@ -96,19 +98,136 @@ async function refreshUI() {
     const suppliers = await AppUtils.loadData('suppliers_db');
     const purchases = await AppUtils.loadData('purchases_db');
     const expenses = await AppUtils.loadData('expenses_db');
+    users = await AppUtils.loadData('users_db'); // Recargar usuarios para asegurar datos frescos
+
+    // Unir datos de empleados con datos de usuario para que la tabla muestre el estado correcto
+    const staffWithUsers = staff.map(s => {
+        const user = users.find(u => u.staffId === s.id);
+        return {
+            ...s,
+            hasUser: !!user,
+            username: user ? user.username : '',
+            userRole: user ? user.role : ''
+        };
+    });
 
     if (salesTable) salesTable.clear().rows.add(sales).draw();
     if (clientsTable) clientsTable.clear().rows.add(clients).draw();
-    if (staffTable) staffTable.clear().rows.add(staff).draw();
+    if (staffTable) staffTable.clear().rows.add(staffWithUsers).draw();
     if (suppliersTable) suppliersTable.clear().rows.add(suppliers).draw();
     if (purchasesTable) purchasesTable.clear().rows.add(purchases).draw();
     if (expensesTable) expensesTable.clear().rows.add(expenses).draw();
 
+    renderTopBarUserInfo(); // Actualizar info del usuario en la barra superior
     await renderDashboardCards();
     await renderFinancialCards();
     await renderPendingBillsDashboard();
     await renderSupplierDebtsDashboard();
     await renderExpensesDashboard();
+}
+
+/**
+ * Renderiza el nombre y rol del usuario logueado en la barra superior.
+ * También configura el menú desplegable del usuario.
+ */
+async function renderTopBarUserInfo() {
+    const topbarUsername = document.getElementById('topbar-username');
+    const topbarUserrole = document.getElementById('topbar-userrole');
+    const userDropdownTrigger = document.getElementById('userDropdownTrigger');
+    const userDropdownMenu = document.getElementById('userDropdownMenu');
+
+    if (currentLoggedInUser) {
+        // Obtener los detalles del staff (nombre) asociados al usuario logueado
+        const staffMember = staff.find(s => s.id === currentLoggedInUser.staffId);
+        if (staffMember) {
+            topbarUsername.textContent = staffMember.name;
+            topbarUserrole.textContent = currentLoggedInUser.role;
+        } else {
+            topbarUsername.textContent = currentLoggedInUser.username;
+            topbarUserrole.textContent = currentLoggedInUser.role;
+        }
+    } else {
+        topbarUsername.textContent = 'Invitado';
+        topbarUserrole.textContent = 'Sin Sesión';
+    }
+
+    // Toggle del menú desplegable
+    if (userDropdownTrigger && userDropdownMenu) {
+        userDropdownTrigger.addEventListener('click', (event) => {
+            event.stopPropagation(); // Evita que se cierre inmediatamente por el document click
+            userDropdownMenu.classList.toggle('hidden');
+            lucide.createIcons(); // Para cualquier ícono nuevo en el menú desplegable
+        });
+        document.addEventListener('click', (event) => {
+            if (!userDropdownMenu.contains(event.target) && !userDropdownTrigger.contains(event.target)) {
+                userDropdownMenu.classList.add('hidden');
+            }
+        });
+    }
+    lucide.createIcons(); // Asegurar que los íconos se rendericen
+}
+
+/**
+ * Abre un modal para que el usuario logueado gestione su perfil.
+ */
+async function openUserProfileModal() {
+    if (!currentLoggedInUser) {
+        AppUtils.showAlert('Acceso Denegado', 'No hay un usuario logueado para editar su perfil.', 'error');
+        return;
+    }
+    const staffMember = staff.find(s => s.id === currentLoggedInUser.staffId);
+    const user = currentLoggedInUser;
+
+    Swal.fire({
+        title: `Mi Perfil (${user.username})`,
+        html: `
+            <div class="text-left space-y-4">
+                <p class="text-xs text-slate-500 uppercase">Información Personal</p>
+                <input id="profile-name" class="w-full p-2 border rounded-lg uppercase" placeholder="Nombre completo" value="${staffMember?.name || ''}">
+                <input id="profile-phone" class="w-full p-2 border rounded-lg" placeholder="Teléfono" value="${staffMember?.phone || ''}">
+                <input id="profile-email" type="email" class="w-full p-2 border rounded-lg" placeholder="Correo electrónico" value="${staffMember?.email || ''}">
+                <input id="profile-address" class="w-full p-2 border rounded-lg" placeholder="Dirección" value="${staffMember?.address || ''}">
+
+                <hr class="my-4 border-t border-slate-200">
+                <p class="text-xs text-slate-500 uppercase">Credenciales de Acceso</p>
+                <input id="profile-username" class="w-full p-2 border rounded-lg" placeholder="Nombre de usuario" value="${user.username}" readonly>
+                <input id="profile-current-password" type="password" class="w-full p-2 border rounded-lg" placeholder="Contraseña actual (solo para cambiar)">
+                <input id="profile-new-password" type="password" class="w-full p-2 border rounded-lg" placeholder="Nueva Contraseña">
+                <input id="profile-confirm-new-password" type="password" class="w-full p-2 border rounded-lg" placeholder="Confirmar Nueva Contraseña">
+            </div>
+        `,
+        confirmButtonColor: '#39FF14',
+        confirmButtonText: '<span class="text-black font-bold">Guardar Cambios</span>',
+        showCancelButton: true,
+        didOpen: () => {
+            // Ocultar el menú desplegable al abrir el modal
+            document.getElementById('userDropdownMenu')?.classList.add('hidden');
+        },
+        preConfirm: async () => {
+            const name = document.getElementById('profile-name').value.toUpperCase();
+            const phone = document.getElementById('profile-phone').value;
+            const email = document.getElementById('profile-email').value;
+            const address = document.getElementById('profile-address').value;
+            const currentPassword = document.getElementById('profile-current-password').value;
+            const newPassword = document.getElementById('profile-new-password').value;
+            const confirmNewPassword = document.getElementById('profile-confirm-new-password').value;
+
+            // Validaciones básicas
+            if (!name || !phone || !email) {
+                Swal.showValidationMessage('Por favor, complete los campos obligatorios de información personal.');
+                return false;
+            }
+
+            if (newPassword && newPassword !== confirmNewPassword) {
+                Swal.showValidationMessage('La nueva contraseña y su confirmación no coinciden.');
+                return false;
+            }
+            // En un sistema real, aquí se debería verificar currentPassword con el hash almacenado
+            // Por ahora, solo se guarda si se proporcionan las nuevas contraseñas.
+
+            return { name, phone, email, address, currentPassword, newPassword };
+        }
+    }).then(async result => saveUserProfile(result));
 }
 
 /**
@@ -123,16 +242,30 @@ async function seedInitialData() {
         { id: 1, name: 'ACEITE SINTÉTICO 5W30', category: 'Mecánica', stock: 12, price: 45000, image: '' },
         { id: 2, name: 'PASTILLAS FRENOS DEL.', category: 'Mecánica', stock: 3, price: 85000, image: '' }
     ];
+    // Añadir campos de email y address a los empleados por defecto
+    const defaultStaff = [
+        { id: 'STAFF-1', name: 'ADMINISTRADOR PRINCIPAL', role: 'Administrador', phone: '3001234567', email: 'admin@tallerpro.com', address: 'Calle 10 #20-30, Medellín' },
+        { id: 'STAFF-2', name: 'MECÁNICO JEFE', role: 'Mecánico', phone: '3019876543', email: 'mecanico@tallerpro.com', address: 'Avenida Siempre Viva 742, Bogotá' }
+    ];
     await AppUtils.saveData('inventory_db', defaultInventory);
     inventory = defaultInventory;
 
     const defaultSales = [
+        // Añadir una venta de ejemplo con placa y modelo
+    
         { id: Date.now(), fecha: new Date().toISOString(), carModel: 'DEMO VEHÍCULO', total: 50000 }
     ];
     await AppUtils.saveData('sales_db', defaultSales);
 
     const defaultConfig = [{ name: 'Workshop Pro', nit: '00000000', iva: 19, address: 'Dirección taller' }];
     await AppUtils.saveData('company_db', defaultConfig);
+
+    // Añadir un usuario administrador por defecto para el empleado por defecto
+    await AppUtils.saveData('staff_db', defaultStaff); // Guardar staff por defecto
+    const defaultUsers = [ // El usuario por defecto debe coincidir con el staff por defecto
+        { id: 'USR-1', staffId: 'STAFF-1', username: 'admin', password: 'password123', role: 'Administrador' }
+    ];
+    await AppUtils.saveData('users_db', defaultUsers);
 }
 
 async function initInventory() {
@@ -563,14 +696,29 @@ async function openClientModal(id = null) {
  * GESTIÓN DE PERSONAL 
  */
 async function initStaff() {
-    const staff = await AppUtils.loadData('staff_db');
+    const staff = await AppUtils.loadData('staff_db'); // Cargar datos de empleados
+    const users = await AppUtils.loadData('users_db'); // Cargar datos de usuarios
+
+    // Unir datos de empleados con datos de usuario
+    const staffWithUsers = staff.map(s => {
+        const user = users.find(u => u.staffId === s.id);
+        return {
+            ...s,
+            hasUser: !!user, // Booleano: true si tiene usuario, false si no
+            username: user ? user.username : '',
+            userRole: user ? user.role : ''
+        };
+    });
+
     staffTable = $('#staffTable').DataTable({
-        data: staff,
+        data: staffWithUsers, // Usar los datos enriquecidos
         columns: [
             { data: 'id' },
             { data: 'name' },
-            { data: 'role' },
+            { data: 'role' }, // Rol de trabajo del empleado
             { data: 'phone' },
+            { data: 'hasUser', render: (data) => data ? '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">Sí</span>' : '<span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-bold">No</span>' },
+            { data: 'userRole', render: (data) => data || 'N/A' }, // Rol de acceso al sistema
             {
                 data: null,
                 render: (data, type, row) => `
@@ -587,46 +735,181 @@ async function initStaff() {
 }
 
 async function openStaffModal(id = null) {
-    const staff = await AppUtils.loadData('staff_db');
-    const member = id ? staff.find(s => s.id == id) : { id: '', name: '', role: 'Mecánico', phone: '' };
+    const staff = await AppUtils.loadData('staff_db'); // Cargar empleados
+    const users = await AppUtils.loadData('users_db'); // Cargar usuarios
+
+    const member = id ? staff.find(s => s.id === id) : { id: '', name: '', role: 'Mecánico', phone: '' };
+    const user = id ? users.find(u => u.staffId === member.id) : null;
 
     Swal.fire({
         title: id ? 'Editar Empleado' : 'Nuevo Empleado',
         html: `
             <div class="text-left space-y-4">
-                <input id="s-id" class="w-full p-2 border rounded-lg" placeholder="Documento de Identidad" value="${member.id}">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Documento de Identidad</label>
+                <input id="s-id" class="w-full p-2 border rounded-lg" placeholder="Documento de Identidad" value="${member.id}" ${id ? 'readonly' : ''}>
+                
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre completo</label>
                 <input id="s-name" class="w-full p-2 border rounded-lg uppercase" placeholder="Nombre completo" value="${member.name}">
+                
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Cargo del Empleado</label>
                 <select id="s-role" class="w-full p-2 border rounded-lg">
                     <option value="Mecánico" ${member.role == 'Mecánico' ? 'selected' : ''}>Mecánico</option>
                     <option value="Administrador" ${member.role == 'Administrador' ? 'selected' : ''}>Administrador</option>
                     <option value="Ayudante" ${member.role == 'Ayudante' ? 'selected' : ''}>Ayudante</option>
                 </select>
+                
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Teléfono</label>
                 <input id="s-phone" class="w-full p-2 border rounded-lg" placeholder="Teléfono" value="${member.phone}">
+
+                <hr class="my-4 border-t border-slate-200">
+                <h4 class="font-bold text-slate-700 mb-2">Gestión de Usuario (Acceso al Sistema)</h4>
+                <div class="flex items-center mb-2">
+            <input type="checkbox" id="s-has-user" class="mr-2 h-4 w-4 text-navy-blue border-gray-300 rounded focus:ring-navy-blue" ${user ? 'checked' : ''}>
+                    <label for="s-has-user" class="text-sm text-slate-600">Crear/Gestionar Usuario para este empleado</label>
+                </div>
+
+                <div id="user-fields" class="space-y-3 ${user ? '' : 'hidden'}">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre de Usuario</label>
+                        <input id="s-username" class="w-full p-2 border rounded-lg" placeholder="ej: jdoe" value="${user ? user.username : ''}">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contraseña ${user ? '(Dejar vacío para no cambiar)' : ''}</label>
+                        <input id="s-password" type="password" class="w-full p-2 border rounded-lg" placeholder="********">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Confirmar Contraseña</label>
+                        <input id="s-confirm-password" type="password" class="w-full p-2 border rounded-lg" placeholder="********">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Rol de Acceso</label>
+                        <select id="s-user-role" class="w-full p-2 border rounded-lg">
+                            <option value="Administrador" ${user && user.role === 'Administrador' ? 'selected' : ''}>Administrador</option>
+                            <option value="Mecánico" ${user && user.role === 'Mecánico' ? 'selected' : ''}>Mecánico</option>
+                            <option value="Empleado" ${user && user.role === 'Empleado' ? 'selected' : ''}>Empleado</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         `,
         confirmButtonColor: '#39FF14',
         confirmButtonText: '<span class="text-black font-bold">Guardar</span>',
         showCancelButton: true,
-        preConfirm: () => {
-            return { // All text inputs are converted to uppercase
-                id: document.getElementById('s-id').value.toUpperCase(),
-                name: document.getElementById('s-name').value.toUpperCase(),
-                role: document.getElementById('s-role').value,
-                phone: document.getElementById('s-phone').value
+        didOpen: () => {
+            const hasUserCheckbox = document.getElementById('s-has-user');
+            const userFieldsDiv = document.getElementById('user-fields');
+            const toggleUserFields = () => {
+                userFieldsDiv.classList.toggle('hidden', !hasUserCheckbox.checked);
+            };
+            hasUserCheckbox.addEventListener('change', toggleUserFields);
+        },
+        preConfirm: async () => {
+            const staffId = document.getElementById('s-id').value.toUpperCase();
+            const staffName = document.getElementById('s-name').value.toUpperCase();
+            const staffRole = document.getElementById('s-role').value; // Rol de trabajo del empleado
+            const staffPhone = document.getElementById('s-phone').value;
+            const hasUser = document.getElementById('s-has-user').checked;
+
+            if (!staffId || !staffName || !staffRole || !staffPhone) {
+                Swal.showValidationMessage('Por favor, complete todos los campos del empleado.');
+                return false;
             }
+
+            // Verificar si el ID de empleado ya existe al crear uno nuevo
+            if (!id && staff.some(s => s.id === staffId)) {
+                Swal.showValidationMessage('Ya existe un empleado con este Documento de Identidad.');
+                return false;
+            }
+
+            let userData = null;
+            let existingUser = users.find(u => u.staffId === staffId);
+
+            if (hasUser) {
+                const username = document.getElementById('s-username').value.trim();
+                const password = document.getElementById('s-password').value;
+                const confirmPassword = document.getElementById('s-confirm-password').value;
+                const userAccessRole = document.getElementById('s-user-role').value; // Rol de acceso al sistema
+
+                if (!username || !userAccessRole) {
+                    Swal.showValidationMessage('Por favor, complete el nombre de usuario y el rol de acceso.');
+                    return false;
+                }
+
+                // Verificar nombre de usuario duplicado (excluyendo al usuario actual si se está editando)
+                if (users.some(u => u.username === username && u.staffId !== staffId)) {
+                    Swal.showValidationMessage('Este nombre de usuario ya está en uso.');
+                    return false;
+                }
+
+                if (!existingUser) { // Si se está creando un nuevo usuario
+                    if (!password || !confirmPassword) {
+                        Swal.showValidationMessage('Por favor, ingrese y confirme la contraseña para el nuevo usuario.');
+                        return false;
+                    }
+                }
+
+                if (password !== confirmPassword) {
+                    Swal.showValidationMessage('Las contraseñas no coinciden.');
+                    return false;
+                }
+
+                userData = {
+                    id: existingUser ? existingUser.id : `USR-${Date.now()}`, // Mantener ID existente o generar uno nuevo
+                    staffId: staffId,
+                    username: username,
+                    role: userAccessRole
+                };
+                if (password) { // Solo actualizar contraseña si se proporcionó una nueva
+                    userData.password = password; // NOTA: En una aplicación real, ¡esto debería ser un hash!
+                } else if (existingUser) { // Si se está editando un usuario existente y la contraseña está vacía, mantener la antigua
+                    userData.password = existingUser.password;
+                } else { // Nuevo usuario, la contraseña es obligatoria
+                    Swal.showValidationMessage('Por favor, ingrese una contraseña para el nuevo usuario.');
+                    return false;
+                }
+            } else if (existingUser) {
+                // Si el checkbox está desmarcado pero el empleado tiene un usuario, preguntar si se desea eliminar el usuario
+                const confirmDeleteUser = await AppUtils.confirmAction(
+                    '¿Eliminar Usuario?',
+                    `El empleado ${staffName} tiene un usuario asociado. ¿Desea eliminar también su cuenta de acceso al sistema?`,
+                    () => { }, // No hay acción directa aquí, el resultado se maneja en el .then
+                    'warning',
+                    'Sí, eliminar usuario',
+                    '#ef4444'
+                );
+                if (!confirmDeleteUser.isConfirmed) {
+                    return false; // El usuario canceló la eliminación de la cuenta de usuario
+                }
+                // Si se confirma, userData seguirá siendo null, lo que indicará la eliminación
+            }
+
+            return { staff: { id: staffId, name: staffName, role: staffRole, phone: staffPhone }, user: userData };
         }
     }).then(async result => {
         if (result.isConfirmed) {
-            let updatedStaff = id ? staff.filter(s => s.id != id) : staff;
-            updatedStaff.push(result.value);
+            const { staff: newStaffData, user: newUserData } = result.value;
+
+            // Actualizar staff_db
+            let updatedStaff = staff.filter(s => s.id !== newStaffData.id);
+            updatedStaff.push(newStaffData);
             await AppUtils.saveData('staff_db', updatedStaff);
+
+            // Actualizar users_db
+            let updatedUsers = users.filter(u => u.staffId !== newStaffData.id); // Eliminar datos de usuario antiguos para este staffId
+            if (newUserData) { // Si se proporcionaron datos de usuario (checkbox marcado)
+                updatedUsers.push(newUserData);
+            }
+            await AppUtils.saveData('users_db', updatedUsers);
+            this.users = updatedUsers; // Actualizar la variable global de usuarios
+
             await refreshUI();
+            AppUtils.showToast('Empleado y usuario actualizados correctamente', 'success');
         }
     });
 }
 
-/** 
- * CONFIGURACIÓN DE EMPRESA 
+/**
+ * CONFIGURACIÓN DE EMPRESA
  */
 async function loadCompanySettings() {
     const config = await AppUtils.loadData('company_db');

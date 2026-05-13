@@ -31,7 +31,7 @@ if ($action === 'init') {
         mkdir($jsonDir, 0777, true);
     }
 
-    $files = ['inventory_db', 'sales_db', 'drafts_db', 'clients_db', 'staff_db', 'suppliers_db', 'purchases_db', 'company_db', 'expenses_db'];
+    $files = ['inventory_db', 'sales_db', 'drafts_db', 'clients_db', 'staff_db', 'suppliers_db', 'purchases_db', 'company_db', 'expenses_db', 'users_db'];
     foreach ($files as $f) {
         $path = $jsonDir . '/' . $f . '.json';
         if (!file_exists($path) || filesize($path) === 0) {
