@@ -11,12 +11,14 @@ let staffTable = null;
 let suppliersTable = null;
 let purchasesTable = null;
 
-// Variables globales de estado y datos
+// Variables globales de estado y datos (estas aún se cargan de JSON para otras tablas)
 let users = [];
 let staff = [];
-let currentLoggedInUser = null;
 // Variable global para el estado del inventario
 let inventory = [];
+
+// Variable global para el usuario logueado (se cargará de la DB)
+let currentLoggedInUser = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Limpiar localStorage para asegurar que solo se usen los datos de los archivos JSON
@@ -28,19 +30,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 1. Asegurar que los archivos JSON existan y sean válidos []
     await AppUtils.checkAndInitDB();
 
-    // Cargar datos iniciales de forma asíncrona
-    users = await AppUtils.loadData('users_db'); // Cargar usuarios
-    staff = await AppUtils.loadData('staff_db'); // Cargar empleados para la info del perfil
-    // Para efectos de desarrollo, asumimos que el primer admin es el usuario logueado
-    const defaultAdminUser = users.find(u => u.role === 'Administrador');
-    if (defaultAdminUser) currentLoggedInUser = defaultAdminUser;
-    inventory = await AppUtils.loadData('inventory_db');
-
     // Solo sembrar datos si es la primerísima vez (verificando una bandera en company_db)
+    // Nota: Esto aún usa JSON para la lógica de sembrado inicial.
+    // Si la intención es eliminar TODO el uso de JSON, esta lógica también debería cambiar a DB.
+    // Pero el request es específico sobre el header user info.
     const config = await AppUtils.loadData('company_db'); // Re-leer config después de seedInitialData
     if (config.length === 0) {
         await seedInitialData();
     }
+
+    // Cargar todos los datos globales *después* de que seedInitialData haya tenido la oportunidad de ejecutarse
+    // Estas variables aún se usan para tablas y otras lógicas que no son el header user info
+    users = await AppUtils.loadData('users_db'); // Cargar usuarios (para tabla de personal, etc.)
+    staff = await AppUtils.loadData('staff_db'); // Cargar empleados (para tabla de personal, etc.)
+    inventory = await AppUtils.loadData('inventory_db'); // Cargar inventario
+
+    // Cargar la información del usuario logueado directamente desde la base de datos
+    await fetchLoggedInUserFromDB();
 
     await initInventory();
     await initSalesHistory();
@@ -51,7 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initExpenses();
 
     await refreshUI();
-    await loadCompanySettings(); // This was already correct
+    await loadCompanySettings();
 
     // Manejar la sección inicial basada en la URL (Deep Linking)
     handleInitialNavigation();
@@ -59,7 +65,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Auto-update dashboard cards every 5 seconds
     renderTopBarUserInfo(); // Cargar info del usuario en la barra superior una vez que todo esté cargado
     setInterval(renderDashboardCards, 5000);
-    setInterval(renderFinancialCards, 5000);
+    setInterval(renderFinancialCards, 5000); // This was already correct
     setInterval(renderPendingBillsDashboard, 5000);
     setInterval(renderSupplierDebtsDashboard, 5000);
     setInterval(renderExpensesDashboard, 5000);
@@ -117,12 +123,30 @@ function showSection(sectionId, updateHistory = true) {
 function handleInitialNavigation() {
     const fullPath = window.location.pathname;
     const validSections = ['dashboard', 'inventario', 'facturacion', 'historial', 'proveedores', 'gastos', 'clientes', 'personal', 'empresa'];
-    
+
     // Buscamos si la URL contiene alguna de nuestras secciones
     const sectionFound = validSections.find(s => fullPath.includes(`/${s}`));
-    
+
     // Si se encuentra una sección en la URL se muestra, de lo contrario por defecto va al dashboard
     showSection(sectionFound || 'dashboard', false);
+}
+
+/**
+ * Obtiene la información del usuario actualmente autenticado desde el servidor.
+ */
+async function fetchLoggedInUserFromDB() {
+    try {
+        const response = await fetch(`${URLROOT}/auth/getLoggedInUser`);
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                currentLoggedInUser = result.user;
+            }
+        }
+    } catch (error) {
+        console.error("Error al obtener sesión del usuario:", error);
+        currentLoggedInUser = null;
+    }
 }
 
 async function refreshUI() {
@@ -179,15 +203,13 @@ async function renderTopBarUserInfo() {
     const userDropdownMenu = document.getElementById('userDropdownMenu');
 
     if (currentLoggedInUser) {
-        // Obtener los detalles del staff (nombre) asociados al usuario logueado
-        const staffMember = staff.find(s => s.id === currentLoggedInUser.staffId);
-        if (staffMember) {
-            topbarUsername.textContent = staffMember.name;
-            topbarUserrole.textContent = currentLoggedInUser.role;
+        // Usar staffName si está disponible (viene de la DB), de lo contrario el username
+        if (currentLoggedInUser.staffName) {
+            topbarUsername.textContent = currentLoggedInUser.staffName;
         } else {
             topbarUsername.textContent = currentLoggedInUser.username;
-            topbarUserrole.textContent = currentLoggedInUser.role;
         }
+        topbarUserrole.textContent = currentLoggedInUser.role; // Rol del sistema
     } else {
         topbarUsername.textContent = 'Invitado';
         topbarUserrole.textContent = 'Sin Sesión';

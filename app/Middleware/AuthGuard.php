@@ -21,6 +21,26 @@ class AuthGuard {
             header('location: ' . URLROOT . '/auth/login');
             exit();
         }
+ 
+        // Validación de sesión única contra Base de Datos
+        // Si otro dispositivo inició sesión con el mismo usuario, el ID en la BD habrá cambiado
+        $db = new Database();
+        $db->query("SELECT session_id FROM table_usuario_sessions WHERE usuario_id = :uid");
+        $db->bind(':uid', $_SESSION['user_id']);
+        $registro = $db->single();
+
+        // Si el registro no existe o el session_id no coincide con el actual de PHP
+        if (!$registro || $registro->session_id !== session_id()) {
+            // Destruir la sesión actual del navegador
+            $_SESSION = array();
+            if (ini_get("session.use_cookies")) {
+                $params = session_get_cookie_params();
+                setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+            }
+            session_destroy();
+            header('location: ' . URLROOT . '/auth/login?error=session_replaced');
+            exit();
+        }
     }
 
     /**

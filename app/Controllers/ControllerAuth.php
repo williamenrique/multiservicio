@@ -25,6 +25,7 @@ class ControllerAuth extends Controller {
 
             $email = isset($input['email']) ? trim($input['email']) : '';
             $password = isset($input['password']) ? trim($input['password']) : '';
+            $force = isset($input['force']) ? (bool)$input['force'] : false;
 
             // Validar existencia del usuario
             $userFound = $this->userModel->buscarPorEmail($email);
@@ -33,12 +34,33 @@ class ControllerAuth extends Controller {
                 // Verificar contraseña hash
                 //if (password_verify($password, $userFound->password)) {
                 if (($userFound->password)) {
-                    
+
+                    // Verificar si ya existe una sesión abierta
+                    $sesionActiva = $this->userModel->obtenerSesionActiva($userFound->id);
+
+                    if ($sesionActiva && !$force) {
+                        echo json_encode([
+                            'success' => false, 
+                            'session_exists' => true, 
+                            'error' => 'Ya tienes una sesión abierta en otro dispositivo.'
+                        ]);
+                        exit();
+                    }
+
                     // Crear las variables de sesión en el servidor
                     $_SESSION['user_id'] = $userFound->id;
                     $_SESSION['user_email'] = $userFound->email;
                     $_SESSION['user_nombre'] = $userFound->nombre;
                     $_SESSION['user_role'] = $userFound->nombre_rol; // Viene del JOIN con table_roles
+                    $_SESSION['user_staff_id'] = $userFound->staff_id ?? null;
+
+                    // Registrar la nueva sesión en la BD
+                    $this->userModel->registrarSesion([
+                        'session_id' => session_id(),
+                        'usuario_id' => $userFound->id,
+                        'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0',
+                        'usuario_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido'
+                    ]);
 
                     // Retornar éxito en JSON
                     echo json_encode(['success' => true, 'redirect' => URLROOT . '/dashboard']);
@@ -57,6 +79,25 @@ class ControllerAuth extends Controller {
     }
 
     /**
+     * Retorna los datos de la sesión actual para el frontend
+     */
+    public function getLoggedInUser() {
+        if (isset($_SESSION['user_id'])) {
+            echo json_encode([
+                'success' => true,
+                'user' => [
+                    'staffId' => $_SESSION['user_staff_id'] ?? null,
+                    'username' => $_SESSION['user_email'],
+                    'staffName' => $_SESSION['user_nombre'],
+                    'role' => $_SESSION['user_role']
+                ]
+            ]);
+        } else {
+            echo json_encode(['success' => false]);
+        }
+    }
+
+    /**
      * Cierra la sesión del usuario y lo redirige a la página de inicio de sesión.
      */
     public function logout() {
@@ -65,6 +106,11 @@ class ControllerAuth extends Controller {
         // verificarlo si este método pudiera ser llamado de forma aislada.
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
+        }
+
+        // Limpiar el registro de sesión de la base de datos al salir
+        if (isset($_SESSION['user_id'])) {
+            $this->userModel->eliminarSesiones($_SESSION['user_id']);
         }
 
         // Destruir todas las variables de sesión

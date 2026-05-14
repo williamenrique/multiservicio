@@ -51,4 +51,38 @@ class Usuario {
 
         return $this->db->execute();
     }
+
+    /**
+     * Verifica si el usuario tiene una sesión activa en la base de datos
+     */
+    public function obtenerSesionActiva($usuario_id) {
+        $this->db->query("SELECT * FROM table_usuario_sessions WHERE usuario_id = :id LIMIT 1");
+        $this->db->bind(':id', $usuario_id);
+        return $this->db->single();
+    }
+
+    /**
+     * Elimina los registros de sesión para un usuario
+     */
+    public function eliminarSesiones($usuario_id) {
+        $this->db->query("DELETE FROM table_usuario_sessions WHERE usuario_id = :id");
+        $this->db->bind(':id', $usuario_id);
+        return $this->db->execute();
+    }
+
+    /**
+     * Crea un registro de sesión vinculando el ID de sesión de PHP con el usuario
+     */
+    public function registrarSesion($datos) {
+        $this->db->query("INSERT INTO table_usuario_sessions (session_id, usuario_id, ip_address, usuario_agent, created_at) 
+                          VALUES (:session_id, :usuario_id, :ip_address, :usuario_agent, :created_at)");
+        
+        $this->db->bind(':session_id', $datos['session_id']);
+        $this->db->bind(':usuario_id', $datos['usuario_id']);
+        $this->db->bind(':ip_address', $datos['ip_address']);
+        $this->db->bind(':usuario_agent', $datos['usuario_agent']);
+        $this->db->bind(':created_at', date('Y-m-d H:i:s'));
+
+        return $this->db->execute();
+    }
 }
