@@ -7,15 +7,15 @@ document.addEventListener('DOMContentLoaded', function () {
         formLogin.addEventListener('submit', async function (e) {
             e.preventDefault(); // Evita el envío tradicional y la recarga de página
 
-            const email = document.getElementById('email').value;
+            const usuario = document.getElementById('usuario').value;
             const password = document.getElementById('password').value;
             const csrf_token = document.getElementById('csrf_token').value;
 
-            realizarLogin(email, password, csrf_token);
+            realizarLogin(usuario, password, csrf_token);
         });
     }
 
-    async function realizarLogin(email, password, csrf_token, force = false) {
+    async function realizarLogin(usuario, password, csrf_token, force = false) {
         // Bloquear botón para evitar múltiples clics
         btnSubmit.disabled = true;
         btnSubmit.textContent = "Verificando...";
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    email,
+                    usuario,
                     password,
                     csrf_token,
                     force
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Escuchar el clic del nuevo botón generado dinámicamente
                 document.getElementById('btnForceLogin').addEventListener('click', () => {
-                    realizarLogin(email, password, csrf_token, true);
+                    realizarLogin(usuario, password, csrf_token, true);
                 });
             } else {
                 // Si falló, desbloquea la interfaz y muestra el error dinámicamente

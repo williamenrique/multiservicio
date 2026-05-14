@@ -23,12 +23,12 @@ class ControllerAuth extends Controller {
             // Recibir y decodificar el JSON enviado por Fetch API
             $input = json_decode(file_get_contents('php://input'), true);
 
-            $email = isset($input['email']) ? trim($input['email']) : '';
+            $usuarioInput = isset($input['usuario']) ? trim($input['usuario']) : ''; // Puede ser email o nick
             $password = isset($input['password']) ? trim($input['password']) : '';
             $force = isset($input['force']) ? (bool)$input['force'] : false;
 
             // Validar existencia del usuario
-            $userFound = $this->userModel->buscarPorEmail($email);
+            $userFound = $this->userModel->buscarPorIdentificador($usuarioInput);
 
             if ($userFound) {
                 // Verificar contraseña hash
@@ -49,6 +49,7 @@ class ControllerAuth extends Controller {
 
                     // Crear las variables de sesión en el servidor
                     $_SESSION['user_id'] = $userFound->id;
+                    $_SESSION['user_nick'] = $userFound->username;
                     $_SESSION['user_email'] = $userFound->email;
                     $_SESSION['user_nombre'] = $userFound->nombre;
                     $_SESSION['user_role'] = $userFound->nombre_rol; // Viene del JOIN con table_roles
@@ -87,7 +88,7 @@ class ControllerAuth extends Controller {
                 'success' => true,
                 'user' => [
                     'staffId' => $_SESSION['user_staff_id'] ?? null,
-                    'username' => $_SESSION['user_email'],
+                    'username' => $_SESSION['user_nick'],
                     'staffName' => $_SESSION['user_nombre'],
                     'role' => $_SESSION['user_role']
                 ]

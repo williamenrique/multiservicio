@@ -13,15 +13,17 @@ class Usuario {
 
     /**
      * Buscar un usuario por su correo electrónico
-     * Útil para el proceso de Login
      */
-    public function buscarPorEmail($email) {
-        // Traemos los datos del usuario y el nombre del rol en una sola consulta
-        $this->db->query("SELECT u.*, r.nombre_rol 
+    public function buscarPorIdentificador($identificador) {
+        // Buscamos en el nick (username) de la tabla usuarios O en el email de la tabla staff
+        $this->db->query("SELECT u.id, u.username, u.password, u.role_id, u.staff_id, u.estado, 
+                                 s.nombre, s.email, r.nombre_rol 
                           FROM table_usuarios u 
+                          INNER JOIN table_staff s ON u.staff_id = s.id 
                           INNER JOIN table_roles r ON u.role_id = r.id 
-                          WHERE u.email = :email AND u.estado = 1");
-        $this->db->bind(':email', $email);
+                          WHERE (s.email = :id OR u.username = :id) AND u.estado = 1");
+        
+        $this->db->bind(':id', $identificador);
         return $this->db->single();
     }
 
@@ -31,7 +33,12 @@ class Usuario {
      * Útil para perfiles o verificar permisos
      */
     public function obtenerUsuarioPorId($id) {
-        $this->db->query("SELECT id, nombre, email, role_id, created_at FROM table_usuarios WHERE id = :id");
+        $this->db->query("SELECT u.id, u.username, s.nombre, s.email, u.role_id, u.staff_id, u.created_at, 
+                                 r.nombre_rol, s.nombre as staff_name, s.cargo as staff_job_role
+                          FROM table_usuarios u 
+                          INNER JOIN table_roles r ON u.role_id = r.id 
+                          INNER JOIN table_staff s ON u.staff_id = s.id 
+                          WHERE u.id = :id AND u.estado = 1");
         $this->db->bind(':id', $id);
 
         return $this->db->single();

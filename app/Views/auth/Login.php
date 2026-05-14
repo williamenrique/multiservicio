@@ -44,12 +44,12 @@
                 <input type="hidden" id="csrf_token" value="<?php echo csrf_token(); ?>">
 
                 <div>
-                    <label for="email" class="block text-xs font-bold text-gray-400 uppercase mb-2 ml-1">Correo Electrónico</label>
+                    <label for="usuario" class="block text-xs font-bold text-gray-400 uppercase mb-2 ml-1">Usuario o Correo Electrónico</label>
                     <div class="relative">
-                        <i data-lucide="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"></i>
-                        <input type="email" id="email" 
+                        <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"></i>
+                        <input type="text" id="usuario" 
                                class="w-full bg-slate-900/50 border border-gray-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all" 
-                               placeholder="nombre@taller.com" required autocomplete="email">
+                               placeholder="Ej: admin o nombre@taller.com" required>
                     </div>
                 </div>
 
