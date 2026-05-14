@@ -49,20 +49,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = "Ingresar al Sistema";
 
-                Swal.fire({
-                    title: 'Sesión Activa Detectada',
-                    text: 'Parece que ya tienes una sesión abierta en otro dispositivo o navegador. ¿Deseas cerrarla e iniciar sesión aquí?',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#39FF14',
-                    cancelButtonColor: '#d33',
-                    confirmButtonText: '<span style="color: #000">Sí, cerrar la otra sesión</span>',
-                    cancelButtonText: 'No, cancelar'
-                }).then((swalResult) => {
-                    if (swalResult.isConfirmed) {
-                        // Reintento de login con el flag de "force"
-                        realizarLogin(email, password, csrf_token, true);
-                    }
+                // Inyectamos el mensaje y un botón dentro del div de alerta de error
+                alertError.innerHTML = `
+                    <div class="flex flex-col gap-3">
+                        <p class="font-medium">${result.error}</p>
+                        <button type="button" id="btnForceLogin" class="bg-white/20 hover:bg-white/30 text-white border border-white/40 py-2 px-3 rounded-lg text-xs font-bold transition-all uppercase">
+                            Cerrar sesión remota y entrar aquí
+                        </button>
+                    </div>
+                `;
+                alertError.style.display = 'block';
+
+                // Escuchar el clic del nuevo botón generado dinámicamente
+                document.getElementById('btnForceLogin').addEventListener('click', () => {
+                    realizarLogin(email, password, csrf_token, true);
                 });
             } else {
                 // Si falló, desbloquea la interfaz y muestra el error dinámicamente
