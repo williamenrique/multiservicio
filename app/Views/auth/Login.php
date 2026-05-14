@@ -1,33 +1,81 @@
-<div class="login-wrapper" style="max-width: 400px; margin: 80px auto; padding: 20px;">
-    <div class="card shadow-sm p-4 bg-white rounded">
-        <div class="card-body">
-            <h2 class="text-center mb-4"><?php echo s($data['titulo']); ?></h2>
-            
-            <!-- Contenedor dinámico de errores manejado por JS -->
-            <div id="alert-error" class="alert alert-danger" style="display: none; color: #721c24; background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;"></div>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo s($data['titulo']); ?> | Taller Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
+    <style>
+        .glass-login {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        body {
+            background: radial-gradient(circle at top right, #0f172a, #020617);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
 
-            <form id="formLogin">
+    <div class="w-full max-w-md">
+        <!-- Logo / Brand -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-navy-blue rounded-2xl border border-gray-800 mb-4 shadow-lg">
+                <i data-lucide="wrench" class="text-neon-green w-8 h-8"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-white tracking-wider">TALLER<span class="text-neon-green">PRO</span></h1>
+            <p class="text-gray-400 text-sm mt-2">Sistema de Gestión Automotriz</p>
+        </div>
+
+        <!-- Login Card -->
+        <div class="glass-login p-8 rounded-3xl shadow-2xl">
+            <h2 class="text-xl font-bold text-white mb-6 text-center uppercase tracking-widest"><?php echo s($data['titulo']); ?></h2>
+            
+            <!-- Contenedor de errores -->
+            <div id="alert-error" class="hidden mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-500 text-sm font-medium flex items-center gap-3">
+                <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0"></i>
+                <span id="error-text"></span>
+            </div>
+
+            <form id="formLogin" class="space-y-5">
                 <input type="hidden" id="csrf_token" value="<?php echo csrf_token(); ?>">
 
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label for="email" style="display: block; margin-bottom: 5px;">Correo Electrónico:</label>
-                    <input type="email" id="email" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required autocomplete="email">
+                <div>
+                    <label for="email" class="block text-xs font-bold text-gray-400 uppercase mb-2 ml-1">Correo Electrónico</label>
+                    <div class="relative">
+                        <i data-lucide="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"></i>
+                        <input type="email" id="email" 
+                               class="w-full bg-slate-900/50 border border-gray-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all" 
+                               placeholder="nombre@taller.com" required autocomplete="email">
+                    </div>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <label for="password" style="display: block; margin-bottom: 5px;">Contraseña:</label>
-                    <input type="password" id="password" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
+                <div>
+                    <label for="password" class="block text-xs font-bold text-gray-400 uppercase mb-2 ml-1">Contraseña</label>
+                    <div class="relative">
+                        <i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"></i>
+                        <input type="password" id="password" 
+                               class="w-full bg-slate-900/50 border border-gray-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all" 
+                               placeholder="••••••••" required>
+                    </div>
                 </div>
 
-                <button type="submit" id="btnSubmit" class="btn btn-primary" style="width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                <button type="submit" id="btnSubmit" 
+                        class="w-full bg-neon-green text-black font-black py-4 rounded-xl shadow-lg shadow-neon-green/20 hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-widest mt-4">
                     Ingresar al Sistema
                 </button>
             </form>
         </div>
+        <p class="text-center text-gray-600 text-xs mt-8">© <?php echo date('Y'); ?> Taller Pro v1.0 - Gestión Profesional</p>
     </div>
-</div>
-<!-- Inyectamos la URLROOT de PHP para que JavaScript sepa exactamente a dónde disparar -->
-<script>
-    const URLROOT = "<?php echo URLROOT; ?>";
-</script>
-<script src="<?php echo URL_JS; ?>login.js"></script>
+
+    <script>
+        const URLROOT = "<?php echo URLROOT; ?>";
+        lucide.createIcons();
+    </script>
+    <script src="<?php echo URL_JS; ?>login.js"></script>
+</body>
+</html>
