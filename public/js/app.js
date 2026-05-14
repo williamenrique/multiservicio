@@ -7,7 +7,6 @@ let inventoryTable = null;
 let salesChart = null;
 let salesTable = null;
 let staffTable = null;
-let suppliersTable = null;
 let purchasesTable = null;
 let expensesTable = null;
 
@@ -1215,35 +1214,10 @@ async function renderSupplierDebtsDashboard() {
                 <p class="text-gray-400 text-sm">${s.label}</p>
                 <h3 class="text-2xl font-bold ${s.color}">${s.value}</h3>
             </div>
-            <i data-lucide="${s.icon}" class="${s.color} w-8 h-8 opacity-20"></i>
+            <i data-lucide="${s.icon}" class="${s.color} w-10 h-10 opacity-20"></i>
         </div>
     `).join('');
     lucide.createIcons();
-}
-
-/** GESTIÓN DE PROVEEDORES */
-async function initSuppliers() {
-    const tableEl = document.getElementById('suppliersTable');
-    if (!tableEl) return;
-
-    const suppliers = await AppUtils.loadData('suppliers_db'); // This was already correct
-    suppliersTable = $(tableEl).DataTable({
-        data: suppliers,
-        columns: [
-            { data: 'id' }, { data: 'name' }, { data: 'phone' }, { data: 'email' },
-            {
-                data: null,
-                render: (data, type, row) => `
-                    <div class="flex gap-2">
-                        <button onclick="openSupplierModal('${row.id}')" class="p-1 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
-                        <button onclick="genericDelete('${row.id}', 'suppliers_db', 'Proveedor')" class="p-1 text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                    </div>
-                `
-            }
-        ],
-        responsive: true,
-        drawCallback: () => lucide.createIcons()
-    });
 }
 
 async function initPurchases() { // This was already correct
@@ -1303,8 +1277,7 @@ async function initExpenses() {
                 render: (data, type, row) => `
                     <button onclick="genericDelete('${row.id}', 'expenses_db', 'Gasto')" class="p-1 text-slate-400 hover:text-red-500 transition-colors">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
-                `
+                    </button>`
             }
         ],
         responsive: true,
