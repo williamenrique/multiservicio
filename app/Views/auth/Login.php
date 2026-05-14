@@ -1,7 +1,12 @@
 <!DOCTYPE html>
+<!-- 
+  Vista Principal de Login 
+  Utiliza Tailwind CSS y Lucide Icons.
+-->
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <link rel="shortcut icon" href="<?php echo URL_IMG; ?>logo1.png" type="image/x-icon">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo s($data['titulo']); ?> | Taller Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -34,7 +39,7 @@
         <div class="glass-login p-8 rounded-3xl shadow-2xl">
             <h2 class="text-xl font-bold text-white mb-6 text-center uppercase tracking-widest"><?php echo s($data['titulo']); ?></h2>
             
-            <!-- Contenedor de errores -->
+            <!-- Contenedor dinámico de alertas (errores y sesión activa) -->
             <div id="alert-error" class="hidden mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-500 text-sm font-medium flex items-center gap-3">
                 <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0"></i>
                 <span id="error-text"></span>

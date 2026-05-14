@@ -1,3 +1,6 @@
+/**
+ * Manejo del formulario de Login mediante Fetch API.
+ */
 document.addEventListener('DOMContentLoaded', function () {
     const formLogin = document.getElementById('formLogin');
     const alertError = document.getElementById('alert-error');
@@ -5,24 +8,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (formLogin) {
         formLogin.addEventListener('submit', async function (e) {
-            e.preventDefault(); // Evita el envío tradicional y la recarga de página
+            e.preventDefault();
 
             const usuario = document.getElementById('usuario').value;
             const password = document.getElementById('password').value;
             const csrf_token = document.getElementById('csrf_token').value;
 
-            realizarLogin(usuario, password, csrf_token);
+            realizarLogin(usuario, password, csrf_token); // Llamada inicial
         });
     }
 
+    /**
+     * Realiza la petición asíncrona al servidor.
+     * @param {boolean} force - Si es true, el servidor cerrará cualquier sesión previa.
+     */
     async function realizarLogin(usuario, password, csrf_token, force = false) {
-        // Bloquear botón para evitar múltiples clics
         btnSubmit.disabled = true;
         btnSubmit.textContent = "Verificando...";
         alertError.style.display = 'none';
 
         try {
-            // Realizar la petición asíncrona hacia el controlador
             const response = await fetch(`${URLROOT}/auth/login`, {
                 method: 'POST',
                 headers: {
@@ -36,7 +41,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 })
             });
 
-            // Validar que la respuesta del servidor sea correcta a nivel HTTP
             if (!response.ok) throw new Error('Error en la comunicación con el servidor.');
 
             const result = await response.json();

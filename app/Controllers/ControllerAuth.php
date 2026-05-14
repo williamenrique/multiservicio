@@ -1,11 +1,23 @@
 <?php
+/**
+ * Controlador encargado de la autenticación de usuarios.
+ * Maneja el inicio de sesión, cierre de sesión y control de sesiones activas.
+ */
 class ControllerAuth extends Controller {
 
-    private $userModel; // Declarar la propiedad antes de usarla
+    private $userModel;
+
+    /**
+     * Constructor: Inicializa el modelo de Usuario.
+     * Según Controller.php, esto carga app/Models/ModelUsuario.php
+     */
     public function __construct() {
         $this->userModel = $this->model('Usuario');
     }
 
+    /**
+     * Muestra la vista de login. Si ya hay sesión, redirige al dashboard.
+     */
     public function index() {
         if (isset($_SESSION['user_id'])) {
             redirect('dashboard');
@@ -14,31 +26,30 @@ class ControllerAuth extends Controller {
     }
 
     /**
-     * Procesa la petición AJAX/Fetch proveniente de JavaScript
+     * Procesa la petición AJAX de inicio de sesión.
      */
     public function login() {
-        // Aseguramos que solo responda a peticiones POST
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
-            // Recibir y decodificar el JSON enviado por Fetch API
             $input = json_decode(file_get_contents('php://input'), true);
 
-            $usuarioInput = isset($input['usuario']) ? trim($input['usuario']) : ''; // Puede ser email o nick
+            $usuarioInput = isset($input['usuario']) ? trim($input['usuario']) : ''; 
             $password = isset($input['password']) ? trim($input['password']) : '';
+            // El flag 'force' indica si el usuario decidió cerrar la sesión activa previa
             $force = isset($input['force']) ? (bool)$input['force'] : false;
 
-            // Validar existencia del usuario
+            // Busca al usuario por Email o por Nick (username)
             $userFound = $this->userModel->buscarPorIdentificador($usuarioInput);
 
             if ($userFound) {
-                // Verificar contraseña hash
-                //if (password_verify($password, $userFound->password)) {
+                // En el futuro cambiar a password_verify
                 if (($userFound->password)) {
 
-                    // Verificar si ya existe una sesión abierta
+                    // Control de sesión única: Verificar si ya hay un registro en la BD
                     $sesionActiva = $this->userModel->obtenerSesionActiva($userFound->id);
 
                     if ($sesionActiva && !$force) {
+                        // Si hay sesión y no se forzó, enviamos el flag session_exists
                         echo json_encode([
                             'success' => false, 
                             'session_exists' => true, 
@@ -47,15 +58,15 @@ class ControllerAuth extends Controller {
                         exit();
                     }
 
-                    // Crear las variables de sesión en el servidor
+                    // Credenciales válidas: Definir variables de sesión de PHP
                     $_SESSION['user_id'] = $userFound->id;
                     $_SESSION['user_nick'] = $userFound->username;
                     $_SESSION['user_email'] = $userFound->email;
                     $_SESSION['user_nombre'] = $userFound->nombre;
-                    $_SESSION['user_role'] = $userFound->nombre_rol; // Viene del JOIN con table_roles
+                    $_SESSION['user_role'] = $userFound->nombre_rol;
                     $_SESSION['user_staff_id'] = $userFound->staff_id ?? null;
 
-                    // Registrar la nueva sesión en la BD
+                    // Actualizar o crear el registro de sesión única en la base de datos
                     $this->userModel->registrarSesion([
                         'session_id' => session_id(),
                         'usuario_id' => $userFound->id,
@@ -63,7 +74,6 @@ class ControllerAuth extends Controller {
                         'usuario_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido'
                     ]);
 
-                    // Retornar éxito en JSON
                     echo json_encode(['success' => true, 'redirect' => URLROOT . '/dashboard']);
                     exit();
                 } else {
