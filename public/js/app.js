@@ -6,10 +6,10 @@
 let inventoryTable = null;
 let salesChart = null;
 let salesTable = null;
-let clientsTable = null;
 let staffTable = null;
 let suppliersTable = null;
 let purchasesTable = null;
+let expensesTable = null;
 
 // Variables globales de estado y datos (estas aún se cargan de JSON para otras tablas)
 let users = [];
@@ -50,7 +50,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await initInventory();
     await initSalesHistory();
-    await initClients();
     await initStaff();
     await initSuppliers();
     await initPurchases();
@@ -58,9 +57,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await refreshUI();
     await loadCompanySettings();
-
-    // Manejar la sección inicial basada en la URL (Deep Linking)
-    handleInitialNavigation();
 
     // Auto-update dashboard cards every 5 seconds
     renderTopBarUserInfo(); // Cargar info del usuario en la barra superior una vez que todo esté cargado
@@ -90,45 +86,20 @@ function initClock() {
 // Navegación de Secciones (SPA simple)
 function showSection(sectionId, updateHistory = true) {
     const targetSection = document.getElementById(`sec-${sectionId}`);
-    if (!targetSection) {
-        console.warn(`La sección ${sectionId} no existe.`);
-        return;
+
+    // Si la sección existe en el DOM actual (ej. pestañas internas), la manejamos
+    if (targetSection) {
+        document.querySelectorAll('.content-section').forEach(section => section.classList.add('hidden'));
+        targetSection.classList.remove('hidden');
+
+        if (updateHistory) {
+            const newUrl = `${URLROOT}/${sectionId}`;
+            window.history.pushState({ sectionId }, "", newUrl);
+        }
+    } else {
+        // Si no existe, redirigimos a la página real
+        window.location.href = `${URLROOT}/${sectionId}`;
     }
-
-    document.querySelectorAll('.content-section').forEach(section => section.classList.add('hidden'));
-    targetSection.classList.remove('hidden');
-
-    // Actualizar estado activo en sidebar
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.classList.remove('active');
-        if (link.getAttribute('data-section') === sectionId) link.classList.add('active');
-    });
-
-    // Actualizar la URL en la barra de direcciones sin recargar
-    if (updateHistory) {
-        const cleanPath = sectionId === 'dashboard' ? 'dashboard' : sectionId;
-        const newUrl = `${URLROOT}/${cleanPath}`;
-        window.history.pushState({ sectionId }, "", newUrl);
-    }
-
-    // Resetear filtros de la tabla si se entra por el menú principal (Sidebar)
-    if (sectionId === 'inventario' && inventoryTable) {
-        inventoryTable.search('').columns().search('').draw();
-    }
-}
-
-/**
- * Determina qué sección mostrar al cargar la página analizando la URL actual
- */
-function handleInitialNavigation() {
-    const fullPath = window.location.pathname;
-    const validSections = ['dashboard', 'inventario', 'facturacion', 'historial', 'proveedores', 'gastos', 'clientes', 'personal', 'empresa'];
-
-    // Buscamos si la URL contiene alguna de nuestras secciones
-    const sectionFound = validSections.find(s => fullPath.includes(`/${s}`));
-
-    // Si se encuentra una sección en la URL se muestra, de lo contrario por defecto va al dashboard
-    showSection(sectionFound || 'dashboard', false);
 }
 
 /**
@@ -153,7 +124,6 @@ async function refreshUI() {
     // Obtener datos frescos del servidor antes de renderizar
     inventory = await AppUtils.loadData('inventory_db');
     const sales = await AppUtils.loadData('sales_db');
-    const clients = await AppUtils.loadData('clients_db');
     const staffData = await AppUtils.loadData('staff_db');
     const suppliers = await AppUtils.loadData('suppliers_db');
     const purchases = await AppUtils.loadData('purchases_db');
@@ -176,7 +146,6 @@ async function refreshUI() {
     });
 
     if (salesTable) salesTable.clear().rows.add(sales).draw();
-    if (clientsTable) clientsTable.clear().rows.add(clients).draw();
     if (staffTable) staffTable.clear().rows.add(staffWithUsers).draw();
     if (suppliersTable) suppliersTable.clear().rows.add(suppliers).draw();
     if (purchasesTable) purchasesTable.clear().rows.add(purchases).draw();
@@ -702,70 +671,6 @@ function openInventoryModal() {
     });
 }
 
-/** 
- * GESTIÓN DE CLIENTES 
- */
-async function initClients() {
-    const tableEl = document.getElementById('clientsTable');
-    if (!tableEl) return;
-
-    const clients = await AppUtils.loadData('clients_db');
-    clientsTable = $(tableEl).DataTable({
-        data: clients,
-        columns: [
-            { data: 'id' },
-            { data: 'name' },
-            { data: 'phone' },
-            { data: 'email' },
-            {
-                data: null,
-                render: (data, type, row) => `
-                    <div class="flex gap-2">
-                        <button onclick="openClientModal(${row.id})" class="p-1 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
-                        <button onclick="genericDelete(${row.id}, 'clients_db', 'Cliente')" class="p-1 text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                    </div>
-                `
-            }
-        ],
-        responsive: true,
-        drawCallback: () => lucide.createIcons()
-    });
-}
-
-async function openClientModal(id = null) {
-    const clients = await AppUtils.loadData('clients_db');
-    const client = id ? clients.find(c => c.id == id) : { id: '', name: '', phone: '', email: '', address: '' };
-
-    Swal.fire({
-        title: id ? 'Editar Cliente' : 'Nuevo Cliente',
-        html: `
-            <div class="text-left space-y-4">
-                <input id="c-id" class="w-full p-2 border rounded-lg" placeholder="Documento/NIT" value="${client.id}">
-                <input id="c-name" class="w-full p-2 border rounded-lg uppercase" placeholder="Nombre completo" value="${client.name}">
-                <input id="c-phone" class="w-full p-2 border rounded-lg" placeholder="Teléfono" value="${client.phone}">
-                <input id="c-email" class="w-full p-2 border rounded-lg" placeholder="Correo electrónico" value="${client.email}">
-            </div>
-        `,
-        confirmButtonColor: '#39FF14',
-        confirmButtonText: '<span class="text-black font-bold">Guardar</span>',
-        showCancelButton: true,
-        preConfirm: () => {
-            return { // All text inputs are converted to uppercase
-                id: document.getElementById('c-id').value.toUpperCase(),
-                name: document.getElementById('c-name').value.toUpperCase(),
-                phone: document.getElementById('c-phone').value,
-                email: document.getElementById('c-email').value
-            }
-        }
-    }).then(async result => {
-        if (result.isConfirmed) {
-            let updatedClients = id ? clients.filter(c => c.id != id) : clients;
-            updatedClients.push(result.value);
-            await AppUtils.saveData('clients_db', updatedClients);
-            await refreshUI();
-        }
-    });
-}
 
 /** 
  * GESTIÓN DE PERSONAL 
