@@ -1,6 +1,5 @@
 :root {
     --main-dark: #f4f7fa;
-    /* Gris azulado muy tenue, no blanco total */
     --navy-blue: #0b1120;
     --neon-green: #39FF14;
     --cat-yellow: #FFCD00;
@@ -46,11 +45,9 @@
 /* Glassmorphism Effect */
 .glass-card {
     background: #ffffff;
-    /* Blanco sólido para que resalte sobre el fondo tenue */
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 0, 0, 0.03);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    /* Sombra más pronunciada */
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
 }
 
 /* --- Sidebar System --- */
@@ -153,22 +150,17 @@ table.dataTable {
 
 table.dataTable tbody td {
     padding: 18px 12px !important;
-    /* Aumentar padding vertical */
     border-bottom: 1px solid #f1f5f9 !important;
     font-size: 0.95rem;
-    /* Aumentar tamaño de fuente */
     line-height: 1.4;
-    /* Mejorar espaciado de línea */
 }
 
 table.dataTable thead th {
     border-bottom: 2px solid #e2e8f0 !important;
     color: var(--navy-blue) !important;
     padding: 18px 12px !important;
-    /* Aumentar padding vertical */
     background-color: #f8fafc;
     font-size: 0.9rem;
-    /* Tamaño de fuente para encabezados */
     line-height: 1.4;
     text-transform: uppercase;
     /* Para que los encabezados resalten */

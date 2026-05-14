@@ -32,22 +32,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         data.forEach(cliente => {
             const row = document.createElement('tr');
-            row.className = 'hover:bg-white/5 transition-colors group border-b border-white/10';
+            row.className = 'hover:bg-slate-50 transition-colors group border-b border-slate-100';
             row.innerHTML = `
-                <td class="px-6 py-4 font-mono text-xs text-neon-green">${cliente.id}</td>
-                <td class="px-6 py-4 font-bold text-white">${cliente.nombre}</td>
-                <td class="px-6 py-4">
+                <td class="px-8 py-5 font-mono text-xs text-slate-500 tracking-tighter">${cliente.id}</td>
+                <td class="px-8 py-5 font-bold text-slate-700 tracking-tight uppercase">${cliente.nombre}</td>
+                <td class="px-8 py-5">
                     <div class="flex flex-col">
-                        <span class="text-white">${cliente.telefono}</span>
-                        <span class="text-gray-500 text-xs">${cliente.email || 'Sin correo'}</span>
+                        <span class="text-slate-700 font-medium">${cliente.telefono}</span>
+                        <span class="text-slate-400 text-xs">${cliente.email || 'SIN CORREO'}</span>
                     </div>
                 </td>
-                <td class="px-6 py-4 text-gray-400">${cliente.direccion || 'N/A'}</td>
-                <td class="px-6 py-4 text-right">
-                    <button onclick="editCliente('${cliente.id}')" class="p-2 bg-white/5 hover:bg-neon-green/20 text-white hover:text-neon-green rounded-lg transition-all mr-1">
+                <td class="px-8 py-5 text-slate-500 text-xs">${cliente.direccion || 'N/A'}</td>
+                <td class="px-8 py-5 text-right">
+                    <button onclick="editCliente('${cliente.id}')" class="p-2 bg-slate-100 hover:bg-neon-green text-slate-500 hover:text-black rounded-xl transition-all mr-1">
                         <i data-lucide="edit-3" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="deleteCliente('${cliente.id}')" class="p-2 bg-white/5 hover:bg-red-500/20 text-white hover:text-red-500 rounded-lg transition-all">
+                    <button onclick="deleteCliente('${cliente.id}')" class="p-2 bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white rounded-xl transition-all">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                 </td>
