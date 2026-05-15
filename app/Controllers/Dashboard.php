@@ -18,7 +18,8 @@ class Dashboard extends Controller {
         $data = [
             'titulo' => 'Panel de Inicio',
             'nombre_usuario' => $_SESSION['user_nombre'],
-            'rol_usuario' => $_SESSION['user_role']
+            'rol_usuario' => $_SESSION['user_role'],
+            'error_msg' => isset($_GET['error']) && $_GET['error'] == 'sin_permiso' ? 'No tienes permisos para acceder a esa sección.' : null
         ];
 
         // Renderizamos la vista protegida

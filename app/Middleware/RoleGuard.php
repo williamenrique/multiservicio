@@ -34,7 +34,7 @@ class RoleGuard {
      * Atajo rápido para verificar solo administradores
      */
     public static function isAdmin() {
-        self::hasAccess(['admin']);
+        self::hasAccess(['Administrador', 'ADMINISTRADOR']);
     }
 }
 /*

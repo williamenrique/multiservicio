@@ -8,15 +8,17 @@ class ControllerClientes extends Controller {
 
     public function __construct() {
         AuthGuard::handle();
-        $this->clienteModel = $this->model('Cliente');
+        $this->clienteModel = $this->model('Cliente'); // Cargar modelo después de la autenticación
     }
 
     /**
      * Carga la vista principal de gestión de clientes
      */
     public function index() {
+        RoleGuard::hasAccess(['ADMINISTRADOR', 'MECÁNICO']); // Permitir a Administradores y Mecánicos ver la vista
         $data = [
-            'titulo' => 'Gestión de Clientes'
+            'titulo' => 'Gestión de Clientes',
+            'user_role' => $_SESSION['user_role'] // Pasar el rol del usuario a la vista para ajustes de UI
         ];
 
         $this->view('cliente/index', $data);
@@ -35,6 +37,7 @@ class ControllerClientes extends Controller {
      * Guarda o actualiza un cliente
      */
     public function guardar() {
+        RoleGuard::isAdmin(); // Solo Administradores pueden crear/editar clientes
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
             
@@ -59,6 +62,7 @@ class ControllerClientes extends Controller {
      * Elimina un cliente por ID
      */
     public function eliminar($id = null) {
+        RoleGuard::isAdmin(); // Solo Administradores pueden eliminar clientes
         if ($_SERVER['REQUEST_METHOD'] == 'DELETE' && $id) {
             if ($this->clienteModel->eliminar($id)) {
                 echo json_encode(['success' => true]);

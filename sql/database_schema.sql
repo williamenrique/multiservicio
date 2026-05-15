@@ -1,77 +1,122 @@
--- Script de creación de tablas para Usuarios, Personal y Sesiones
--- Sistema: Multiservicio
+-- --------------------------------------------------------
+-- Estructura de Base de Datos para Multiservicio "Taller Pro"
+-- Adaptada para arquitectura MVC y control de sesión única
+-- --------------------------------------------------------
 
-SET NAMES utf8mb4;
-SET FOREIGN_KEY_CHECKS = 0;
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET NAMES utf8 */;
+/*!50503 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
--- 1. Tabla de Roles (Para definir niveles de acceso)
+-- Crear base de datos si no existe
+CREATE DATABASE IF NOT EXISTS `multiservicio` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_spanish_ci */;
+USE `multiservicio`;
+
+-- 1. Tabla de Roles (Independiente)
 CREATE TABLE IF NOT EXISTS `table_roles` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `nombre_rol` VARCHAR(50) NOT NULL UNIQUE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre_rol` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `nombre_rol` (`nombre_rol`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 2. Tabla de Personal (Información laboral/física)
+-- 2. Tabla de Staff / Personal (Independiente)
 CREATE TABLE IF NOT EXISTS `table_staff` (
-    `id` VARCHAR(50) PRIMARY KEY, -- Usamos VARCHAR para IDs como 'STAFF-1' según tu app.js
-    `nombre` VARCHAR(100) NOT NULL,
-    `email` VARCHAR(100),
-    `telefono` VARCHAR(20),
-    `direccion` TEXT,
-    `cargo` VARCHAR(50),           -- Cargo (Mecánico, Administrador, etc)
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `id` varchar(50) NOT NULL,
+  `cedula` varchar(20) NOT NULL,
+  `nombre` varchar(100) NOT NULL,
+  `cargo` varchar(50) NOT NULL,
+  `telefono` varchar(20) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `direccion` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `cedula` (`cedula`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 3. Tabla de Usuarios (Credenciales de acceso al sistema)
+-- 3. Tabla de Usuarios (Depende de Roles y Staff)
 CREATE TABLE IF NOT EXISTS `table_usuarios` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `staff_id` VARCHAR(50) NOT NULL UNIQUE,
-    `username` VARCHAR(50) NOT NULL UNIQUE, -- Este será el "nick"
-    `password` VARCHAR(255) NOT NULL,
-    `role_id` INT NOT NULL,
-    `estado` TINYINT(1) DEFAULT 1, -- 1: Activo, 0: Inactivo
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT `fk_user_role` FOREIGN KEY (`role_id`) REFERENCES `table_roles` (`id`),
-    CONSTRAINT `fk_user_staff` FOREIGN KEY (`staff_id`) REFERENCES `table_staff` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `staff_id` varchar(50) NOT NULL,
+  `username` varchar(50) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `role_id` int(11) NOT NULL,
+  `estado` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `staff_id` (`staff_id`),
+  UNIQUE KEY `username` (`username`),
+  KEY `fk_user_role` (`role_id`),
+  CONSTRAINT `fk_user_role` FOREIGN KEY (`role_id`) REFERENCES `table_roles` (`id`),
+  CONSTRAINT `fk_user_staff` FOREIGN KEY (`staff_id`) REFERENCES `table_staff` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 4. Tabla de Sesiones Activas (Para control de sesión única)
+-- 4. Tabla de Sesiones (Depende de Usuarios)
 CREATE TABLE IF NOT EXISTS `table_usuario_sessions` (
-    `usuario_id` INT PRIMARY KEY, -- Clave primaria para asegurar una sola entrada por usuario
-    `session_id` VARCHAR(255) NOT NULL,
-    `ip_address` VARCHAR(45),
-    `usuario_agent` TEXT,
-    `created_at` DATETIME,
-    `last_activity` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT `fk_session_user` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `usuario_id` int(11) NOT NULL,
+  `session_id` varchar(255) NOT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `usuario_agent` text DEFAULT NULL,
+  `created_at` datetime DEFAULT NULL,
+  `last_activity` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`usuario_id`),
+  CONSTRAINT `fk_session_user` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 5 Tabla de Clientes
+-- 5. Tabla de Clientes
 CREATE TABLE IF NOT EXISTS `table_clientes` (
-    `id` VARCHAR(50) PRIMARY KEY, -- Formato 'CLI-001' o similar
-    `nombre` VARCHAR(100) NOT NULL,
-    `email` VARCHAR(100),
-    `telefono` VARCHAR(20),
-    `direccion` TEXT,
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `id` varchar(50) NOT NULL,
+  `nombre` varchar(100) NOT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `telefono` varchar(20) DEFAULT NULL,
+  `direccion` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_cliente_nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Opcional: Indexar el nombre para búsquedas rápidas en facturación
-CREATE INDEX idx_cliente_nombre ON table_clientes(nombre);
--- ==========================================
+-- 6. Tabla de Proveedores
+CREATE TABLE IF NOT EXISTS `table_proveedores` (
+  `id` varchar(50) NOT NULL,
+  `nombre` varchar(100) NOT NULL,
+  `telefono` varchar(20) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `direccion` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
 -- INSERCIÓN DE DATOS INICIALES (SEMILLAS)
--- ==========================================
+-- --------------------------------------------------------
 
--- Insertar roles básicos
-INSERT INTO `table_roles` (`nombre_rol`) VALUES ('Administrador'), ('Mecánico'), ('Empleado');
+-- Roles del sistema
+INSERT INTO `table_roles` (`nombre_rol`) VALUES 
+('ADMINISTRADOR'), 
+('MECÁNICO'), 
+('EMPLEADO');
 
--- Insertar un empleado administrativo inicial
-INSERT INTO `table_staff` (`id`, `nombre`, `email`, `telefono`, `direccion`, `cargo`) 
-VALUES ('STAFF-1', 'ADMINISTRADOR PRINCIPAL', 'admin@tallerpro.com', '3001234567', 'Calle Principal #123', 'Administrador');
+-- Empleado inicial para el Administrador
+INSERT INTO `table_staff` (`id`, `cedula`, `nombre`, `cargo`, `telefono`, `email`, `direccion`) 
+VALUES 
+('STAFF-1', '12345678', 'ADMINISTRADOR', 'ADMINISTRADOR', '0000000000', 'admin@tallerpro.com', 'SEDE PRINCIPAL');
 
--- Insertar usuario inicial (Email: admin@tallerpro.com / Password: password123)
--- Nota: Actualmente tu ControllerAuth no usa password_verify, por lo que se guarda en texto plano para las pruebas iniciales.
-INSERT INTO `table_usuarios` (`staff_id`, `username`, `password`, `role_id`) 
-VALUES ('STAFF-1', 'admin', 'password123', 1);
+-- Usuario administrador inicial (Password: 123)
+-- Nota: Se recomienda cambiar el password desde el perfil al iniciar.
+INSERT INTO `table_usuarios` (`staff_id`, `username`, `password`, `role_id`, `estado`) 
+VALUES 
+('STAFF-1', 'ADMIN', '123', 1, 1);
 
-SET FOREIGN_KEY_CHECKS = 1;
+-- Restaurar configuraciones originales
+/*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
+/*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
+/*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40111 SET SQL_NOTES=IFNULL(@OLD_SQL_NOTES, 1) */;

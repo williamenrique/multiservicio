@@ -4,7 +4,7 @@
             <h1 class="text-3xl font-extrabold text-navy-blue tracking-tight"><?php echo $data['titulo']; ?></h1>
             <p class="text-gray-400 mt-1">Gestión centralizada de la base de datos de clientes.</p>
         </div>
-        <button id="btnOpenModal" class="bg-neon-green text-black font-black px-6 py-3 rounded-xl flex items-center gap-2 transition-all transform hover:scale-[1.05] active:scale-95 shadow-lg shadow-neon-green/40 uppercase tracking-widest text-xs">
+        <button id="btnOpenModal" class="bg-neon-green text-black font-black px-6 py-3 rounded-xl flex items-center gap-2 transition-all transform hover:scale-[1.05] active:scale-95 shadow-lg shadow-neon-green/40 uppercase tracking-widest text-xs <?php echo (s($data['user_role']) !== 'ADMINISTRADOR') ? 'hidden' : ''; ?>">
             <i data-lucide="user-plus" class="w-5 h-5"></i>
             NUEVO CLIENTE
         </button>
@@ -103,5 +103,9 @@
     </div>
 </div>
 
+<script>
+    // Pasar el rol del usuario a JavaScript para controlar la visibilidad de los botones
+    const USER_ROLE = "<?php echo s($data['user_role']); ?>";
+</script>
 <!-- Inyección de Scripts -->
 <script src="<?php echo URLROOT; ?>/js/clientes.js"></script>

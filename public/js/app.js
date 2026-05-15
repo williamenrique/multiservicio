@@ -41,7 +41,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Cargar todos los datos globales *después* de que seedInitialData haya tenido la oportunidad de ejecutarse
     // Estas variables aún se usan para tablas y otras lógicas que no son el header user info
     users = await AppUtils.loadData('users_db'); // Cargar usuarios (para tabla de personal, etc.)
-    staff = await AppUtils.loadData('staff_db'); // Cargar empleados (para tabla de personal, etc.)
     inventory = await AppUtils.loadData('inventory_db'); // Cargar inventario
 
     // Cargar la información del usuario logueado directamente desde la base de datos
@@ -49,7 +48,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await initInventory();
     await initSalesHistory();
-    await initStaff();
     await initSuppliers();
     await initPurchases();
     await initExpenses();
@@ -123,7 +121,6 @@ async function refreshUI() {
     // Obtener datos frescos del servidor antes de renderizar
     inventory = await AppUtils.loadData('inventory_db');
     const sales = await AppUtils.loadData('sales_db');
-    const staffData = await AppUtils.loadData('staff_db');
     const suppliers = await AppUtils.loadData('suppliers_db');
     const purchases = await AppUtils.loadData('purchases_db');
     const expenses = await AppUtils.loadData('expenses_db');
@@ -133,19 +130,7 @@ async function refreshUI() {
         inventoryTable.clear().rows.add(inventory).draw();
     }
 
-    // Unir datos de empleados con datos de usuario para que la tabla muestre el estado correcto
-    const staffWithUsers = staffData.map(s => {
-        const user = users.find(u => u.staffId === s.id);
-        return {
-            ...s,
-            hasUser: !!user,
-            username: user ? user.username : '',
-            userRole: user ? user.role : ''
-        };
-    });
-
     if (salesTable) salesTable.clear().rows.add(sales).draw();
-    if (staffTable) staffTable.clear().rows.add(staffWithUsers).draw();
     if (suppliersTable) suppliersTable.clear().rows.add(suppliers).draw();
     if (purchasesTable) purchasesTable.clear().rows.add(purchases).draw();
     if (expensesTable) expensesTable.clear().rows.add(expenses).draw();

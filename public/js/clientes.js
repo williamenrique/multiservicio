@@ -44,12 +44,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td class="px-8 py-5 text-slate-500 text-xs">${cliente.direccion || 'N/A'}</td>
                 <td class="px-8 py-5 text-right">
-                    <button onclick="editCliente('${cliente.id}')" class="p-2 bg-slate-100 hover:bg-neon-green text-slate-500 hover:text-black rounded-xl transition-all mr-1">
-                        <i data-lucide="edit-3" class="w-4 h-4"></i>
-                    </button>
-                    <button onclick="deleteCliente('${cliente.id}')" class="p-2 bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white rounded-xl transition-all">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
+                    <div class="flex justify-end gap-2">
+                        ${USER_ROLE === 'ADMINISTRADOR' ? `
+                            <button onclick="editCliente('${cliente.id}')" class="flex items-center justify-center w-9 h-9 bg-slate-100 hover:bg-neon-green text-slate-500 hover:text-black rounded-xl transition-all shadow-sm">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteCliente('${cliente.id}')" class="flex items-center justify-center w-9 h-9 bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white rounded-xl transition-all shadow-sm">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        ` : `
+                            <span class="text-slate-400 text-xs italic">Solo lectura</span>
+                        `}
+                    </div>
                 </td>
             `;
             tableBody.appendChild(row);

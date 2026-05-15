@@ -4,6 +4,7 @@ class ControllerProveedores extends Controller {
 
     public function __construct() {
         AuthGuard::handle();
+        RoleGuard::isAdmin();
         $this->proveedorModel = $this->model('Proveedor');
     }
 
