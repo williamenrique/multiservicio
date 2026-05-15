@@ -58,15 +58,22 @@
             <button id="btnCloseModal" class="text-gray-500 hover:text-navy-blue"><i data-lucide="x" class="w-6 h-6"></i></button>
         </div>
         
-        <form id="formInventory" class="p-6 space-y-4">
+        <form id="formInventory" class="p-6 space-y-4" enctype="multipart/form-data">
             <input type="hidden" name="id" id="prodId">
             
-            <div class="flex justify-center mb-4">
-                <div class="relative group">
-                    <div id="imagePreview" class="w-32 h-32 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden">
+            <div class="flex flex-col items-center gap-4 mb-4">
+                <div class="relative group cursor-pointer" onclick="document.getElementById('fileInput').click()">
+                    <div id="imagePreview" class="w-32 h-32 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group-hover:border-neon-green transition-all">
                         <i data-lucide="image" class="w-8 h-8 text-slate-300"></i>
                     </div>
-                    <input type="text" name="imagen" id="prodImagen" placeholder="URL de imagen" class="mt-2 w-full text-[10px] p-1 border rounded">
+                    <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
+                        <i data-lucide="upload" class="text-white w-6 h-6"></i>
+                    </div>
+                    <input type="file" name="imagen_archivo" id="fileInput" class="hidden" accept="image/*">
+                </div>
+                <div class="w-full">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">O pega una URL de imagen externa</label>
+                    <input type="text" name="imagen" id="prodImagen" placeholder="https://ejemplo.com/imagen.jpg" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-4 text-xs outline-none focus:border-neon-green transition-all">
                 </div>
             </div>
 

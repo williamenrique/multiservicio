@@ -25,17 +25,45 @@ class ControllerInventario extends Controller {
     public function guardar() {
         RoleGuard::isAdmin();
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $input = json_decode(file_get_contents('php://input'), true);
+            // Ahora recibimos datos vía $_POST por usar FormData
+            $data = $_POST;
+            $data['imagen'] = isset($data['imagen']) ? trim($data['imagen']) : null;
             
-            if (empty($input['nombre'])) {
+            if (empty($data['nombre'])) {
                 echo json_encode(['success' => false, 'mensaje' => 'El nombre es obligatorio']);
                 return;
             }
 
-            if (!empty($input['id'])) {
-                $res = $this->inventarioModel->actualizar($input);
+            // Procesar Imagen Local
+            if (!empty($_FILES['imagen_archivo']['name'])) {
+                $archivo = $_FILES['imagen_archivo'];
+                $nombreLimpio = str_replace(' ', '_', strtolower($data['nombre']));
+                $extension = pathinfo($archivo['name'], PATHINFO_EXTENSION);
+                $nombreFinal = $nombreLimpio . "_" . time() . "." . $extension;
+                
+                $subfolder = 'inventario';
+                $uploadPath = APPROOT . '/../public/uploads/' . $subfolder . '/';
+                
+                // Crear subcarpeta específica si no existe
+                if (!is_dir($uploadPath)) {
+                    mkdir($uploadPath, 0777, true);
+                }
+
+                // Validar tamaño (máx 2MB)
+                if ($archivo['size'] > 2097152) {
+                    echo json_encode(['success' => false, 'mensaje' => 'La imagen es muy pesada (Máx 2MB)']);
+                    return;
+                }
+
+                if (move_uploaded_file($archivo['tmp_name'], $uploadPath . $nombreFinal)) {
+                    $data['imagen'] = 'uploads/' . $subfolder . '/' . $nombreFinal;
+                }
+            }
+
+            if (!empty($data['id'])) {
+                $res = $this->inventarioModel->actualizar($data);
             } else {
-                $res = $this->inventarioModel->crear($input);
+                $res = $this->inventarioModel->crear($data);
             }
 
             if ($res) {

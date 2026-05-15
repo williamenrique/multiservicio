@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById('inventoryModal');
     const searchInput = document.getElementById('searchInventory');
     const totalCount = document.getElementById('totalCount');
+    const fileInput = document.getElementById('fileInput');
+    const imagePreview = document.getElementById('imagePreview');
 
     let items = [];
 
@@ -21,19 +23,22 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBody.innerHTML = '';
         totalCount.textContent = data.length;
 
-        if (data.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="6" class="px-8 py-10 text-center text-slate-400 italic">No hay productos registrados en el inventario.</td></tr>';
-            return;
-        }
-
         data.forEach(item => {
             const stockColor = item.stock <= 5 ? 'text-red-500 font-bold' : 'text-slate-600';
+
+            // Limpiar y validar la URL de la imagen
+            const cleanPath = item.imagen ? item.imagen.trim() : null;
+            const isRemote = cleanPath && (cleanPath.toLowerCase().startsWith('http') || cleanPath.toLowerCase().startsWith('data:'));
+            const imgUrl = isRemote
+                ? cleanPath
+                : (cleanPath ? `${URLROOT}/${cleanPath}` : null);
+
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-50 transition-colors border-b border-slate-100';
             row.innerHTML = `
                 <td class="px-8 py-4">
                     <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
-                        ${item.imagen ? `<img src="${item.imagen}" class="w-full h-full object-cover">` : `<i data-lucide="package" class="w-5 h-5 text-slate-300"></i>`}
+                        ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="package" class="w-5 h-5 text-slate-300"></i>`}
                     </div>
                 </td>
                 <td class="px-8 py-4 font-bold text-slate-700 uppercase">${item.nombre}</td>
@@ -59,12 +64,37 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTable(items.filter(i => i.nombre.toLowerCase().includes(term) || i.categoria.toLowerCase().includes(term)));
     });
 
+    // Previsualización de imagen (Local)
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                imagePreview.innerHTML = `<img src="${event.target.result}" class="w-full h-full object-cover">`;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // Previsualización de imagen (URL)
+    document.getElementById('prodImagen').addEventListener('input', (e) => {
+        const url = e.target.value.trim();
+        const isRemote = url.toLowerCase().startsWith('http') || url.toLowerCase().startsWith('data:');
+        if (isRemote) {
+            imagePreview.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
+        } else if (url === '') {
+            imagePreview.innerHTML = '<i data-lucide="image" class="w-8 h-8 text-slate-300"></i>';
+            lucide.createIcons();
+        }
+    });
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const data = Object.fromEntries(new FormData(form).entries());
+        const formData = new FormData(form);
+
         const res = await fetch(`${URLROOT}/inventario/guardar`, {
             method: 'POST',
-            body: JSON.stringify(data)
+            body: formData // Enviamos FormData directamente
         });
         const result = await res.json();
         if (result.success) {
@@ -79,13 +109,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!show) {
             form.reset();
             document.getElementById('prodId').value = "";
+            imagePreview.innerHTML = '<i data-lucide="image" class="w-8 h-8 text-slate-300"></i>';
             document.getElementById('modalTitle').textContent = "Registrar Producto";
+            lucide.createIcons();
         }
     };
 
     document.getElementById('btnOpenModal')?.addEventListener('click', () => toggleModal(true));
-    document.getElementById('btnCloseModal').addEventListener('click', () => toggleModal(false));
-    document.getElementById('btnCancel').addEventListener('click', () => toggleModal(false));
+    document.getElementById('btnCloseModal')?.addEventListener('click', () => toggleModal(false));
+    document.getElementById('btnCancel')?.addEventListener('click', () => toggleModal(false));
 
     window.editItem = (id) => {
         const item = items.find(i => i.id == id);
@@ -95,12 +127,23 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('prodStock').value = item.stock;
         document.getElementById('prodPrecio').value = item.precio;
         document.getElementById('prodImagen').value = item.imagen || '';
+
+        if (item.imagen) {
+            const cleanPath = item.imagen.trim();
+            const isRemote = cleanPath.toLowerCase().startsWith('http') || cleanPath.toLowerCase().startsWith('data:');
+            const imgUrl = isRemote
+                ? cleanPath
+                : `${URLROOT}/${cleanPath}`;
+            imagePreview.innerHTML = `<img src="${imgUrl}" class="w-full h-full object-cover">`;
+        }
+
         document.getElementById('modalTitle').textContent = "Editar Producto";
         toggleModal(true);
     };
 
     window.deleteItem = (id) => {
         AppUtils.confirmAction('¿Eliminar producto?', 'Esta acción no se puede deshacer.', async () => {
+
             const res = await fetch(`${URLROOT}/inventario/eliminar/${id}`, { method: 'DELETE' });
             const result = await res.json();
             if (result.success) {
