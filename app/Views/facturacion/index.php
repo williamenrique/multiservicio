@@ -75,3 +75,5 @@
         </div>
     </div>
 </section>
+
+<script src="<?php echo URLROOT; ?>/js/facturacion.js"></script>
