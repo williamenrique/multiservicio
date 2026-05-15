@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Limpiar y validar la URL de la imagen
             const cleanPath = item.imagen ? item.imagen.trim() : null;
+            // Normalizamos a minúsculas antes de comparar protocolos
             const isRemote = cleanPath && (cleanPath.toLowerCase().startsWith('http') || cleanPath.toLowerCase().startsWith('data:'));
             const imgUrl = isRemote
                 ? cleanPath
@@ -37,7 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
             row.className = 'hover:bg-slate-50 transition-colors border-b border-slate-100';
             row.innerHTML = `
                 <td class="px-8 py-4">
-                    <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+                    <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 ${imgUrl ? 'cursor-zoom-in hover:opacity-80 transition-all' : ''}" 
+                         ${imgUrl ? `onclick="AppUtils.viewImage('${imgUrl}', '${item.nombre}')"` : ''}>
                         ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="package" class="w-5 h-5 text-slate-300"></i>`}
                     </div>
                 </td>

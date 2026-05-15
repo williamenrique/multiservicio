@@ -15,7 +15,8 @@ class ControllerClientes extends Controller {
      * Carga la vista principal de gestión de clientes
      */
     public function index() {
-        RoleGuard::hasAccess(['ADMINISTRADOR', 'MECÁNICO']); // Permitir a Administradores y Mecánicos ver la vista
+        // Eliminamos el acento para que coincida exactamente con el valor en la DB
+        RoleGuard::hasAccess(['ADMINISTRADOR', 'MECANICO']); 
         $data = [
             'titulo' => 'Gestión de Clientes',
             'user_role' => $_SESSION['user_role'] // Pasar el rol del usuario a la vista para ajustes de UI

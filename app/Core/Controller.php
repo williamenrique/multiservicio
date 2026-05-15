@@ -12,7 +12,8 @@ class Controller {
      * @return object Instancia del modelo solicitado
      */
     public function model($model) {
-        $modelName = 'Model' . $model;
+        // Forzamos PascalCase para compatibilidad con servidores Linux
+        $modelName = 'Model' . ucfirst($model);
         $path = APPROOT . '/Models/' . $modelName . '.php';
 
         if (file_exists($path)) {
