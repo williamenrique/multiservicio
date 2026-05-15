@@ -59,13 +59,11 @@ class ModelPersonal {
     }
 
     public function gestionarUsuario($staffId, $userData) {
-        // Verificar si ya tiene usuario
         $this->db->query("SELECT id FROM table_usuarios WHERE staff_id = :sid");
         $this->db->bind(':sid', $staffId);
         $existe = $this->db->single();
 
         if ($existe) {
-            // Actualizar (Username y Rol, Password solo si se envía)
             $sql = "UPDATE table_usuarios SET username = :un, role_id = :rid";
             if (!empty($userData['password'])) $sql .= ", password = :pass";
             $sql .= " WHERE staff_id = :sid";
@@ -73,7 +71,6 @@ class ModelPersonal {
             $this->db->query($sql);
             if (!empty($userData['password'])) $this->db->bind(':pass', $userData['password']);
         } else {
-            // Crear nuevo
             $this->db->query("INSERT INTO table_usuarios (staff_id, username, password, role_id) 
                               VALUES (:sid, :un, :pass, :rid)");
             $this->db->bind(':pass', $userData['password']);

@@ -57,7 +57,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     formProveedor.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const data = Object.fromEntries(new FormData(formProveedor).entries());
+        const formData = new FormData(formProveedor);
+        const data = Object.fromEntries(formData.entries());
+
+        // Los campos deshabilitados no se incluyen en FormData, los recuperamos manualmente si es edición
+        if (document.getElementById('provId').disabled) {
+            data.id = document.getElementById('provId').value;
+        }
+
         const res = await fetch(`${URLROOT}/proveedores/guardar`, {
             method: 'POST',
             body: JSON.stringify(data)

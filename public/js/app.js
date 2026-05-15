@@ -6,9 +6,6 @@
 let inventoryTable = null;
 let salesChart = null;
 let salesTable = null;
-let staffTable = null;
-let purchasesTable = null;
-let expensesTable = null;
 
 // Variables globales de estado y datos (estas aún se cargan de JSON para otras tablas)
 let users = [];
@@ -121,19 +118,12 @@ async function refreshUI() {
     // Obtener datos frescos del servidor antes de renderizar
     inventory = await AppUtils.loadData('inventory_db');
     const sales = await AppUtils.loadData('sales_db');
-    const suppliers = await AppUtils.loadData('suppliers_db');
-    const purchases = await AppUtils.loadData('purchases_db');
-    const expenses = await AppUtils.loadData('expenses_db');
-    users = await AppUtils.loadData('users_db');
 
     if (inventoryTable) {
         inventoryTable.clear().rows.add(inventory).draw();
     }
 
     if (salesTable) salesTable.clear().rows.add(sales).draw();
-    if (suppliersTable) suppliersTable.clear().rows.add(suppliers).draw();
-    if (purchasesTable) purchasesTable.clear().rows.add(purchases).draw();
-    if (expensesTable) expensesTable.clear().rows.add(expenses).draw();
 
     renderTopBarUserInfo(); // Actualizar info del usuario en la barra superior
     await renderDashboardCards();

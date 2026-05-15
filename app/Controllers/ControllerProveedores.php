@@ -22,6 +22,11 @@ class ControllerProveedores extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
             
+            if (empty($input['id'])) {
+                echo json_encode(['success' => false, 'mensaje' => 'El ID del proveedor es requerido']);
+                return;
+            }
+
             $existe = $this->proveedorModel->obtenerPorId($input['id']);
 
             if ($existe) {

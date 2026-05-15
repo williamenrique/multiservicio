@@ -79,6 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(formCliente);
         const data = Object.fromEntries(formData.entries());
 
+        // Los campos deshabilitados no se incluyen en FormData, los recuperamos manualmente si es edición
+        if (document.getElementById('clientId').disabled) {
+            data.id = document.getElementById('clientId').value;
+        }
+
         try {
             const response = await fetch(`${URLROOT}/clientes/guardar`, {
                 method: 'POST',

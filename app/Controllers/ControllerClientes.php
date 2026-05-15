@@ -41,6 +41,11 @@ class ControllerClientes extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
             
+            if (empty($input['id'])) {
+                echo json_encode(['success' => false, 'mensaje' => 'El ID del cliente es requerido']);
+                return;
+            }
+
             // Validar si es actualización (ya tiene ID) o creación
             $clienteExistente = $this->clienteModel->obtenerPorId($input['id']);
 
