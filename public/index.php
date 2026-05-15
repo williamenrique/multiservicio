@@ -43,10 +43,22 @@ spl_autoload_register(function($nombreClase) {
  */
 try {
     $init = new App();
-} catch (Exception $e) {
-    // Si algo falla gravemente, capturamos el error
-    // En producción, podrías cargar una vista de Error 500
-    error_log("Error en la aplicación: " . $e->getMessage());
-    echo "Lo sentimos, ha ocurrido un error interno.";
+} catch (Throwable $e) {
+    // Capturamos Throwable para atrapar tanto Errors como Exceptions (PHP 7+)
+    error_log("Error crítico: " . $e->getMessage() . " en " . $e->getFile() . ":" . $e->getLine());
+    
+    // Si estamos en desarrollo, mostramos el error detallado
+    if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
+        echo "<div style='background:#fee2e2; border:1px solid #ef4444; padding:20px; border-radius:10px; font-family:sans-serif; margin:20px;'>";
+        echo "<h1 style='color:#b91c1c; margin-top:0;'>⚠️ Error Crítico de Aplicación</h1>";
+        echo "<p><strong>Mensaje:</strong> " . $e->getMessage() . "</p>";
+        echo "<p><strong>Archivo:</strong> " . $e->getFile() . "</p>";
+        echo "<p><strong>Línea:</strong> " . $e->getLine() . "</p>";
+        echo "<hr style='border:0; border-top:1px solid #fca5a5; margin:15px 0;'>";
+        echo "<p><strong>Trace:</strong></p>";
+        echo "<pre style='background:#fff; padding:10px; border-radius:5px; border:1px solid #fca5a5; overflow:auto; font-size:12px;'>" . $e->getTraceAsString() . "</pre>";
+        echo "</div>";
+    } else {
+        echo "Lo sentimos, ha ocurrido un error interno.";
+    }
 }
-

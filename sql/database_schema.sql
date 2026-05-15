@@ -93,6 +93,18 @@ CREATE TABLE IF NOT EXISTS `table_proveedores` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- 7. Tabla de Configuración de la Empresa
+CREATE TABLE IF NOT EXISTS `table_company_settings` (
+  `id` INT(11) NOT NULL DEFAULT 1, -- Siempre será 1, para asegurar una única fila
+  `name` VARCHAR(100) NOT NULL,
+  `nit` VARCHAR(50) DEFAULT NULL,
+  `iva` DECIMAL(5,2) DEFAULT 0.00,
+  `address` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT current_timestamp(),
+  `updated_at` TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- --------------------------------------------------------
 -- INSERCIÓN DE DATOS INICIALES (SEMILLAS)
 -- --------------------------------------------------------
@@ -113,6 +125,10 @@ VALUES
 INSERT INTO `table_usuarios` (`staff_id`, `username`, `password`, `role_id`, `estado`) 
 VALUES 
 ('STAFF-1', 'ADMIN', '123', 1, 1);
+
+-- Datos iniciales para la configuración de la empresa
+INSERT INTO `table_company_settings` (`id`, `name`, `nit`, `iva`, `address`) VALUES
+(1, 'TALLER PRO', '0000000000', 19.00, 'DIRECCIÓN PRINCIPAL DEL TALLER');
 
 -- Restaurar configuraciones originales
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;

@@ -20,7 +20,7 @@ define('APPROOT', dirname(dirname(__FILE__)));
 // Ejemplo servidor: https://taller-pro.com
 define('URLROOT', 'http://tallerv1.test');
 
-// Ruta absoluta para el almacenamiento de datos JSON (Base de datos plana)
+// Ruta absoluta para el almacenamiento de datos JSON (Base de datos plana para módulos no migrados)
 define('JSON_DIR', APPROOT . '/../public/json/');
 
 // 4. Nombre del Sitio
