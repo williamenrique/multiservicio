@@ -1,20 +1,19 @@
 <section id="sec-facturacion" class="content-section">
-    <div class="flex justify-between items-center mb-6">
-        <div>
-            <h2 class="text-2xl font-bold">Punto de Venta</h2>
-            <p class="text-slate-400 text-sm">ID Factura: <span id="pos-factura-id" class="font-mono font-bold text-navy-blue">---</span></p>
-        </div>
-        <div class="flex gap-2">
-            <button id="btn-new-invoice" class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-50 transition shadow-sm">
-                <i data-lucide="plus-circle"></i> Nueva Factura
+    <!-- Barra de Facturas en Espera (Cola) -->
+    <div class="mb-6 overflow-x-auto pb-2">
+        <div class="flex gap-3" id="pos-queue-container">
+            <!-- Botón para nueva factura siempre visible -->
+            <button id="btn-new-invoice" class="flex-shrink-0 bg-navy-blue text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 border border-slate-500 hover:border-neon-green transition-all group">
+                <i data-lucide="plus" class="w-4 h-4 group-hover:rotate-90 transition-transform"></i>
+                <span class="text-[10px] uppercase">Nueva Factura</span>
             </button>
-            <button id="btn-save-draft" class="bg-navy-blue text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:opacity-90 transition shadow-sm">
-                <i data-lucide="save"></i> Encolar
-            </button>
+            <div id="pos-active-drafts" class="flex gap-3 items-center">
+                <!-- Aquí se cargan las facturas o el mensaje de vacío -->
+            </div>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
         <!-- Columna Izquierda: Entradas y Búsqueda (4 de 12) -->
         <div class="lg:col-span-4 space-y-6">
             <!-- Metadatos del Vehículo -->
@@ -36,17 +35,23 @@
             </div>
 
             <!-- Buscador Estilo Select -->
-            <div class="glass-card p-6 rounded-xl relative">
-                <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Añadir del Inventario</label>
+            <!-- Sección de Búsqueda Mejorada -->
+            <div class="glass-card p-6 rounded-xl space-y-4 overflow-visible">
                 <div class="relative">
-                    <input type="text" id="pos-search" placeholder="Buscar producto..." class="w-full p-2 pl-9 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm">
-                    <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-4 h-4"></i>
-                    <div id="pos-search-results" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-lg shadow-2xl bg-white z-[100]"></div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Buscador de Repuestos</label>
+                    <div class="relative">
+                        <input type="text" id="pos-search" placeholder="Escriba nombre o categoría..." class="w-full p-3 pl-10 border border-slate-300 rounded-xl focus:ring-2 focus:ring-neon-green outline-none text-sm">
+                        <i data-lucide="search" class="absolute left-3 top-3.5 text-slate-400 w-4 h-4"></i>
+                        <div id="pos-search-results" class="absolute w-full mt-2 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1 scrollbar-thin"></div>
+                    </div>
                 </div>
-                <div class="flex gap-2 mt-3">
-                    <input type="number" id="pos-qty" value="1" min="1" class="w-20 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-center text-sm font-bold">
-                    <button id="btn-add-item" class="flex-1 bg-navy-blue text-white p-2 rounded-lg hover:bg-slate-800 transition text-xs font-bold flex items-center justify-center gap-2">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> AGREGAR
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Cantidad</label>
+                        <input type="number" id="pos-qty" value="1" min="1" class="w-full p-2 border border-slate-300 rounded-lg text-center font-bold">
+                    </div>
+                    <button id="btn-add-item" class="mt-5 bg-navy-blue text-white px-6 rounded-lg hover:bg-slate-800 transition flex items-center gap-2 font-bold text-xs">
+                        <i data-lucide="shopping-cart" class="w-4 h-4"></i> AGREGAR
                     </button>
                 </div>
             </div>
@@ -76,7 +81,9 @@
                     <h3 class="text-xs font-black text-navy-blue uppercase flex items-center gap-2">
                         <i data-lucide="file-text"></i> Detalle de Factura
                     </h3>
-                    <div id="pos-queue-list" class="flex gap-2 max-w-lg overflow-x-auto py-1"></div>
+                    <span class="text-[10px] font-mono font-bold bg-navy-blue text-white px-2 py-1 rounded">
+                        ID: <span id="pos-factura-id">---</span>
+                    </span>
                 </div>
 
                 <!-- Cuerpo: Lista de Items -->

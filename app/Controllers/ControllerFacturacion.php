@@ -25,7 +25,16 @@ class ControllerFacturacion extends Controller {
     public function buscarItems() {
         $term = $_GET['term'] ?? '';
         $items = $this->facturaModel->buscarItems($term);
+        header('Content-Type: application/json');
         echo json_encode($items);
+    }
+
+    /**
+     * Lista todos los borradores activos en el sistema (Global)
+     */
+    public function listarBorradores() {
+        header('Content-Type: application/json');
+        echo json_encode($this->facturaModel->obtenerBorradoresCompleto());
     }
 
     /**
@@ -33,6 +42,7 @@ class ControllerFacturacion extends Controller {
      */
     public function procesar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            header('Content-Type: application/json');
             $datos = json_decode(file_get_contents('php://input'), true);
             
             if (empty($datos['items'])) {
@@ -50,6 +60,28 @@ class ControllerFacturacion extends Controller {
                 ]);
             } else {
                 echo json_encode(['success' => false, 'mensaje' => 'No se pudo procesar la venta. Verifique el stock.']);
+            }
+        }
+    }
+
+    /**
+     * Sincroniza un borrador con la base de datos para reservar stock en tiempo real.
+     */
+    public function sincronizarBorrador() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            header('Content-Type: application/json');
+            $datos = json_decode(file_get_contents('php://input'), true);
+            
+            // Guardamos con status PENDIENTE
+            $resultado = $this->facturaModel->guardarFactura($datos, 'PENDIENTE');
+
+            if ($resultado) {
+                echo json_encode([
+                    'success' => true, 
+                    'venta_id' => $resultado
+                ]);
+            } else {
+                echo json_encode(['success' => false, 'mensaje' => 'No se pudo sincronizar el borrador']);
             }
         }
     }
