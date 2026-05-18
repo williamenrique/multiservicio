@@ -21,34 +21,6 @@
     <script src="<?php echo URL_JS; ?>app.js"></script>
     <script src="<?php echo URL_JS; ?>notifications.js"></script>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Inicialización general de iconos
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-
-            // Lógica para el Dropdown de Usuario (Top Bar)
-            const trigger = document.getElementById('userDropdownTrigger');
-            const menu = document.getElementById('userDropdownMenu');
-
-            if (trigger && menu) {
-                trigger.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    menu.classList.toggle('hidden');
-                    // Refrescamos iconos específicamente al abrir para asegurar visibilidad
-                    lucide.createIcons();
-                });
-
-                // Cerrar el menú si se hace clic en cualquier otra parte de la pantalla
-                document.addEventListener('click', function(e) {
-                    if (!trigger.contains(e.target) && !menu.contains(e.target)) {
-                        menu.classList.add('hidden');
-                    }
-                });
-            }
-        });
-    </script>
 </body>
 
 </html>

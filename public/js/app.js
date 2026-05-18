@@ -3,30 +3,28 @@
  */
 
 // Instancia global para control de DataTable y refresco de datos
-// Variables globales de estado y datos (estas aún se cargan de JSON para otras tablas)
-let users = [];
-let staff = [];
-// Variable global para el estado del inventario
-let inventory = [];
-
 // Variable global para el usuario logueado (se cargará de la DB)
 let currentLoggedInUser = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     initClock();
     initSidebar();
+    initUserDropdown(); // Inicializar el dropdown solo una vez
 
     // Cargar la información del usuario logueado directamente desde la base de datos
     await fetchLoggedInUserFromDB();
 
-    // Auto-update dashboard cards every 5 seconds
     renderTopBarUserInfo(); // Cargar info del usuario en la barra superior una vez que todo esté cargado
-    await renderDashboardCards(); // Renderizado inicial
-    setInterval(renderDashboardCards, 5000);
-    setInterval(renderFinancialCards, 5000); // This was already correct
-    setInterval(renderPendingBillsDashboard, 5000);
-    setInterval(renderSupplierDebtsDashboard, 5000);
-    setInterval(renderExpensesDashboard, 5000);
+
+    // Solo activar intervalos si estamos en la vista de Dashboard
+    if (document.getElementById('dashboard-cards')) {
+        await renderDashboardCards(); // Renderizado inicial
+        setInterval(renderDashboardCards, 5000);
+        setInterval(renderFinancialCards, 5000);
+        setInterval(renderPendingBillsDashboard, 5000);
+        setInterval(renderSupplierDebtsDashboard, 5000);
+        setInterval(renderExpensesDashboard, 5000);
+    }
 });
 
 // Escuchar los botones de Atrás/Adelante del navegador
@@ -43,28 +41,6 @@ function initClock() {
         const now = new Date();
         clockElement.textContent = now.toLocaleTimeString('es-CO', { hour12: true });
     }, 1000);
-}
-
-// Navegación de Secciones (SPA simple)
-function showSection(sectionId, updateHistory = true) {
-    const targetSection = document.getElementById(`sec-${sectionId}`);
-
-    // Si la sección existe en el DOM actual (ej. pestañas internas), la manejamos
-    if (targetSection) {
-        document.querySelectorAll('.content-section').forEach(section => section.classList.add('hidden'));
-        targetSection.classList.remove('hidden');
-
-        if (updateHistory) {
-            const newUrl = `${URLROOT}/${sectionId}`;
-            window.history.pushState({ sectionId }, "", newUrl);
-        }
-    } else if (sectionId === 'configuracion') {
-        // Si el link del menú es "configuracion", redirigimos al controlador Empresa
-        window.location.href = `${URLROOT}/empresa`;
-    } else {
-        // Si no existe, redirigimos a la página real
-        window.location.href = `${URLROOT}/${sectionId}`;
-    }
 }
 
 /**
@@ -99,16 +75,62 @@ async function refreshUI() {
 }
 
 /**
+ * Inicializa el comportamiento del menú desplegable del usuario una sola vez.
+ */
+/**
+ * Inicializa el menú desplegable del usuario con lógica mejorada.
+ */
+function initUserDropdown() {
+    const trigger = document.getElementById('userDropdownTrigger');
+    const menu = document.getElementById('userDropdownMenu');
+
+    if (!trigger || !menu) return;
+
+    // Toggle al hacer clic en el botón
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = menu.classList.contains('hidden');
+
+        // Cerrar todos los demás dropdowns si los hubiera
+        menu.classList.toggle('hidden', !isHidden);
+
+        if (isHidden && window.lucide) {
+            lucide.createIcons();
+        }
+    });
+
+    // Cerrar al hacer clic fuera del menú o del botón
+    document.addEventListener('click', (e) => {
+        if (!menu.contains(e.target) && !trigger.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    // Manejo de Logout con confirmación (usando la clase solicitada)
+    document.addEventListener('click', (e) => {
+        const logoutBtn = e.target.closest('.logout');
+        if (logoutBtn) {
+            e.preventDefault();
+            const url = logoutBtn.href;
+            AppUtils.confirmAction(
+                '¿Cerrar Sesión?',
+                'Tu sesión actual terminará.',
+                () => window.location.href = url,
+                'question',
+                'Sí, salir',
+                '#ef4444'
+            );
+        }
+    });
+}
+
+/**
  * Renderiza el nombre y rol del usuario logueado en la barra superior.
- * También configura el menú desplegable del usuario.
  */
 async function renderTopBarUserInfo() {
     const topbarUsername = document.getElementById('topbar-username');
     const topbarUserrole = document.getElementById('topbar-userrole');
     if (!topbarUsername || !topbarUserrole) return;
-
-    const userDropdownTrigger = document.getElementById('userDropdownTrigger');
-    const userDropdownMenu = document.getElementById('userDropdownMenu');
 
     if (currentLoggedInUser) {
         // Usar staffName si está disponible (viene de la DB), de lo contrario el username
@@ -122,21 +144,7 @@ async function renderTopBarUserInfo() {
         topbarUsername.textContent = 'Invitado';
         topbarUserrole.textContent = 'Sin Sesión';
     }
-
-    // Toggle del menú desplegable
-    if (userDropdownTrigger && userDropdownMenu) {
-        userDropdownTrigger.addEventListener('click', (event) => {
-            event.stopPropagation(); // Evita que se cierre inmediatamente por el document click
-            userDropdownMenu.classList.toggle('hidden');
-            lucide.createIcons(); // Para cualquier ícono nuevo en el menú desplegable
-        });
-        document.addEventListener('click', (event) => {
-            if (!userDropdownMenu.contains(event.target) && !userDropdownTrigger.contains(event.target)) {
-                userDropdownMenu.classList.add('hidden');
-            }
-        });
-    }
-    lucide.createIcons(); // Asegurar que los íconos se rendericen
+    if (window.lucide) lucide.createIcons(); // Asegurar que los íconos se rendericen
 }
 
 /**
@@ -147,22 +155,20 @@ async function openUserProfileModal() {
         AppUtils.showAlert('Acceso Denegado', 'No hay un usuario logueado para editar su perfil.', 'error');
         return;
     }
-    const staffMember = staff.find(s => s.id === currentLoggedInUser.staffId);
-    const user = currentLoggedInUser;
 
     Swal.fire({
-        title: `Mi Perfil (${user.username})`,
+        title: `Mi Perfil (${currentLoggedInUser.username})`,
         html: `
             <div class="text-left space-y-4">
                 <p class="text-xs text-slate-500 uppercase">Información Personal</p>
-                <input id="profile-name" class="w-full p-2 border rounded-lg uppercase" placeholder="Nombre completo" value="${staffMember?.name || ''}">
-                <input id="profile-phone" class="w-full p-2 border rounded-lg" placeholder="Teléfono" value="${staffMember?.phone || ''}">
-                <input id="profile-email" type="email" class="w-full p-2 border rounded-lg" placeholder="Correo electrónico" value="${staffMember?.email || ''}">
-                <input id="profile-address" class="w-full p-2 border rounded-lg" placeholder="Dirección" value="${staffMember?.address || ''}">
+                <input id="profile-name" class="w-full p-2 border rounded-lg uppercase" placeholder="Nombre completo" value="${currentLoggedInUser.staffName || ''}">
+                <input id="profile-phone" class="w-full p-2 border rounded-lg" placeholder="Teléfono" value="">
+                <input id="profile-email" type="email" class="w-full p-2 border rounded-lg" placeholder="Correo electrónico" value="">
+                <input id="profile-address" class="w-full p-2 border rounded-lg" placeholder="Dirección" value="">
 
                 <hr class="my-4 border-t border-slate-200">
                 <p class="text-xs text-slate-500 uppercase">Credenciales de Acceso</p>
-                <input id="profile-username" class="w-full p-2 border rounded-lg" placeholder="Nombre de usuario" value="${user.username}" readonly>
+                <input id="profile-username" class="w-full p-2 border rounded-lg" placeholder="Nombre de usuario" value="${currentLoggedInUser.username}" readonly>
                 <input id="profile-current-password" type="password" class="w-full p-2 border rounded-lg" placeholder="Contraseña actual (solo para cambiar)">
                 <input id="profile-new-password" type="password" class="w-full p-2 border rounded-lg" placeholder="Nueva Contraseña">
                 <input id="profile-confirm-new-password" type="password" class="w-full p-2 border rounded-lg" placeholder="Confirmar Nueva Contraseña">
@@ -206,7 +212,9 @@ async function renderDashboardCards() {
     const container = document.getElementById('dashboard-cards');
     if (!container) return;
 
+    // Nota: Estas estadísticas aún consumen de JSON, deberían migrarse a un Controller Dashboard en el futuro
     const drafts = await AppUtils.loadData('drafts_db');
+    const inventoryData = await AppUtils.loadData('inventory_db');
 
     // Calcular cuántos repuestos hay "reservados" en borradores
     const reservedUnits = drafts.reduce((total, draft) => {
@@ -214,14 +222,14 @@ async function renderDashboardCards() {
     }, 0);
 
     const stats = [
-        { label: 'Productos OK', value: inventory.filter(p => p.stock > 5).length, color: 'text-neon-green', border: 'border-neon-green', icon: 'check-circle', filter: 'Stock OK' },
-        { label: 'Stock Crítico', value: inventory.filter(p => p.stock <= 5 && p.stock > 0).length, color: 'text-cat-yellow', border: 'border-cat-yellow', icon: 'alert-triangle', filter: 'Bajo Stock' },
-        { label: 'Agotados', value: inventory.filter(p => p.stock === 0).length, color: 'text-error-red', border: 'border-error-red', icon: 'alert-circle', filter: 'Agotado' },
+        { label: 'Productos OK', value: inventoryData.filter(p => p.stock > 5).length, color: 'text-neon-green', border: 'border-neon-green', icon: 'check-circle', filter: 'Stock OK' },
+        { label: 'Stock Crítico', value: inventoryData.filter(p => p.stock <= 5 && p.stock > 0).length, color: 'text-cat-yellow', border: 'border-cat-yellow', icon: 'alert-triangle', filter: 'Bajo Stock' },
+        { label: 'Agotados', value: inventoryData.filter(p => p.stock === 0).length, color: 'text-error-red', border: 'border-error-red', icon: 'alert-circle', filter: 'Agotado' },
         { label: 'En Servicio', value: reservedUnits, color: 'text-blue-500', border: 'border-blue-500', icon: 'clock', section: 'facturacion' }
     ];
 
     container.innerHTML = stats.map(s => `
-        <div onclick="${s.filter ? `navigateToInventoryFilter('${s.filter}')` : `showSection('${s.section}')`}" 
+        <div onclick="${s.filter ? `window.location.href='${URLROOT}/inventario'` : `window.location.href='${URLROOT}/${s.section}'`}" 
              class="glass-card p-6 rounded-xl flex items-center justify-between border-l-4 ${s.border} cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all group">
             <div class="pointer-events-none">
                 <p class="text-gray-400 text-sm">${s.label}</p>
@@ -354,17 +362,6 @@ async function renderPendingBillsDashboard() {
 }
 
 /**
- * Función puente para retomar una factura directamente desde el dashboard
- */
-async function resumeBillFromDashboard(id) {
-    if (typeof activeBillId !== 'undefined') {
-        activeBillId = id.toString();
-        showSection('facturacion');
-        if (typeof initBilling === 'function') await initBilling(); // Await initBilling
-    }
-}
-
-/**
  * Calcula y renderiza las estadísticas financieras en el dashboard
  */
 async function renderFinancialCards() {
@@ -420,30 +417,6 @@ function updateSummaryCards(sales) {
         .reduce((sum, s) => sum + (s.total || 0), 0);
 
     salesTodayEl.textContent = AppUtils.formatCurrency(todaySales);
-}
-
-/**
- * Función genérica para eliminar registros de cualquier base de datos JSON
- * @param {string|number} id - ID del registro a eliminar
- * @param {string} dbKey - Llave del archivo JSON (ej: 'inventory_db')
- * @param {string} label - Nombre legible para el mensaje de confirmación
- */
-async function genericDelete(id, dbKey, label) {
-    AppUtils.confirmAction(
-        `¿Eliminar ${label}?`,
-        "Esta acción no se puede deshacer y afectará los registros actuales.",
-        async () => {
-            const data = await AppUtils.loadData(dbKey);
-            const filteredData = data.filter(item => (item.id || item.nit) != id);
-
-            // Si eliminamos del inventario, actualizamos la variable global
-            if (dbKey === 'inventory_db') inventory = filteredData;
-
-            await AppUtils.saveData(dbKey, filteredData);
-            await refreshUI();
-            AppUtils.showToast(`${label} eliminado correctamente`, 'success');
-        }
-    );
 }
 
 /**

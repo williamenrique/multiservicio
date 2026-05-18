@@ -65,7 +65,7 @@
         <main class="flex-1 flex flex-col overflow-y-auto">
             <!-- Top Bar -->
             <header
-                class="h-16 bg-navy-blue border-b border-gray-800 flex items-center justify-between px-8 sticky top-0 z-10">
+                class="h-16 bg-navy-blue border-b border-gray-800 flex items-center justify-between px-8 sticky top-0 z-50">
                 <div class="flex items-center gap-4">
                     <button id="toggleSidebar" class="p-2 text-white hover:bg-gray-800 rounded-lg">
                         <i data-lucide="menu"></i>
@@ -89,7 +89,7 @@
                             <i data-lucide="settings-2" class="w-4 h-4"></i> Mi Perfil
                         </a>
                         <hr class="border-gray-700">
-                        <a href="<?php echo URLROOT; ?>/auth/logout" class="block px-4 py-2 text-sm text-red-400 hover:bg-gray-800 flex items-center gap-2">
+                        <a href="<?php echo URLROOT; ?>/auth/logout" class="logout block px-4 py-2 text-sm text-red-400 hover:bg-gray-800 flex items-center gap-2">
                             <i data-lucide="log-out" class="w-4 h-4 flex-shrink-0"></i> Cerrar Sesión
                         </a>
                     </div>

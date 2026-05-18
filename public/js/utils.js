@@ -111,15 +111,6 @@ const AppUtils = {
         }
     },
 
-    // Verificar e inicializar archivos JSON en el servidor
-    checkAndInitDB: async () => {
-        try {
-            await fetch(`${URLROOT}/dashboard/api?action=init`);
-        } catch (e) {
-            console.error("Error al inicializar la base de datos JSON:", e);
-        }
-    },
-
     // Visualizador de imágenes
     viewImage: (url, title) => {
         Swal.fire({
