@@ -36,13 +36,13 @@
 
             <!-- Buscador Estilo Select -->
             <!-- Sección de Búsqueda Mejorada -->
-            <div class="glass-card p-6 rounded-xl space-y-4 overflow-visible">
+            <div class="glass-card p-6 rounded-xl space-y-4 overflow-visible relative z-20">
                 <div class="relative">
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Buscador de Repuestos</label>
                     <div class="relative">
                         <input type="text" id="pos-search" placeholder="Escriba nombre o categoría..." class="w-full p-3 pl-10 border border-slate-300 rounded-xl focus:ring-2 focus:ring-neon-green outline-none text-sm">
                         <i data-lucide="search" class="absolute left-3 top-3.5 text-slate-400 w-4 h-4"></i>
-                        <div id="pos-search-results" class="absolute w-full mt-2 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1 scrollbar-thin"></div>
+                        <div id="pos-search-results" class="absolute w-full mt-2 max-h-96 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
                     </div>
                 </div>
                 <div class="flex gap-2">
@@ -78,9 +78,12 @@
             <div class="glass-card rounded-xl border-t-4 border-neon-green flex flex-col h-full min-h-[600px] shadow-xl">
                 <!-- Cabecera de la Factura -->
                 <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-xl">
-                    <h3 class="text-xs font-black text-navy-blue uppercase flex items-center gap-2">
-                        <i data-lucide="file-text"></i> Detalle de Factura
-                    </h3>
+                    <div class="flex flex-col gap-1">
+                        <h3 class="text-xs font-black text-navy-blue uppercase flex items-center gap-2">
+                            <i data-lucide="file-text"></i> Detalle de Factura
+                        </h3>
+                        <span class="text-[9px] text-slate-400 font-bold uppercase">Responsable: <span id="pos-user-name" class="text-navy-blue">---</span></span>
+                    </div>
                     <span class="text-[10px] font-mono font-bold bg-navy-blue text-white px-2 py-1 rounded">
                         ID: <span id="pos-factura-id">---</span>
                     </span>
@@ -107,6 +110,7 @@
                             </div>
                         </div>
                         <span id="pos-iva-percent" class="hidden"><?php echo $data['iva_defecto']; ?></span>
+                        <span id="pos-current-user" class="hidden"><?php echo $data['usuario_actual']; ?></span>
                     </div>
                     <button id="btn-process-sale" class="w-full mt-6 bg-neon-green text-navy-blue font-black py-4 rounded-xl hover:brightness-110 transition flex items-center justify-center gap-3 uppercase text-lg shadow-lg">
                         <i data-lucide="check-circle" class="w-6 h-6"></i> Cerrar y Procesar

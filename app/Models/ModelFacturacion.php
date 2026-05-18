@@ -38,7 +38,11 @@ class ModelFacturacion {
      * Obtiene todos los borradores con sus respectivos items cargados
      */
     public function obtenerBorradoresCompleto() {
-        $this->db->query("SELECT * FROM table_ventas WHERE status = 'PENDIENTE' ORDER BY fecha DESC");
+        $this->db->query("SELECT v.*, s.nombre as usuario_nombre 
+                          FROM table_ventas v 
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id 
+                          LEFT JOIN table_staff s ON u.staff_id = s.id 
+                          WHERE v.status = 'PENDIENTE' ORDER BY v.fecha DESC");
         $ventas = $this->db->resultSet();
 
         foreach ($ventas as $key => $venta) {

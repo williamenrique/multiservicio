@@ -50,7 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     placa: d.placa || '',
                     modelo: d.modelo_vehiculo || '',
                     cliente_id: d.cliente_id || '',
-                    items: d.items || []
+                    items: d.items || [],
+                    usuario_nombre: d.usuario_nombre
                 })).concat(localOnly);
 
                 // Restaurar la factura activa por ID
@@ -60,8 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (openInvoices.length > 0) {
                     activeInvoiceId = openInvoices[0].id;
                 }
-            } 
-            
+            }
+
             if (openInvoices.length === 0) {
                 initNewInvoice();
             }
@@ -106,7 +107,8 @@ document.addEventListener('DOMContentLoaded', () => {
             placa: '',
             modelo: '',
             cliente_id: '',
-            items: []
+            items: [],
+            usuario_nombre: document.getElementById('pos-current-user').textContent
         };
 
         openInvoices.push(newInvoice);
@@ -125,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Listeners para guardar metadatos en tiempo real
     inputPlaca.addEventListener('input', (e) => {
         updateActiveData('placa', e.target.value.toUpperCase());
-        renderQueue(); 
+        renderQueue();
     });
 
     inputModelo.addEventListener('input', (e) => {
@@ -334,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeInvoice) return;
 
         displayFacturaId.textContent = activeInvoice.id;
+        document.getElementById('pos-user-name').textContent = activeInvoice.usuario_nombre || '---';
         inputPlaca.value = activeInvoice.placa;
         inputModelo.value = activeInvoice.modelo;
         inputCliente.value = activeInvoice.cliente_id;
@@ -384,12 +387,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         if (data.success) {
             AppUtils.showAlert('Éxito', 'Factura procesada correctamente', 'success');
-            
+
             const index = openInvoices.findIndex(inv => inv.id === activeInvoiceId);
             openInvoices.splice(index, 1);
-            
+
             activeInvoiceId = openInvoices.length > 0 ? openInvoices[0].id : null;
-            
+
             if (!activeInvoiceId) clearInputs();
             saveInvoicesToLocal();
             // Forzamos recarga del servidor para limpiar borradores

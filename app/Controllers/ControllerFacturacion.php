@@ -13,7 +13,8 @@ class ControllerFacturacion extends Controller {
         $config = $this->empresaModel->obtenerConfiguracion();
         $data = [
             'titulo' => 'Nueva Facturación',
-            'iva_defecto' => $config->iva ?? 0
+            'iva_defecto' => $config->iva ?? 0,
+            'usuario_actual' => $_SESSION['user_nombre']
         ];
 
         $this->view('facturacion/index', $data);
