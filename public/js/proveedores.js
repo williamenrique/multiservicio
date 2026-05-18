@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('searchProveedor');
 
     let proveedores = [];
+    let deudas = [];
 
     const loadData = async () => {
         try {
@@ -18,6 +19,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             tableBody.innerHTML = '<tr><td colspan="4" class="text-center py-10 text-red-500">Error de conexión</td></tr>';
         }
+    };
+
+    const loadDeudas = async () => {
+        try {
+            const res = await fetch(`${URLROOT}/proveedores/listarDeudas`);
+            deudas = await res.json();
+            renderDeudasTable(deudas);
+        } catch (e) { console.error("Error al cargar deudas", e); }
     };
 
     const renderTable = (data) => {
@@ -48,6 +57,147 @@ document.addEventListener('DOMContentLoaded', () => {
             tableBody.appendChild(row);
         });
         lucide.createIcons();
+    };
+
+    const renderDeudasTable = (data) => {
+        const debtBody = document.getElementById('tableDeudasBody');
+        debtBody.innerHTML = '';
+
+        if (data.length === 0) {
+            debtBody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400 italic">No hay cuentas por pagar activas</td></tr>';
+            return;
+        }
+
+        data.forEach(d => {
+            const proximoVenc = d.proximo_vencimiento ? new Date(d.proximo_vencimiento).toLocaleDateString() : 'N/A';
+            const isOverdue = d.proximo_vencimiento && new Date(d.proximo_vencimiento) < new Date();
+
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-slate-50 transition-colors border-b border-slate-100';
+            row.innerHTML = `
+                <td class="px-8 py-5">
+                    <div class="font-bold text-slate-700 uppercase">${d.nombre}</div>
+                    <div class="text-[10px] text-slate-400">${d.telefono || ''}</div>
+                </td>
+                <td class="px-8 py-5 text-sm">${d.facturas_pendientes} facturas</td>
+                <td class="px-8 py-5 font-mono font-bold text-red-600">${AppUtils.formatCurrency(d.saldo_pendiente)}</td>
+                <td class="px-8 py-5">
+                    <span class="px-2 py-1 rounded-md text-[10px] font-bold ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500'}">
+                        ${proximoVenc} ${isOverdue ? '(VENCIDO)' : ''}
+                    </span>
+                </td>
+                <td class="px-8 py-5 text-right">
+                    <button onclick="viewProviderDebtsDetail('${d.id}', '${d.nombre}')" class="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all" title="Ver Detalles/Pagar"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                </td>
+            `;
+            debtBody.appendChild(row);
+        });
+        lucide.createIcons();
+    };
+
+    window.switchTab = (tab) => {
+        const secLista = document.getElementById('sec-lista');
+        const secDeudas = document.getElementById('sec-deudas');
+        const tabLista = document.getElementById('tab-lista');
+        const tabDeudas = document.getElementById('tab-deudas');
+
+        if (tab === 'lista') {
+            secLista.classList.remove('hidden');
+            secDeudas.classList.add('hidden');
+            tabLista.className = 'pb-3 px-1 border-b-2 border-neon-green font-bold text-navy-blue transition-all flex items-center gap-2 text-sm uppercase tracking-wider';
+            tabDeudas.className = 'pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all flex items-center gap-2 text-sm uppercase tracking-wider';
+            loadData();
+        } else {
+            secLista.classList.add('hidden');
+            secDeudas.classList.remove('hidden');
+            tabLista.className = 'pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all flex items-center gap-2 text-sm uppercase tracking-wider';
+            tabDeudas.className = 'pb-3 px-1 border-b-2 border-neon-green font-bold text-navy-blue transition-all flex items-center gap-2 text-sm uppercase tracking-wider';
+            loadDeudas();
+        }
+        lucide.createIcons();
+    };
+
+    /**
+     * Muestra el detalle de facturas pendientes de un proveedor y permite pagar
+     */
+    window.viewProviderDebtsDetail = async (id, nombre) => {
+        try {
+            const res = await fetch(`${URLROOT}/proveedores/listarComprasPendientes/${id}`);
+            const compras = await res.json();
+
+            if (compras.length === 0) {
+                AppUtils.showToast("No hay facturas pendientes", "info");
+                loadDeudas();
+                return;
+            }
+
+            Swal.fire({
+                title: `<span class="text-sm uppercase text-slate-400">Facturas Pendientes:</span><br>${nombre}`,
+                html: `
+                    <div class="text-left mt-4 max-h-96 overflow-y-auto">
+                        <table class="w-full text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b">
+                                    <th class="p-2 text-left text-slate-400">FECHA</th>
+                                    <th class="p-2 text-right text-slate-400">SALDO</th>
+                                    <th class="p-2 text-right text-slate-400">ACCIÓN</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${compras.map(c => {
+                    const saldo = c.total - c.pagado;
+                    return `
+                                    <tr class="border-b hover:bg-slate-50 transition-colors">
+                                        <td class="p-2">
+                                            <div class="font-bold">${new Date(c.fecha).toLocaleDateString()}</div>
+                                            <div class="text-[9px] text-slate-400">ID: #${c.id}</div>
+                                        </td>
+                                        <td class="p-2 text-right font-mono font-bold text-red-600">${AppUtils.formatCurrency(saldo)}</td>
+                                        <td class="p-2 text-right">
+                                            <button onclick="window.payInvoice('${c.id}', ${saldo}, '${nombre}')" class="bg-emerald-500 text-white px-3 py-1 rounded-lg text-[10px] font-black hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20">ABONAR</button>
+                                        </td>
+                                    </tr>
+                                    `;
+                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `,
+                showConfirmButton: false,
+                showCancelButton: true,
+                cancelButtonText: 'Cerrar Ventana'
+            });
+
+            window.payInvoice = async (compraId, saldo, provNombre) => {
+                const { value: monto } = await Swal.fire({
+                    title: 'Registrar Abono',
+                    text: `Saldo pendiente: ${AppUtils.formatCurrency(saldo)}`,
+                    input: 'number',
+                    inputAttributes: { min: 1, max: saldo, step: 0.01 },
+                    showCancelButton: true,
+                    confirmButtonText: 'Confirmar Pago',
+                    confirmButtonColor: '#10b981',
+                    inputValidator: (value) => {
+                        if (!value || value <= 0) return 'Ingrese un monto válido';
+                        if (parseFloat(value) > saldo) return 'El monto excede el saldo pendiente';
+                    }
+                });
+
+                if (monto) {
+                    const response = await fetch(`${URLROOT}/proveedores/registrarPago`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ compra_id: compraId, monto: parseFloat(monto) })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        AppUtils.showToast(data.mensaje);
+                        window.viewProviderDebtsDetail(id, provNombre); // Recargar el modal
+                        loadDeudas(); // Actualizar tabla principal
+                    }
+                }
+            };
+        } catch (e) { console.error(e); }
     };
 
     searchInput.addEventListener('input', (e) => {

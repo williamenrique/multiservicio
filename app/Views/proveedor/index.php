@@ -8,34 +8,69 @@
     </button>
 </div>
 
-<!-- Filtros y Buscador -->
-<div class="glass-card p-4 rounded-xl mb-6 flex flex-wrap gap-4 items-center">
-    <div class="relative flex-1 min-w-[300px]">
-        <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-5 h-5"></i>
-        <input type="text" id="searchProveedor" placeholder="Buscar por nombre o NIT..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-neon-green outline-none transition-all">
+<!-- Pestañas de Navegación -->
+<div class="flex gap-6 mb-6 border-b border-slate-200">
+    <button id="tab-lista" onclick="switchTab('lista')" class="pb-3 px-1 border-b-2 border-neon-green font-bold text-navy-blue transition-all flex items-center gap-2 text-sm uppercase tracking-wider">
+        <i data-lucide="list" class="w-4 h-4"></i> Directorio
+    </button>
+    <button id="tab-deudas" onclick="switchTab('deudas')" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all flex items-center gap-2 text-sm uppercase tracking-wider">
+        <i data-lucide="wallet" class="w-4 h-4"></i> Cuentas por Pagar
+    </button>
+</div>
+
+<!-- Sección de Directorio -->
+<div id="sec-lista">
+    <!-- Filtros y Buscador -->
+    <div class="glass-card p-4 rounded-xl mb-6 flex flex-wrap gap-4 items-center">
+        <div class="relative flex-1 min-w-[300px]">
+            <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-5 h-5"></i>
+            <input type="text" id="searchProveedor" placeholder="Buscar por nombre o NIT..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-neon-green outline-none transition-all">
+        </div>
+        <div class="px-4 py-2 bg-navy-blue text-white rounded-lg font-bold text-sm">
+            Total: <span id="totalCount">0</span>
+        </div>
     </div>
-    <div class="px-4 py-2 bg-navy-blue text-white rounded-lg font-bold text-sm">
-        Total: <span id="totalCount">0</span>
+
+    <!-- Tabla de Proveedores -->
+    <div class="glass-card rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-100">
+                        <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">ID / NIT</th>
+                        <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Nombre Empresa</th>
+                        <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Contacto</th>
+                        <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Se llena dinámicamente con proveedores.js -->
+                    <tr><td colspan="4" class="text-center py-20 text-slate-300 italic uppercase text-xs tracking-widest">Cargando proveedores...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<!-- Tabla de Proveedores -->
-<div class="glass-card rounded-xl overflow-hidden shadow-sm">
-    <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-            <thead>
-                <tr class="bg-slate-50 border-b border-slate-100">
-                    <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">ID / NIT</th>
-                    <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Nombre Empresa</th>
-                    <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Contacto</th>
-                    <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody">
-                <!-- Se llena dinámicamente con proveedores.js -->
-                <tr><td colspan="4" class="text-center py-20 text-slate-300 italic uppercase text-xs tracking-widest">Cargando proveedores...</td></tr>
-            </tbody>
-        </table>
+<!-- Sección de Deudas -->
+<div id="sec-deudas" class="hidden">
+    <div class="glass-card rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-100">
+                        <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Proveedor</th>
+                        <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Facturas Pend.</th>
+                        <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Saldo Pendiente</th>
+                        <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Próximo Vencimiento</th>
+                        <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tableDeudasBody">
+                    <tr><td colspan="5" class="text-center py-20 text-slate-300 italic uppercase text-xs tracking-widest">Cargando deudas...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

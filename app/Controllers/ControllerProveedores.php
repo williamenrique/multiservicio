@@ -23,6 +23,30 @@ class ControllerProveedores extends Controller {
         echo json_encode($this->proveedorModel->listar());
     }
 
+    public function listarDeudas() {
+        header('Content-Type: application/json');
+        echo json_encode($this->proveedorModel->listarDeudas());
+    }
+
+    public function listarComprasPendientes($id) {
+        header('Content-Type: application/json');
+        echo json_encode($this->proveedorModel->obtenerComprasPendientes($id));
+    }
+
+    public function registrarPago() {
+        RoleGuard::isAdmin();
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            header('Content-Type: application/json');
+            $data = json_decode(file_get_contents('php://input'), true);
+            
+            if ($this->proveedorModel->registrarPagoCompra($data)) {
+                echo json_encode(['success' => true, 'mensaje' => 'Abono registrado correctamente']);
+            } else {
+                echo json_encode(['success' => false, 'mensaje' => 'Error al registrar el pago']);
+            }
+        }
+    }
+
     /**
      * Procesa el ingreso de mercancía (Compra)
      * Maneja: Creación/Actualización de producto + Registro de deuda

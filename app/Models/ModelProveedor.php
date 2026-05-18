@@ -11,6 +11,59 @@ class ModelProveedor {
         return $this->db->resultSet();
     }
 
+    public function listarDeudas() {
+        $this->db->query("SELECT p.id, p.nombre, p.telefono, 
+                          SUM(c.total) as total_compras,
+                          SUM(c.pagado) as total_pagado,
+                          SUM(c.total - c.pagado) as saldo_pendiente,
+                          MIN(CASE WHEN c.total > c.pagado THEN c.fecha_vencimiento ELSE NULL END) as proximo_vencimiento,
+                          COUNT(CASE WHEN c.total > c.pagado THEN 1 END) as facturas_pendientes
+                          FROM table_proveedores p
+                          INNER JOIN table_compras c ON p.id = c.proveedor_id
+                          GROUP BY p.id, p.nombre, p.telefono
+                          HAVING saldo_pendiente > 0
+                          ORDER BY proximo_vencimiento ASC");
+        return $this->db->resultSet();
+    }
+
+    public function obtenerComprasPendientes($proveedorId) {
+        $this->db->query("SELECT * FROM table_compras 
+                          WHERE proveedor_id = :pid AND (total - pagado) > 0 
+                          ORDER BY fecha ASC");
+        $this->db->bind(':pid', $proveedorId);
+        return $this->db->resultSet();
+    }
+
+    public function registrarPagoCompra($datos) {
+        try {
+            $this->db->beginTransaction();
+
+            // 1. Obtener estado actual de la compra
+            $this->db->query("SELECT total, pagado FROM table_compras WHERE id = :id");
+            $this->db->bind(':id', $datos['compra_id']);
+            $compra = $this->db->single();
+
+            if (!$compra) throw new Exception("Compra no encontrada");
+
+            // 2. Calcular nuevo saldo
+            $nuevoPagado = (float)$compra->pagado + (float)$datos['monto'];
+            $nuevoStatus = ($nuevoPagado >= (float)$compra->total) ? 'PAGADO' : 'PENDIENTE';
+
+            // 3. Actualizar
+            $this->db->query("UPDATE table_compras SET pagado = :pag, status = :status WHERE id = :id");
+            $this->db->bind(':pag', $nuevoPagado);
+            $this->db->bind(':status', $nuevoStatus);
+            $this->db->bind(':id', $datos['compra_id']);
+            $this->db->execute();
+
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            return false;
+        }
+    }
+
     public function registrarCompra($datos) {
         try {
             $this->db->beginTransaction();
