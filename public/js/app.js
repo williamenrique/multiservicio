@@ -458,14 +458,14 @@ function updateSalesChart(sales) {
     }
 }
 
-                <p class="text-gray-400 text-sm">${s.label}</p>
+/*                <p class="text-gray-400 text-sm">${s.label}</p>
                 <h3 class="text-2xl font-bold ${s.color}">${s.value}</h3>
             </div >
     <i data-lucide="${s.icon}" class="${s.color} w-10 h-10 opacity-20"></i>
         </div >
     `).join('');
     lucide.createIcons();
-}
+}*/
 
 async function initPurchases() { // This was already correct
     const tableEl = document.getElementById('purchasesTable');
@@ -482,14 +482,14 @@ async function initPurchases() { // This was already correct
             { data: 'paid', render: d => AppUtils.formatCurrency(d) },
             {
                 data: null,
-                render: row => `< span class="font-bold ${row.total - row.paid > 0 ? 'text-red-500' : 'text-emerald-500'}" > ${ AppUtils.formatCurrency(row.total - row.paid) }</ > `
+                render: row => `< span class="font-bold ${row.total - row.paid > 0 ? 'text-red-500' : 'text-emerald-500'}" > ${AppUtils.formatCurrency(row.total - row.paid)}</ > `
             },
             { data: 'cutoff', render: d => d ? new Date(d).toLocaleDateString() : 'N/A' },
             {
                 data: null,
                 render: (data, type, row) => `
     < button onclick = "viewPurchaseDetail('${row.id}')" class="p-1 text-slate-400 hover:text-blue-600 transition-colors" > <i data-lucide="eye" class="w-4 h-4"></i></ >
-        ${ (row.total - row.paid) > 0 ? `<button onclick="openRecordPaymentModal('${row.id}')" class="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Registrar Pago"><i data-lucide="dollar-sign" class="w-4 h-4"></i></button>` : '' }
+        ${(row.total - row.paid) > 0 ? `<button onclick="openRecordPaymentModal('${row.id}')" class="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Registrar Pago"><i data-lucide="dollar-sign" class="w-4 h-4"></i></button>` : ''}
 <button onclick="genericDelete('${row.id}', 'purchases_db', 'Compra')" class="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar Compra"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
 `
             }
@@ -517,7 +517,7 @@ async function initExpenses() {
             { data: 'category' },
             {
                 data: 'amount',
-                render: d => `< span class="text-red-600 font-bold" > ${ AppUtils.formatCurrency(d) }</ > `
+                render: d => `< span class="text-red-600 font-bold" > ${AppUtils.formatCurrency(d)}</ > `
             },
             {
                 data: null,
