@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="text-slate-400 text-xs">${p.email || ''}</div>
                 </td>
                 <td class="px-8 py-5 text-right">
+                    <button onclick="openPurchaseModal('${p.id}', '${p.nombre}')" class="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all mr-1" title="Ingresar Mercancía"><i data-lucide="shopping-bag" class="w-4 h-4"></i></button>
                     <button onclick="editProveedor('${p.id}')" class="p-2 bg-slate-100 hover:bg-neon-green rounded-xl transition-all mr-1"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
                     <button onclick="deleteProveedor('${p.id}')" class="p-2 bg-slate-100 hover:bg-red-500 hover:text-white rounded-xl transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                 </td>
@@ -105,6 +106,122 @@ document.addEventListener('DOMContentLoaded', () => {
         AppUtils.confirmAction('¿Eliminar?', 'Esta acción borrará al proveedor.', async () => {
             await fetch(`${URLROOT}/proveedores/eliminar/${id}`, { method: 'DELETE' });
             loadData();
+        });
+    };
+
+    /**
+     * Abre el modal para registrar entrada de mercancía de un proveedor específico
+     */
+    window.openPurchaseModal = async (proveedorId, proveedorNombre) => {
+        let selectedProduct = null;
+
+        Swal.fire({
+            title: `<span class="text-sm uppercase text-slate-400">Ingreso:</span><br>${proveedorNombre}`,
+            html: `
+                <div class="text-left space-y-4 pt-4">
+                    <div class="relative">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase">Buscar o Crear Producto</label>
+                        <input id="pur-search" class="w-full p-2 border rounded-lg uppercase text-sm" placeholder="Escriba nombre del repuesto...">
+                        <div id="pur-results" class="absolute w-full mt-1 max-h-40 overflow-y-auto hidden border bg-white z-50 shadow-xl rounded-lg"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase">Cantidad</label>
+                            <input id="pur-qty" type="number" class="w-full p-2 border rounded-lg font-bold" value="1">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase">Costo Unitario ($)</label>
+                            <input id="pur-cost" type="number" class="w-full p-2 border rounded-lg font-bold" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase">Abono Inicial</label>
+                            <input id="pur-paid" type="number" class="w-full p-2 border rounded-lg" value="0">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase">Fecha de Cobro</label>
+                            <input id="pur-cutoff" type="date" class="w-full p-2 border rounded-lg">
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Procesar Ingreso',
+            confirmButtonColor: '#39FF14',
+            didOpen: () => {
+                const search = document.getElementById('pur-search');
+                const results = document.getElementById('pur-results');
+
+                search.addEventListener('input', async (e) => {
+                    const term = e.target.value.trim();
+                    if (term.length < 2) { results.classList.add('hidden'); return; }
+
+                    const res = await fetch(`${URLROOT}/inventario/listar`);
+                    const items = await res.json();
+                    const filtered = items.filter(i => i.nombre.toLowerCase().includes(term.toLowerCase()));
+
+                    if (filtered.length > 0) {
+                        results.innerHTML = filtered.map(i => `
+                            <div class="p-2 hover:bg-slate-50 cursor-pointer text-xs border-b last:border-0" onclick="window.setPurchaseProduct(${JSON.stringify(i).replace(/"/g, '&quot;')})">
+                                <b>${i.nombre}</b> <span class="text-slate-400">(Stock: ${i.stock})</span>
+                            </div>
+                        `).join('');
+                        results.classList.remove('hidden');
+                    } else {
+                        results.innerHTML = '<div class="p-2 text-xs text-blue-600 italic">Producto nuevo: Se creará en el inventario</div>';
+                        results.classList.remove('hidden');
+                        selectedProduct = null;
+                    }
+                });
+
+                window.setPurchaseProduct = (item) => {
+                    selectedProduct = item;
+                    search.value = item.nombre;
+                    document.getElementById('pur-cost').value = item.precio;
+                    results.classList.add('hidden');
+                };
+            },
+            preConfirm: () => {
+                const qty = parseInt(document.getElementById('pur-qty').value);
+                const cost = parseFloat(document.getElementById('pur-cost').value);
+                const name = document.getElementById('pur-search').value.trim();
+
+                if (!name || isNaN(qty) || qty <= 0 || isNaN(cost) || cost <= 0) {
+                    Swal.showValidationMessage('Verifique los datos del producto');
+                    return false;
+                }
+
+                return {
+                    proveedor_id: proveedorId,
+                    producto_id: selectedProduct ? selectedProduct.id : null,
+                    nombre: name.toUpperCase(),
+                    cantidad: qty,
+                    costo: cost,
+                    pagado: parseFloat(document.getElementById('pur-paid').value) || 0,
+                    fecha_cobro: document.getElementById('pur-cutoff').value
+                };
+            }
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const response = await fetch(`${URLROOT}/proveedores/registrarCompra`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(result.value)
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        AppUtils.showToast(data.mensaje);
+                        loadData();
+                    } else {
+                        AppUtils.showToast(data.mensaje, 'error');
+                    }
+                } catch (error) {
+                    AppUtils.showToast('Error al procesar la compra', 'error');
+                }
+            }
         });
     };
 

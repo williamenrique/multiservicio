@@ -1,14 +1,19 @@
 <?php
+/**
+ * Controlador de Proveedores
+ */
 class ControllerProveedores extends Controller {
     private $proveedorModel;
+    private $inventarioModel;
 
     public function __construct() {
         AuthGuard::handle();
-        RoleGuard::isAdmin();
         $this->proveedorModel = $this->model('Proveedor');
+        $this->inventarioModel = $this->model('Inventario');
     }
 
     public function index() {
+        RoleGuard::hasAccess(['ADMINISTRADOR']);
         $data = ['titulo' => 'Gestión de Proveedores'];
         $this->view('proveedor/index', $data);
     }
@@ -18,38 +23,43 @@ class ControllerProveedores extends Controller {
         echo json_encode($this->proveedorModel->listar());
     }
 
-    public function guardar() {
+    /**
+     * Procesa el ingreso de mercancía (Compra)
+     * Maneja: Creación/Actualización de producto + Registro de deuda
+     */
+    public function registrarCompra() {
+        RoleGuard::isAdmin();
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $input = json_decode(file_get_contents('php://input'), true);
-            
-            if (empty($input['id'])) {
-                echo json_encode(['success' => false, 'mensaje' => 'El ID del proveedor es requerido']);
+            header('Content-Type: application/json');
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            if (!$data) {
+                echo json_encode(['success' => false, 'mensaje' => 'Datos inválidos']);
                 return;
             }
 
-            $existe = $this->proveedorModel->obtenerPorId($input['id']);
+            $resultado = $this->proveedorModel->registrarCompra($data);
 
-            if ($existe) {
-                $res = $this->proveedorModel->actualizar($input);
+            if ($resultado) {
+                echo json_encode(['success' => true, 'mensaje' => 'Mercancía registrada y stock actualizado']);
             } else {
-                $res = $this->proveedorModel->crear($input);
-            }
-
-            if ($res) {
-                echo json_encode(['success' => true, 'mensaje' => 'Proveedor guardado']);
-            } else {
-                echo json_encode(['success' => false, 'mensaje' => 'Error al procesar']);
+                echo json_encode(['success' => false, 'mensaje' => 'Error al procesar la operación']);
             }
         }
     }
 
-    public function eliminar($id = null) {
-        if ($_SERVER['REQUEST_METHOD'] == 'DELETE' && $id) {
-            if ($this->proveedorModel->eliminar($id)) {
-                echo json_encode(['success' => true]);
-            } else {
-                echo json_encode(['success' => false]);
-            }
+    public function guardar() {
+        RoleGuard::isAdmin();
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $data = json_decode(file_get_contents('php://input'), true);
+            $res = $this->proveedorModel->guardar($data);
+            echo json_encode(['success' => $res]);
         }
+    }
+
+    public function eliminar($id = null) {
+        RoleGuard::isAdmin();
+        $res = $this->proveedorModel->eliminar($id);
+        echo json_encode(['success' => $res]);
     }
 }
