@@ -16,8 +16,8 @@ class ModelFacturacion {
     public function buscarItems($termino) {
         $this->db->query("SELECT * FROM table_inventario 
                           WHERE (nombre LIKE :term OR categoria LIKE :term) 
-                          AND stock > 0 OR categoria = 'SERVICIO'
-                          LIMIT 10");
+                          AND stock > 0 
+                          LIMIT 15");
         $this->db->bind(':term', "%$termino%");
         return $this->db->resultSet();
     }
@@ -29,37 +29,43 @@ class ModelFacturacion {
         try {
             $this->db->beginTransaction();
 
-            // 1. Insertar Cabecera de Venta
+            // Obtener IVA dinámico desde la configuración de la empresa
+            $this->db->query("SELECT iva FROM table_company_settings WHERE id = 1 LIMIT 1");
+            $config = $this->db->single();
+            $iva_porcentaje = ($config->iva ?? 0) / 100;
+            
+            $subtotal = 0;
+            foreach ($datos['items'] as $item) $subtotal += ($item['precio'] * $item['cantidad']);
+            $iva_monto = $subtotal * $iva_porcentaje;
+            $total = $subtotal + $iva_monto;
+
             $this->db->query("INSERT INTO table_ventas (cliente_id, placa, modelo_vehiculo, subtotal, iva_monto, total, usuario_id) 
                               VALUES (:cid, :placa, :modelo, :sub, :iva, :total, :uid)");
             
-            $this->db->bind(':cid', $datos['cliente_id'] ?: null);
-            $this->db->bind(':placa', mb_strtoupper($datos['placa'] ?? '', 'UTF-8'));
-            $this->db->bind(':modelo', mb_strtoupper($datos['modelo'] ?? '', 'UTF-8'));
-            $this->db->bind(':sub', $datos['subtotal']);
-            $this->db->bind(':iva', $datos['iva_monto']);
-            $this->db->bind(':total', $datos['total']);
+            $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
+            $this->db->bind(':placa', !empty($datos['placa']) ? mb_strtoupper($datos['placa'], 'UTF-8') : null);
+            $this->db->bind(':modelo', !empty($datos['modelo']) ? mb_strtoupper($datos['modelo'], 'UTF-8') : 'VENTA GENERAL');
+            $this->db->bind(':sub', $subtotal);
+            $this->db->bind(':iva', $iva_monto);
+            $this->db->bind(':total', $total);
             $this->db->bind(':uid', $_SESSION['user_id']);
             
             $this->db->execute();
             $ventaId = $this->db->lastInsertId();
 
-            // 2. Insertar Detalles y Actualizar Stock
             foreach ($datos['items'] as $item) {
-                // Insertar Detalle
                 $this->db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario) 
                                   VALUES (:vid, :pid, :desc, :cant, :precio)");
                 $this->db->bind(':vid', $ventaId);
-                $this->db->bind(':pid', $item['id']);
+                $this->db->bind(':pid', $item['id'] ?: null);
                 $this->db->bind(':desc', $item['nombre']);
                 $this->db->bind(':cant', $item['cantidad']);
                 $this->db->bind(':precio', $item['precio']);
                 $this->db->execute();
 
-                // Descontar Stock (si no es servicio)
-                // Asumimos que los servicios tienen una categoría específica o ID nulo
-                if (!empty($item['id'])) {
-                    $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid AND categoria != 'SERVICIO'");
+                // Solo descontar stock si tiene ID (es de inventario)
+                if ($item['tipo'] === 'PRODUCTO' && !empty($item['id'])) {
+                    $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
                     $this->db->bind(':cant', $item['cantidad']);
                     $this->db->bind(':pid', $item['id']);
                     $this->db->execute();
