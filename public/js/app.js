@@ -9,7 +9,7 @@ let currentLoggedInUser = null;
 document.addEventListener('DOMContentLoaded', async () => {
     initClock();
     initSidebar();
-    initUserDropdown(); // Inicializar el dropdown solo una vez
+    initUserDropdown();
 
     // Cargar la información del usuario logueado directamente desde la base de datos
     await fetchLoggedInUserFromDB();
@@ -17,24 +17,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTopBarUserInfo(); // Cargar info del usuario en la barra superior una vez que todo esté cargado
 
     // Solo activar intervalos si estamos en la vista de Dashboard
-    if (document.getElementById('dashboard-cards')) {
+    if (document.getElementById('salesChart')) {
         await renderDashboardCards(); // Renderizado inicial
-        setInterval(renderDashboardCards, 5000);
-        setInterval(renderFinancialCards, 5000);
-        setInterval(renderPendingBillsDashboard, 5000);
-        setInterval(renderSupplierDebtsDashboard, 5000);
-        setInterval(renderExpensesDashboard, 5000);
+        setInterval(refreshUI, 10000); // Refresco global cada 10 segundos
     }
 });
 
 // Escuchar los botones de Atrás/Adelante del navegador
 window.addEventListener('popstate', (event) => {
-    if (event.state && event.state.sectionId) {
-        showSection(event.state.sectionId, false);
-    }
+    // En un enfoque MVC tradicional, popstate generalmente recarga la página
+    // o se maneja a nivel de servidor. Para este sistema, simplemente recargamos.
+    window.location.reload();
 });
 
-// Reloj Digital en tiempo real
+/**
+ * Inicializa el reloj digital de la barra superior con actualización cada segundo.
+ */
 function initClock() {
     const clockElement = document.getElementById('digitalClock');
     setInterval(() => {
@@ -44,16 +42,15 @@ function initClock() {
 }
 
 /**
- * Obtiene la información del usuario actualmente autenticado desde el servidor.
+ * Obtiene la información del usuario actualmente autenticado desde el servidor y la almacena globalmente.
  */
+// Se asume que esta función se llama al inicio para cargar currentLoggedInUser
 async function fetchLoggedInUserFromDB() {
     try {
         const response = await fetch(`${URLROOT}/auth/getLoggedInUser`);
         if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                currentLoggedInUser = result.user;
-            }
+            const result = await response.json(); // La respuesta ya incluye un objeto 'user'
+            if (result.success) currentLoggedInUser = result.user;
         }
     } catch (error) {
         console.error("Error al obtener sesión del usuario:", error);
@@ -61,16 +58,14 @@ async function fetchLoggedInUserFromDB() {
     }
 }
 
+/**
+ * Refresca la interfaz de usuario global, enfocándose en elementos que requieren actualización frecuente.
+ * Esta función sirve como punto central para disparar refrescos en el Dashboard.
+ */
 async function refreshUI() {
-    // This function should now only trigger dashboard-specific refreshes
-    // as module-specific data loading is handled by their own JS files.
-    // The dashboard cards will fetch their own data.
-
     renderTopBarUserInfo(); // Actualizar info del usuario en la barra superior
     await renderDashboardCards();
     await renderFinancialCards();
-    await renderPendingBillsDashboard();
-    await renderSupplierDebtsDashboard();
     await renderExpensesDashboard();
 }
 
@@ -148,7 +143,9 @@ async function renderTopBarUserInfo() {
 }
 
 /**
- * Abre un modal para que el usuario logueado gestione su perfil.
+ * Abre un modal de SweetAlert2 para que el usuario logueado pueda ver y gestionar su perfil.
+ * Permite editar información personal y cambiar la contraseña.
+ * (Nota: La lógica de guardado de perfil requeriría un endpoint API en el backend.)
  */
 async function openUserProfileModal() {
     if (!currentLoggedInUser) {
@@ -208,13 +205,16 @@ async function openUserProfileModal() {
     }).then(async result => saveUserProfile(result));
 }
 
+/**
+ * Renderiza las tarjetas de resumen del Dashboard (ej: Stock OK, Stock Crítico, Agotados, En Servicio).
+ * Nota: Actualmente, estas estadísticas aún consumen de archivos JSON. Deberían migrarse a un Controller Dashboard en el futuro.
+ */
 async function renderDashboardCards() {
     const container = document.getElementById('dashboard-cards');
     if (!container) return;
 
-    // Nota: Estas estadísticas aún consumen de JSON, deberían migrarse a un Controller Dashboard en el futuro
-    const drafts = await AppUtils.loadData('drafts_db');
-    const inventoryData = await AppUtils.loadData('inventory_db');
+    const drafts = await AppUtils.loadData('drafts_db'); // Asume que esto todavía se usa para el cálculo de reservedUnits
+    const inventoryData = await AppUtils.loadData('inventory_db'); // Asume que esto todavía se usa para las estadísticas de inventario
 
     // Calcular cuántos repuestos hay "reservados" en borradores
     const reservedUnits = drafts.reduce((total, draft) => {
@@ -458,51 +458,11 @@ function updateSalesChart(sales) {
     }
 }
 
-/**
- * Elimina un producto del inventario con confirmación
- */
-
-/**
- * Calcula y renderiza el resumen de deudas con proveedores en el dashboard
- */
-async function renderSupplierDebtsDashboard() {
-    const container = document.getElementById('supplier-debts-dashboard');
-    if (!container) return;
-
-    const purchases = await AppUtils.loadData('purchases_db');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const activeDebts = purchases.filter(p => (p.total - p.paid) > 0);
-
-    const totalOwed = activeDebts.reduce((sum, p) => sum + (p.total - p.paid), 0);
-
-    const overdue = activeDebts.filter(p => p.cutoff && new Date(p.cutoff) < today);
-    const totalOverdue = overdue.reduce((sum, p) => sum + (p.total - p.paid), 0);
-
-    const dueSoon = activeDebts.filter(p => {
-        if (!p.cutoff) return false;
-        const cutoffDate = new Date(p.cutoff);
-        const diffTime = cutoffDate - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays >= 0 && diffDays <= 7;
-    });
-    const totalDueSoon = dueSoon.reduce((sum, p) => sum + (p.total - p.paid), 0);
-
-    const stats = [
-        { label: 'Deuda Total Proveedores', value: AppUtils.formatCurrency(totalOwed), color: 'text-slate-800', border: 'border-slate-800', icon: 'wallet' },
-        { label: 'Saldos Vencidos', value: AppUtils.formatCurrency(totalOverdue), color: 'text-error-red', border: 'border-error-red', icon: 'alert-octagon' },
-        { label: 'Vencen en 7 días', value: AppUtils.formatCurrency(totalDueSoon), color: 'text-amber-600', border: 'border-amber-600', icon: 'calendar-clock' }
-    ];
-
-    container.innerHTML = stats.map(s => `
-        <div class="glass-card p-4 rounded-xl flex items-center justify-between border-l-4 ${s.border}">
-            <div>
                 <p class="text-gray-400 text-sm">${s.label}</p>
                 <h3 class="text-2xl font-bold ${s.color}">${s.value}</h3>
-            </div>
-            <i data-lucide="${s.icon}" class="${s.color} w-10 h-10 opacity-20"></i>
-        </div>
+            </div >
+    <i data-lucide="${s.icon}" class="${s.color} w-10 h-10 opacity-20"></i>
+        </div >
     `).join('');
     lucide.createIcons();
 }
@@ -522,16 +482,16 @@ async function initPurchases() { // This was already correct
             { data: 'paid', render: d => AppUtils.formatCurrency(d) },
             {
                 data: null,
-                render: row => `<span class="font-bold ${row.total - row.paid > 0 ? 'text-red-500' : 'text-emerald-500'}">${AppUtils.formatCurrency(row.total - row.paid)}</span>`
+                render: row => `< span class="font-bold ${row.total - row.paid > 0 ? 'text-red-500' : 'text-emerald-500'}" > ${ AppUtils.formatCurrency(row.total - row.paid) }</ > `
             },
             { data: 'cutoff', render: d => d ? new Date(d).toLocaleDateString() : 'N/A' },
             {
                 data: null,
                 render: (data, type, row) => `
-                    <button onclick="viewPurchaseDetail('${row.id}')" class="p-1 text-slate-400 hover:text-blue-600 transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                    ${(row.total - row.paid) > 0 ? `<button onclick="openRecordPaymentModal('${row.id}')" class="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Registrar Pago"><i data-lucide="dollar-sign" class="w-4 h-4"></i></button>` : ''}
-                    <button onclick="genericDelete('${row.id}', 'purchases_db', 'Compra')" class="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar Compra"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                `
+    < button onclick = "viewPurchaseDetail('${row.id}')" class="p-1 text-slate-400 hover:text-blue-600 transition-colors" > <i data-lucide="eye" class="w-4 h-4"></i></ >
+        ${ (row.total - row.paid) > 0 ? `<button onclick="openRecordPaymentModal('${row.id}')" class="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Registrar Pago"><i data-lucide="dollar-sign" class="w-4 h-4"></i></button>` : '' }
+<button onclick="genericDelete('${row.id}', 'purchases_db', 'Compra')" class="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar Compra"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+`
             }
         ],
         responsive: true,
@@ -557,14 +517,14 @@ async function initExpenses() {
             { data: 'category' },
             {
                 data: 'amount',
-                render: d => `<span class="text-red-600 font-bold">${AppUtils.formatCurrency(d)}</span>`
+                render: d => `< span class="text-red-600 font-bold" > ${ AppUtils.formatCurrency(d) }</ > `
             },
             {
                 data: null,
                 render: (data, type, row) => `
-                    <button onclick="genericDelete('${row.id}', 'expenses_db', 'Gasto')" class="p-1 text-slate-400 hover:text-red-500 transition-colors">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>`
+    < button onclick = "genericDelete('${row.id}', 'expenses_db', 'Gasto')" class="p-1 text-slate-400 hover:text-red-500 transition-colors" >
+        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </ > `
             }
         ],
         responsive: true,
@@ -577,11 +537,14 @@ async function initExpenses() {
     });
 }
 
+/**
+ * Abre el modal para registrar un nuevo gasto operativo del taller.
+ */
 async function openExpenseModal() {
     Swal.fire({
         title: 'Registrar Gasto del Taller',
         html: `
-            <div class="text-left space-y-4">
+    < div class="text-left space-y-4" >
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción del Gasto</label>
                     <input id="ex-desc" class="w-full p-2 border rounded-lg uppercase" placeholder="EJ: PAGO SERVICIO LUZ">
@@ -604,10 +567,9 @@ async function openExpenseModal() {
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
                     <input id="ex-date" type="date" class="w-full p-2 border rounded-lg" value="${new Date().toISOString().split('T')[0]}">
                 </div>
-            </div>
-        `,
+            </ > `,
         confirmButtonColor: '#ff4444',
-        confirmButtonText: 'Registrar Gasto',
+        confirmButtonText: '<span class="font-bold">Registrar Gasto</span>',
         showCancelButton: true,
         preConfirm: () => {
             const description = document.getElementById('ex-desc').value.trim().toUpperCase();
@@ -648,188 +610,25 @@ async function renderExpensesDashboard() {
 
     if (monthlyExpenses.length === 0) {
         container.innerHTML = `
-            <div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400">
+    < div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400" >
                 <i data-lucide="wallet" class="w-12 h-12 mx-auto mb-3 opacity-20"></i>
                 <p class="italic font-medium">No se han registrado gastos para el mes de ${now.toLocaleString('es-ES', { month: 'long' }).toUpperCase()}.</p>
-            </div>
-        `;
+            </ > `;
         lucide.createIcons();
         return;
     }
 
     container.innerHTML = monthlyExpenses.slice(0, 6).map(e => `
-        <div class="glass-card p-4 rounded-xl border-l-4 border-red-500 flex justify-between items-center group hover:scale-[1.02] transition-transform cursor-default">
+    < div class="glass-card p-4 rounded-xl border-l-4 border-red-500 flex justify-between items-center group hover:scale-[1.02] transition-transform cursor-default" >
             <div class="truncate mr-4">
                 <p class="text-[10px] text-slate-400 font-bold uppercase">${e.category}</p>
                 <h4 class="font-bold text-slate-800 uppercase text-sm truncate group-hover:text-red-600 transition-colors">${e.description}</h4>
                 <p class="text-[10px] text-slate-400">${new Date(e.date).toLocaleDateString()}</p>
             </div>
             <div class="text-right flex-shrink-0">
-                <span class="font-bold text-red-600 text-lg">-${AppUtils.formatCurrency(e.amount)}</span>
+                <span class="font-bold text-red-600 text-lg">-${AppUtils.formatCurrency(e.amount || 0)}</span>
             </div>
-        </div>
+        </ >
     `).join('');
     lucide.createIcons();
-}
-
-function switchProveedorTab(tab) {
-    const isLista = tab === 'lista';
-    document.getElementById('prov-lista-content').classList.toggle('hidden', !isLista);
-    document.getElementById('prov-deudas-content').classList.toggle('hidden', isLista);
-    document.getElementById('tab-prov-lista').className = isLista ? 'pb-2 px-1 border-b-2 border-neon-green font-bold text-navy-blue' : 'pb-2 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue';
-    document.getElementById('tab-prov-deudas').className = !isLista ? 'pb-2 px-1 border-b-2 border-neon-green font-bold text-navy-blue' : 'pb-2 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue';
-}
-
-async function openSupplierModal(id = null) {
-    const suppliers = await AppUtils.loadData('suppliers_db'); // Await loadData
-    const sup = id ? suppliers.find(s => s.id == id) : { id: '', name: '', phone: '', email: '' };
-    Swal.fire({
-        title: id ? 'Editar Proveedor' : 'Nuevo Proveedor',
-        html: `<div class="text-left space-y-4">
-                <input id="p-id" class="w-full p-2 border rounded-lg" placeholder="NIT o Cédula" value="${sup.id}">
-                <input id="p-name" class="w-full p-2 border rounded-lg uppercase" placeholder="Nombre de la empresa" value="${sup.name}">
-                <input id="p-phone" class="w-full p-2 border rounded-lg" placeholder="Teléfono de contacto" value="${sup.phone}">
-                <input id="p-email" class="w-full p-2 border rounded-lg" placeholder="Correo electrónico" value="${sup.email}">
-            </div>`,
-        confirmButtonColor: '#39FF14',
-        confirmButtonText: '<span class="text-black font-bold">Guardar</span>',
-        showCancelButton: true,
-        preConfirm: () => ({
-            id: document.getElementById('p-id').value.toUpperCase(),
-            name: document.getElementById('p-name').value.toUpperCase(),
-            phone: document.getElementById('p-phone').value,
-            email: document.getElementById('p-email').value
-        })
-    }).then(async result => { // Mark callback as async
-        if (result.isConfirmed) {
-            let data = id ? suppliers.filter(s => s.id != id) : suppliers;
-            data.push(result.value);
-            await AppUtils.saveData('suppliers_db', data); // Await save
-            await refreshUI(); // Await refreshUI
-        }
-    });
-}
-
-async function openPurchaseModal() {
-    const suppliers = await AppUtils.loadData('suppliers_db');
-    if (suppliers.length === 0) return AppUtils.showAlert('Atención', 'Registre un proveedor primero', 'warning');
-    const prodOptions = inventory.map(p => `<option value="${p.id}">${p.name} (Disp: ${p.stock})</option>`).join('');
-    const supOptions = suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-    Swal.fire({
-        title: 'Ingreso de Mercancía',
-        html: `<div class="text-left space-y-3">
-                <label class="block text-xs font-bold text-slate-500 uppercase">Proveedor y Producto</label>
-                <select id="pur-sup" class="w-full p-2 border rounded-lg">${supOptions}</select>
-                <select id="pur-prod" class="w-full p-2 border rounded-lg">${prodOptions}</select>
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="number" id="pur-qty" class="p-2 border rounded-lg" placeholder="Cantidad">
-                    <input type="number" id="pur-cost" class="p-2 border rounded-lg" placeholder="Costo Unitario">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="number" id="pur-paid" class="p-2 border rounded-lg" value="0" placeholder="Abono">
-                    <input type="date" id="pur-cutoff" class="p-2 border rounded-lg" title="Fecha de Pago/Corte">
-                </div>
-            </div>`,
-        confirmButtonColor: '#39FF14', confirmButtonText: '<span class="text-black font-bold">Procesar</span>', showCancelButton: true,
-        preConfirm: () => {
-            const qty = parseInt(document.getElementById('pur-qty').value);
-            const cost = parseFloat(document.getElementById('pur-cost').value);
-            if (!qty || !cost) return Swal.showValidationMessage('Complete cantidad y costo');
-            return { supplierId: document.getElementById('pur-sup').value, productId: parseInt(document.getElementById('pur-prod').value), qty, cost, paid: parseFloat(document.getElementById('pur-paid').value), cutoff: document.getElementById('pur-cutoff').value };
-        }
-    }).then(async result => { // Mark callback as async
-        if (result.isConfirmed) {
-            const val = result.value;
-            const product = inventory.find(p => p.id == val.productId);
-            product.stock += val.qty;
-            await AppUtils.saveData('inventory_db', inventory); // Await save
-            const purchases = await AppUtils.loadData('purchases_db'); // Await loadData
-            purchases.push({ id: Date.now(), date: new Date().toISOString(), supplierId: val.supplierId, supplierName: suppliers.find(s => s.id == val.supplierId).name, productId: val.productId, productName: product.name, qty: val.qty, total: val.qty * val.cost, paid: val.paid, cutoff: val.cutoff });
-            await AppUtils.saveData('purchases_db', purchases); // Await save
-            await refreshUI(); // Await refreshUI
-            AppUtils.showToast('Stock actualizado y deuda registrada');
-        }
-    });
-}
-
-async function viewPurchaseDetail(id) {
-    const purchases = await AppUtils.loadData('purchases_db');
-    const purchase = purchases.find(p => p.id == id);
-    if (!purchase) return;
-    Swal.fire({
-        title: 'Detalle de Ingreso',
-        html: `<div class="text-left text-sm space-y-2">
-                <p><b>Proveedor:</b> ${purchase.supplierName}</p>
-                <p><b>Producto:</b> ${purchase.productName} (x${purchase.qty})</p>
-                <p><b>Total Factura:</b> ${AppUtils.formatCurrency(purchase.total)}</p>
-                <p><b>Abonado:</b> ${AppUtils.formatCurrency(purchase.paid)}</p>
-                <p class="text-red-600 font-bold"><b>Saldo:</b> ${AppUtils.formatCurrency(purchase.total - purchase.paid)}</p>
-                <p><b>Corte:</b> ${purchase.cutoff || 'No definida'}</p>
-            </div>`,
-        confirmButtonColor: '#0b1120'
-    });
-}
-
-/**
- * Abre un modal para registrar un pago a una compra de proveedor.
- * Permite abonar o pagar la totalidad del saldo pendiente.
- * @param {string|number} purchaseId - ID de la compra a la que se le registrará el pago.
- */
-async function openRecordPaymentModal(purchaseId) {
-    const purchases = await AppUtils.loadData('purchases_db');
-    const purchase = purchases.find(p => String(p.id) === String(purchaseId));
-
-    if (!purchase) {
-        AppUtils.showAlert('Error', 'Compra no encontrada.', 'error');
-        return;
-    }
-
-    const remainingBalance = purchase.total - purchase.paid;
-
-    Swal.fire({
-        title: `Registrar Pago para Compra #${purchaseId.toString().slice(-6)}`,
-        html: `
-            <div class="text-left space-y-4">
-                <p class="text-sm text-slate-600">Proveedor: <b>${purchase.supplierName}</b></p>
-                <p class="text-sm text-slate-600">Producto: <b>${purchase.productName}</b></p>
-                <p class="text-sm text-slate-600">Total: <b>${AppUtils.formatCurrency(purchase.total)}</b></p>
-                <p class="text-sm text-slate-600">Pagado: <b>${AppUtils.formatCurrency(purchase.paid)}</b></p>
-                <p class="text-lg font-bold text-navy-blue">Saldo Pendiente: <b>${AppUtils.formatCurrency(remainingBalance)}</b></p>
-                <hr class="my-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto a Pagar</label>
-                    <input id="payment-amount" type="number" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0.00" value="${remainingBalance}">
-                </div>
-            </div>
-        `,
-        confirmButtonColor: '#39FF14',
-        confirmButtonText: '<span class="text-black font-bold">Registrar Pago</span>',
-        showCancelButton: true,
-        preConfirm: () => {
-            const amount = parseFloat(document.getElementById('payment-amount').value);
-            if (isNaN(amount) || amount <= 0) {
-                Swal.showValidationMessage('Ingrese un monto válido mayor a cero.');
-                return false;
-            }
-            if (amount > remainingBalance) {
-                Swal.showValidationMessage(`El monto a pagar no puede exceder el saldo pendiente (${AppUtils.formatCurrency(remainingBalance)}).`);
-                return false;
-            }
-            return amount;
-        }
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            const paymentAmount = result.value;
-            purchase.paid += paymentAmount;
-
-            const index = purchases.findIndex(p => String(p.id) === String(purchaseId));
-            if (index !== -1) {
-                purchases[index] = purchase;
-            }
-
-            await AppUtils.saveData('purchases_db', purchases);
-            await refreshUI();
-            AppUtils.showToast('Pago registrado correctamente', 'success');
-        }
-    });
 }
