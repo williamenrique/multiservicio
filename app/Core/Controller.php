@@ -44,6 +44,15 @@ class Controller {
             if (file_exists($viewPath)) {
                 // Extraemos el array de datos para que las llaves sean variables ($titulo, etc.)
                 extract($data);
+                
+                // Cargar empresa si no existe (fallback)
+                if (!isset($company)) {
+                    try {
+                        $db = new Database();
+                        $db->query("SELECT * FROM table_company_settings WHERE id = 1");
+                        $company = $db->single();
+                    } catch (Throwable $e) { $company = (object) ['name' => 'TALLER']; }
+                }
 
                 // Intentamos cargar el header
                 if (file_exists(APPROOT . '/Views/inc/header.php')) {

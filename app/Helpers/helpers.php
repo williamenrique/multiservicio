@@ -10,6 +10,22 @@
  * @param array $data Datos dinámicos para pasar a la plantilla
  */
 function renderView($view, $data = []) {
+    // Cargar información de la empresa de forma global (Patrón Singleton en el helper)
+    static $companyInfo = null;
+    if ($companyInfo === null) {
+        try {
+            $db = new Database();
+            $db->query("SELECT * FROM table_company_settings WHERE id = 1");
+            $companyInfo = $db->single();
+        } catch (Throwable $e) {
+            // Valores por defecto en caso de error de conexión inicial
+            $companyInfo = (object) ['name' => 'TALLER PRO', 'iva' => 0, 'nit' => '0000000000'];
+        }
+    }
+
+    // Inyectamos el objeto $company para que esté disponible en el header, footer y vistas
+    $data['company'] = $companyInfo;
+
     // Convertimos las llaves del array en variables independientes (ej: $data['titulo'] -> $titulo)
     extract($data);
 
