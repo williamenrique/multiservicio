@@ -120,9 +120,9 @@ CREATE TABLE IF NOT EXISTS `table_inventario` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 9. Tabla de Ventas (Historial)
-CREATE TABLE `table_ventas` (
+CREATE TABLE IF NOT EXISTS `table_ventas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `cliente_id` varchar(20) DEFAULT NULL,
+  `cliente_id` varchar(50) DEFAULT NULL, -- Corregido de 20 a 50 para coincidir con table_clientes.id
   `placa` varchar(20) DEFAULT NULL,
   `modelo_vehiculo` varchar(100) DEFAULT NULL,
   `subtotal` decimal(10,2) NOT NULL,
@@ -136,7 +136,7 @@ CREATE TABLE `table_ventas` (
   KEY `fk_venta_usuario` (`usuario_id`),
   CONSTRAINT `fk_venta_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_venta_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
 -- 10. Detalle de Ventas
@@ -225,22 +225,14 @@ INSERT INTO `table_staff` (`id`, `cedula`, `nombre`, `cargo`, `telefono`, `email
 VALUES 
 ('STAFF-1', 'V-00000000', 'ADMINISTRADOR DEL SISTEMA', 'ADMINISTRADOR', '0000000000', 'admin@tallerpro.com', 'SEDE PRINCIPAL');
 
--- Usuario administrador inicial (Password: 123)
--- Nota: Se recomienda cambiar el password desde el perfil al iniciar.
+-- Usuario administrador inicial (Usuario: admin / Password: admin)
 INSERT INTO `table_usuarios` (`staff_id`, `username`, `password`, `role_id`, `estado`) 
 VALUES 
-('STAFF-1', 'ADMIN', '123', 1, 1);
+('STAFF-1', 'admin', 'admin', 1, 1);
 
 -- Datos iniciales para la configuraciOn de la empresa
 INSERT INTO `table_company_settings` (`id`, `name`, `nit`, `iva`, `address`) VALUES
 (1, 'TALLER PRO', '0000000000', 19.00, 'DIRECCION PRINCIPAL DEL TALLER');
-
--- Datos de prueba para Inventario
-INSERT INTO `table_inventario` (`nombre`, `categoria`, `stock`, `precio`) VALUES
-('CAMBIO DE ACEITE SINTÉTICO', 'MECANICA', 100, 45.00),
-('FILTRO DE ACEITE', 'REPUESTOS', 50, 15.00),
-('PASTILLAS DE FRENO DELANTERAS', 'REPUESTOS', 20, 85.00),
-('REVISION GENERAL', 'MECANICA', 999, 20.00);
 
 -- Restaurar configuraciones originales
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
