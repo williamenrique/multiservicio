@@ -19,7 +19,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Solo activar intervalos si estamos en la vista de Dashboard
     if (document.getElementById('salesChart')) {
         await renderDashboardCards(); // Renderizado inicial
+        await renderExpensesDashboard(); // Cargar mini-resumen de gastos
         setInterval(refreshUI, 10000); // Refresco global cada 10 segundos
+    }
+
+    // Inicializar tabla de gastos si estamos en la vista de gastos
+    if (document.getElementById('expensesTable')) {
+        await initExpenses();
     }
 });
 
@@ -369,16 +375,22 @@ async function renderFinancialCards() {
     if (!container) return;
 
     const sales = await AppUtils.loadData('sales_db');
-    const expenses = await AppUtils.loadData('expenses_db');
+    let expenses = [];
+    try {
+        const response = await fetch(`${URLROOT}/gastos/listar`);
+        if (response.ok) expenses = await response.json();
+    } catch (e) {
+        console.error("Error cargando gastos para resumen:", e);
+    }
 
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
     const monthlyExpenses = expenses.filter(e => {
-        const d = new Date(e.date);
+        const d = new Date(e.fecha);
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    }).reduce((sum, e) => sum + (e.amount || 0), 0);
+    }).reduce((sum, e) => sum + (parseFloat(e.monto) || 0), 0);
 
     const totalFacturado = sales.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const balanceNeto = totalFacturado - monthlyExpenses;
@@ -504,37 +516,43 @@ async function initExpenses() {
     const tableEl = document.getElementById('expensesTable');
     if (!tableEl) return;
 
-    const expenses = await AppUtils.loadData('expenses_db');
-    expensesTable = $(tableEl).DataTable({
-        data: expenses,
-        order: [[0, 'desc']],
-        columns: [
-            {
-                data: 'date',
-                render: d => new Date(d).toLocaleDateString('es-CO', { dateStyle: 'medium' })
+    try {
+        const response = await fetch(`${URLROOT}/gastos/listar`);
+        const expenses = await response.json();
+
+        expensesTable = $(tableEl).DataTable({
+            data: expenses,
+            order: [[0, 'desc']],
+            columns: [
+                {
+                    data: 'fecha',
+                    render: d => new Date(d).toLocaleDateString('es-CO', { dateStyle: 'medium' })
+                },
+                { data: 'descripcion' },
+                { data: 'categoria' },
+                {
+                    data: 'monto',
+                    render: d => `<span class="text-red-600 font-bold">${AppUtils.formatCurrency(d)}</span>`
+                },
+                {
+                    data: null,
+                    render: (data, type, row) => `
+                        <button onclick="eliminarGasto('${row.id}')" class="p-1 text-slate-400 hover:text-red-500 transition-colors">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>`
+                }
+            ],
+            responsive: true,
+            language: {
+                search: "Buscar gasto:",
+                emptyTable: "No hay gastos registrados en el taller",
+                zeroRecords: "No se encontraron coincidencias"
             },
-            { data: 'description' },
-            { data: 'category' },
-            {
-                data: 'amount',
-                render: d => `< span class="text-red-600 font-bold" > ${AppUtils.formatCurrency(d)}</ > `
-            },
-            {
-                data: null,
-                render: (data, type, row) => `
-    < button onclick = "genericDelete('${row.id}', 'expenses_db', 'Gasto')" class="p-1 text-slate-400 hover:text-red-500 transition-colors" >
-        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </ > `
-            }
-        ],
-        responsive: true,
-        language: {
-            search: "Buscar gasto:",
-            emptyTable: "No hay gastos registrados en el taller",
-            zeroRecords: "No se encontraron coincidencias"
-        },
-        drawCallback: () => lucide.createIcons()
-    });
+            drawCallback: () => lucide.createIcons()
+        });
+    } catch (e) {
+        console.error("Error inicializando tabla de gastos:", e);
+    }
 }
 
 /**
@@ -544,7 +562,7 @@ async function openExpenseModal() {
     Swal.fire({
         title: 'Registrar Gasto del Taller',
         html: `
-    < div class="text-left space-y-4" >
+            <div class="text-left space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción del Gasto</label>
                     <input id="ex-desc" class="w-full p-2 border rounded-lg uppercase" placeholder="EJ: PAGO SERVICIO LUZ">
@@ -560,6 +578,14 @@ async function openExpenseModal() {
                     </select>
                 </div>
                 <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Método de Pago</label>
+                    <select id="ex-method" class="w-full p-2 border rounded-lg">
+                        <option value="EFECTIVO">Efectivo</option>
+                        <option value="TRANSFERENCIA">Transferencia</option>
+                        <option value="TARJETA">Tarjeta</option>
+                    </select>
+                </div>
+                <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto (COP)</label>
                     <input id="ex-amount" type="number" class="w-full p-2 border rounded-lg" placeholder="0">
                 </div>
@@ -567,25 +593,39 @@ async function openExpenseModal() {
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
                     <input id="ex-date" type="date" class="w-full p-2 border rounded-lg" value="${new Date().toISOString().split('T')[0]}">
                 </div>
-            </ > `,
+            </div>`,
         confirmButtonColor: '#ff4444',
         confirmButtonText: '<span class="font-bold">Registrar Gasto</span>',
         showCancelButton: true,
         preConfirm: () => {
-            const description = document.getElementById('ex-desc').value.trim().toUpperCase();
-            const amount = parseFloat(document.getElementById('ex-amount').value);
-            if (!description || isNaN(amount) || amount <= 0) {
+            const descripcion = document.getElementById('ex-desc').value.trim().toUpperCase();
+            const monto = parseFloat(document.getElementById('ex-amount').value);
+            const fecha = document.getElementById('ex-date').value;
+            const categoria = document.getElementById('ex-cat').value;
+            const metodo_pago = document.getElementById('ex-method').value;
+
+            if (!descripcion || isNaN(monto) || monto <= 0) {
                 return Swal.showValidationMessage('Complete todos los campos correctamente');
             }
-            return { id: Date.now(), date: document.getElementById('ex-date').value, description, category: document.getElementById('ex-cat').value, amount };
+            return { fecha, descripcion, categoria, monto, metodo_pago };
         }
     }).then(async result => {
         if (result.isConfirmed) {
-            const expenses = await AppUtils.loadData('expenses_db');
-            expenses.push(result.value);
-            await AppUtils.saveData('expenses_db', expenses);
-            await refreshUI();
-            AppUtils.showToast('Gasto registrado correctamente');
+            const response = await fetch(`${URLROOT}/gastos/guardar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(result.value)
+            });
+            const data = await response.json();
+            if (data.success) {
+                AppUtils.showToast('Gasto registrado');
+                await refreshUI();
+                if (typeof expensesTable !== 'undefined') {
+                    const res = await fetch(`${URLROOT}/gastos/listar`);
+                    const newList = await res.json();
+                    expensesTable.clear().rows.add(newList).draw();
+                }
+            }
         }
     });
 }
@@ -597,38 +637,64 @@ async function renderExpensesDashboard() {
     const container = document.getElementById('expenses-dashboard');
     if (!container) return;
 
-    const expenses = await AppUtils.loadData('expenses_db');
+    let expenses = [];
+    try {
+        const response = await fetch(`${URLROOT}/gastos/listar`);
+        if (response.ok) expenses = await response.json();
+    } catch (e) {
+        console.error("Error en mini-dashboard de gastos:", e);
+    }
+
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
     // Filtrar y ordenar por fecha (más recientes primero)
     const monthlyExpenses = expenses.filter(e => {
-        const d = new Date(e.date);
+        const d = new Date(e.fecha);
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+    }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
     if (monthlyExpenses.length === 0) {
         container.innerHTML = `
-    < div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400" >
+            <div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400">
                 <i data-lucide="wallet" class="w-12 h-12 mx-auto mb-3 opacity-20"></i>
                 <p class="italic font-medium">No se han registrado gastos para el mes de ${now.toLocaleString('es-ES', { month: 'long' }).toUpperCase()}.</p>
-            </ > `;
+            </div>`;
         lucide.createIcons();
         return;
     }
 
     container.innerHTML = monthlyExpenses.slice(0, 6).map(e => `
-    < div class="glass-card p-4 rounded-xl border-l-4 border-red-500 flex justify-between items-center group hover:scale-[1.02] transition-transform cursor-default" >
+        <div class="glass-card p-4 rounded-xl border-l-4 border-red-500 flex justify-between items-center group hover:scale-[1.02] transition-transform cursor-default">
             <div class="truncate mr-4">
-                <p class="text-[10px] text-slate-400 font-bold uppercase">${e.category}</p>
-                <h4 class="font-bold text-slate-800 uppercase text-sm truncate group-hover:text-red-600 transition-colors">${e.description}</h4>
-                <p class="text-[10px] text-slate-400">${new Date(e.date).toLocaleDateString()}</p>
+                <p class="text-[10px] text-slate-400 font-bold uppercase">${e.categoria}</p>
+                <h4 class="font-bold text-slate-800 uppercase text-sm truncate group-hover:text-red-600 transition-colors">${e.descripcion}</h4>
+                <p class="text-[10px] text-slate-400">${new Date(e.fecha).toLocaleDateString()}</p>
             </div>
             <div class="text-right flex-shrink-0">
-                <span class="font-bold text-red-600 text-lg">-${AppUtils.formatCurrency(e.amount || 0)}</span>
+                <span class="font-bold text-red-600 text-lg">-${AppUtils.formatCurrency(parseFloat(e.monto) || 0)}</span>
             </div>
-        </ >
+        </div>
     `).join('');
     lucide.createIcons();
 }
+
+/**
+ * Elimina un gasto de la base de datos
+ */
+window.eliminarGasto = (id) => {
+    AppUtils.confirmAction('¿Eliminar gasto?', 'Esta acción no se puede deshacer.', async () => {
+        const response = await fetch(`${URLROOT}/gastos/eliminar/${id}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (data.success) {
+            AppUtils.showToast('Gasto eliminado');
+            await refreshUI();
+            if (typeof expensesTable !== 'undefined') {
+                const res = await fetch(`${URLROOT}/gastos/listar`);
+                const newList = await res.json();
+                expensesTable.clear().rows.add(newList).draw();
+            }
+        }
+    });
+};

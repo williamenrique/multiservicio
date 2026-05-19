@@ -25,7 +25,9 @@ spl_autoload_register(function($nombreClase) {
     $directorios = [
         APPROOT . '/Core/',
         APPROOT . '/Middleware/',
-        APPROOT . '/Services/'
+        APPROOT . '/Services/',
+        APPROOT . '/Models/',
+        APPROOT . '/Controllers/'
     ];
 
     foreach ($directorios as $directorio) {
