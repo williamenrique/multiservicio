@@ -10,7 +10,7 @@
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Logo Distintivo del Taller</p>
                     <div class="relative group">
                         <img id="logoPreview" 
-                             src="<?php echo !empty($data['config']->logo) ? URLROOT . '/' . $data['config']->logo : URL_IMG . 'logo.png'; ?>" 
+                             src="<?php echo !empty($data['config']->logo) ? URLROOT . '/' . $data['config']->logo : URL_IMG . 'default.png'; ?>" 
                              alt="Vista previa" 
                              class="w-32 h-32 object-contain rounded-lg shadow-md bg-white p-2">
                         <label for="logoInput" class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-lg">
