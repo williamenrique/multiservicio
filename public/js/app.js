@@ -136,8 +136,3 @@ function initSidebar() {
         sidebar.classList.toggle('w-20');
     });
 }
-
-/**
- * Renderiza una vista rápida de las facturas pendientes en el dashboard
- */
-/** renderPendingBillsDashboard ha sido desactivado temporalmente para migración SQL */

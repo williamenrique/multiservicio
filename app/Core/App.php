@@ -34,7 +34,6 @@ class App {
             } else {
                 // Si el método no existe en el controlador, manejamos el 404
             if (get_class($this->controladorActual) !== 'ControllerErrores') {
-                require_once '../app/Controllers/ControllerErrores.php';
                 $this->controladorActual = new ControllerErrores();
                     $this->metodoActual = 'index';
                 }
