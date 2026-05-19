@@ -85,6 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) return;
             const clientes = await res.json();
 
+            // Limpiar y establecer la opción por defecto como "SIN CLIENTE"
+            inputCliente.innerHTML = '<option value="">SIN CLIENTE (VENTA RÁPIDA)</option>';
+
             clientes.forEach(c => {
                 const option = document.createElement('option');
                 option.value = c.id;
@@ -104,6 +107,10 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedItemFromSearch = null;
         searchInput.value = '';
 
+        // Obtener el nombre del usuario de forma segura (Fix error null textContent)
+        const userEl = document.getElementById('pos-current-user');
+        const userName = userEl ? userEl.textContent : (typeof currentLoggedInUser !== 'undefined' && currentLoggedInUser ? currentLoggedInUser.staffName : '---');
+
         const newInvoice = {
             id: 'PROV-' + Math.floor(Math.random() * 9000 + 1000),
             id_db: null, // Guardará el ID real de la DB para actualizar el borrador
@@ -112,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cliente_id: '',
             iva_activo: true,
             items: [],
-            usuario_nombre: document.getElementById('pos-current-user').textContent
+            usuario_nombre: userName
         };
 
         openInvoices.push(newInvoice);
@@ -351,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputPlaca.value = activeInvoice.placa;
         inputModelo.value = activeInvoice.modelo;
         inputCliente.value = activeInvoice.cliente_id;
-        
+
         if (inputIvaToggle) {
             inputIvaToggle.checked = (activeInvoice.iva_activo !== false);
         }
@@ -385,16 +392,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Verificación de estado del IVA (si es null o true, se cobra. Si es false, no)
         const isIvaEnabled = activeInvoice.iva_activo !== false;
         const currentIvaRate = isIvaEnabled ? (IVA_PERCENT / 100) : 0;
-        
+
         const ivaMonto = subtotal * currentIvaRate;
         const total = subtotal + ivaMonto;
 
         document.getElementById('pos-subtotal').textContent = AppUtils.formatCurrency(subtotal);
-        
+
         // Forzar actualización del monto del IVA
         const ivaDisplay = document.getElementById('pos-iva');
         if (ivaDisplay) ivaDisplay.textContent = AppUtils.formatCurrency(ivaMonto);
-        
+
         // Actualizar el porcentaje visual (ej: "19" o "0")
         const ivaPercentLabel = document.getElementById('pos-iva-percent-display');
         if (ivaPercentLabel) ivaPercentLabel.textContent = isIvaEnabled ? IVA_PERCENT.toFixed(0) : "0";

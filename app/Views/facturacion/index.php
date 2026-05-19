@@ -29,7 +29,7 @@
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Cliente</label>
                     <select id="pos-cliente-id" class="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm">
-                        <option value="">Consumidor Final</option>
+                        <option value="">Cliente</option>
                     </select>
                 </div>
             </div>

@@ -10,9 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
         financialContainer: document.getElementById('financial-cards'),
         inventoryContainer: document.getElementById('dashboard-cards'),
         expensesDashboard: document.getElementById('expenses-dashboard'),
-        stockOk: document.getElementById('stockOk'),
-        stockCritico: document.getElementById('stockCritico'),
-        stockAgotado: document.getElementById('stockAgotado'),
         recentSalesTable: document.getElementById('salesBody'),
         draftsContainer: document.getElementById('pending-bills-dashboard'),
         supplierDebts: document.getElementById('supplier-debts-dashboard')
@@ -39,10 +36,25 @@ document.addEventListener('DOMContentLoaded', () => {
      * Actualiza el DOM con los nuevos datos
      */
     const renderDashboard = (data) => {
-        // 1. Actualizar Tarjetas de Inventario (Si existen en el DOM)
-        if (statsElements.stockOk) statsElements.stockOk.textContent = data.inventory.ok || 0;
-        if (statsElements.stockCritico) statsElements.stockCritico.textContent = data.inventory.critico || 0;
-        if (statsElements.stockAgotado) statsElements.stockAgotado.textContent = data.inventory.agotado || 0;
+        // 1. Renderizar Tarjetas de Inventario (Si existe el contenedor)
+        if (statsElements.inventoryContainer && data.inventory) {
+            const invStats = [
+                { label: 'Productos OK', value: data.inventory.ok || 0, color: 'text-emerald-500', border: 'border-emerald-500', icon: 'check-circle' },
+                { label: 'Stock Crítico', value: data.inventory.critico || 0, color: 'text-amber-500', border: 'border-amber-500', icon: 'alert-triangle' },
+                { label: 'Agotados', value: data.inventory.agotado || 0, color: 'text-rose-500', border: 'border-rose-500', icon: 'alert-circle' }
+            ];
+
+            statsElements.inventoryContainer.innerHTML = invStats.map(s => `
+                <div onclick="window.location.href='${URLROOT}/inventario'" 
+                     class="glass-card p-6 rounded-xl flex items-center justify-between border-l-4 ${s.border} cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all group">
+                    <div class="pointer-events-none">
+                        <p class="text-slate-400 text-sm font-medium">${s.label}</p>
+                        <h3 class="text-3xl font-black ${s.color}">${s.value}</h3>
+                    </div>
+                    <i data-lucide="${s.icon}" class="${s.color} w-10 h-10 opacity-30"></i>
+                </div>
+            `).join('');
+        }
 
         // 2. Renderizar Cuadrícula Financiera (Ingresos, Gastos, Balance)
         if (statsElements.financialContainer) {
@@ -121,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded">BORRADOR</span>
                         <span class="text-xs text-slate-400">#${draft.id}</span>
                     </div>
-                    <p class="font-bold text-slate-700 text-sm truncate">${draft.cliente_nombre || 'Consumidor Final'}</p>
+                    <p class="font-bold text-slate-700 text-sm truncate">${draft.cliente_nombre || 'Sin Cliente'}</p>
                     <p class="text-xs text-slate-500 mb-3">${draft.placa || 'Sin placa'} - ${draft.modelo_vehiculo || 'N/A'}</p>
                     <div class="flex justify-between items-center border-t pt-2">
                         <span class="text-sm font-black text-navy-blue">${AppUtils.formatCurrency(draft.total)}</span>
@@ -146,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             statsElements.recentSalesTable.innerHTML = data.recentSales.map(sale => `
                 <tr class="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
                     <td class="py-3 px-4 font-mono text-xs text-slate-400">#${sale.id}</td>
-                    <td class="py-3 px-4 text-sm font-medium text-slate-700">${sale.cliente_nombre || 'Consumidor Final'}</td>
+                    <td class="py-3 px-4 text-sm font-medium text-slate-700">${sale.cliente_nombre || 'Sin Cliente'}</td>
                     <td class="py-3 px-4">
                         <span class="text-xs font-bold text-slate-600 block">${sale.modelo_vehiculo || 'N/A'}</span>
                         <span class="text-[10px] text-slate-400">${sale.placa || '---'}</span>

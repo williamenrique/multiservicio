@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="font-bold text-slate-700 uppercase">${venta.modelo_vehiculo || 'N/A'}</div>
                     <div class="text-[10px] text-slate-400">${venta.placa || 'Sin Placa'}</div>
                 </td>
-                <td class="px-8 py-5">${venta.cliente_nombre || 'Consumidor Final'}</td>
+                <td class="px-8 py-5">${venta.cliente_nombre || 'Sin Cliente'}</td>
                 <td class="px-8 py-5 font-bold text-navy-blue">${AppUtils.formatCurrency(venta.total)}</td>
                 <td class="px-8 py-5 text-right">
                     <button onclick="openSaleDetailModal(${venta.id})" class="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all" title="Ver Detalles"><i data-lucide="eye" class="w-4 h-4"></i></button>
@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div>
                                 <p class="text-slate-500 font-bold">Cliente:</p>
-                                <p>${venta.cliente_nombre || 'Consumidor Final'}</p>
+                                <p>${venta.cliente_nombre || 'Sin Cliente'}</p>
                                 ${venta.cliente_telefono ? `<p class="text-xs text-slate-400">${venta.cliente_telefono}</p>` : ''}
                             </div>
                             <div>
