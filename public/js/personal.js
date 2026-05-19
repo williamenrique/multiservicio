@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
             personal = await res.json();
             renderTable(personal);
         } catch (e) {
+            console.error("Error al cargar personal:", e); // Corregido 'error' a 'e'
             tableBody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-red-500">Error de conexión con la DB</td></tr>';
         }
     };
@@ -32,8 +33,19 @@ document.addEventListener('DOMContentLoaded', () => {
         data.forEach(p => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-50 transition-colors border-b border-slate-100';
+
+            const imgUrl = p.foto ? `${URLROOT}/${p.foto}` : `${URL_IMG}default.png`;
+
             row.innerHTML = `
-                <td class="px-8 py-5 font-mono text-xs text-slate-500">${p.id}</td>
+                <td class="px-8 py-5 text-center">
+                    <div class="flex flex-col items-center justify-center gap-1">
+                        <img src="${imgUrl}" 
+                             onclick="AppUtils.viewImage('${imgUrl}', '${p.nombre}')"
+                             class="w-10 h-10 rounded-full object-cover border border-slate-200 cursor-zoom-in hover:opacity-80 transition-all shadow-sm" 
+                             alt="Foto de ${p.nombre}">
+                        <span class="font-mono text-[10px] text-slate-400 font-bold uppercase tracking-tighter leading-none">${p.id}</span>
+                    </div>
+                </td>
                 <td class="px-8 py-5 font-bold text-slate-600 tracking-tighter">${p.cedula}</td>
                 <td class="px-8 py-5 font-bold text-slate-700 uppercase">${p.nombre}</td>
                 <td class="px-8 py-5"><span class="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100">${p.cargo}</span></td>

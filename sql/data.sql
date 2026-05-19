@@ -1,1 +1,5 @@
 
+
+ALTER TABLE `table_staff` 
+ADD COLUMN `foto` TEXT NULL DEFAULT NULL AFTER `direccion`,
+ADD COLUMN `foto_frente` TEXT NULL DEFAULT NULL AFTER `foto`;
