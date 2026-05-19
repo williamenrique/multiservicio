@@ -29,20 +29,26 @@ class ModelEmpresa {
         $nit = mb_strtoupper($datos['nit'] ?? '', 'UTF-8');
         $iva = $datos['iva'] ?? 0.00;
         $address = mb_strtoupper($datos['address'] ?? '', 'UTF-8');
+        
+        // Si no se envía un logo nuevo en los datos, intentamos mantener el que ya existe en la DB
+        $configActual = $this->obtenerConfiguracion();
+        $logo = $datos['logo'] ?? ($configActual ? $configActual->logo : null);
 
         // Intentar actualizar, si no existe, insertar
-        $this->db->query("INSERT INTO table_company_settings (id, name, nit, iva, address) 
-                          VALUES (1, :name, :nit, :iva, :address)
+        $this->db->query("INSERT INTO table_company_settings (id, name, nit, iva, logo, address) 
+                          VALUES (1, :name, :nit, :iva, :logo, :address)
                           ON DUPLICATE KEY UPDATE
                               name = :name,
                               nit = :nit,
                               iva = :iva,
+                              logo = :logo,
                               address = :address,
                               updated_at = CURRENT_TIMESTAMP");
         
         $this->db->bind(':name', $name);
         $this->db->bind(':nit', $nit);
         $this->db->bind(':iva', $iva);
+        $this->db->bind(':logo', $logo);
         $this->db->bind(':address', $address);
 
         return $this->db->execute();

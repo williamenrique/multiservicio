@@ -23,24 +23,39 @@ class ControllerEmpresa extends Controller {
      */
     public function guardar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $input = json_decode(file_get_contents('php://input'), true);
+            // Al usar FormData en el frontend, los datos llegan vía $_POST y $_FILES
+            $input = $_POST;
 
             // Validación básica
             if (empty($input['name']) || empty($input['iva'])) {
-                echo json_encode(['success' => false, 'mensaje' => 'El nombre y el IVA son campos requeridos.']);
+                $this->jsonResponse(['success' => false, 'mensaje' => 'El nombre y el IVA son campos requeridos.'], 400);
                 return;
+            }
+
+            // Procesar subida de Logo si se adjuntó un archivo
+            if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+                $uploadDir = APPROOT . '/../public/img/';
+                if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+
+                $fileExtension = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
+                $newFileName = 'logo_empresa_' . time() . '.' . $fileExtension;
+                $destPath = $uploadDir . $newFileName;
+
+                if (move_uploaded_file($_FILES['logo']['tmp_name'], $destPath)) {
+                    // Guardamos la ruta relativa para que sea accesible desde la URL
+                    $input['logo'] = 'public/img/' . $newFileName;
+                }
             }
 
             $res = $this->empresaModel->guardarConfiguracion($input);
 
             if ($res) {
-                echo json_encode(['success' => true, 'mensaje' => 'Configuración guardada correctamente']);
+                $this->jsonResponse(['success' => true, 'mensaje' => 'Configuración guardada correctamente']);
             } else {
-                echo json_encode(['success' => false, 'mensaje' => 'Error al guardar la configuración']);
+                $this->jsonResponse(['success' => false, 'mensaje' => 'Error al guardar la configuración'], 500);
             }
         } else {
-            http_response_code(405); // Método no permitido
-            echo json_encode(['success' => false, 'mensaje' => 'Método no permitido']);
+            $this->jsonResponse(['success' => false, 'mensaje' => 'Método no permitido'], 405);
         }
     }
 }

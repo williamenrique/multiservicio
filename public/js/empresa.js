@@ -1,23 +1,39 @@
 document.addEventListener('DOMContentLoaded', () => {
     const companyForm = document.getElementById('companyForm');
+    const logoInput = document.getElementById('logoInput');
+    const logoPreview = document.getElementById('logoPreview');
+
+    // Lógica de vista previa de imagen
+    if (logoInput && logoPreview) {
+        logoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    logoPreview.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
 
     if (companyForm) {
         companyForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            // Usamos FormData directamente para soportar la subida del archivo (logo)
             const formData = new FormData(companyForm);
-            const data = Object.fromEntries(formData.entries());
 
             try {
                 const response = await fetch(`${URLROOT}/empresa/guardar`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    // Importante: No establecer Content-Type manualmente al usar FormData con archivos
+                    body: formData
                 });
                 const result = await response.json();
                 if (result.success) {
                     AppUtils.showToast(result.mensaje, 'success');
-                    // Opcional: recargar la página o actualizar elementos de la UI que dependan de la configuración
-                    // Por ahora, asumimos que los cambios se reflejan automáticamente o se recargará si es necesario.
+                    setTimeout(() => window.location.reload(), 1500); // Recargar para actualizar header y pestaña
                 } else {
                     AppUtils.showToast(result.mensaje, 'error');
                 }

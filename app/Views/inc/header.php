@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($titulo) ? s($titulo) : SITENAME; ?></title>
-    <link rel="shortcut icon" href="<?php echo URL_IMG; ?>logo.png" type="image/x-icon">
+    <link rel="shortcut icon" href="<?php echo !empty($company->logo) ? URLROOT . '/' . $company->logo : URL_IMG . 'logo.png'; ?>" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
@@ -22,9 +22,12 @@
         <!-- Sidebar -->
         <aside id="sidebar" class="w-64 bg-navy-blue border-r border-gray-800 transition-all duration-300">
             <div class="px-5 py-6 flex items-center gap-4 border-b border-gray-800/50 min-h-[64px]">
-                <i data-lucide="wrench" class="text-neon-green flex-shrink-0"></i>
-                <span class="text-xl font-bold tracking-wider whitespace-nowrap">TALLER<span
-                        class="text-neon-green">PRO</span></span>
+                <?php if(!empty($company->logo)): ?>
+                    <img src="<?php echo URLROOT . '/' . $company->logo; ?>" class="w-8 h-8 object-contain" alt="Logo">
+                <?php else: ?>
+                    <i data-lucide="wrench" class="text-neon-green flex-shrink-0"></i>
+                <?php endif; ?>
+                <span class="text-xl font-bold tracking-wider whitespace-nowrap uppercase text-neon-green"><?php echo s($company->name); ?></span>
             </div>
             <nav class="mt-6 px-4">
                 <a href="<?php echo URLROOT; ?>/dashboard" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'dashboard') !== false) ? 'active' : ''; ?>" data-section="dashboard">

@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS `table_company_settings` (
   `name` VARCHAR(100) NOT NULL,
   `nit` VARCHAR(50) DEFAULT NULL,
   `iva` DECIMAL(5,2) DEFAULT 0.00,
+  `logo` TEXT DEFAULT NULL,
   `address` TEXT DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT current_timestamp(),
   `updated_at` TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
