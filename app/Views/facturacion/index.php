@@ -98,19 +98,31 @@
 
                 <!-- Pie: Totales y Botón de Cierre -->
                 <div class="p-6 bg-navy-blue text-white rounded-b-xl">
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-end">
-                            <div>
-                                <span class="text-[10px] text-gray-400 uppercase font-bold">Subtotal</span>
-                                <p id="pos-subtotal" class="text-xl">$0.00</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-[10px] text-gray-400 uppercase font-bold tracking-widest text-neon-green">Total Facturado</span>
-                                <p id="pos-total" class="text-5xl font-black text-neon-green">$0.00</p>
-                            </div>
+                    <!-- Interruptor para Activar/Desactivar IVA -->
+                    <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-700/50">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] font-black text-neon-green uppercase tracking-widest">Impuesto al Valor Agregado</span>
+                            <span class="text-[9px] text-gray-400 uppercase font-bold">Aplicar tarifa del <?php echo $data['iva_defecto']; ?>%</span>
                         </div>
-                        <span id="pos-iva-percent" class="hidden"><?php echo $data['iva_defecto']; ?></span>
-                        <span id="pos-current-user" class="hidden"><?php echo $data['usuario_actual']; ?></span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="pos-iva-toggle" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neon-green"></div>
+                        </label>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center text-gray-400">
+                            <span class="text-[10px] uppercase font-bold">Subtotal</span>
+                            <p id="pos-subtotal" class="text-xl font-bold text-white">$0.00</p>
+                        </div>
+                        <div class="flex justify-between items-center text-gray-400">
+                            <span class="text-[10px] uppercase font-bold">IVA (<span id="pos-iva-percent-display">0</span>%)</span>
+                            <p id="pos-iva" class="text-xl font-bold text-white">$0.00</p>
+                        </div>
+                        <div class="flex justify-between items-end pt-4 border-t border-gray-700">
+                            <span class="text-[10px] uppercase font-bold tracking-widest text-neon-green">Total Facturado</span>
+                            <p id="pos-total" class="text-5xl font-black text-neon-green">$0.00</p>
+                        </div>
                     </div>
                     <button id="btn-process-sale" class="w-full mt-6 bg-neon-green text-navy-blue font-black py-4 rounded-xl hover:brightness-110 transition flex items-center justify-center gap-3 uppercase text-lg shadow-lg">
                         <i data-lucide="check-circle" class="w-6 h-6"></i> Cerrar y Procesar

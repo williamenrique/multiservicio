@@ -14,6 +14,7 @@
     <script>
         // Definimos la constante global para que todos los JS la usen
         const URLROOT = "<?php echo URLROOT; ?>";
+        const IVA_RATE = <?php echo (float)($company->iva ?? 0) / 100; ?>;
     </script>
 </head>
 <body class="bg-main-dark text-slate-800 font-sans">

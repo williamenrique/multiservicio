@@ -5,7 +5,7 @@ const AppNotifications = {
     init: () => {
         // AppNotifications.checkSupplierDebts();
         // setInterval(AppNotifications.checkSupplierDebts, 30000);
-        console.log("Sistema de notificaciones en espera de migración SQL...");
+        //console.log("Sistema de notificaciones en espera de migración SQL...");
     },
 
     checkSupplierDebts: async () => {
