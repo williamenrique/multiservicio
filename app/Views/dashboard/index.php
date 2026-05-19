@@ -138,10 +138,9 @@
                         <table id="suppliersTable" class="display w-full">
                             <thead>
                                 <tr>
-                                    <th>NIT/ID</th>
+                                    <th>ID</th>
                                     <th>Nombre</th>
                                     <th>Teléfono</th>
-                                    <th>Email</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
@@ -153,12 +152,10 @@
                         <table id="purchasesTable" class="display w-full">
                             <thead>
                                 <tr>
-                                    <th>Fecha</th>
                                     <th>Proveedor</th>
-                                    <th>Total</th>
-                                    <th>Abonado</th>
+                                    <th>Facturas</th>
                                     <th>Saldo</th>
-                                    <th>Corte</th>
+                                    <th>Vencimiento</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
@@ -230,12 +227,12 @@
                         <table id="staffTable" class="display w-full">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
+                                    <th>ID/Foto</th>
+                                    <th>Cédula</th>
                                     <th>Nombre</th>
                                     <th>Cargo</th>
-                                    <th>Teléfono</th>
                                     <th>Acceso</th>
-                                    <th>Rol Sistema</th>
+                                    <th>Contacto</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>

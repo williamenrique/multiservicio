@@ -30,6 +30,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderTable = (data) => {
+        if ($.fn.DataTable.isDataTable('#suppliersTable')) {
+            $('#suppliersTable').DataTable().destroy();
+        }
+
         tableBody.innerHTML = '';
         totalCount.textContent = data.length;
 
@@ -56,11 +60,26 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             tableBody.appendChild(row);
         });
+
+        $('#suppliersTable').DataTable({
+            responsive: true,
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+            },
+            drawCallback: () => lucide.createIcons()
+        });
+
         lucide.createIcons();
     };
 
     const renderDeudasTable = (data) => {
         const debtBody = document.getElementById('tableDeudasBody');
+        if ($.fn.DataTable.isDataTable('#purchasesTable')) {
+            $('#purchasesTable').DataTable().destroy();
+        }
+
         debtBody.innerHTML = '';
 
         if (data.length === 0) {
@@ -92,6 +111,17 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             debtBody.appendChild(row);
         });
+
+        $('#purchasesTable').DataTable({
+            responsive: true,
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+            },
+            drawCallback: () => lucide.createIcons()
+        });
+
         lucide.createIcons();
     };
 

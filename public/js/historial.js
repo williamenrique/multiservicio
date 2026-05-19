@@ -26,6 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {Array} data Array de objetos de venta.
      */
     const renderTable = (data) => {
+        if ($.fn.DataTable.isDataTable('#salesTable')) {
+            $('#salesTable').DataTable().destroy();
+        }
+
         tableBody.innerHTML = '';
         totalCount.textContent = data.length;
 
@@ -52,6 +56,17 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             tableBody.appendChild(row);
         });
+
+        $('#salesTable').DataTable({
+            responsive: true,
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+            },
+            drawCallback: () => lucide.createIcons()
+        });
+
         lucide.createIcons();
     };
 

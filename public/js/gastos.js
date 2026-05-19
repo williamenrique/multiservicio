@@ -18,6 +18,8 @@ async function initExpenses(tableEl) {
         expensesTable = $(tableEl).DataTable({
             data: expenses,
             order: [[0, 'desc']],
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
             columns: [
                 {
                     data: 'fecha',

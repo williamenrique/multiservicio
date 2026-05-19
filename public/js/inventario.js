@@ -20,11 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderTable = (data) => {
+        if ($.fn.DataTable.isDataTable('#inventoryTable')) {
+            $('#inventoryTable').DataTable().destroy();
+        }
+
         tableBody.innerHTML = '';
         totalCount.textContent = data.length;
 
         data.forEach(item => {
-            const stockColor = item.stock <= 5 ? 'text-red-500 font-bold' : 'text-slate-600';
+            const isLowStock = item.stock <= 5;
+            const stockColor = isLowStock ? 'text-red-500 font-bold' : 'text-slate-600';
+            const statusLabel = isLowStock ? (item.stock === 0 ? 'AGOTADO' : 'CRÍTICO') : 'OK';
 
             // Limpiar y validar la URL de la imagen
             const cleanPath = item.imagen ? item.imagen.trim() : null;
@@ -47,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="px-8 py-4"><span class="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded-md text-slate-500">${item.categoria}</span></td>
                 <td class="px-8 py-4 ${stockColor}">${item.stock} uds</td>
                 <td class="px-8 py-4 font-mono font-bold text-navy-blue">${AppUtils.formatCurrency(item.precio)}</td>
+                <td class="px-8 py-4"><span class="text-[9px] font-black ${isLowStock ? 'text-red-600' : 'text-emerald-600'}">${statusLabel}</span></td>
                 <td class="px-8 py-4 text-right">
                     <div class="flex justify-end gap-2">
                         ${USER_ROLE === 'ADMINISTRADOR' ? `
@@ -58,6 +65,17 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             tableBody.appendChild(row);
         });
+
+        $('#inventoryTable').DataTable({
+            responsive: true,
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+            },
+            drawCallback: () => lucide.createIcons()
+        });
+
         lucide.createIcons();
     };
 

@@ -22,6 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderTable = (data) => {
+        if ($.fn.DataTable.isDataTable('#staffTable')) {
+            $('#staffTable').DataTable().destroy();
+        }
+
         tableBody.innerHTML = '';
         totalCount.textContent = data.length;
 
@@ -43,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              onclick="AppUtils.viewImage('${imgUrl}', '${p.nombre}')"
                              class="w-10 h-10 rounded-full object-cover border border-slate-200 cursor-zoom-in hover:opacity-80 transition-all shadow-sm" 
                              alt="Foto de ${p.nombre}">
-                        <span class="font-mono text-[10px] text-slate-400 font-bold uppercase tracking-tighter leading-none">${p.id}</span>
+                        <span class="font-mono text-[10px] text-slate-400 font-bold uppercase tracking-tighter leading-none">${p.username || 'N/A'}</span>
                     </div>
                 </td>
                 <td class="px-8 py-5 font-bold text-slate-600 tracking-tighter">${p.cedula}</td>
@@ -67,6 +71,17 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             tableBody.appendChild(row);
         });
+
+        $('#staffTable').DataTable({
+            responsive: true,
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+            },
+            drawCallback: () => lucide.createIcons()
+        });
+
         lucide.createIcons();
     };
 
