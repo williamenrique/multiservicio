@@ -16,14 +16,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     renderTopBarUserInfo(); // Cargar info del usuario en la barra superior una vez que todo esté cargado
 
-    // Solo activar intervalos si estamos en la vista de Dashboard
-    if (document.getElementById('salesChart')) {
-        await renderDashboardCards(); // Renderizado inicial
-        await renderExpensesDashboard(); // Cargar mini-resumen de gastos
-        // await renderPendingBillsDashboard(); // COMENTADO: Evita peticiones api?key=drafts_db
-        setInterval(refreshUI, 10000); // Refresco global cada 10 segundos
-    }
-
     // Inicializar tabla de gastos si estamos en la vista de gastos
     if (document.getElementById('expensesTable')) {
         await initExpenses();

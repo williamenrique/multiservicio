@@ -291,3 +291,4 @@
                         </div>
                     </div>
                 </section>
+<script src="<?= URLROOT ?>/public/js/dashboard.js"></script>     

@@ -1,8 +1,11 @@
 <?php
 class ControllerDashboard extends Controller {
+    private $dashboardModel;
 
     public function __construct() {
         AuthGuard::handle(); // Asegurar que solo usuarios logueados accedan
+        // Cargamos el modelo centralizado
+        $this->dashboardModel = $this->model('Dashboard');
     }
 
     public function index() {
@@ -13,28 +16,16 @@ class ControllerDashboard extends Controller {
      * Obtiene estadísticas reales desde la base de datos para el Dashboard
      */
     public function getStats() {
-        $db = new Database();
-        
-        // 1. Contar productos por estado de stock
-        $db->query("SELECT 
-            SUM(CASE WHEN stock > 5 THEN 1 ELSE 0 END) as ok,
-            SUM(CASE WHEN stock <= 5 AND stock > 0 THEN 1 ELSE 0 END) as critico,
-            SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END) as agotado
-            FROM table_inventario");
-        $inventory = $db->single();
-
-        // 2. Ingresos hoy
-        $db->query("SELECT SUM(total) as total FROM table_ventas WHERE DATE(fecha) = CURDATE() AND status = 'COMPLETADO'");
-        $ingresosHoy = $db->single()->total ?? 0;
-
-        // 3. Gastos mes actual
-        $db->query("SELECT SUM(monto) as total FROM table_gastos WHERE MONTH(fecha) = MONTH(CURRENT_DATE()) AND YEAR(fecha) = YEAR(CURRENT_DATE())");
-        $gastosMes = $db->single()->total ?? 0;
-
+        // Centralizamos la llamada a través del modelo
         $this->jsonResponse([
-            'inventory' => $inventory,
-            'ingresosHoy' => $ingresosHoy,
-            'gastosMes' => $gastosMes
+            'inventory' => $this->dashboardModel->getInventoryStats(),
+            'ingresosHoy' => $this->dashboardModel->getIncomeToday(),
+            'gastosMes' => $this->dashboardModel->getExpensesMonth(),
+            'recentSales' => $this->dashboardModel->getRecentSales(),
+            'drafts' => $this->dashboardModel->getPendingDrafts(),
+            'supplierDebts' => $this->dashboardModel->getSupplierDebtsSummary(),
+            'history' => $this->dashboardModel->getFinancialHistory(),
+            'recentExpenses' => $this->dashboardModel->getRecentExpenses()
         ]);
     }
 
