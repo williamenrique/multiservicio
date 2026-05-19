@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS `table_staff` (
   `telefono` varchar(20) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
   `direccion` text DEFAULT NULL,
+  `foto` text DEFAULT NULL,
+  `foto_frente` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
@@ -88,6 +90,8 @@ CREATE TABLE IF NOT EXISTS `table_proveedores` (
   `telefono` varchar(20) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
   `direccion` text DEFAULT NULL,
+  `foto` text DEFAULT NULL,
+  `foto_frente` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)

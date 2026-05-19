@@ -31,8 +31,8 @@ class ModelPersonal {
     }
 
     public function crear($datos) {
-        $this->db->query("INSERT INTO table_staff (id, cedula, nombre, cargo, telefono, email, direccion) 
-                          VALUES (:id, :cedula, :nombre, :cargo, :telefono, :email, :direccion)");
+        $this->db->query("INSERT INTO table_staff (id, cedula, nombre, cargo, telefono, email, direccion, foto, foto_frente) 
+                          VALUES (:id, :cedula, :nombre, :cargo, :telefono, :email, :direccion, :foto, :foto_frente)");
         $this->db->bind(':id', mb_strtoupper($datos['id'] ?? '', 'UTF-8'));
         $this->db->bind(':cedula', mb_strtoupper($datos['cedula'] ?? '', 'UTF-8'));
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'] ?? '', 'UTF-8'));
@@ -40,6 +40,8 @@ class ModelPersonal {
         $this->db->bind(':telefono', $datos['telefono'] ?? '');
         $this->db->bind(':email', mb_strtolower($datos['email'] ?? '', 'UTF-8'));
         $this->db->bind(':direccion', mb_strtoupper($datos['direccion'] ?? '', 'UTF-8'));
+        $this->db->bind(':foto', 'img/default.png');
+        $this->db->bind(':foto_frente', 'img/default.png');
         return $this->db->execute();
     }
 

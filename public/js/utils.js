@@ -99,5 +99,21 @@ const AppUtils = {
             background: '#ffffff',
             color: '#1e293b'
         });
-    }
+    },
+
+    /**
+     * Muestra una pantalla de carga bloqueante
+     */
+    showLoading: (msg = 'Cargando...') => {
+        Swal.fire({
+            title: msg,
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+    },
+
+    /**
+     * Oculta la pantalla de carga
+     */
+    hideLoading: () => { Swal.close(); }
 };

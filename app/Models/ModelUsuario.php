@@ -17,7 +17,7 @@ class ModelUsuario {
      * @return object|bool Fila del usuario con datos de staff y rol unidos.
      */
     public function buscarPorIdentificador($identificador) {
-        $this->db->query("SELECT u.id, u.username, u.password, u.role_id, u.staff_id, u.estado, s.nombre, s.email, r.nombre_rol 
+        $this->db->query("SELECT u.id, u.username, u.password, u.role_id, u.staff_id, u.estado, s.nombre, s.email, s.foto, r.nombre_rol 
                           FROM table_usuarios u 
                           INNER JOIN table_staff s ON u.staff_id = s.id 
                           INNER JOIN table_roles r ON u.role_id = r.id 
@@ -31,7 +31,7 @@ class ModelUsuario {
      * Obtener un usuario por su ID
      */
     public function obtenerUsuarioPorId($id) {
-        $this->db->query("SELECT u.id, u.username, s.nombre, s.email, u.role_id, u.staff_id, u.created_at, 
+        $this->db->query("SELECT u.id, u.username, s.nombre, s.email, s.foto, u.role_id, u.staff_id, u.created_at, 
                                  r.nombre_rol, s.nombre as staff_name, s.cargo as staff_job_role
                           FROM table_usuarios u 
                           INNER JOIN table_roles r ON u.role_id = r.id 

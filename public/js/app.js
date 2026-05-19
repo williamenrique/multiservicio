@@ -150,69 +150,6 @@ async function renderTopBarUserInfo() {
 }
 
 /**
- * Abre un modal de SweetAlert2 para que el usuario logueado pueda ver y gestionar su perfil.
- * Permite editar información personal y cambiar la contraseña.
- * (Nota: La lógica de guardado de perfil requeriría un endpoint API en el backend.)
- */
-async function openUserProfileModal() {
-    if (!currentLoggedInUser) {
-        AppUtils.showAlert('Acceso Denegado', 'No hay un usuario logueado para editar su perfil.', 'error');
-        return;
-    }
-
-    Swal.fire({
-        title: `Mi Perfil (${currentLoggedInUser.username})`,
-        html: `
-            <div class="text-left space-y-4">
-                <p class="text-xs text-slate-500 uppercase">Información Personal</p>
-                <input id="profile-name" class="w-full p-2 border rounded-lg uppercase" placeholder="Nombre completo" value="${currentLoggedInUser.staffName || ''}">
-                <input id="profile-phone" class="w-full p-2 border rounded-lg" placeholder="Teléfono" value="">
-                <input id="profile-email" type="email" class="w-full p-2 border rounded-lg" placeholder="Correo electrónico" value="">
-                <input id="profile-address" class="w-full p-2 border rounded-lg" placeholder="Dirección" value="">
-
-                <hr class="my-4 border-t border-slate-200">
-                <p class="text-xs text-slate-500 uppercase">Credenciales de Acceso</p>
-                <input id="profile-username" class="w-full p-2 border rounded-lg" placeholder="Nombre de usuario" value="${currentLoggedInUser.username}" readonly>
-                <input id="profile-current-password" type="password" class="w-full p-2 border rounded-lg" placeholder="Contraseña actual (solo para cambiar)">
-                <input id="profile-new-password" type="password" class="w-full p-2 border rounded-lg" placeholder="Nueva Contraseña">
-                <input id="profile-confirm-new-password" type="password" class="w-full p-2 border rounded-lg" placeholder="Confirmar Nueva Contraseña">
-            </div>
-        `,
-        confirmButtonColor: '#39FF14',
-        confirmButtonText: '<span class="text-black font-bold">Guardar Cambios</span>',
-        showCancelButton: true,
-        didOpen: () => {
-            // Ocultar el menú desplegable al abrir el modal
-            document.getElementById('userDropdownMenu')?.classList.add('hidden');
-        },
-        preConfirm: async () => {
-            const name = document.getElementById('profile-name').value.toUpperCase();
-            const phone = document.getElementById('profile-phone').value;
-            const email = document.getElementById('profile-email').value;
-            const address = document.getElementById('profile-address').value;
-            const currentPassword = document.getElementById('profile-current-password').value;
-            const newPassword = document.getElementById('profile-new-password').value;
-            const confirmNewPassword = document.getElementById('profile-confirm-new-password').value;
-
-            // Validaciones básicas
-            if (!name || !phone || !email) {
-                Swal.showValidationMessage('Por favor, complete los campos obligatorios de información personal.');
-                return false;
-            }
-
-            if (newPassword && newPassword !== confirmNewPassword) {
-                Swal.showValidationMessage('La nueva contraseña y su confirmación no coinciden.');
-                return false;
-            }
-            // En un sistema real, aquí se debería verificar currentPassword con el hash almacenado
-            // Por ahora, solo se guarda si se proporcionan las nuevas contraseñas.
-
-            return { name, phone, email, address, currentPassword, newPassword };
-        }
-    }).then(async result => saveUserProfile(result));
-}
-
-/**
  * Renderiza las tarjetas de resumen del Dashboard (ej: Stock OK, Stock Crítico, Agotados, En Servicio).
  * Nota: Actualmente, estas estadísticas aún consumen de archivos JSON. Deberían migrarse a un Controller Dashboard en el futuro.
  */
@@ -285,7 +222,7 @@ async function renderFinancialCards() {
 
     // Nota: Aquí podrías añadir una consulta para ingresos totales del mes si lo deseas.
     // Por ahora usaremos los datos que ya trae getStats.
-    
+
     const monthlyExpenses = parseFloat(statsData.gastosMes) || 0;
     const totalFacturado = 0; // Aquí deberías sumar las ventas del mes en el controlador
     const balanceNeto = totalFacturado - monthlyExpenses;

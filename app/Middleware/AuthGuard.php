@@ -23,11 +23,15 @@ class AuthGuard {
         }
  
         // Validación de sesión única contra Base de Datos
-        // Si otro dispositivo inició sesión con el mismo usuario, el ID en la BD habrá cambiado
-        $db = new Database();
-        $db->query("SELECT session_id FROM table_usuario_sessions WHERE usuario_id = :uid");
-        $db->bind(':uid', $_SESSION['user_id']);
-        $registro = $db->single();
+        try {
+            $db = new Database();
+            $db->query("SELECT session_id FROM table_usuario_sessions WHERE usuario_id = :uid");
+            $db->bind(':uid', $_SESSION['user_id']);
+            $registro = $db->single();
+        } catch (Throwable $e) {
+            // Si falla la DB, por seguridad cerramos sesión
+            $registro = false;
+        }
 
         // Si el registro no existe o el session_id no coincide con el actual de PHP
         if (!$registro || $registro->session_id !== session_id()) {

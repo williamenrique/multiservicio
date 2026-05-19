@@ -81,7 +81,12 @@
 
                 <div class="relative group">
                     <button id="userDropdownTrigger" class="flex items-center gap-3 p-2 bg-gray-800 rounded-full text-white hover:bg-gray-700 transition-colors">
-                        <i data-lucide="user-circle" class="w-6 h-6 text-neon-green"></i>
+                        <?php if(!empty($_SESSION['user_foto'])): ?>
+                            <img src="<?php echo URLROOT . '/' . $_SESSION['user_foto']; ?>" class="w-7 h-7 rounded-full object-cover border border-neon-green" alt="Avatar">
+                        <?php else: ?>
+                            <i data-lucide="user-circle" class="w-6 h-6 text-neon-green"></i>
+                        <?php endif; ?>
+                        
                         <div class="text-right hidden md:block">
                             <p id="topbar-username" class="text-sm font-bold text-white"><?php echo s($_SESSION['user_nombre'] ?? 'Invitado'); ?></p>
                             <p id="topbar-userrole" class="text-xs text-gray-400"><?php echo s($_SESSION['user_role'] ?? 'Sin Rol'); ?></p>
@@ -89,7 +94,7 @@
                         <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 hidden md:block"></i>
                     </button>
                     <div id="userDropdownMenu" class="hidden absolute right-0 mt-2 w-48 bg-navy-blue border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden">
-                        <a href="#" onclick="openUserProfileModal()" class="block px-4 py-2 text-sm text-white hover:bg-gray-800 flex items-center gap-2">
+                        <a href="<?php echo URLROOT; ?>/perfil" class="block px-4 py-2 text-sm text-white hover:bg-gray-800 flex items-center gap-2">
                             <i data-lucide="settings-2" class="w-4 h-4"></i> Mi Perfil
                         </a>
                         <hr class="border-gray-700">

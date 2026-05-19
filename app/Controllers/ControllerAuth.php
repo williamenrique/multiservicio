@@ -65,6 +65,7 @@ class ControllerAuth extends Controller {
                     $_SESSION['user_nombre'] = $userFound->nombre;
                     $_SESSION['user_role'] = $userFound->nombre_rol;
                     $_SESSION['user_staff_id'] = $userFound->staff_id ?? null;
+                    $_SESSION['user_foto'] = $userFound->foto;
 
                     // Actualizar o crear el registro de sesión única en la base de datos
                     $this->userModel->registrarSesion([
@@ -100,7 +101,8 @@ class ControllerAuth extends Controller {
                     'staffId' => $_SESSION['user_staff_id'] ?? null,
                     'username' => $_SESSION['user_nick'],
                     'staffName' => $_SESSION['user_nombre'],
-                    'role' => $_SESSION['user_role']
+                    'role' => $_SESSION['user_role'],
+                    'foto' => $_SESSION['user_foto'] ?? 'img/default.png'
                 ]
             ]);
         } else {
