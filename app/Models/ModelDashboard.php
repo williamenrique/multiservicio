@@ -53,9 +53,12 @@ class ModelDashboard {
      * Obtiene los borradores (ventas pendientes)
      */
     public function getPendingDrafts() {
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre 
+        $this->db->query("SELECT v.id, v.usuario_id, v.fecha, v.placa, v.modelo_vehiculo, v.total, 
+                                 c.nombre as cliente_nombre, s.nombre as responsable_nombre 
                           FROM table_ventas v 
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id 
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
                           WHERE v.status = 'PENDIENTE' 
                           ORDER BY v.fecha DESC LIMIT 6");
         return $this->db->resultSet();

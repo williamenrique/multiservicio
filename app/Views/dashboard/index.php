@@ -2,16 +2,11 @@
                 <section id="sec-dashboard" class="content-section">
                     <h2 class="text-2xl font-bold mb-6">Resumen del Taller</h2>
 
-                    <!-- Estadísticas Rápidas -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        <div class="glass-card p-6 rounded-xl border-l-4 border-neon-green">
-                            <p class="text-xs font-bold text-gray-500 uppercase">Ventas Hoy</p>
-                            <h3 class="text-2xl font-bold" id="dash-sales-today">$0.00</h3>
-                        </div>
-                        <div class="glass-card p-6 rounded-xl border-l-4 border-blue-500">
-                            <p class="text-xs font-bold text-gray-500 uppercase">Órdenes Activas</p>
-                            <h3 class="text-2xl font-bold" id="dash-orders-active">0</h3>
-                        </div>
+                    <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2">
+                        <i data-lucide="activity"></i> Resumen Financiero
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" id="financial-status-cards">
+                        <!-- Tarjetas financieras generadas via JS -->
                     </div>
 
                     <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2"><i

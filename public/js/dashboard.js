@@ -12,10 +12,21 @@ document.addEventListener('DOMContentLoaded', () => {
         expensesDashboard: document.getElementById('expenses-dashboard'),
         recentSalesTable: document.getElementById('salesBody'),
         draftsContainer: document.getElementById('pending-bills-dashboard'),
-        supplierDebts: document.getElementById('supplier-debts-dashboard')
+        supplierDebts: document.getElementById('supplier-debts-dashboard'),
+        financialStatusCards: document.getElementById('financial-status-cards')
     };
 
     let performanceChart = null;
+
+    /**
+     * Permite retomar un borrador desde el dashboard
+     */
+    window.continuarVenta = (id_db) => {
+        // Guardamos en localStorage el ID con el prefijo que espera facturacion.js
+        // para que al cargar la página de facturación, se abra automáticamente.
+        localStorage.setItem('pos_active_invoice_id', 'TKT-' + id_db);
+        window.location.href = `${URLROOT}/facturacion`;
+    };
 
     /**
      * Carga las estadísticas desde el servidor
@@ -36,39 +47,26 @@ document.addEventListener('DOMContentLoaded', () => {
      * Actualiza el DOM con los nuevos datos
      */
     const renderDashboard = (data) => {
-        // 1. Renderizar Tarjetas de Inventario (Si existe el contenedor)
-        if (statsElements.inventoryContainer && data.inventory) {
-            const invStats = [
-                { label: 'Productos OK', value: data.inventory.ok || 0, color: 'text-emerald-500', border: 'border-emerald-500', icon: 'check-circle' },
-                { label: 'Stock Crítico', value: data.inventory.critico || 0, color: 'text-amber-500', border: 'border-amber-500', icon: 'alert-triangle' },
-                { label: 'Agotados', value: data.inventory.agotado || 0, color: 'text-rose-500', border: 'border-rose-500', icon: 'alert-circle' }
-            ];
-
-            statsElements.inventoryContainer.innerHTML = invStats.map(s => `
-                <div onclick="window.location.href='${URLROOT}/inventario'" 
-                     class="glass-card p-6 rounded-xl flex items-center justify-between border-l-4 ${s.border} cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all group">
-                    <div class="pointer-events-none">
-                        <p class="text-slate-400 text-sm font-medium">${s.label}</p>
-                        <h3 class="text-3xl font-black ${s.color}">${s.value}</h3>
-                    </div>
-                    <i data-lucide="${s.icon}" class="${s.color} w-10 h-10 opacity-30"></i>
-                </div>
-            `).join('');
-        }
-
-        // 2. Renderizar Cuadrícula Financiera (Ingresos, Gastos, Balance)
-        if (statsElements.financialContainer) {
+        // 1. Renderizar Tarjetas Financieras (Ventas, Órdenes, Gastos)
+        if (statsElements.financialStatusCards) {
             const ingresos = parseFloat(data.ingresosHoy) || 0;
             const gastos = parseFloat(data.gastosMes) || 0;
-            const balance = ingresos - gastos;
+            const ordenesActivas = data.drafts ? data.drafts.length : 0;
 
-            const cards = [
+            const finCards = [
                 {
-                    label: 'Ingresos de Hoy',
+                    label: 'Ventas Hoy',
                     value: AppUtils.formatCurrency(ingresos),
                     color: 'text-blue-600',
                     border: 'border-blue-600',
                     icon: 'trending-up'
+                },
+                {
+                    label: 'Órdenes Activas',
+                    value: ordenesActivas,
+                    color: 'text-amber-600',
+                    border: 'border-amber-600',
+                    icon: 'clock'
                 },
                 {
                     label: 'Gastos del Mes',
@@ -76,27 +74,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     color: 'text-rose-600',
                     border: 'border-rose-600',
                     icon: 'trending-down'
-                },
-                {
-                    label: 'Balance Neto',
-                    value: AppUtils.formatCurrency(balance),
-                    color: balance >= 0 ? 'text-emerald-600' : 'text-rose-700',
-                    border: balance >= 0 ? 'border-emerald-600' : 'border-rose-700',
-                    icon: 'wallet'
                 }
             ];
 
-            statsElements.financialContainer.innerHTML = cards.map(c => `
-                <div class="glass-card p-4 rounded-xl flex items-center justify-between border-l-4 ${c.border}">
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${c.label}</p>
-                        <h3 class="text-xl font-black ${c.color}">${c.value}</h3>
+            statsElements.financialStatusCards.innerHTML = finCards.map(c => `
+                <div class="glass-card p-6 rounded-xl flex items-center justify-between border-l-4 ${c.border} transition-all">
+                    <div class="pointer-events-none">
+                        <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider">${c.label}</p>
+                        <h3 class="text-2xl font-black ${c.color}">${c.value}</h3>
                     </div>
-                    <div class="p-2 bg-slate-50 rounded-lg">
-                        <i data-lucide="${c.icon}" class="${c.color} w-6 h-6 opacity-70"></i>
-                    </div>
+                    <i data-lucide="${c.icon}" class="${c.color} w-8 h-8 opacity-30"></i>
                 </div>
             `).join('');
+        }
+
+        // 2. Renderizar Tarjetas de Inventario
+        if (statsElements.inventoryContainer) {
+            const invCards = [
+                { label: 'Productos OK', value: data.inventory?.ok || 0, color: 'text-emerald-500', border: 'border-emerald-500', icon: 'check-circle', link: `${URLROOT}/inventario` },
+                { label: 'Stock Crítico', value: data.inventory?.critico || 0, color: 'text-amber-500', border: 'border-amber-500', icon: 'alert-triangle', link: `${URLROOT}/inventario` },
+                { label: 'Agotados', value: data.inventory?.agotado || 0, color: 'text-rose-500', border: 'border-rose-500', icon: 'alert-circle', link: `${URLROOT}/inventario` }
+            ];
+
+            statsElements.inventoryContainer.innerHTML = invCards.map(c => `
+                <div onclick="window.location.href='${c.link}'" 
+                     class="glass-card p-6 rounded-xl flex items-center justify-between border-l-4 ${c.border} cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all group">
+                    <div class="pointer-events-none">
+                        <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider">${c.label}</p>
+                        <h3 class="text-2xl font-black ${c.color}">${c.value}</h3>
+                    </div>
+                    <i data-lucide="${c.icon}" class="${c.color} w-8 h-8 opacity-30"></i>
+                </div>
+            `).join('');
+        }
+
+        // 3. Limpiar el contenedor financiero duplicado (el que está al lado de la gráfica)
+        if (statsElements.financialContainer && statsElements.financialContainer !== statsElements.inventoryContainer) {
+            statsElements.financialContainer.innerHTML = '';
         }
 
         // 3. Renderizar Lista de Gastos Detallados (Tarjetas individuales)
@@ -127,13 +141,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Renderizar Borradores (Drafts)
         if (statsElements.draftsContainer && data.drafts) {
-            statsElements.draftsContainer.innerHTML = data.drafts.map(draft => `
+            if (data.drafts.length === 0) {
+                statsElements.draftsContainer.innerHTML = `
+                    <div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400">
+                        <i data-lucide="clipboard-list" class="w-12 h-12 mx-auto mb-3 opacity-20"></i>
+                        <p class="italic font-medium">No hay facturas en proceso (borradores).</p>
+                        <button onclick="window.location.href='${URLROOT}/facturacion'" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors">
+                            Crear Nueva Factura
+                        </button>
+                    </div>`;
+            } else {
+                statsElements.draftsContainer.innerHTML = data.drafts.map(draft => `
                 <div class="glass-card p-4 rounded-xl border-l-4 border-amber-400">
                     <div class="flex justify-between items-start mb-2">
-                        <span class="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded">BORRADOR</span>
+                        <div class="flex flex-col">
+                            <span class="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded w-fit mb-1">BORRADOR</span>
+                            <span class="text-[10px] text-slate-400">${new Date(draft.fecha).toLocaleDateString()}</span>
+                        </div>
                         <span class="text-xs text-slate-400">#${draft.id}</span>
                     </div>
                     <p class="font-bold text-slate-700 text-sm truncate">${draft.cliente_nombre || 'Sin Cliente'}</p>
+                    <div class="flex items-center gap-1 text-[10px] font-bold text-blue-600 uppercase mb-2">
+                        <i data-lucide="user" class="w-3 h-3"></i>
+                        <span>${draft.responsable_nombre || 'No asignado'}</span>
+                    </div>
                     <p class="text-xs text-slate-500 mb-3">${draft.placa || 'Sin placa'} - ${draft.modelo_vehiculo || 'N/A'}</p>
                     <div class="flex justify-between items-center border-t pt-2">
                         <span class="text-sm font-black text-navy-blue">${AppUtils.formatCurrency(draft.total)}</span>
@@ -141,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `).join('');
+            }
         }
 
         // Renderizar Deudas Proveedores

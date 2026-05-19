@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Cargar la información del usuario logueado directamente desde la base de datos
     await fetchLoggedInUserFromDB();
 
+    // Notificar a otros módulos que el usuario ya está cargado
+    document.dispatchEvent(new CustomEvent('userLoaded', { detail: currentLoggedInUser }));
+
     renderTopBarUserInfo(); // Cargar info del usuario en la barra superior una vez que todo esté cargado
 });
 

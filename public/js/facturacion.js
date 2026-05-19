@@ -29,6 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedItemFromSearch = null;
     let lastSearchResults = []; // Almacén temporal para evitar errores de sintaxis en HTML
 
+    // Escuchar cuando el usuario global esté cargado para refrescar permisos
+    document.addEventListener('userLoaded', () => {
+        renderQueue();
+        renderInvoice();
+    });
+
     /**
      * Persistencia: Guardar el ID activo para que no se pierda al recargar
      */
@@ -54,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     cliente_id: d.cliente_id || '',
                     iva_activo: (parseFloat(d.iva_monto) > 0 || d.items.length === 0),
                     items: d.items || [],
+                    usuario_id: d.usuario_id, // Usamos usuario_id para ser consistente con el backend
                     usuario_nombre: d.usuario_nombre
                 })).concat(localOnly);
 
@@ -119,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cliente_id: '',
             iva_activo: true,
             items: [],
+            usuario_id: currentLoggedInUser ? currentLoggedInUser.id : null,
             usuario_nombre: userName
         };
 
@@ -176,15 +184,48 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        container.innerHTML = openInvoices.map((inv, index) => `
+        container.innerHTML = openInvoices.map((inv, index) => {
+            // Obtener datos del usuario de forma ultra segura y normalizada
+            const user = currentLoggedInUser;
+            const role = user?.role?.trim() || '';
+
+            // Convertimos a String solo si existen, para evitar comparar "null" con "null"
+            const currentUserId = user?.id ? String(user.id) : null;
+            const invoiceOwnerId = inv.usuario_id ? String(inv.usuario_id) : null;
+
+            let canDelete = false;
+
+            // ADMINISTRADOR: Poder absoluto
+            if (role === 'Administrador') {
+                canDelete = true;
+            }
+            // MECÁNICO: Solo lo suyo
+            else if (role === 'Mecánico') {
+                // Caso 1: Factura nueva local (aún no sincronizada)
+                if (!inv.id_db) {
+                    canDelete = true;
+                }
+                // Caso 2: Factura en DB, los IDs deben ser válidos y coincidir
+                else if (currentUserId !== null && invoiceOwnerId !== null && currentUserId === invoiceOwnerId) {
+                    canDelete = true;
+                }
+            }
+            // OTROS ROLES: No pueden cerrar nada (canDelete sigue en false)
+
+            return `
             <div onclick="switchInvoice('${inv.id}')" class="flex-shrink-0 px-3 py-1.5 rounded-lg border-2 transition-all cursor-pointer flex items-center gap-3 ${inv.id === activeInvoiceId ? 'border-neon-green bg-white shadow-sm' : 'border-transparent bg-slate-100 opacity-60 hover:opacity-100'}">
                 <div class="flex flex-col">
                     <span class="text-[9px] font-black text-navy-blue">${inv.id}</span>
                     <span class="text-[10px] font-bold uppercase truncate max-w-[80px]">${inv.modelo || 'SIN DESC.'}</span>
                 </div>
-                <button onclick="closeInvoice(${index}, event)" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-3 h-3"></i></button>
+                ${canDelete
+                    ? `<button onclick="closeInvoice(${index}, event)" class="text-slate-400 hover:text-red-500 transition-colors" title="Eliminar Factura"><i data-lucide="x" class="w-3 h-3"></i></button>`
+                    : `<button class="text-slate-300 cursor-not-allowed" title="No tienes permiso para cerrar esta factura" disabled>
+                        <i data-lucide="lock" class="w-3 h-3"></i>
+                       </button>`
+                }
             </div>
-        `).join('');
+        `}).join('');
         lucide.createIcons();
     };
 
@@ -200,21 +241,40 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     };
 
-    window.closeInvoice = (index, event) => {
+    window.closeInvoice = async (index, event) => {
         event.stopPropagation();
-        const idToDelete = openInvoices[index].id;
-        openInvoices.splice(index, 1);
+        const inv = openInvoices[index];
 
-        if (openInvoices.length === 0) {
-            activeInvoiceId = null;
-            clearInputs();
-        } else if (activeInvoiceId === idToDelete) {
-            activeInvoiceId = openInvoices[0].id;
+        const proceedWithClosing = () => {
+            const idToDelete = inv.id;
+            openInvoices.splice(index, 1);
+
+            if (openInvoices.length === 0) {
+                activeInvoiceId = null;
+                clearInputs();
+            } else if (activeInvoiceId === idToDelete) {
+                activeInvoiceId = openInvoices[0].id;
+            }
+
+            saveInvoicesToLocal();
+            renderQueue();
+            renderInvoice();
+        };
+
+        // Si la factura ya existe en el servidor, pedir confirmación y borrar en DB
+        if (inv.id_db) {
+            AppUtils.confirmAction('¿Eliminar borrador?', 'Esta acción cancelará la orden y liberará el stock.', async () => {
+                const res = await fetch(`${URLROOT}/facturacion/eliminarBorrador/${inv.id_db}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    proceedWithClosing();
+                } else {
+                    AppUtils.showToast(data.mensaje || 'Error al eliminar', 'error');
+                }
+            });
+        } else {
+            proceedWithClosing();
         }
-
-        saveInvoicesToLocal();
-        renderQueue();
-        renderInvoice();
     };
 
     const clearInputs = () => {

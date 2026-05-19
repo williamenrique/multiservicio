@@ -98,6 +98,7 @@ class ControllerAuth extends Controller {
             echo json_encode([
                 'success' => true,
                 'user' => [
+                    'id' => $_SESSION['user_id'],
                     'staffId' => $_SESSION['user_staff_id'] ?? null,
                     'username' => $_SESSION['user_nick'],
                     'staffName' => $_SESSION['user_nombre'],
