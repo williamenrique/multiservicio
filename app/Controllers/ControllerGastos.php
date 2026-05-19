@@ -12,8 +12,7 @@ class ControllerGastos extends Controller {
     }
 
     public function listar() {
-        header('Content-Type: application/json');
-        echo json_encode($this->gastoModel->listar());
+        $this->jsonResponse($this->gastoModel->listar());
     }
 
     public function guardar() {
@@ -21,9 +20,9 @@ class ControllerGastos extends Controller {
             $input = json_decode(file_get_contents('php://input'), true);
             
             if ($this->gastoModel->crear($input)) {
-                echo json_encode(['success' => true]);
+                $this->jsonResponse(['success' => true]);
             } else {
-                echo json_encode(['success' => false, 'error' => 'No se pudo guardar el gasto']);
+                $this->jsonResponse(['success' => false, 'error' => 'No se pudo guardar el gasto'], 400);
             }
         }
     }
@@ -31,9 +30,9 @@ class ControllerGastos extends Controller {
     public function eliminar($id) {
         RoleGuard::isAdmin();
         if ($this->gastoModel->eliminar($id)) {
-            echo json_encode(['success' => true]);
+            $this->jsonResponse(['success' => true]);
         } else {
-            echo json_encode(['success' => false]);
+            $this->jsonResponse(['success' => false], 400);
         }
     }
 }

@@ -49,6 +49,20 @@ try {
     // Capturamos Throwable para atrapar tanto Errors como Exceptions (PHP 7+)
     error_log("Error crítico: " . $e->getMessage() . " en " . $e->getFile() . ":" . $e->getLine());
     
+    // Detectar si la petición espera JSON (AJAX / Fetch)
+    $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') || 
+              (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => (defined('ENVIRONMENT') && ENVIRONMENT === 'development') ? $e->getMessage() : 'Ocurrió un error interno en el servidor.'
+        ]);
+        exit;
+    }
+
     // Si estamos en desarrollo, mostramos el error detallado
     if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
         echo "<div style='background:#fee2e2; border:1px solid #ef4444; padding:20px; border-radius:10px; font-family:sans-serif; margin:20px;'>";

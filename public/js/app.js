@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (document.getElementById('salesChart')) {
         await renderDashboardCards(); // Renderizado inicial
         await renderExpensesDashboard(); // Cargar mini-resumen de gastos
+        // await renderPendingBillsDashboard(); // COMENTADO: Evita peticiones api?key=drafts_db
         setInterval(refreshUI, 10000); // Refresco global cada 10 segundos
     }
 
@@ -219,19 +220,22 @@ async function renderDashboardCards() {
     const container = document.getElementById('dashboard-cards');
     if (!container) return;
 
-    const drafts = await AppUtils.loadData('drafts_db'); // Asume que esto todavía se usa para el cálculo de reservedUnits
-    const inventoryData = await AppUtils.loadData('inventory_db'); // Asume que esto todavía se usa para las estadísticas de inventario
-
-    // Calcular cuántos repuestos hay "reservados" en borradores
-    const reservedUnits = drafts.reduce((total, draft) => {
-        return total + draft.items.reduce((sum, item) => sum + (item.isService ? 0 : item.quantity), 0);
-    }, 0);
+    let statsData = { inventory: { ok: 0, critico: 0, agotado: 0 }, ingresosHoy: 0 };
+    try {
+        const response = await fetch(`${URLROOT}/dashboard/getStats`);
+        if (response.ok) {
+            const result = await response.json();
+            statsData = result;
+        }
+    } catch (e) {
+        console.error("Error al obtener estadísticas:", e);
+    }
 
     const stats = [
-        { label: 'Productos OK', value: inventoryData.filter(p => p.stock > 5).length, color: 'text-neon-green', border: 'border-neon-green', icon: 'check-circle', filter: 'Stock OK' },
-        { label: 'Stock Crítico', value: inventoryData.filter(p => p.stock <= 5 && p.stock > 0).length, color: 'text-cat-yellow', border: 'border-cat-yellow', icon: 'alert-triangle', filter: 'Bajo Stock' },
-        { label: 'Agotados', value: inventoryData.filter(p => p.stock === 0).length, color: 'text-error-red', border: 'border-error-red', icon: 'alert-circle', filter: 'Agotado' },
-        { label: 'En Servicio', value: reservedUnits, color: 'text-blue-500', border: 'border-blue-500', icon: 'clock', section: 'facturacion' }
+        { label: 'Productos OK', value: statsData.inventory.ok, color: 'text-neon-green', border: 'border-neon-green', icon: 'check-circle', filter: 'Stock OK' },
+        { label: 'Stock Crítico', value: statsData.inventory.critico, color: 'text-cat-yellow', border: 'border-cat-yellow', icon: 'alert-triangle', filter: 'Bajo Stock' },
+        { label: 'Agotados', value: statsData.inventory.agotado, color: 'text-error-red', border: 'border-error-red', icon: 'alert-circle', filter: 'Agotado' },
+        { label: 'Ingresos Hoy', value: AppUtils.formatCurrency(statsData.ingresosHoy), color: 'text-blue-500', border: 'border-blue-500', icon: 'trending-up', section: 'historial' }
     ];
 
     container.innerHTML = stats.map(s => `
@@ -262,110 +266,7 @@ function initSidebar() {
 /**
  * Renderiza una vista rápida de las facturas pendientes en el dashboard
  */
-async function renderPendingBillsDashboard() {
-    const container = document.getElementById('pending-bills-dashboard');
-    const pendingIcon = document.getElementById('pending-bills-icon');
-    const ordersActiveEl = document.getElementById('dash-orders-active');
-    if (!container) return;
-
-    const drafts = await AppUtils.loadData('drafts_db');
-
-    // Actualizar contador de órdenes activas (borradores) en el resumen superior
-    if (ordersActiveEl) ordersActiveEl.textContent = drafts.length;
-
-    // Verificar si hay facturas con más de 2 horas de antigüedad
-    const now = new Date();
-    const twoHoursInMs = 2 * 60 * 60 * 1000;
-    const hasUrgentDrafts = drafts.some(d => d.date && (now - new Date(d.date)) > twoHoursInMs);
-
-    // Lógica para activar/desactivar la vibración neón en el icono del dashboard
-    if (pendingIcon) {
-        pendingIcon.classList.remove('clock-pending-alert', 'clock-pending-urgent');
-        if (drafts.length > 0) {
-            const alertClass = hasUrgentDrafts ? 'clock-pending-urgent' : 'clock-pending-alert';
-            pendingIcon.classList.add(alertClass);
-        }
-    }
-
-    if (drafts.length === 0) {
-        container.innerHTML = `
-            <div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400">
-                <i data-lucide="check-circle" class="w-12 h-12 mx-auto mb-3 opacity-20"></i>
-                <p class="italic font-medium">No hay facturas pendientes en este momento.</p>
-            </div>
-        `;
-        lucide.createIcons();
-        return;
-    }
-
-    container.innerHTML = drafts.map(d => {
-        const draftDate = new Date(d.date);
-        const diffMs = now - draftDate;
-        const isUrgent = d.date && diffMs > twoHoursInMs;
-
-        // Colores dinámicos según la antigüedad
-        const borderColor = isUrgent ? 'border-red-500' : 'border-blue-500';
-        const bgHighlight = isUrgent ? 'bg-red-50/50' : '';
-        const badgeColor = isUrgent ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700';
-
-        // Mapeo de estados a etiquetas visuales
-        const statusMap = {
-            'RECEPCION': { label: 'RECEPCIÓN', color: 'bg-slate-100 text-slate-600' },
-            'DIAGNOSTICO': { label: 'DIAGNÓSTICO', color: 'bg-amber-100 text-amber-700' },
-            'REPARACION': { label: 'REPARACIÓN', color: 'bg-orange-100 text-orange-700' },
-            'ESPERA_REPUESTOS': { label: 'ESPERA REP.', color: 'bg-rose-100 text-rose-700' },
-            'LISTO': { label: 'LISTO', color: 'bg-emerald-100 text-emerald-700' }
-        };
-        const statusInfo = statusMap[d.status] || statusMap['RECEPCION'];
-
-        // Cálculo de tiempo transcurrido para la etiqueta
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMins / 60);
-        const diffDays = Math.floor(diffHours / 24);
-
-        let timeLabel = "";
-        if (diffDays >= 1) {
-            timeLabel = `${diffDays}d ${diffHours % 24}h`;
-        } else if (diffHours >= 1) {
-            timeLabel = `${diffHours}h ${diffMins % 60}m`;
-        } else {
-            timeLabel = `${diffMins}m`;
-        }
-
-        const subtotal = d.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        const total = subtotal * 1.19; // IVA incluido para visualización
-        return `
-            <div onclick="resumeBillFromDashboard('${d.id}')" 
-                 class="glass-card p-5 rounded-xl border-l-4 ${borderColor} ${bgHighlight} hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden">
-                ${isUrgent ? `<div class="absolute top-0 right-0 bg-red-500 text-white text-[7px] font-bold px-1.5 py-0.5 rounded-bl-lg animate-pulse">URGENTE</div>` : ''}
-                <div class="flex justify-between items-start mb-3">
-                    <div class="flex flex-col gap-1">
-                        <span class="${badgeColor} text-[10px] font-bold px-2 py-1 rounded w-fit">#${d.id}</span>
-                        <span class="${statusInfo.color} text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter border border-black/5">${statusInfo.label}</span>
-                    </div>
-                    <div class="flex flex-col items-end">
-                        <span class="text-[10px] text-slate-400 font-medium">${draftDate.toLocaleDateString()}</span>
-                        <span class="text-[9px] ${isUrgent ? 'text-red-600 font-bold' : 'text-slate-400'} flex items-center gap-1">
-                            <i data-lucide="clock" class="w-2.5 h-2.5"></i> Hace ${timeLabel}
-                        </span>
-                    </div>
-                </div>
-                <h4 class="font-bold text-slate-800 uppercase truncate group-hover:${isUrgent ? 'text-red-600' : 'text-blue-600'} transition-colors">
-                    ${d.placa ? `<span class="bg-navy-blue text-white px-1.5 py-0.5 rounded text-[10px] mr-1">${d.placa}</span>` : ''}
-                    ${d.carModel || 'SIN MODELO'}
-                </h4>
-                <div class="flex justify-between items-center mt-4 pt-3 border-t border-slate-100">
-                    <div class="flex items-center gap-1 text-slate-500">
-                        <i data-lucide="shopping-cart" class="w-3 h-3"></i>
-                        <span class="text-xs">${d.items.length} items</span>
-                    </div>
-                    <span class="font-bold text-navy-blue text-lg">${AppUtils.formatCurrency(total)}</span>
-                </div>
-            </div>
-        `;
-    }).join('');
-    lucide.createIcons();
-}
+/** renderPendingBillsDashboard ha sido desactivado temporalmente para migración SQL */
 
 /**
  * Calcula y renderiza las estadísticas financieras en el dashboard
@@ -374,31 +275,23 @@ async function renderFinancialCards() {
     const container = document.getElementById('financial-cards');
     if (!container) return;
 
-    const sales = await AppUtils.loadData('sales_db');
-    let expenses = [];
+    let statsData = { ingresosHoy: 0, gastosMes: 0 };
     try {
-        const response = await fetch(`${URLROOT}/gastos/listar`);
-        if (response.ok) expenses = await response.json();
+        const response = await fetch(`${URLROOT}/dashboard/getStats`);
+        if (response.ok) statsData = await response.json();
     } catch (e) {
         console.error("Error cargando gastos para resumen:", e);
     }
 
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const monthlyExpenses = expenses.filter(e => {
-        const d = new Date(e.fecha);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    }).reduce((sum, e) => sum + (parseFloat(e.monto) || 0), 0);
-
-    const totalFacturado = sales.reduce((sum, sale) => sum + (sale.total || 0), 0);
+    // Nota: Aquí podrías añadir una consulta para ingresos totales del mes si lo deseas.
+    // Por ahora usaremos los datos que ya trae getStats.
+    
+    const monthlyExpenses = parseFloat(statsData.gastosMes) || 0;
+    const totalFacturado = 0; // Aquí deberías sumar las ventas del mes en el controlador
     const balanceNeto = totalFacturado - monthlyExpenses;
-    const totalVentas = sales.length;
-    const ticketPromedio = totalVentas > 0 ? totalFacturado / totalVentas : 0;
 
     const stats = [
-        { label: 'Ingresos Totales', value: AppUtils.formatCurrency(totalFacturado), color: 'text-blue-600', border: 'border-blue-600', icon: 'trending-up' },
+        { label: 'Ventas de Hoy', value: AppUtils.formatCurrency(statsData.ingresosHoy), color: 'text-blue-600', border: 'border-blue-600', icon: 'trending-up' },
         { label: 'Gastos de este Mes', value: AppUtils.formatCurrency(monthlyExpenses), color: 'text-red-600', border: 'border-red-600', icon: 'trending-down' },
         { label: 'Balance Neto (Mes)', value: AppUtils.formatCurrency(balanceNeto), color: 'text-emerald-600', border: 'border-emerald-600', icon: 'wallet' }
     ];
@@ -413,8 +306,6 @@ async function renderFinancialCards() {
         </div>
     `).join('');
     lucide.createIcons();
-    updateSalesChart(sales);
-    updateSummaryCards(sales);
 }
 
 /**

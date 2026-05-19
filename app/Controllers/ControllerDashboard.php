@@ -10,6 +10,35 @@ class ControllerDashboard extends Controller {
     }
 
     /**
+     * Obtiene estadísticas reales desde la base de datos para el Dashboard
+     */
+    public function getStats() {
+        $db = new Database();
+        
+        // 1. Contar productos por estado de stock
+        $db->query("SELECT 
+            SUM(CASE WHEN stock > 5 THEN 1 ELSE 0 END) as ok,
+            SUM(CASE WHEN stock <= 5 AND stock > 0 THEN 1 ELSE 0 END) as critico,
+            SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END) as agotado
+            FROM table_inventario");
+        $inventory = $db->single();
+
+        // 2. Ingresos hoy
+        $db->query("SELECT SUM(total) as total FROM table_ventas WHERE DATE(fecha) = CURDATE() AND status = 'COMPLETADO'");
+        $ingresosHoy = $db->single()->total ?? 0;
+
+        // 3. Gastos mes actual
+        $db->query("SELECT SUM(monto) as total FROM table_gastos WHERE MONTH(fecha) = MONTH(CURRENT_DATE()) AND YEAR(fecha) = YEAR(CURRENT_DATE())");
+        $gastosMes = $db->single()->total ?? 0;
+
+        $this->jsonResponse([
+            'inventory' => $inventory,
+            'ingresosHoy' => $ingresosHoy,
+            'gastosMes' => $gastosMes
+        ]);
+    }
+
+    /**
      * Maneja las peticiones de datos JSON (reemplaza a api.php)
      */
     public function api() {

@@ -3,9 +3,9 @@
  */
 const AppNotifications = {
     init: () => {
-        AppNotifications.checkSupplierDebts();
-        // Verificar cada 30 segundos
-        setInterval(AppNotifications.checkSupplierDebts, 30000);
+        // AppNotifications.checkSupplierDebts();
+        // setInterval(AppNotifications.checkSupplierDebts, 30000);
+        console.log("Sistema de notificaciones en espera de migración SQL...");
     },
 
     checkSupplierDebts: async () => {

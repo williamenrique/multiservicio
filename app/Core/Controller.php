@@ -72,4 +72,15 @@ class Controller {
             }
         }
     }
+
+    /**
+     * Envía una respuesta JSON pura y finaliza la ejecución.
+     * Se eliminó el auto-merge de 'success' para evitar corromper arrays de datos (listas).
+     */
+    public function jsonResponse($data, $statusCode = 200) {
+        header('Content-Type: application/json');
+        http_response_code($statusCode);
+        echo json_encode($data);
+        exit;
+    }
 }
