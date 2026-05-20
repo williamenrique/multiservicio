@@ -1,0 +1,9 @@
+*gastos no habre modal
+reemplazar en dashboard descargar json por excel
+    puede ser el inventario
+*crear seccion y notificacion de clave solicitada
+    esto es una notifiacion y una seccion para que si el usuario s ele olvido la clave desde el login pueda 
+    enviar una solicitud al administrador y tenga una seccion para claves recuperadas o solicitadas
+*el switche de iva no se mantiene se actualiza solo y se activa
+*en el dasboard Cuentas por Pagar (Proveedores) si no hay deudas deberia mostrar un mensaje
+*y la grafica de Rendimiento Financiero debe ocuppar todo el largo de la fila
