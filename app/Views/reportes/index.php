@@ -47,17 +47,21 @@
             <div class="p-6 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
                 <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Cronología de Movimientos</h3>
             </div>
-            <div class="p-6">
-                <table id="reportTable" class="w-full text-left">
+            <div class="p-6 overflow-x-auto">
+                <table id="reportTable" class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
-                            <th class="px-4 py-3">Fecha</th>
-                            <th class="px-4 py-3">Tipo</th>
-                            <th class="px-4 py-3">Descripcion</th>
-                            <th class="px-4 py-3 text-right">Monto</th>
+                        <tr class="bg-slate-50/80 border-b border-slate-100">
+                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">ID</th>
+                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">FECHA</th>
+                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">TIPO</th>
+                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">DESCRIPCIÓN</th>
+                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">TOTAL</th>
+                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">ACCIONES</th>
                         </tr>
                     </thead>
-                    <tbody id="report-body" class="text-sm"></tbody>
+                    <tbody id="report-body" class="divide-y divide-slate-50 bg-white">
+                        <!-- Contenido generado por JavaScript -->
+                    </tbody>
                 </table>
             </div>
         </div>

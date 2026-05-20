@@ -8,9 +8,11 @@ class ModelReportes {
 
     public function obtenerFlujoCaja($desde, $hasta) {
         // 1. Obtener Ventas (Ingresos)
-        $this->db->query("SELECT id, fecha, total as monto, 'VENTA' as tipo, modelo_vehiculo as descripcion 
-                          FROM table_ventas 
-                          WHERE status = 'COMPLETADO' AND DATE(fecha) BETWEEN :desde AND :hasta");
+        $this->db->query("SELECT v.id, v.fecha, v.total as monto, 'VENTA' as tipo, v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
+                          (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items
+                          FROM table_ventas v
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.status = 'COMPLETADO' AND DATE(v.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $ingresos = $this->db->resultSet() ?: [];

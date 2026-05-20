@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pageLength: 10,
             lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
             language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+                url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
             },
             drawCallback: () => lucide.createIcons()
         });

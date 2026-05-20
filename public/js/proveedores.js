@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pageLength: 10,
             lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
             language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+                url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
             },
             drawCallback: () => lucide.createIcons()
         });
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pageLength: 10,
             lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
             language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+                url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
             },
             drawCallback: () => lucide.createIcons()
         });
@@ -169,8 +169,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             <thead>
                                 <tr class="bg-slate-50 border-b">
                                     <th class="p-2 text-left text-slate-400">FECHA</th>
-                                    <th class="p-2 text-right text-slate-400">SALDO</th>
-                                    <th class="p-2 text-right text-slate-400">ACCIÓN</th>
+                                    <th class="p-2 text-right text-slate-400">VALOR</th>
+                                    <th class="p-2 text-right text-slate-400">ABONADO</th>
+                                    <th class="p-2 text-right text-slate-400">PENDIENTE</th>
+                                    <th class="p-2 text-center text-slate-400">DETALLE</th>
+                                    <th class="p-2 text-right text-slate-400">OPCIÓN</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -182,9 +185,16 @@ document.addEventListener('DOMContentLoaded', () => {
                                             <div class="font-bold">${new Date(c.fecha).toLocaleDateString()}</div>
                                             <div class="text-[9px] text-slate-400">ID: #${c.id}</div>
                                         </td>
-                                        <td class="p-2 text-right font-mono font-bold text-red-600">${AppUtils.formatCurrency(saldo)}</td>
+                                        <td class="p-2 text-right font-mono text-slate-500 text-[10px]">${AppUtils.formatCurrency(c.total)}</td>
+                                        <td class="p-2 text-right font-mono text-emerald-600 text-[10px]">${AppUtils.formatCurrency(c.pagado)}</td>
+                                        <td class="p-2 text-right font-mono font-bold text-red-600">
+                                            ${AppUtils.formatCurrency(saldo)}                                            
+                                        </td>
+                                        <td class="p-2 text-center">
+                                            <button onclick="window.verItemsCompra(${c.id})" class="p-1.5 bg-slate-100 text-slate-400 hover:text-blue-600 rounded-lg transition-colors" title="Ver Artículos de esta Factura"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
+                                        </td>
                                         <td class="p-2 text-right">
-                                            <button onclick="window.payInvoice('${c.id}', ${saldo}, '${nombre}')" class="bg-emerald-500 text-white px-3 py-1 rounded-lg text-[10px] font-black hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20">ABONAR</button>
+                                            <button onclick="window.payInvoice('${c.id}', ${saldo}, '${nombre}')" class="bg-emerald-500 text-white px-3 py-1 rounded-lg text-[10px] font-black hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/10">ABONAR</button>
                                         </td>
                                     </tr>
                                     `;
@@ -195,7 +205,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 `,
                 showConfirmButton: false,
                 showCancelButton: true,
-                cancelButtonText: 'Cerrar Ventana'
+                cancelButtonText: 'Cerrar Ventana',
+                didOpen: () => lucide.createIcons()
             });
 
             window.payInvoice = async (compraId, saldo, provNombre) => {
@@ -228,6 +239,65 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
         } catch (e) { console.error(e); }
+    };
+
+    /**
+     * Muestra el detalle de una compra específica (artículos, costos y deudas)
+     */
+    window.verItemsCompra = async (id) => {
+        try {
+            // Buscamos el detalle de la compra en el servidor
+            const res = await fetch(`${URLROOT}/proveedores/obtenerDetalleCompra/${id}`);
+            const data = await res.json();
+
+            if (!data) return AppUtils.showToast('Detalle de ingreso no disponible', 'error');
+
+            Swal.fire({
+                title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Detalle de Mercancía</span><br><span class="text-navy-blue">INGRESO #${id}</span>`,
+                html: `
+                    <div class="text-left space-y-4 pt-4">
+                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Producto / Repuesto</span>
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Cantidad Ingresada</span>
+                            </div>
+                            <div class="flex justify-between items-end">
+                                <span class="font-black text-navy-blue uppercase text-sm leading-tight max-w-[70%]">${data.producto_nombre || 'Surtido General'}</span>
+                                <span class="bg-navy-blue text-neon-green px-4 py-1.5 rounded-xl font-black text-xs shadow-lg shadow-navy-blue/20">${data.cantidad} UND</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="p-4 bg-white border border-slate-100 rounded-2xl">
+                                <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Costo Unitario</p>
+                                <p class="font-bold text-slate-700">${AppUtils.formatCurrency(data.costo_unitario)}</p>
+                            </div>
+                            <div class="p-4 bg-white border border-slate-100 rounded-2xl">
+                                <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Total de Compra</p>
+                                <p class="font-black text-navy-blue text-lg">${AppUtils.formatCurrency(data.total)}</p>
+                            </div>
+                            <div class="p-4 bg-white border border-slate-100 rounded-2xl">
+                                <p class="text-[9px] font-black text-emerald-500 uppercase mb-1">Total Abonado</p>
+                                <p class="font-bold text-emerald-600">${AppUtils.formatCurrency(data.pagado)}</p>
+                            </div>
+                            <div class="p-4 bg-white border border-slate-100 rounded-2xl">
+                                <p class="text-[9px] font-black text-red-400 uppercase mb-1">Saldo por Pagar</p>
+                                <p class="font-black text-red-600">${AppUtils.formatCurrency(data.total - data.pagado)}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-center gap-2 p-3 bg-slate-50 rounded-xl text-[10px] text-slate-400 font-bold uppercase">
+                            <i data-lucide="calendar" class="w-3 h-3"></i>
+                            Fecha de Ingreso: ${new Date(data.fecha).toLocaleString()}
+                        </div>
+                    </div>
+                `,
+                showConfirmButton: true,
+                confirmButtonText: 'Cerrar Detalle',
+                confirmButtonColor: '#0b1120',
+                didOpen: () => lucide.createIcons()
+            });
+        } catch (e) { console.error(e); AppUtils.showToast('Error al cargar la información', 'error'); }
     };
 
     searchInput.addEventListener('input', (e) => {

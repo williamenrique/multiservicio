@@ -46,7 +46,7 @@ async function initExpenses(tableElement) { // Renombrado para claridad
             ],
             responsive: true,
             language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' // Usar URL para idioma completo
+                url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' // Usar URL para idioma completo
             },
             drawCallback: () => lucide.createIcons()
         });
