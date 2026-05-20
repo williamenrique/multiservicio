@@ -122,13 +122,13 @@ async function cargarReporte() {
                     </td>
                     <td class="px-4 py-5 text-right align-middle">
                         <div class="flex items-center justify-end gap-2">
-                            ${(m.tipo === 'COMPRA' || !!m.proveedor_nombre) ? `
+                            ${isProveedor ? `
                                 <button onclick="verDetalleCompra(${m.id})" class="p-2 bg-slate-100 text-slate-400 hover:text-rose-600 rounded-xl transition-colors shadow-sm" title="Ver Detalle de Compra">
                                     <i data-lucide="eye" class="w-4 h-4"></i>
-                                </button>` : `
+                                </button>` : isVenta ? `
                                 <button onclick="verDetalleVenta(${m.id})" class="p-2 bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors shadow-sm" title="Ver Detalle de Venta">
                                     <i data-lucide="eye" class="w-4 h-4"></i>
-                                </button>`}
+                                </button>` : ''}
                         </div>
                     </td>
                 </tr>
