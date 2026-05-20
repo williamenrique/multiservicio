@@ -18,6 +18,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let performanceChart = null;
 
+    // Vincular botón de exportación si existe
+    const btnExport = document.getElementById('btnExportInventory');
+    if (btnExport) {
+        btnExport.innerHTML = '<i data-lucide="file-spreadsheet" class="w-4 h-4"></i> EXCEL';
+        btnExport.addEventListener('click', () => exportInventoryToExcel());
+    }
+
     /**
      * Permite retomar un borrador desde el dashboard
      */
@@ -295,6 +302,24 @@ document.addEventListener('DOMContentLoaded', () => {
             'CANCELADO': 'bg-rose-100 text-rose-600'
         };
         return classes[status] || 'bg-slate-100 text-slate-600';
+    };
+
+    /**
+     * Exporta el inventario actual a formato CSV (Excel compatible)
+     */
+    window.exportInventoryToExcel = async () => {
+        const res = await fetch(`${URLROOT}/inventario/listar`);
+        const data = await res.json();
+        let csv = "\uFEFFID;Nombre;Categoria;Stock;Precio\n"; // BOM para acentos en Excel
+        data.forEach(i => {
+            csv += `${i.id};${i.nombre};${i.categoria};${i.stock};${i.precio}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute("download", "Inventario_TallerPro.csv");
+        link.click();
+        AppUtils.showToast('Inventario exportado');
     };
 
     // Inicializar y configurar refresco automático cada 60 segundos

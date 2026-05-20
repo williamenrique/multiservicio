@@ -52,17 +52,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Ahora protegemos si tiene items O si el usuario empezó a escribir placa/modelo
                 const localOnly = openInvoices.filter(inv => !inv.id_db && (inv.items.length > 0 || inv.placa.trim() !== '' || inv.modelo.trim() !== ''));
 
-                openInvoices = drafts.map(d => ({
-                    id: 'TKT-' + d.id,
-                    id_db: d.id,
-                    placa: d.placa || '',
-                    modelo: d.modelo_vehiculo || '',
-                    cliente_id: d.cliente_id || '',
-                    iva_activo: (parseFloat(d.iva_monto) > 0 || d.items.length === 0),
-                    items: d.items || [],
-                    usuario_id: d.usuario_id, // Usamos usuario_id para ser consistente con el backend
-                    usuario_nombre: d.usuario_nombre
-                })).concat(localOnly);
+                openInvoices = drafts.map(d => {
+                    const existing = openInvoices.find(inv => inv.id_db === d.id);
+                    return {
+                        id: 'TKT-' + d.id,
+                        id_db: d.id,
+                        placa: d.placa || '',
+                        modelo: d.modelo_vehiculo || '',
+                        cliente_id: d.cliente_id || '',
+                        // Si ya lo tenemos localmente, respetamos su switch de IVA, si no, calculamos basado en monto
+                        iva_activo: existing ? existing.iva_activo : (parseFloat(d.iva_monto) > 0 || d.items.length === 0),
+                        items: d.items || [],
+                        usuario_id: d.usuario_id,
+                        usuario_nombre: d.usuario_nombre
+                    };
+                }).concat(localOnly);
 
                 // Restaurar la factura activa por ID
                 const savedId = localStorage.getItem('pos_active_invoice_id');
