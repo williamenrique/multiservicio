@@ -86,4 +86,9 @@ class ControllerProveedores extends Controller {
         $res = $this->proveedorModel->eliminar($id);
         echo json_encode(['success' => $res]);
     }
+
+    public function obtenerDetalleCompra($id) {
+        header('Content-Type: application/json');
+        echo json_encode($this->proveedorModel->obtenerDetalleCompra($id));
+    }
 }

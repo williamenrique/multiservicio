@@ -8,8 +8,10 @@ class ModelReportes {
 
     public function obtenerFlujoCaja($desde, $hasta) {
         // 1. Obtener Ventas (Ingresos)
-        $this->db->query("SELECT v.id, v.fecha, v.total as monto, 'VENTA' as tipo, v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
-                          (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items
+        $this->db->query("SELECT v.id, v.fecha, v.total as monto, 'VENTA' as tipo, 
+                          v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
+                          (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items,
+                          NULL as proveedor_nombre, 0 as saldo_pendiente
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'COMPLETADO' AND DATE(v.fecha) BETWEEN :desde AND :hasta");
@@ -18,9 +20,20 @@ class ModelReportes {
         $ingresos = $this->db->resultSet() ?: [];
 
         // 2. Obtener Gastos (Egresos)
-        $this->db->query("SELECT id, fecha, monto, 'GASTO' as tipo, descripcion 
-                          FROM table_gastos 
-                          WHERE DATE(fecha) BETWEEN :desde AND :hasta");
+        // Unificamos gastos generales y compras a proveedores
+        $this->db->query("SELECT g.id, g.fecha, g.monto, 'GASTO' as tipo, 
+                          g.descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre, 
+                          0 as cantidad_items, NULL as proveedor_nombre, 0 as saldo_pendiente
+                          FROM table_gastos g 
+                          WHERE DATE(g.fecha) BETWEEN :desde AND :hasta
+                          UNION ALL
+                          SELECT c.id, c.fecha, c.total as monto, 'GASTO' as tipo, 
+                          'COMPRA DE MERCANCIA' as descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre,
+                          (SELECT COUNT(*) FROM table_compras_detalle WHERE compra_id = c.id) as cantidad_items,
+                          p.nombre as proveedor_nombre, (c.total - c.pagado) as saldo_pendiente
+                          FROM table_compras c
+                          INNER JOIN table_proveedores p ON c.proveedor_id = p.id
+                          WHERE DATE(c.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $egresos = $this->db->resultSet() ?: [];

@@ -139,4 +139,25 @@ class ModelProveedor {
         $this->db->bind(':id', $id);
         return $this->db->execute();
     }
+
+    public function obtenerDetalleCompra($id) {
+        $this->db->query("SELECT c.*, p.nombre as proveedor_nombre, p.telefono as proveedor_telefono, 
+                          u.username as usuario_nombre 
+                          FROM table_compras c
+                          INNER JOIN table_proveedores p ON c.proveedor_id = p.id
+                          INNER JOIN table_usuarios u ON c.usuario_id = u.id
+                          WHERE c.id = :id");
+        $this->db->bind(':id', $id);
+        $compra = $this->db->single();
+
+        if ($compra) {
+            $this->db->query("SELECT cd.*, i.nombre as producto_nombre 
+                              FROM table_compras_detalle cd 
+                              LEFT JOIN table_inventario i ON cd.producto_id = i.id
+                              WHERE cd.compra_id = :id");
+            $this->db->bind(':id', $id);
+            $compra->items = $this->db->resultSet();
+        }
+        return $compra;
+    }
 }

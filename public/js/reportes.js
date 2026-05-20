@@ -389,36 +389,57 @@ window.verDetalleCompra = async (id) => {
         const res = await fetch(`${URLROOT}/proveedores/obtenerDetalleCompra/${id}`);
         const data = await res.json();
 
-        if (!data) return AppUtils.showToast('Información de gasto no disponible', 'error');
+        if (!data) return AppUtils.showToast('Detalle de ingreso no disponible', 'error');
 
         Swal.fire({
-            title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Auditoría de Egreso</span><br><span class="text-rose-600">COMPRA #${id}</span>`,
+            title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Vista Previa Egreso</span><br><span class="text-rose-600">COMPRA #${data.id}</span>`,
             html: `
-                <div class="text-left space-y-4 pt-4">
-                    <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                        <p class="text-[9px] font-black text-slate-400 uppercase mb-2">Proveedor / Concepto</p>
-                        <p class="font-black text-navy-blue uppercase text-sm leading-tight">${data.proveedor_nombre || 'PROVEEDOR GENERAL'}</p>
-                        <p class="text-[11px] text-slate-500 mt-1 font-bold italic">"${data.producto_nombre || 'Insumos varios'}"</p>
+                <div class="text-left space-y-6 pt-4">
+                    <div class="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div class="space-y-1">
+                            <p class="text-[9px] font-black text-slate-400 uppercase">Fecha Registro</p>
+                            <p class="text-xs font-bold text-slate-700">${new Date(data.fecha).toLocaleString('es-CO')}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[9px] font-black text-slate-400 uppercase">Registrado Por</p>
+                            <p class="text-xs font-bold text-slate-700">${data.usuario_nombre || 'SISTEMA'}</p>
+                        </div>
+                        <div class="space-y-1 col-span-2">
+                            <p class="text-[9px] font-black text-slate-400 uppercase">Proveedor</p>
+                            <p class="text-xs font-bold text-slate-700 uppercase">${data.proveedor_nombre} <span class="text-slate-400 font-mono text-[10px] ml-2">${data.proveedor_telefono || ''}</span></p>
+                        </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="p-4 bg-white border border-slate-100 rounded-2xl">
-                            <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Costo Unitario</p>
-                            <p class="font-bold text-slate-700">${AppUtils.formatCurrency(data.costo_unitario)}</p>
-                        </div>
-                        <div class="p-4 bg-white border border-slate-100 rounded-2xl">
-                            <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Cantidad</p>
-                            <p class="font-black text-navy-blue">${data.cantidad} UND</p>
-                        </div>
+                    <div class="rounded-2xl border border-slate-100 overflow-hidden">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50">
+                                    <th class="p-3 text-[10px] font-black text-slate-400 uppercase">Artículo / Repuesto</th>
+                                    <th class="p-3 text-[10px] font-black text-slate-400 uppercase text-center">Cant.</th>
+                                    <th class="p-3 text-[10px] font-black text-slate-400 uppercase text-right">Costo</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50 bg-white">
+                                ${data.items.map(i => `
+                                    <tr>
+                                        <td class="p-3">
+                                            <p class="text-xs font-bold text-slate-600 uppercase">${i.descripcion || i.producto_nombre}</p>
+                                        </td>
+                                        <td class="p-3 text-center text-xs font-bold text-slate-500">${i.cantidad}</td>
+                                        <td class="p-3 text-right text-xs font-black text-slate-700">${AppUtils.formatCurrency(i.cantidad * i.costo_unitario)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
                     </div>
 
                     <div class="bg-navy-blue p-5 rounded-2xl space-y-3 text-white">
                         <div class="flex justify-between items-center text-xs opacity-70">
-                            <span class="font-bold uppercase tracking-tighter">Total Facturado</span>
+                            <span class="font-bold uppercase">Total Facturado</span>
                             <span class="font-bold">${AppUtils.formatCurrency(data.total)}</span>
                         </div>
                         <div class="flex justify-between items-center text-xs text-emerald-400">
-                            <span class="font-bold uppercase tracking-tighter">Total Abonado</span>
+                            <span class="font-bold uppercase">Total Abonado</span>
                             <span class="font-bold">${AppUtils.formatCurrency(data.pagado)}</span>
                         </div>
                         <div class="flex justify-between items-center pt-3 border-t border-white/10">
@@ -426,16 +447,19 @@ window.verDetalleCompra = async (id) => {
                             <span class="text-2xl font-black">${AppUtils.formatCurrency(data.total - data.pagado)}</span>
                         </div>
                     </div>
-
-                    <div class="flex items-center justify-center gap-2 p-3 bg-slate-50 rounded-xl text-[10px] text-slate-400 font-bold uppercase">
-                        <i data-lucide="calendar" class="w-3 h-3"></i>
-                        Registrado el: ${new Date(data.fecha).toLocaleString()}
-                    </div>
+                    
+                    ${data.fecha_vencimiento ? `
+                        <div class="flex items-center justify-center gap-2 p-3 bg-rose-50 rounded-xl text-[10px] text-rose-600 font-bold uppercase border border-rose-100">
+                            <i data-lucide="calendar" class="w-3 h-3"></i>
+                            Fecha de Cobro: ${new Date(data.fecha_vencimiento).toLocaleDateString()}
+                        </div>
+                    ` : ''}
                 </div>
             `,
             showConfirmButton: false,
             showCancelButton: true,
-            cancelButtonText: 'Cerrar Auditoría',
+            cancelButtonText: 'Cerrar Detalle',
+            width: '500px',
             didOpen: () => lucide.createIcons()
         });
     } catch (e) { console.error(e); }
