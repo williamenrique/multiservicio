@@ -206,6 +206,16 @@ CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
   CONSTRAINT `fk_detalle_producto_compra` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- 14. Tabla de Solicitudes de Recuperación de Acceso
+CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `usuario_id` int(11) NOT NULL,
+  `tipo` varchar(50) NOT NULL DEFAULT 'RECUPERACION',
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_recuperaciones_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- --------------------------------------------------------
 -- INSERCION DE DATOS INICIALES (SEMILLAS)
 -- --------------------------------------------------------
@@ -213,6 +223,7 @@ CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
 -- Limpiar tablas antes de insertar (Orden inverso de FK)
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE `table_usuario_sessions`;
+TRUNCATE TABLE `table_recuperaciones`;
 TRUNCATE TABLE `table_usuarios`;
 TRUNCATE TABLE `table_roles`;
 TRUNCATE TABLE `table_staff`;

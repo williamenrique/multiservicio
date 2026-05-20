@@ -18,6 +18,41 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Botón "Olvidé mi contraseña" o similar
+    const btnOlvidar = document.getElementById('btnForgotPassword');
+    if (btnOlvidar) {
+        btnOlvidar.addEventListener('click', (e) => {
+            e.preventDefault();
+            abrirModalRecuperacion();
+        });
+    }
+
+    async function abrirModalRecuperacion() {
+        const { value: identificador } = await Swal.fire({
+            title: 'Recuperar Acceso',
+            text: 'Ingrese su Usuario, Correo o Cédula para validar su identidad.',
+            input: 'text',
+            inputPlaceholder: 'Identificador...',
+            showCancelButton: true,
+            confirmButtonText: 'Enviar Solicitud',
+            confirmButtonColor: '#39FF14',
+            cancelButtonText: 'Cancelar',
+            inputValidator: (value) => {
+                if (!value) return 'Debe ingresar un dato válido';
+            }
+        });
+
+        if (identificador) {
+            const res = await fetch(`${URLROOT}/auth/solicitarRecuperacion`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identificador })
+            });
+            const result = await res.json();
+            AppUtils.showAlert(result.success ? 'Solicitud Enviada' : 'Error', result.mensaje || result.error, result.success ? 'success' : 'error');
+        }
+    }
+
     /**
      * Realiza la petición asíncrona al servidor.
      * @param {boolean} force - Si es true, el servidor cerrará cualquier sesión previa.

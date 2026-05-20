@@ -77,8 +77,12 @@
                     </button>
                     <div id="digitalClock" class="text-neon-green font-mono text-lg flex-shrink-0 mr-4">00:00:00</div>
                 </div>
-                <!-- Área de Notificaciones -->
-                <div id="notifications-area" class="flex justify-end items-center ml-auto px-4"></div>
+
+                <div class="flex items-center gap-4 ml-auto px-4">
+                    <!-- Contenedor dinámico para la campana de recuperación -->
+                    <div id="recovery-bell-container"></div>
+                    <div id="notifications-area"></div>
+                </div>
 
                 <div class="relative group">
                     <button id="userDropdownTrigger" class="flex items-center gap-3 p-2 bg-gray-800 rounded-full text-white hover:bg-gray-700 transition-colors">

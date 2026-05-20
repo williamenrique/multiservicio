@@ -11,6 +11,7 @@
     <title><?php echo s($data['titulo']); ?> | Taller Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
     <style>
         .glass-login {
@@ -73,6 +74,12 @@
                     Ingresar al Sistema
                 </button>
             </form>
+            <!-- Agregar esto en app/Views/auth/login.php -->
+            <div class="mt-4 text-center">
+                <a href="#" id="btnForgotPassword" class="text-xs font-bold text-slate-400 hover:text-neon-green transition-colors uppercase tracking-widest">
+                    ¿Olvidaste tu usuario o contraseña?
+                </a>
+            </div>
         </div>
         <p class="text-center text-gray-600 text-xs mt-8">© <?php echo date('Y'); ?> Taller Pro v1.0 - Gestión Profesional</p>
     </div>
@@ -81,6 +88,7 @@
         const URLROOT = "<?php echo URLROOT; ?>";
         lucide.createIcons();
     </script>
+    <script src="<?php echo URL_JS; ?>utils.js"></script>
     <script src="<?php echo URL_JS; ?>login.js"></script>
 </body>
 </html>

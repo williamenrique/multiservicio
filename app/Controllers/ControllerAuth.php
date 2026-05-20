@@ -143,4 +143,67 @@ class ControllerAuth extends Controller {
         // Redirigir al usuario a la página de inicio de sesión
         redirect('auth');
     }
+
+    /**
+     * Procesa la solicitud de recuperación enviada desde el modal del login.
+     */
+    public function solicitarRecuperacion() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            $identificador = isset($input['identificador']) ? trim($input['identificador']) : '';
+
+            // Buscamos si el usuario existe por Email, Nick o Cédula
+            // Reutilizamos buscarPorIdentificador pero podrías ampliarlo en el modelo si CI no está incluido
+            $userFound = $this->userModel->buscarPorIdentificador($identificador);
+
+            if ($userFound) {
+                $res = $this->userModel->registrarSolicitudRecuperacion($userFound->id);
+                if ($res) {
+                    echo json_encode(['success' => true, 'mensaje' => 'Solicitud enviada al administrador.']);
+                } else {
+                    echo json_encode(['success' => false, 'error' => 'No se pudo procesar la solicitud.']);
+                }
+            } else {
+                echo json_encode(['success' => false, 'error' => 'No se encontró ningún usuario con esos datos.']);
+            }
+            exit();
+        }
+    }
+
+    /**
+     * Retorna las solicitudes para la campana del administrador.
+     */
+    public function getSolicitudes() {
+        if (isset($_SESSION['user_role']) && strtoupper($_SESSION['user_role']) === 'ADMINISTRADOR') {
+            $solicitudes = $this->userModel->obtenerSolicitudesPendientes();
+            echo json_encode(['success' => true, 'data' => $solicitudes]);
+        } else {
+            echo json_encode(['success' => false]);
+        }
+        exit();
+    }
+
+    /**
+     * Muestra la vista de gestión de solicitudes de recuperación (Solo Admin).
+     */
+    public function solicitudes() {
+        AuthGuard::role('Administrador');
+        $data = [
+            'titulo' => 'Solicitudes de Acceso'
+        ];
+        $this->view('recuperar/index', $data);
+    }
+
+    /**
+     * Elimina una solicitud de recuperación (marcar como comprobado).
+     */
+    public function eliminarSolicitud($id) {
+        if (isset($_SESSION['user_role']) && strtoupper($_SESSION['user_role']) === 'ADMINISTRADOR') {
+            $res = $this->userModel->eliminarSolicitud($id);
+            echo json_encode(['success' => $res]);
+        } else {
+            echo json_encode(['success' => false]);
+        }
+        exit();
+    }
 }

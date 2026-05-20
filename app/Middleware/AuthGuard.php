@@ -54,7 +54,7 @@ class AuthGuard {
     public static function role($roleRequired) {
         self::handle(); // Primero verificamos que esté logueado
 
-        if ($_SESSION['user_role'] !== $roleRequired) {
+        if (strtoupper($_SESSION['user_role']) !== strtoupper($roleRequired)) {
             // Si el rol no coincide, lo mandamos al dashboard con un aviso
             header('location: ' . URLROOT . '/dashboard?error=unauthorized');
             exit();

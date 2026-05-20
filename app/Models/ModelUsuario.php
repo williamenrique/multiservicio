@@ -21,7 +21,7 @@ class ModelUsuario {
                           FROM table_usuarios u 
                           INNER JOIN table_staff s ON u.staff_id = s.id 
                           INNER JOIN table_roles r ON u.role_id = r.id 
-                          WHERE (s.email = :id OR u.username = :id) AND u.estado = 1");
+                          WHERE (s.email = :id OR u.username = :id OR s.cedula = :id) AND u.estado = 1");
         $this->db->bind(':id', $identificador);
         return $this->db->single();
     }
@@ -79,6 +79,37 @@ class ModelUsuario {
         $this->db->bind(':ip_address', $datos['ip_address']);
         $this->db->bind(':usuario_agent', $datos['usuario_agent']);
         $this->db->bind(':created_at', date('Y-m-d H:i:s'));
+        return $this->db->execute();
+    }
+
+    /**
+     * Registra una nueva solicitud de recuperación de acceso.
+     */
+    public function registrarSolicitudRecuperacion($usuario_id, $tipo = 'RECUPERACION') {
+        $this->db->query("INSERT INTO table_recuperaciones (usuario_id, tipo, fecha) VALUES (:uid, :tipo, NOW())");
+        $this->db->bind(':uid', $usuario_id);
+        $this->db->bind(':tipo', $tipo);
+        return $this->db->execute();
+    }
+
+    /**
+     * Obtiene todas las solicitudes pendientes para el administrador.
+     */
+    public function obtenerSolicitudesPendientes() {
+        $this->db->query("SELECT r.id, u.username, u.password, s.nombre, s.email, s.cedula, r.tipo, r.fecha 
+                          FROM table_recuperaciones r
+                          INNER JOIN table_usuarios u ON r.usuario_id = u.id
+                          INNER JOIN table_staff s ON u.staff_id = s.id
+                          ORDER BY r.fecha DESC");
+        return $this->db->resultSet();
+    }
+
+    /**
+     * Elimina una solicitud (Marcada como procesada).
+     */
+    public function eliminarSolicitud($id) {
+        $this->db->query("DELETE FROM table_recuperaciones WHERE id = :id");
+        $this->db->bind(':id', $id);
         return $this->db->execute();
     }
 }

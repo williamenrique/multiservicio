@@ -6,6 +6,15 @@
             <p class="text-slate-500 text-sm">Control de recuperación de usuario y/o clave.</p>
         </div>
     </div>
+
+    <!-- Contenedor para la lista de solicitudes -->
+    <div id="recovery-list-container" class="space-y-4 max-w-4xl mx-auto mt-8">
+        <!-- Se carga dinámicamente desde app.js -> cargarTablaRecuperacion() -->
+    </div>
 </div>
 
-<script src="<?php echo URLROOT; ?>/js/recuperar.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof cargarTablaRecuperacion === 'function') cargarTablaRecuperacion();
+    });
+</script>
