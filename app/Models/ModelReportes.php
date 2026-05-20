@@ -48,4 +48,41 @@ class ModelReportes {
             ]
         ];
     }
+
+    public function obtenerReporteDetallado($desde, $hasta) {
+        // 1. Detalle de Ventas (Vehículos + Items)
+        $this->db->query("SELECT v.id, v.fecha, v.placa, v.modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, (vd.cantidad * vd.precio_unitario) as subtotal_item
+                          FROM table_ventas v
+                          JOIN table_ventas_detalle vd ON v.id = vd.venta_id
+                          WHERE v.status = 'COMPLETADO' AND DATE(v.fecha) BETWEEN :desde AND :hasta
+                          ORDER BY v.fecha DESC");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $ventas = $this->db->resultSet() ?: [];
+
+        // 2. Detalle de Compras (Proveedores + Items + Deuda)
+        $this->db->query("SELECT c.id, c.fecha, p.nombre as proveedor, cd.descripcion, cd.cantidad, cd.costo_unitario, c.total as total_factura, c.pagado, (c.total - c.pagado) as deuda
+                          FROM table_compras c
+                          JOIN table_proveedores p ON c.proveedor_id = p.id
+                          JOIN table_compras_detalle cd ON c.id = cd.compra_id
+                          WHERE DATE(c.fecha) BETWEEN :desde AND :hasta
+                          ORDER BY c.fecha DESC");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $compras = $this->db->resultSet() ?: [];
+
+        // 3. Detalle de Gastos
+        $this->db->query("SELECT * FROM table_gastos 
+                          WHERE DATE(fecha) BETWEEN :desde AND :hasta
+                          ORDER BY fecha DESC");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $gastos = $this->db->resultSet() ?: [];
+
+        return [
+            'ventas' => $ventas,
+            'compras' => $compras,
+            'gastos' => $gastos
+        ];
+    }
 }

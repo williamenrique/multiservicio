@@ -23,4 +23,15 @@ class ControllerReportes extends Controller {
         header('Content-Type: application/json');
         echo json_encode($data);
     }
+
+    public function detallado() {
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+
+        $data = $this->reporteModel->obtenerReporteDetallado($desde, $hasta);
+        
+        if (ob_get_length()) ob_clean();
+        header('Content-Type: application/json');
+        echo json_encode($data);
+    }
 }
