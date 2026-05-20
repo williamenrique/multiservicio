@@ -24,7 +24,7 @@
 
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
-        <aside id="sidebar" class="w-64 bg-navy-blue border-r border-gray-800 transition-all duration-300">
+        <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-50 w-64 bg-navy-blue border-r border-gray-800 transition-all duration-300 transform -translate-x-full lg:translate-x-0 shadow-2xl lg:shadow-none">
             <div class="px-5 py-6 flex items-center gap-4 border-b border-gray-800/50 min-h-[64px]">
                 <?php if(!empty($company->logo)): ?>
                     <img src="<?php echo URLROOT . '/' . $company->logo; ?>" class="w-8 h-8 object-contain" alt="Logo">

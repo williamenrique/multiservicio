@@ -43,7 +43,7 @@ class ControllerAuth extends Controller {
 
             if ($userFound) {
                 // En el futuro cambiar a password_verify
-                if (($userFound->password)) {
+                if ($password === $userFound->password) { // Comparación directa para contraseñas sin hash
 
                     // Control de sesión única: Verificar si ya hay un registro en la BD
                     $sesionActiva = $this->userModel->obtenerSesionActiva($userFound->id);

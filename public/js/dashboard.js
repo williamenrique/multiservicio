@@ -29,10 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
      * Permite retomar un borrador desde el dashboard
      */
     window.continuarVenta = (id_db) => {
-        // Guardamos en localStorage el ID con el prefijo que espera facturacion.js
-        // para que al cargar la página de facturación, se abra automáticamente.
-        localStorage.setItem('pos_active_invoice_id', 'TKT-' + id_db);
-        window.location.href = `${URLROOT}/facturacion`;
+        // Pasamos el ID por URL para no depender de LocalStorage
+        window.location.href = `${URLROOT}/facturacion?id=${id_db}`;
     };
 
     /**
@@ -184,12 +182,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Renderizar Deudas Proveedores
         if (statsElements.supplierDebts && data.supplierDebts) {
-            statsElements.supplierDebts.innerHTML = data.supplierDebts.map(debt => `
-                <div class="glass-card p-4 rounded-xl">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">${debt.nombre}</p>
-                    <p class="text-lg font-black text-rose-500">${AppUtils.formatCurrency(debt.saldo_pendiente)}</p>
-                </div>
-            `).join('');
+            if (data.supplierDebts.length === 0) {
+                statsElements.supplierDebts.innerHTML = `
+                    <div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400 border-2 border-dashed border-slate-100">
+                        <i data-lucide="check-circle" class="w-10 h-10 mx-auto mb-2 opacity-20 text-emerald-500"></i>
+                        <p class="text-[10px] font-bold uppercase tracking-widest">Al día con proveedores</p>
+                    </div>`;
+            } else {
+                statsElements.supplierDebts.innerHTML = data.supplierDebts.map(debt => `
+                    <div class="glass-card p-4 rounded-xl">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">${debt.nombre}</p>
+                        <p class="text-lg font-black text-rose-500">${AppUtils.formatCurrency(debt.saldo_pendiente)}</p>
+                    </div>
+                `).join('');
+            }
         }
 
         // Tabla de Actividad Reciente (Ventas)

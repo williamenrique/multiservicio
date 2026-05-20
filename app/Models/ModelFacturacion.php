@@ -83,7 +83,10 @@ class ModelFacturacion {
 
             $subtotal = 0;
             foreach ($items as $item) $subtotal += ($item['precio'] * $item['cantidad']);
-            $iva_monto = $subtotal * $iva_porcentaje;
+
+            // Respetar el estado del interruptor de IVA enviado desde el frontend
+            $iva_activo = isset($datos['iva_activo']) ? (bool)$datos['iva_activo'] : false;
+            $iva_monto = $iva_activo ? ($subtotal * $iva_porcentaje) : 0;
             $total = $subtotal + $iva_monto;
 
             if ($ventaId) {
@@ -91,7 +94,8 @@ class ModelFacturacion {
                 $this->db->query("UPDATE table_ventas SET 
                                   cliente_id = :cid, placa = :placa, modelo_vehiculo = :modelo, 
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
-                                  status = :status 
+                                  status = :status" . 
+                                  ($status === 'COMPLETADO' ? ", fecha_cierre = NOW()" : "") . " 
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
                 $this->db->bind(':status', $status);

@@ -35,44 +35,39 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
-    /**
-     * Persistencia: Guardar el ID activo para que no se pierda al recargar
-     */
-    const saveInvoicesToLocal = () => {
-        localStorage.setItem('pos_active_invoice_id', activeInvoiceId);
-    };
-
     const loadInvoicesFromServer = async () => {
         try {
             const res = await fetch(`${URLROOT}/facturacion/listarBorradores`);
             const drafts = await res.json();
 
-            if (drafts.length > 0) {
-                // Preservar facturas locales que tienen cambios pero aún no tienen id_db
-                // Ahora protegemos si tiene items O si el usuario empezó a escribir placa/modelo
-                const localOnly = openInvoices.filter(inv => !inv.id_db && (inv.items.length > 0 || inv.placa.trim() !== '' || inv.modelo.trim() !== ''));
+            openInvoices = drafts.map(d => ({
+                id: 'TKT-' + d.id,
+                id_db: d.id,
+                placa: d.placa || '',
+                modelo: d.modelo_vehiculo || '',
+                cliente_id: d.cliente_id || '',
+                iva_activo: (parseFloat(d.iva_monto) > 0),
+                items: d.items || [],
+                usuario_id: d.usuario_id,
+                usuario_nombre: d.usuario_nombre
+            }));
 
-                openInvoices = drafts.map(d => {
-                    const existing = openInvoices.find(inv => inv.id_db === d.id);
-                    return {
-                        id: 'TKT-' + d.id,
-                        id_db: d.id,
-                        placa: d.placa || '',
-                        modelo: d.modelo_vehiculo || '',
-                        cliente_id: d.cliente_id || '',
-                        // Si ya lo tenemos localmente, respetamos su switch de IVA, si no, calculamos basado en monto
-                        iva_activo: existing ? existing.iva_activo : (parseFloat(d.iva_monto) > 0 || d.items.length === 0),
-                        items: d.items || [],
-                        usuario_id: d.usuario_id,
-                        usuario_nombre: d.usuario_nombre
-                    };
-                }).concat(localOnly);
+            // Validar si la factura activa fue cerrada o eliminada por otro usuario
+            if (activeInvoiceId && activeInvoiceId.startsWith('TKT-')) {
+                const stillExists = openInvoices.some(inv => inv.id === activeInvoiceId);
+                if (!stillExists) {
+                    activeInvoiceId = null;
+                    clearInputs();
+                }
+            }
 
-                // Restaurar la factura activa por ID
-                const savedId = localStorage.getItem('pos_active_invoice_id');
-                if (savedId && openInvoices.find(inv => inv.id === savedId)) {
-                    activeInvoiceId = savedId;
-                } else if (openInvoices.length > 0) {
+            if (!activeInvoiceId && openInvoices.length > 0) {
+                // Intentar capturar ID desde la URL (si viene del dashboard)
+                const urlId = new URLSearchParams(window.location.search).get('id');
+                const found = openInvoices.find(inv => String(inv.id_db) === String(urlId));
+                if (urlId && found) {
+                    activeInvoiceId = 'TKT-' + urlId;
+                } else {
                     activeInvoiceId = openInvoices[0].id;
                 }
             }
@@ -118,33 +113,40 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedItemFromSearch = null;
         searchInput.value = '';
 
-        // Obtener el nombre del usuario de forma segura (Fix error null textContent)
-        const userEl = document.getElementById('pos-current-user');
-        const userName = userEl ? userEl.textContent : (typeof currentLoggedInUser !== 'undefined' && currentLoggedInUser ? currentLoggedInUser.staffName : '---');
+        const userName = currentLoggedInUser ? currentLoggedInUser.staffName : '---';
 
-        const newInvoice = {
+        const invData = {
             id: 'PROV-' + Math.floor(Math.random() * 9000 + 1000),
-            id_db: null, // Guardará el ID real de la DB para actualizar el borrador
+            id_db: null,
             placa: '',
             modelo: '',
             cliente_id: '',
-            iva_activo: true,
+            iva_activo: false,
             items: [],
             usuario_id: currentLoggedInUser ? currentLoggedInUser.id : null,
             usuario_nombre: userName
         };
 
-        openInvoices.push(newInvoice);
-        activeInvoiceId = newInvoice.id;
+        // Enviar a DB inmediatamente para obtener ID real y evitar LocalStorage
+        try {
+            const res = await fetch(`${URLROOT}/facturacion/sincronizarBorrador`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(invData)
+            });
+            const result = await res.json();
 
-        // Si se invoca manualmente (clic en botón), forzamos la creación en DB
-        if (forceSave) {
-            await syncActiveInvoice(true);
+            if (result.success) {
+                invData.id = 'TKT-' + result.venta_id;
+                invData.id_db = result.venta_id;
+                openInvoices.push(invData);
+                activeInvoiceId = invData.id;
+                renderQueue();
+                renderInvoice();
+            }
+        } catch (e) {
+            console.error("Error al crear borrador en DB:", e);
         }
-
-        saveInvoicesToLocal();
-        renderQueue();
-        renderInvoice();
     };
 
     // Listeners para guardar metadatos en tiempo real
@@ -173,7 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const inv = openInvoices.find(i => i.id === activeInvoiceId);
         if (inv) {
             inv[field] = value;
-            saveInvoicesToLocal();
             debounceSync();
         }
     };
@@ -189,45 +190,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         container.innerHTML = openInvoices.map((inv, index) => {
-            // Obtener datos del usuario de forma ultra segura y normalizada
-            const user = currentLoggedInUser;
-            const role = user?.role?.trim() || '';
-
-            // Convertimos a String solo si existen, para evitar comparar "null" con "null"
-            const currentUserId = user?.id ? String(user.id) : null;
-            const invoiceOwnerId = inv.usuario_id ? String(inv.usuario_id) : null;
-
-            let canDelete = false;
-
-            // ADMINISTRADOR: Poder absoluto
-            if (role === 'Administrador') {
-                canDelete = true;
-            }
-            // MECÁNICO: Solo lo suyo
-            else if (role === 'Mecánico') {
-                // Caso 1: Factura nueva local (aún no sincronizada)
-                if (!inv.id_db) {
-                    canDelete = true;
-                }
-                // Caso 2: Factura en DB, los IDs deben ser válidos y coincidir
-                else if (currentUserId !== null && invoiceOwnerId !== null && currentUserId === invoiceOwnerId) {
-                    canDelete = true;
-                }
-            }
-            // OTROS ROLES: No pueden cerrar nada (canDelete sigue en false)
-
             return `
-            <div onclick="switchInvoice('${inv.id}')" class="flex-shrink-0 px-3 py-1.5 rounded-lg border-2 transition-all cursor-pointer flex items-center gap-3 ${inv.id === activeInvoiceId ? 'border-neon-green bg-white shadow-sm' : 'border-transparent bg-slate-100 opacity-60 hover:opacity-100'}">
+            <div onclick="switchInvoice('${inv.id}')" class="flex-shrink-0 px-3 py-1.5 rounded-lg border-2 transition-all cursor-pointer flex items-center gap-3 
+                ${inv.id === activeInvoiceId ? 'border-neon-green bg-white shadow-sm' : 'border-transparent bg-slate-100 opacity-60 hover:opacity-100'}">
                 <div class="flex flex-col">
                     <span class="text-[9px] font-black text-navy-blue">${inv.id}</span>
                     <span class="text-[10px] font-bold uppercase truncate max-w-[80px]">${inv.modelo || 'SIN DESC.'}</span>
                 </div>
-                ${canDelete
-                    ? `<button onclick="closeInvoice(${index}, event)" class="text-slate-400 hover:text-red-500 transition-colors" title="Eliminar Factura"><i data-lucide="x" class="w-3 h-3"></i></button>`
-                    : `<button class="text-slate-300 cursor-not-allowed" title="No tienes permiso para cerrar esta factura" disabled>
-                        <i data-lucide="lock" class="w-3 h-3"></i>
-                       </button>`
-                }
+                <button onclick="closeInvoice(${index}, event)" class="text-slate-400 hover:text-red-500 transition-colors" title="Cerrar Factura">
+                    <i data-lucide="x" class="w-3 h-3"></i>
+                </button>
             </div>
         `}).join('');
         lucide.createIcons();
@@ -240,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.switchInvoice = (id) => {
         activeInvoiceId = id;
-        saveInvoicesToLocal();
         renderQueue();
         renderInvoice();
     };
@@ -260,7 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeInvoiceId = openInvoices[0].id;
             }
 
-            saveInvoicesToLocal();
             renderQueue();
             renderInvoice();
         };
@@ -307,6 +277,15 @@ document.addEventListener('DOMContentLoaded', () => {
             inv.modelo = inputModelo.value.trim();
             inv.cliente_id = inputCliente.value;
         }
+
+        // Calcular totales para asegurar persistencia de IVA 0 si el switch está apagado
+        const subtotal = inv.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+        const isIvaEnabled = inv.iva_activo === true;
+        const ivaMonto = isIvaEnabled ? (subtotal * (IVA_PERCENT / 100)) : 0;
+
+        inv.subtotal = subtotal;
+        inv.iva_monto = ivaMonto;
+        inv.total = subtotal + ivaMonto;
 
         // Evitar sincronizar facturas que no tienen contenido relevante (evita filas vacías en DB)
         const hasContent = inv.items.length > 0 || inv.placa !== '' || inv.modelo !== '' || inv.cliente_id !== '';
@@ -377,7 +356,6 @@ document.addEventListener('DOMContentLoaded', () => {
         inputQty.value = 1;
         searchResults.classList.add('hidden');
         renderInvoice();
-        saveInvoicesToLocal();
         syncActiveInvoice(); // Sincronizar tras añadir item
     });
 
@@ -399,7 +377,6 @@ document.addEventListener('DOMContentLoaded', () => {
         inputServicioNombre.value = '';
         inputServicioPrecio.value = '';
         renderInvoice();
-        saveInvoicesToLocal();
         syncActiveInvoice(); // Sincronizar tras añadir servicio
     });
 
@@ -408,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeInvoice) {
             activeInvoice.items.splice(index, 1);
             renderInvoice();
-            saveInvoicesToLocal();
             syncActiveInvoice();
         }
     };
@@ -483,6 +459,15 @@ document.addEventListener('DOMContentLoaded', () => {
         activeInvoice.modelo = inputModelo.value;
         activeInvoice.cliente_id = inputCliente.value;
 
+        // Recalcular finales antes de procesar el cierre
+        const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+        const isIvaEnabled = activeInvoice.iva_activo === true;
+        const ivaMonto = isIvaEnabled ? (subtotal * (IVA_PERCENT / 100)) : 0;
+
+        activeInvoice.subtotal = subtotal;
+        activeInvoice.iva_monto = ivaMonto;
+        activeInvoice.total = subtotal + ivaMonto;
+
         const res = await fetch(`${URLROOT}/facturacion/procesar`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -498,7 +483,6 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoiceId = openInvoices.length > 0 ? openInvoices[0].id : null;
 
             if (!activeInvoiceId) clearInputs();
-            saveInvoicesToLocal();
             // Forzamos recarga del servidor para limpiar borradores
             loadInvoicesFromServer();
         } else {

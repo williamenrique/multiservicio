@@ -100,27 +100,6 @@ class ControllerFacturacion extends Controller {
                 return;
             }
 
-            $userRole = trim($_SESSION['user_role'] ?? '');
-            $currentUserId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0;
-            $canDelete = false;
-
-            // Lógica de seguridad inquebrantable
-            if ($userRole === 'Administrador') {
-                $canDelete = true;
-            } elseif ($userRole === 'Mecánico') {
-                $ownerId = property_exists($borrador, 'usuario_id') ? (int)$borrador->usuario_id : 0;
-
-                // Solo permitir si el ID del dueño es válido y coincide con la sesión actual
-                if ($ownerId > 0 && $currentUserId > 0 && $ownerId === $currentUserId) {
-                    $canDelete = true;
-                }
-            }
-
-            if (!$canDelete) {
-                echo json_encode(['success' => false, 'mensaje' => 'No tienes permisos para eliminar este borrador']);
-                return;
-            }
-
             $resultado = $this->facturaModel->eliminarBorrador($id);
             echo json_encode(['success' => $resultado]);
         }

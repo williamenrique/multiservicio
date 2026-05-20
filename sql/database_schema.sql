@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS `table_ventas` (
   `usuario_id` int(11) NOT NULL,
   `status` enum('PENDIENTE','COMPLETADO','CANCELADO') DEFAULT 'PENDIENTE',
   `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
+  `fecha_cierre` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_venta_cliente` (`cliente_id`),
   KEY `fk_venta_usuario` (`usuario_id`),

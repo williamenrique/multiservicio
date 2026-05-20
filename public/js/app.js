@@ -245,8 +245,23 @@ window.confirmarSolicitud = async function (id) {
 function initSidebar() {
     const btn = document.getElementById('toggleSidebar');
     const sidebar = document.getElementById('sidebar');
+    if (!btn || !sidebar) return;
+
     btn.addEventListener('click', () => {
-        sidebar.classList.toggle('w-64');
-        sidebar.classList.toggle('w-20');
+        if (window.innerWidth < 1024) {
+            // Comportamiento en móviles: mostrar/ocultar el sidebar flotante
+            sidebar.classList.toggle('-translate-x-full');
+        } else {
+            // Comportamiento en desktop: colapsar/expandir el sidebar lateral
+            sidebar.classList.toggle('w-64');
+            sidebar.classList.toggle('w-20');
+        }
+    });
+
+    // Cerrar el sidebar al hacer clic fuera (solo en móviles)
+    document.addEventListener('mousedown', (e) => {
+        if (window.innerWidth < 1024 && !sidebar.contains(e.target) && !btn.contains(e.target)) {
+            sidebar.classList.add('-translate-x-full');
+        }
     });
 }

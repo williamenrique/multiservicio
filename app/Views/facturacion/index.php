@@ -105,7 +105,7 @@
                             <span class="text-[9px] text-gray-400 uppercase font-bold">Aplicar tarifa del <?php echo $data['iva_defecto']; ?>%</span>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="pos-iva-toggle" class="sr-only peer" checked>
+                            <input type="checkbox" id="pos-iva-toggle" class="sr-only peer">
                             <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neon-green"></div>
                         </label>
                     </div>

@@ -10,15 +10,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-async function initExpenses(tableEl) {
+async function initExpenses(tableElement) { // Renombrado para claridad
     try {
+        // Destruir instancia previa si existe para permitir la recarga dinámica
+        if ($.fn.DataTable.isDataTable(tableElement)) {
+            $(tableElement).DataTable().destroy();
+        }
+
         const response = await fetch(`${URLROOT}/gastos/listar`);
         const expenses = await response.json();
 
-        expensesTable = $(tableEl).DataTable({
+        expensesTable = $(tableElement).DataTable({
             data: expenses,
             order: [[0, 'desc']],
-            pageLength: 10,
+            pageLength: 10, // Mantener la paginación
             lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
             columns: [
                 {
@@ -41,18 +46,18 @@ async function initExpenses(tableEl) {
             ],
             responsive: true,
             language: {
-                search: "Buscar gasto:",
-                emptyTable: "No hay gastos registrados en el taller",
-                zeroRecords: "No se encontraron coincidencias"
+                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' // Usar URL para idioma completo
             },
             drawCallback: () => lucide.createIcons()
         });
     } catch (e) {
         console.error("Error inicializando tabla de gastos:", e);
+        // Mostrar un mensaje de error en la tabla si falla la carga
+        $(tableElement).find('tbody').html('<tr><td colspan="5" class="text-center py-10 text-red-500">Error al cargar los gastos.</td></tr>');
     }
 }
 
-window.openExpenseModal = async function () {
+window.openExpenseModal = async function () { // Hacer la función asíncrona
     Swal.fire({
         title: 'Registrar Gasto del Taller',
         html: `
@@ -97,7 +102,11 @@ window.openExpenseModal = async function () {
             const data = await response.json();
             if (data.success) {
                 AppUtils.showToast('Gasto registrado');
-                location.reload(); // O recargar la tabla via DataTable si se prefiere
+                // Obtener el elemento de la tabla y recargarla dinámicamente
+                const tableEl = document.getElementById('expensesTable');
+                await initExpenses(tableEl);
+            } else {
+                AppUtils.showToast(data.error || 'Error al registrar el gasto', 'error');
             }
         }
     });
@@ -109,9 +118,10 @@ window.eliminarGasto = (id) => {
         const data = await response.json();
         if (data.success) {
             AppUtils.showToast('Gasto eliminado');
-            if (expensesTable) {
-                location.reload();
-            }
+            const tableEl = document.getElementById('expensesTable');
+            await initExpenses(tableEl);
+        } else {
+            AppUtils.showToast(data.error || 'Error al eliminar el gasto', 'error');
         }
     });
 };

@@ -28,7 +28,7 @@
                         <th class="px-4 py-4">Fecha</th>
                         <th class="px-4 py-4">Descripción del Gasto</th>
                         <th class="px-4 py-4">Categoría</th>
-                        <th class="px-4 py-4">Monto (COP)</th>
+                        <th class="px-4 py-4">Monto</th>
                         <th class="px-4 py-4 text-right">Acciones</th>
                     </tr>
                 </thead>
@@ -39,3 +39,4 @@
         </div>
     </div>
 </div>
+<script src="<?= URLROOT ?>/public/js/gastos.js"></script>

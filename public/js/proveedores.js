@@ -241,9 +241,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(formProveedor);
         const data = Object.fromEntries(formData.entries());
 
+        // Normalizar campos de texto a mayúsculas antes de enviar
+        if (data.nombre) data.nombre = data.nombre.trim().toUpperCase();
+        if (data.direccion) data.direccion = data.direccion.trim().toUpperCase();
+
         // Los campos deshabilitados no se incluyen en FormData, los recuperamos manualmente si es edición
         if (document.getElementById('provId').disabled) {
-            data.id = document.getElementById('provId').value;
+            data.id = document.getElementById('provId').value.trim().toUpperCase();
+        } else if (data.id) {
+            data.id = data.id.trim().toUpperCase();
         }
 
         const res = await fetch(`${URLROOT}/proveedores/guardar`, {
