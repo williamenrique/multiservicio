@@ -54,6 +54,9 @@
                     <a href="<?php echo URLROOT; ?>/gastos" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'gastos') !== false) ? 'active' : ''; ?>" data-section="gastos">
                         <i data-lucide="wallet"></i> <span>Gastos del Taller</span>
                     </a>
+                    <a href="<?php echo URLROOT; ?>/reportes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'reportes') !== false) ? 'active' : ''; ?>" data-section="reportes">
+                        <i data-lucide="bar-chart-big"></i> <span>Reportes Contables</span>
+                    </a>
                     <p class="text-xs uppercase text-gray-500 px-3 mt-4 mb-2">Administración</p>
                     <a href="<?php echo URLROOT; ?>/clientes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'clientes') !== false) ? 'active' : ''; ?>" data-section="clientes">
                         <i data-lucide="users"></i> <span>Clientes</span>
