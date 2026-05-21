@@ -14,7 +14,13 @@ class ControllerProveedores extends Controller {
 
     public function index() {
         RoleGuard::hasAccess(['ADMINISTRADOR']);
-        $data = ['titulo' => 'Gestión de Proveedores'];
+        $empresaModel = $this->model('Empresa');
+        $config = $empresaModel->obtenerConfiguracion();
+        
+        $data = [
+            'titulo' => 'Gestión de Proveedores',
+            'markup_default' => $config->markup_default ?? 30.00
+        ];
         $this->view('proveedor/index', $data);
     }
 

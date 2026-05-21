@@ -15,7 +15,7 @@ class ModelFacturacion {
      */
     public function buscarItems($termino) {
         // Traemos solo columnas necesarias para el POS (excluimos imagen por peso)
-        $this->db->query("SELECT i.id, i.nombre, i.categoria, i.stock, i.precio, 
+        $this->db->query("SELECT i.id, i.nombre, i.categoria, i.stock, i.precio, i.ultimo_costo,
                           (i.stock - COALESCE((
                               SELECT SUM(vd.cantidad) 
                               FROM table_ventas_detalle vd 

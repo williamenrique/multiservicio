@@ -118,5 +118,10 @@
     </div>
 </div>
 
+<!-- Variables de Configuración para JS -->
+<script>
+    const MARKUP_DEFAULT = <?php echo $data['markup_default'] ?? 30; ?>;
+</script>
+
 <!-- Script específico del módulo -->
 <script src="<?php echo URLROOT; ?>/js/proveedores.js"></script>

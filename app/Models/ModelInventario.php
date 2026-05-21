@@ -21,12 +21,13 @@ class ModelInventario {
     }
 
     public function crear($datos) {
-        $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, precio, imagen) 
-                          VALUES (:nombre, :categoria, :stock, :precio, :imagen)");
+        $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, ultimo_costo, precio, imagen) 
+                          VALUES (:nombre, :categoria, :stock, :costo, :precio, :imagen)");
         
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
         $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
         $this->db->bind(':stock', $datos['stock']);
+        $this->db->bind(':costo', $datos['ultimo_costo'] ?? 0);
         $this->db->bind(':precio', $datos['precio']);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
 
@@ -38,6 +39,7 @@ class ModelInventario {
                           SET nombre = :nombre, 
                               categoria = :categoria, 
                               stock = :stock, 
+                              ultimo_costo = :costo,
                               precio = :precio, 
                               imagen = :imagen 
                           WHERE id = :id");
@@ -46,6 +48,7 @@ class ModelInventario {
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
         $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
         $this->db->bind(':stock', $datos['stock']);
+        $this->db->bind(':costo', $datos['ultimo_costo'] ?? 0);
         $this->db->bind(':precio', $datos['precio']);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
 

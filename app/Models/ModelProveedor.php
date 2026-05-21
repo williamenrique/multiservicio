@@ -69,21 +69,26 @@ class ModelProveedor {
             $this->db->beginTransaction();
 
             $productoId = $datos['producto_id'];
+            $costo = (float)$datos['costo'];
+            $precioVenta = (float)($datos['precio_venta'] ?? ($costo * 1.30));
             
             // 1. Si el producto no existe (ID null), lo creamos en el inventario
             if (empty($productoId)) {
-                $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, precio) 
-                                  VALUES (:nom, :cat, :stock, :precio)");
+                $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, ultimo_costo, precio) 
+                                  VALUES (:nom, :cat, :stock, :costo, :precio)");
                 $this->db->bind(':nom', $datos['nombre']);
-                $this->db->bind(':cat', 'REPUESTOS');
+                $this->db->bind(':cat', $datos['categoria'] ?? 'REPUESTOS');
                 $this->db->bind(':stock', $datos['cantidad']);
-                $this->db->bind(':precio', $datos['costo'] * 1.30); // Precio venta sugerido +30%
+                $this->db->bind(':costo', $costo);
+                $this->db->bind(':precio', $precioVenta);
                 $this->db->execute();
                 $productoId = $this->db->lastInsertId();
             } else {
-                // 2. Si existe, sumamos el stock
-                $this->db->query("UPDATE table_inventario SET stock = stock + :cant WHERE id = :id");
+                // 2. Si existe, sumamos el stock y actualizamos costos/precios (Estrategia Reposición)
+                $this->db->query("UPDATE table_inventario SET stock = stock + :cant, ultimo_costo = :costo, precio = :precio WHERE id = :id");
                 $this->db->bind(':cant', $datos['cantidad']);
+                $this->db->bind(':costo', $costo);
+                $this->db->bind(':precio', $precioVenta);
                 $this->db->bind(':id', $productoId);
                 $this->db->execute();
             }
