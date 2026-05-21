@@ -28,7 +28,7 @@
                         class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none"
                         value="<?php echo s($data['config']->name ?? ''); ?>" required>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">NIT / Documento</label>
                         <input type="text" name="nit" id="config-nit"
@@ -40,6 +40,12 @@
                         <input type="number" name="iva" id="config-iva" step="0.01"
                             class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none"
                             value="<?php echo s($data['config']->iva ?? 0); ?>" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Margen Ganancia (%)</label>
+                        <input type="number" name="markup_default" id="config-markup" step="0.01"
+                            class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none font-bold"
+                            value="<?php echo s($data['config']->markup_default ?? 30); ?>" required>
                     </div>
                 </div>
                 <div>

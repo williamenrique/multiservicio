@@ -380,20 +380,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         <input id="pur-search" class="w-full p-2 border rounded-lg uppercase text-sm" placeholder="Escriba nombre del repuesto...">
                         <div id="pur-results" class="absolute w-full mt-1 max-h-40 overflow-y-auto hidden border bg-white z-50 shadow-xl rounded-lg"></div>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-3 gap-3">
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase">Cantidad</label>
                             <input id="pur-qty" type="number" class="w-full p-2 border rounded-lg font-bold" value="1">
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-slate-500 uppercase">Costo Unitario ($)</label>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase">Costo Unit. ($)</label>
                             <input id="pur-cost" type="number" class="w-full p-2 border rounded-lg font-bold" placeholder="0.00">
                         </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase">Ganancia %</label>
+                            <input id="pur-markup" type="number" class="w-full p-2 border rounded-lg font-bold" value="${MARKUP_DEFAULT}">
+                        </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="p-3 bg-blue-50 rounded-xl border border-blue-100 flex justify-between items-center">
+                        <span class="text-[10px] font-black text-blue-600 uppercase">Precio Venta Sugerido:</span>
+                        <span id="pur-suggested" class="text-sm font-black text-navy-blue">$ 0.00</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase">P. Venta Final</label>
+                            <input id="pur-price" type="number" class="w-full p-2 border-2 border-neon-green rounded-lg font-black text-navy-blue" placeholder="0.00">
+                        </div>
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase">Abono Inicial</label>
-                            <input id="pur-paid" type="number" class="w-full p-2 border rounded-lg" value="0">
+                            <input id="pur-paid" type="number" class="w-full p-2 border rounded-lg" value="0" step="0.01">
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase">Fecha de Cobro</label>
@@ -408,6 +420,24 @@ document.addEventListener('DOMContentLoaded', () => {
             didOpen: () => {
                 const search = document.getElementById('pur-search');
                 const results = document.getElementById('pur-results');
+                const costInput = document.getElementById('pur-cost');
+                const markupInput = document.getElementById('pur-markup');
+                const suggestedSpan = document.getElementById('pur-suggested');
+                const priceInput = document.getElementById('pur-price');
+
+                const updatePrice = () => {
+                    const cost = parseFloat(costInput.value) || 0;
+                    const markup = parseFloat(markupInput.value) || 0;
+                    const suggested = cost * (1 + (markup / 100));
+                    suggestedSpan.textContent = AppUtils.formatCurrency(suggested);
+                    priceInput.value = suggested.toFixed(2);
+                };
+
+                // Escuchar cambios en costo y porcentaje para recalcular
+                costInput.addEventListener('input', updatePrice);
+                markupInput.addEventListener('input', updatePrice);
+                // Opcional: Recalcular si cambian la cantidad (aunque no afecte al precio unitario, da feedback visual)
+                document.getElementById('pur-qty').addEventListener('input', updatePrice);
 
                 search.addEventListener('input', async (e) => {
                     const term = e.target.value.trim();
@@ -434,17 +464,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.setPurchaseProduct = (item) => {
                     selectedProduct = item;
                     search.value = item.nombre;
-                    document.getElementById('pur-cost').value = item.precio;
+                    // Al seleccionar, cargamos el último costo conocido del inventario
+                    costInput.value = item.ultimo_costo || 0;
                     results.classList.add('hidden');
+                    updatePrice(); // ¡Calcula el precio de venta inmediatamente!
                 };
             },
             preConfirm: () => {
                 const qty = parseInt(document.getElementById('pur-qty').value);
                 const cost = parseFloat(document.getElementById('pur-cost').value);
+                const priceVenta = parseFloat(document.getElementById('pur-price').value);
                 const name = document.getElementById('pur-search').value.trim();
 
-                if (!name || isNaN(qty) || qty <= 0 || isNaN(cost) || cost <= 0) {
-                    Swal.showValidationMessage('Verifique los datos del producto');
+                if (!name || isNaN(qty) || qty <= 0 || isNaN(cost) || cost <= 0 || isNaN(priceVenta) || priceVenta <= 0) {
+                    Swal.showValidationMessage('Verifique los datos (Cant, Costo y Precio de Venta son requeridos)');
                     return false;
                 }
 
@@ -454,6 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     nombre: name.toUpperCase(),
                     cantidad: qty,
                     costo: cost,
+                    precio_venta: priceVenta,
                     pagado: parseFloat(document.getElementById('pur-paid').value) || 0,
                     fecha_cobro: document.getElementById('pur-cutoff').value
                 };

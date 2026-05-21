@@ -118,6 +118,74 @@
     </div>
 </div>
 
+<!-- Modal para Ingreso de Mercancía (Compra con Precio de Reposición) -->
+<div id="compraModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4">
+    <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <div>
+                <h3 class="text-lg font-black text-navy-blue uppercase tracking-tighter">Ingreso de Mercancía</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase" id="compraProvNombre">Proveedor: ---</p>
+            </div>
+            <button id="btnCloseCompraModal" class="text-slate-400 hover:text-red-500 transition-colors">
+                <i data-lucide="x-circle"></i>
+            </button>
+        </div>
+        
+        <form id="formCompra" class="p-6 space-y-4">
+            <input type="hidden" name="proveedor_id" id="compraProvId">
+            <input type="hidden" name="producto_id" id="compraProdId">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nombre del Artículo / Repuesto</label>
+                    <input type="text" name="nombre" id="compraNombre" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-sm font-bold">
+                </div>
+                
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cantidad</label>
+                    <input type="number" name="cantidad" id="compraCantidad" value="1" min="1" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm font-bold">
+                </div>
+                
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Costo Unitario ($)</label>
+                    <input type="number" step="0.01" name="costo" id="compraCosto" value="0.00" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm font-bold">
+                </div>
+
+                <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 md:col-span-2">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] font-black text-blue-600 uppercase">Margen de Ganancia (%)</span>
+                        <input type="number" id="compraMarkup" value="<?php echo $data['markup_default'] ?? 30; ?>" class="w-16 p-1 text-xs font-bold bg-white border border-blue-200 rounded text-center">
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] font-black text-slate-500 uppercase">Precio Venta Sugerido:</span>
+                        <span id="compraSugerido" class="text-sm font-black text-navy-blue">$ 0.00</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Precio de Venta Final ($)</label>
+                    <input type="number" step="0.01" name="precio_venta" id="compraPrecioVenta" required class="w-full p-2.5 bg-neon-green/10 border border-neon-green/30 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm font-black text-navy-blue">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Abono Inicial</label>
+                    <input type="number" step="0.01" name="pagado" id="compraPagado" value="0" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm">
+                </div>
+                
+                <div class="md:col-span-2">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Fecha de Cobro (Si queda deuda)</label>
+                    <input type="date" name="fecha_cobro" id="compraFechaCobro" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm">
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button type="button" id="btnCancelCompra" class="flex-1 px-4 py-2.5 border border-slate-200 text-slate-500 font-bold rounded-lg hover:bg-slate-50 transition-all uppercase text-xs">Cancelar</button>
+                <button type="submit" class="flex-1 px-4 py-2.5 bg-navy-blue text-white font-bold rounded-lg hover:opacity-90 transition-all uppercase text-xs shadow-lg shadow-navy-blue/20">Registrar Ingreso</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Variables de Configuración para JS -->
 <script>
     const MARKUP_DEFAULT = <?php echo $data['markup_default'] ?? 30; ?>;
