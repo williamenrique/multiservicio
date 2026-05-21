@@ -9,6 +9,11 @@ define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_NAME', 'multiservicio');
 
+// Seguridad para encriptación de datos sensibles
+define('METHOD', 'AES-256-CBC');
+define('SECRET_KEY', '$multi$erc10');
+define('SECRET_IV', '20242025'); 
+
 // 2. Ruta de la Aplicación (Directorio Interno)
 // Esto define la ruta absoluta hasta la carpeta /app
 // Ejemplo: /var/www/taller_pro_internos/app

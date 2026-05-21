@@ -219,6 +219,20 @@ CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
   CONSTRAINT `fk_recuperaciones_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- 15. Tabla de Auditoría (Bitácora de movimientos y seguridad)
+CREATE TABLE IF NOT EXISTS `table_audit_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `usuario_id` int(11) DEFAULT NULL,
+  `modulo` varchar(50) NOT NULL,
+  `accion` varchar(50) NOT NULL,
+  `descripcion` text DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_audit_usuario` (`usuario_id`),
+  CONSTRAINT `fk_audit_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- --------------------------------------------------------
 -- INSERCION DE DATOS INICIALES (SEMILLAS)
 -- --------------------------------------------------------
@@ -227,6 +241,7 @@ CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE `table_usuario_sessions`;
 TRUNCATE TABLE `table_recuperaciones`;
+TRUNCATE TABLE `table_audit_logs`;
 TRUNCATE TABLE `table_usuarios`;
 TRUNCATE TABLE `table_roles`;
 TRUNCATE TABLE `table_staff`;

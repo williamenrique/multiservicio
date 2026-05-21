@@ -79,9 +79,6 @@ class ControllerPerfil extends Controller {
                     if (strlen($pass) < 6) {
                         $this->jsonResponse(['success' => false, 'mensaje' => 'La contraseña debe tener al menos 6 caracteres'], 400);
                     }
-                    $hashed = password_hash($pass, PASSWORD_BCRYPT);
-                    $this->perfilModel->actualizarPassword($userId, $hashed);
-                } else {
                     $this->jsonResponse(['success' => false, 'mensaje' => 'Las contraseñas no coinciden'], 400);
                     return;
                 }

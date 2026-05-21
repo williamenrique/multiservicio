@@ -33,8 +33,22 @@ class ControllerAuth extends Controller {
             
             $input = json_decode(file_get_contents('php://input'), true);
 
-            $usuarioInput = isset($input['usuario']) ? trim($input['usuario']) : ''; 
-            $password = isset($input['password']) ? trim($input['password']) : '';
+            // 1. Validación de Seguridad CSRF
+            if (!isset($input['csrf_token']) || $input['csrf_token'] !== ($_SESSION['csrf_token'] ?? '')) {
+                return $this->jsonResponse(['success' => false, 'error' => 'Error de seguridad: Token inválido o expirado.'], 403);
+            }
+
+            // Aplicamos la nueva Clase Validator
+            $v = new Validator($input);
+            $v->required(['usuario', 'password']);
+
+            if (!$v->success()) {
+                return $this->jsonResponse(['success' => false, 'errors' => $v->getErrors()], 400);
+            }
+
+            // Limpiamos entradas de posibles espacios accidentales
+            $usuarioInput = trim($input['usuario']);
+            $password = trim($input['password']);
             // El flag 'force' indica si el usuario decidió cerrar la sesión activa previa
             $force = isset($input['force']) ? (bool)$input['force'] : false;
 
@@ -42,20 +56,18 @@ class ControllerAuth extends Controller {
             $userFound = $this->userModel->buscarPorIdentificador($usuarioInput);
 
             if ($userFound) {
-                // En el futuro cambiar a password_verify
-                if ($password === $userFound->password) { // Comparación directa para contraseñas sin hash
+                if ($password === $userFound->password) {
 
                     // Control de sesión única: Verificar si ya hay un registro en la BD
                     $sesionActiva = $this->userModel->obtenerSesionActiva($userFound->id);
 
                     if ($sesionActiva && !$force) {
                         // Si hay sesión y no se forzó, enviamos el flag session_exists
-                        echo json_encode([
+                        return $this->jsonResponse([
                             'success' => false, 
                             'session_exists' => true, 
                             'error' => 'Ya tienes una sesión abierta en otro dispositivo.'
                         ]);
-                        exit();
                     }
 
                     // Credenciales válidas: Definir variables de sesión de PHP
@@ -75,17 +87,18 @@ class ControllerAuth extends Controller {
                         'usuario_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido'
                     ]);
 
-                    echo json_encode(['success' => true, 'redirect' => URLROOT . '/dashboard']);
-                    exit();
+                    // Auditoría de inicio de sesión
+                    logAction('AUTH', 'LOGIN', "El usuario {$userFound->username} ha ingresado al sistema.");
+
+                    return $this->jsonResponse(['success' => true, 'redirect' => URLROOT . '/dashboard']);
                 } else {
-                    echo json_encode(['success' => false, 'error' => 'Contraseña incorrecta.']);
-                    exit();
+                    return $this->jsonResponse(['success' => false, 'error' => 'Contraseña incorrecta.'], 401);
                 }
             } else {
-                echo json_encode(['success' => false, 'error' => 'El correo electrónico no está registrado o el usuario está inactivo.']);
-                exit();
+                return $this->jsonResponse(['success' => false, 'error' => 'Usuario no encontrado o inactivo.'], 404);
             }
         } else {
+            // Si se intenta entrar a /auth/login por GET, lo mandamos al index
             redirect('auth');
         }
     }
@@ -124,6 +137,8 @@ class ControllerAuth extends Controller {
 
         // Limpiar el registro de sesión de la base de datos al salir
         if (isset($_SESSION['user_id'])) {
+            // Auditoría de cierre de sesión
+            logAction('AUTH', 'LOGOUT', "El usuario {$_SESSION['user_nick']} ha cerrado su sesión.");
             $this->userModel->eliminarSesiones($_SESSION['user_id']);
         }
 
@@ -158,13 +173,11 @@ class ControllerAuth extends Controller {
 
             if ($userFound) {
                 $res = $this->userModel->registrarSolicitudRecuperacion($userFound->id);
-                if ($res) {
-                    echo json_encode(['success' => true, 'mensaje' => 'Solicitud enviada al administrador.']);
-                } else {
-                    echo json_encode(['success' => false, 'error' => 'No se pudo procesar la solicitud.']);
-                }
+                return $this->jsonResponse($res 
+                    ? ['success' => true, 'mensaje' => 'Solicitud enviada al administrador.'] 
+                    : ['success' => false, 'error' => 'No se pudo procesar la solicitud.']);
             } else {
-                echo json_encode(['success' => false, 'error' => 'No se encontró ningún usuario con esos datos.']);
+                return $this->jsonResponse(['success' => false, 'error' => 'No se encontró ningún usuario con esos datos.'], 404);
             }
             exit();
         }
@@ -176,11 +189,10 @@ class ControllerAuth extends Controller {
     public function getSolicitudes() {
         if (isset($_SESSION['user_role']) && strtoupper($_SESSION['user_role']) === 'ADMINISTRADOR') {
             $solicitudes = $this->userModel->obtenerSolicitudesPendientes();
-            echo json_encode(['success' => true, 'data' => $solicitudes]);
+            return $this->jsonResponse(['success' => true, 'data' => $solicitudes]);
         } else {
-            echo json_encode(['success' => false]);
+            return $this->jsonResponse(['success' => false], 403);
         }
-        exit();
     }
 
     /**
@@ -200,10 +212,9 @@ class ControllerAuth extends Controller {
     public function eliminarSolicitud($id) {
         if (isset($_SESSION['user_role']) && strtoupper($_SESSION['user_role']) === 'ADMINISTRADOR') {
             $res = $this->userModel->eliminarSolicitud($id);
-            echo json_encode(['success' => $res]);
+            return $this->jsonResponse(['success' => $res]);
         } else {
-            echo json_encode(['success' => false]);
+            return $this->jsonResponse(['success' => false], 403);
         }
-        exit();
     }
 }

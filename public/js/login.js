@@ -76,11 +76,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 })
             });
 
-            if (!response.ok) throw new Error('Error en la comunicación con el servidor.');
-
             const result = await response.json();
 
-            if (result.success) {
+            if (!response.ok && !result.session_exists) {
+                throw new Error(result.error || 'Error en la autenticación');
+            }
+
+            if (response.ok && result.success) {
                 // Si las credenciales son válidas, JavaScript redirecciona al Dashboard de inmediato
                 window.location.href = result.redirect;
             } else if (result.session_exists) {
@@ -114,7 +116,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (error) {
             btnSubmit.disabled = false;
             btnSubmit.textContent = "Ingresar al Sistema";
-            alertError.textContent = 'Ocurrió un error inesperado. Intente de nuevo.';
+            alertError.textContent = error.message;
             alertError.style.display = 'block';
         }
     }

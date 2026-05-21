@@ -17,9 +17,7 @@ class AuthGuard {
 
         // Si no existe el ID del usuario en la sesión, está intentando entrar ilegalmente
         if (!isset($_SESSION['user_id'])) {
-            // Usamos el helper de redirección que definiremos luego
-            header('location: ' . URLROOT . '/auth/login');
-            exit();
+            redirect('auth');
         }
  
         // Validación de sesión única contra Base de Datos
@@ -42,8 +40,7 @@ class AuthGuard {
                 setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
             }
             session_destroy();
-            header('location: ' . URLROOT . '/auth/login?error=session_replaced');
-            exit();
+            redirect('auth?error=session_replaced');
         }
     }
 

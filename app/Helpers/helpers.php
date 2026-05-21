@@ -1,66 +1,31 @@
 <?php
-/**
- * HELPERS DEL SISTEMA DE TALLER
- * Funciones globales para formateo, seguridad, renderizado y utilidad.
- */
 
 /**
- * Renderiza una vista aislando la interfaz de Login de los layouts internos del taller
- * @param string $view Nombre de la vista (ej: 'dashboard/index')
- * @param array $data Datos dinámicos para pasar a la plantilla
+ * Encripta una cadena de texto usando AES-256-CBC
  */
-function renderView($view, $data = []) {
-    // Cargar información de la empresa de forma global (Patrón Singleton en el helper)
-    static $companyInfo = null;
-    if ($companyInfo === null) {
-        try {
-            $db = new Database();
-            $db->query("SELECT * FROM table_company_settings WHERE id = 1");
-            $companyInfo = $db->single();
-        } catch (Throwable $e) {
-            // Valores por defecto en caso de error de conexión inicial
-            $companyInfo = (object) ['name' => 'TALLER PRO', 'iva' => 0, 'nit' => '0000000000'];
-        }
-    }
-
-    // Inyectamos el objeto $company para que esté disponible en el header, footer y vistas
-    $data['company'] = $companyInfo;
-
-    // Convertimos las llaves del array en variables independientes (ej: $data['titulo'] -> $titulo)
-    extract($data);
-
-    $header = APPROOT . '/Views/inc/header.php';
-    $footer = APPROOT . '/Views/inc/footer.php';
-    $viewFile = APPROOT . '/Views/' . $view . '.php';
-
-    // Excepción de seguridad: Si la vista es la de login, se renderiza de forma aislada
-    if ($view === 'auth/login') {
-        if (file_exists($viewFile)) {
-            require_once $viewFile;
-        } else {
-            die("Error Crítico: La vista de Login no existe.");
-        }
-        return;
-    }
-
-    // Layout estructurado para las secciones privadas y protegidas de la aplicación
-    if (file_exists($header)) {
-        require_once $header;
-    }
-
-    if (file_exists($viewFile)) {
-        require_once $viewFile;
-    } else {
-        die("Error Crítico: La vista '{$view}' no existe.");
-    }
-
-    if (file_exists($footer)) {
-        require_once $footer;
-    }
+function encryption($string) {
+    if (empty($string)) return '';
+    
+    $key = hash('sha256', SECRET_KEY);
+    $iv = substr(hash('sha256', SECRET_IV), 0, 16);
+    $output = openssl_encrypt($string, METHOD, $key, 0, $iv);
+    return $output ? base64_encode($output) : '';
 }
 
 /**
- * Redirección rápida de páginas utilizando la URL base del sistema
+ * Desencripta una cadena previamente encriptada
+ */
+function decryption($string) {
+    if (empty($string)) return '';
+    
+    $key = hash('sha256', SECRET_KEY);
+    $iv = substr(hash('sha256', SECRET_IV), 0, 16);
+    $output = openssl_decrypt(base64_decode($string), METHOD, $key, 0, $iv);
+    return $output ?: '';
+}
+
+/**
+ * Redirecciona a una página específica dentro del sistema
  */
 function redirect($page) {
     header('location: ' . URLROOT . '/' . $page);
@@ -68,46 +33,14 @@ function redirect($page) {
 }
 
 /**
- * Limpieza de datos contra ataques de Inyección XSS (Cross-Site Scripting)
+ * Sanitiza cadenas de texto para evitar ataques XSS al imprimir en HTML
  */
-function s($data) {
-    if (is_null($data)) return '';
-    return htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
+function s($string) {
+    return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
 }
 
 /**
- * Formatear valores numéricos a la estructura contable de dinero
- */
-function formatMoney($number) {
-    return '$' . number_format((float)$number, 2, '.', ',');
-}
-
-/**
- * Formatear fechas para el historial y listas del taller
- */
-function formatDate($date) {
-    if (empty($date)) return 'N/A';
-    return date('d M, Y', strtotime($date));
-}
-
-/**
- * Generar etiquetas HTML (Badges) según el estado actual de las Órdenes de Servicio
- */
-function statusBadge($status) {
-    $status = strtolower($status);
-    $badges = [
-        'pendiente' => '<span class="badge bg-warning text-dark">Pendiente</span>',
-        'proceso'   => '<span class="badge bg-info text-white">En Proceso</span>',
-        'terminado' => '<span class="badge bg-success text-white">Terminado</span>',
-        'entregado' => '<span class="badge bg-primary text-white">Entregado</span>',
-        'cancelado' => '<span class="badge bg-danger text-white">Cancelado</span>'
-    ];
-
-    return $badges[$status] ?? '<span class="badge bg-secondary">' . $s($status) . '</span>';
-}
-
-/**
- * Generar tokens CSRF para formularios (Seguridad contra falsificación de peticiones)
+ * Genera un token CSRF único para la sesión del usuario
  */
 function csrf_token() {
     if (empty($_SESSION['csrf_token'])) {
@@ -117,18 +50,55 @@ function csrf_token() {
 }
 
 /**
- * Verificar rápidamente si el usuario en sesión cuenta con un rol determinado
+ * Función centralizada para renderizar vistas con layout (header/footer) opcional.
  */
-function isRole($role) {
-    return (isset($_SESSION['user_role']) && $_SESSION['user_role'] === $role);
+function renderView($view, $data = []) {
+    $viewPath = APPROOT . '/Views/' . $view . '.php';
+    
+    if (file_exists($viewPath)) {
+        extract($data);
+
+        // Obtener configuración de empresa globalmente
+        try {
+            $db = new Database();
+            $db->query("SELECT * FROM table_company_settings WHERE id = 1");
+            $company = $db->single();
+        } catch (Throwable $e) { 
+            $company = (object) ['name' => 'TALLER PRO']; 
+        }
+
+        // Determinar si usar el layout del dashboard
+        // Las vistas de login o errores no deben cargar header/footer
+        $useLayout = (strpos($view, 'auth/') === false && strpos($view, 'errores/') === false);
+
+        if ($useLayout && file_exists(APPROOT . '/Views/inc/header.php')) {
+            require_once APPROOT . '/Views/inc/header.php';
+        }
+
+        require_once $viewPath;
+
+        if ($useLayout && file_exists(APPROOT . '/Views/inc/footer.php')) {
+            require_once APPROOT . '/Views/inc/footer.php';
+        }
+    } else {
+        die("Error: La vista '{$view}' no existe.");
+    }
 }
 
 /**
- * Debug rápido para desarrollo (Inspecciona variables y detiene el flujo)
+ * Registra una acción en la bitácora de auditoría.
+ * @param string $modulo Nombre del módulo (AUTH, PERSONAL, INVENTARIO, etc.)
+ * @param string $accion Acción realizada (LOGIN, CREATE, UPDATE, DELETE)
+ * @param string $descripcion Detalle textual de lo que se hizo
  */
-function dd($data) {
-    echo '<pre style="background: #111; color: #0f0; padding: 20px; border-radius: 5px; font-family: monospace;">';
-    print_r($data);
-    echo '</pre>';
-    die();
+function logAction($modulo, $accion, $descripcion = '') {
+    $db = new Database();
+    $db->query("INSERT INTO table_audit_logs (usuario_id, modulo, accion, descripcion, ip_address, fecha) 
+                VALUES (:uid, :mod, :acc, :des, :ip, NOW())");
+    $db->bind(':uid', $_SESSION['user_id'] ?? null);
+    $db->bind(':mod', mb_strtoupper($modulo, 'UTF-8'));
+    $db->bind(':acc', mb_strtoupper($accion, 'UTF-8'));
+    $db->bind(':des', $descripcion);
+    $db->bind(':ip', $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    return $db->execute();
 }

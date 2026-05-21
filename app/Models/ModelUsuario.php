@@ -21,8 +21,9 @@ class ModelUsuario {
                           FROM table_usuarios u 
                           INNER JOIN table_staff s ON u.staff_id = s.id 
                           INNER JOIN table_roles r ON u.role_id = r.id 
-                          WHERE (s.email = :id OR u.username = :id OR s.cedula = :id) AND u.estado = 1");
-        $this->db->bind(':id', $identificador);
+                          WHERE (s.email = :id OR u.username = :id OR s.cedula = :id) 
+                          AND u.estado = 1 LIMIT 1");
+        $this->db->bind(':id', trim($identificador));
         return $this->db->single();
     }
 

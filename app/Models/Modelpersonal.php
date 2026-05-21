@@ -42,6 +42,9 @@ class ModelPersonal {
         $this->db->bind(':direccion', mb_strtoupper($datos['direccion'] ?? '', 'UTF-8'));
         $this->db->bind(':foto', 'img/default.png');
         $this->db->bind(':foto_frente', 'img/default.png');
+        
+        logAction('PERSONAL', 'CREATE', "Se registró nuevo personal: " . ($datos['nombre'] ?? 'Desconocido'));
+        
         return $this->db->execute();
     }
 
@@ -57,6 +60,9 @@ class ModelPersonal {
         $this->db->bind(':telefono', $datos['telefono'] ?? '');
         $this->db->bind(':email', mb_strtolower($datos['email'] ?? '', 'UTF-8'));
         $this->db->bind(':direccion', mb_strtoupper($datos['direccion'] ?? '', 'UTF-8'));
+        
+        logAction('PERSONAL', 'UPDATE', "Se actualizaron datos del personal ID: " . $datos['id']);
+        
         return $this->db->execute();
     }
 
@@ -93,6 +99,7 @@ class ModelPersonal {
     public function eliminar($id) {
         $this->db->query("DELETE FROM table_staff WHERE id = :id");
         $this->db->bind(':id', mb_strtoupper($id, 'UTF-8'));
+        logAction('PERSONAL', 'DELETE', "Se eliminó al personal con ID: " . $id);
         return $this->db->execute();
     }
 }

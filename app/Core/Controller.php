@@ -54,8 +54,12 @@ class Controller {
                     } catch (Throwable $e) { $company = (object) ['name' => 'TALLER']; }
                 }
 
+                // Determinamos si la vista requiere el layout del dashboard (header/footer)
+                // Las vistas de login o errores deben ser independientes
+                $useLayout = (strpos($view, 'auth/') === false && strpos($view, 'errores/') === false);
+
                 // Intentamos cargar el header
-                if (file_exists(APPROOT . '/Views/inc/header.php')) {
+                if ($useLayout && file_exists(APPROOT . '/Views/inc/header.php')) {
                     require_once APPROOT . '/Views/inc/header.php';
                 }
 
@@ -63,7 +67,7 @@ class Controller {
                 require_once $viewPath;
 
                 // Intentamos cargar el footer
-                if (file_exists(APPROOT . '/Views/inc/footer.php')) {
+                if ($useLayout && file_exists(APPROOT . '/Views/inc/footer.php')) {
                     require_once APPROOT . '/Views/inc/footer.php';
                 }
             } else {
