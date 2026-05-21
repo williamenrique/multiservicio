@@ -8,7 +8,7 @@ class ModelReportes {
 
     public function obtenerFlujoCaja($desde, $hasta) {
         // 1. Obtener Ventas (Ingresos)
-        $this->db->query("SELECT v.id, v.fecha, v.total as monto, 'VENTA' as tipo, 
+        $this->db->query("SELECT v.id, v.fecha, v.total as monto, v.total as monto_pagado, 'VENTA' as tipo, 'VENTA' as categoria,
                           v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
                           (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items,
                           NULL as proveedor_nombre, 0 as saldo_pendiente
@@ -21,13 +21,13 @@ class ModelReportes {
 
         // 2. Obtener Gastos (Egresos)
         // Unificamos gastos generales y compras a proveedores
-        $this->db->query("SELECT g.id, g.fecha, g.monto, 'GASTO' as tipo, 
+        $this->db->query("SELECT g.id, g.fecha, g.monto, g.monto as monto_pagado, 'GASTO' as tipo, g.categoria, 
                           g.descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre, 
                           0 as cantidad_items, NULL as proveedor_nombre, 0 as saldo_pendiente
                           FROM table_gastos g 
                           WHERE DATE(g.fecha) BETWEEN :desde AND :hasta
                           UNION ALL
-                          SELECT c.id, c.fecha, c.total as monto, 'GASTO' as tipo, 
+                          SELECT c.id, c.fecha, c.total as monto, c.pagado as monto_pagado, 'COMPRA' as tipo, 'MERCANCÍA' as categoria,
                           'COMPRA DE MERCANCIA' as descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre,
                           (SELECT COUNT(*) FROM table_compras_detalle WHERE compra_id = c.id) as cantidad_items,
                           p.nombre as proveedor_nombre, (c.total - c.pagado) as saldo_pendiente
@@ -50,8 +50,14 @@ class ModelReportes {
         $totalIngresos = array_reduce($ingresos, function($acc, $item) { 
             return $acc + (float)($item->monto ?? 0); 
         }, 0);
+
+        // Egresos reales (Gastos + lo que se ha pagado de las compras)
         $totalEgresos = array_reduce($egresos, function($acc, $item) { 
-            return $acc + (float)($item->monto ?? 0); 
+            return $acc + (float)($item->monto_pagado ?? 0); 
+        }, 0);
+
+        $totalDeuda = array_reduce($egresos, function($acc, $item) { 
+            return $acc + (float)($item->saldo_pendiente ?? 0); 
         }, 0);
 
         return [
@@ -59,6 +65,7 @@ class ModelReportes {
             'totales' => [
                 'ingresos' => $totalIngresos,
                 'egresos' => $totalEgresos,
+                'deuda' => $totalDeuda,
                 'balance' => $totalIngresos - $totalEgresos
             ]
         ];

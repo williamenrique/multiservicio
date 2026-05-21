@@ -15,19 +15,23 @@
         </div>
     </div>
 
-    <!-- Totales Rápidos (Siempre Visibles) -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Totales Rápidos -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div class="glass-card p-6 rounded-2xl border-l-4 border-blue-500 shadow-sm">
             <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Ingresos (Ventas)</p>
             <h2 id="total-ingresos" class="text-3xl font-black text-blue-600">$0.00</h2>
         </div>
         <div class="glass-card p-6 rounded-2xl border-l-4 border-red-500 shadow-sm">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Egresos (Gastos)</p>
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Egresos (Pagado)</p>
             <h2 id="total-egresos" class="text-3xl font-black text-red-600">$0.00</h2>
         </div>
-        <div class="glass-card p-6 rounded-2xl border-l-4 border-neon-green shadow-sm">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Utilidad Neta</p>
-            <h2 id="total-balance" class="text-3xl font-black text-navy-blue">$0.00</h2>
+        <div class="glass-card p-6 rounded-2xl border-l-4 border-amber-500 shadow-sm">
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Deuda Proveedores</p>
+            <h2 id="total-deuda" class="text-3xl font-black text-amber-600">$0.00</h2>
+        </div>
+        <div class="glass-card p-6 rounded-2xl border-l-4 border-emerald-500 shadow-sm">
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Utilidad Real (Caja)</p>
+            <h2 id="total-balance" class="text-3xl font-black text-emerald-600">$0.00</h2>
         </div>
     </div>
 

@@ -53,11 +53,12 @@ async function cargarReporte() {
         // Actualizar Totales
         document.getElementById('total-ingresos').textContent = AppUtils.formatCurrency(data.totales.ingresos);
         document.getElementById('total-egresos').textContent = AppUtils.formatCurrency(data.totales.egresos);
+        document.getElementById('total-deuda').textContent = AppUtils.formatCurrency(data.totales.deuda);
         document.getElementById('total-balance').textContent = AppUtils.formatCurrency(data.totales.balance);
 
         // Renderizar Tabla
         const tbody = document.getElementById('report-body');
-        
+
         // Limpieza de DataTable para evitar el error mData (desajuste de columnas)
         if ($.fn.DataTable.isDataTable('#reportTable')) {
             $('#reportTable').DataTable().clear().destroy();
@@ -77,7 +78,7 @@ async function cargarReporte() {
         tbody.innerHTML = data.movimientos.map(m => {
             const isVenta = (m.tipo === 'VENTA');
             const isProveedor = (!!m.proveedor_nombre || m.tipo === 'COMPRA');
-            
+
             let descriptionContent = '';
 
             if (isVenta) {
@@ -165,16 +166,16 @@ async function cargarReporteDetallado() {
         const res = await fetch(`${URLROOT}/reportes/detallado?desde=${desde}&hasta=${hasta}`);
         const data = await res.json();
         rawAuditData = data; // Guardamos para el buscador
-        
+
         // Unificamos Ventas y Compras (si existen) para una auditoría total
         const auditItems = [
             ...(data.ventas || []).map(v => ({ ...v, tipo: 'VENTA' })),
-            ...(data.compras || []).map(c => ({ 
-                ...c, 
-                tipo: 'GASTO', 
+            ...(data.compras || []).map(c => ({
+                ...c,
+                tipo: 'GASTO',
                 subtotal_item: parseFloat(c.total || 0),
                 total_operacion: parseFloat(c.total || 0),
-                modelo_vehiculo: c.proveedor_nombre || 'GASTO GENERAL', 
+                modelo_vehiculo: c.proveedor_nombre || 'GASTO GENERAL',
                 placa: 'EGRESO',
                 cliente_nombre: c.proveedor_nombre || 'PROVEEDOR'
             }))
@@ -219,10 +220,10 @@ function renderAuditoriaLista(items) {
         return;
     }
 
-    const formatDateForAudit = (d) => new Date(d).toLocaleDateString('es-ES', { 
-        day: 'numeric', 
-        month: 'short', 
-        year: 'numeric' 
+    const formatDateForAudit = (d) => new Date(d).toLocaleDateString('es-ES', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
     }).replace('.', '');
 
     container.innerHTML = registros.map(f => {
@@ -476,7 +477,7 @@ window.printVenta = (id) => {
 function filtrarAuditoria(term) {
     if (!rawAuditData) return;
     const t = term.toLowerCase();
-    
+
     const table = $('#auditTable').DataTable();
     if (table) {
         table.search(t).draw();
