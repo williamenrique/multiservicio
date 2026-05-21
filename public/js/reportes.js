@@ -324,24 +324,23 @@ window.verDetalleVenta = async (ventaId) => {
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-100 overflow-hidden">
-                        <table class="w-full text-left border-collapse">
+                    <div class="max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-white shadow-inner">
+                        <table class="w-full text-[11px] border-collapse">
                             <thead>
-                                <tr class="bg-slate-50">
-                                    <th class="p-3 text-[10px] font-black text-slate-400 uppercase">Servicio / Producto</th>
-                                    <th class="p-3 text-[10px] font-black text-slate-400 uppercase text-center">Cant.</th>
-                                    <th class="p-3 text-[10px] font-black text-slate-400 uppercase text-right">Subtotal</th>
+                                <tr class="text-slate-400 border-b">
+                                    <th class="text-left p-2 uppercase tracking-tighter">Descripción</th>
+                                    <th class="text-center p-2 uppercase tracking-tighter">Cant.</th>
+                                    <th class="text-right p-2 uppercase tracking-tighter">P. Unit.</th>
+                                    <th class="text-right p-2 uppercase tracking-tighter">Total</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-50 bg-white">
+                            <tbody class="divide-y divide-slate-100">
                                 ${venta.items.map(i => `
-                                    <tr>
-                                        <td class="p-3">
-                                            <p class="text-xs font-bold text-slate-600 uppercase">${i.descripcion}</p>
-                                            <p class="text-[9px] text-slate-400">${AppUtils.formatCurrency(i.precio_unitario)} unit.</p>
-                                        </td>
-                                        <td class="p-3 text-center text-xs font-bold text-slate-500">${i.cantidad}</td>
-                                        <td class="p-3 text-right text-xs font-black text-slate-700">${AppUtils.formatCurrency(i.cantidad * i.precio_unitario)}</td>
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-2 text-slate-700 font-medium uppercase">${i.descripcion}</td>
+                                        <td class="p-2 text-center font-bold text-slate-500">${i.cantidad}</td>
+                                        <td class="p-2 text-right text-slate-500">${AppUtils.formatCurrency(i.precio_unitario)}</td>
+                                        <td class="p-2 text-right font-black text-navy-blue">${AppUtils.formatCurrency(i.cantidad * i.precio_unitario)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -411,23 +410,23 @@ window.verDetalleCompra = async (id) => {
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-100 overflow-hidden">
-                        <table class="w-full text-left border-collapse">
+                    <div class="max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-white shadow-inner">
+                        <table class="w-full text-[11px] border-collapse">
                             <thead>
-                                <tr class="bg-slate-50">
-                                    <th class="p-3 text-[10px] font-black text-slate-400 uppercase">Artículo / Repuesto</th>
-                                    <th class="p-3 text-[10px] font-black text-slate-400 uppercase text-center">Cant.</th>
-                                    <th class="p-3 text-[10px] font-black text-slate-400 uppercase text-right">Costo</th>
+                                <tr class="text-slate-400 border-b">
+                                    <th class="text-left p-2 uppercase tracking-tighter">Descripción</th>
+                                    <th class="text-center p-2 uppercase tracking-tighter">Cant.</th>
+                                    <th class="text-right p-2 uppercase tracking-tighter">Costo Unit.</th>
+                                    <th class="text-right p-2 uppercase tracking-tighter">Total</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-50 bg-white">
+                            <tbody class="divide-y divide-slate-100">
                                 ${data.items.map(i => `
-                                    <tr>
-                                        <td class="p-3">
-                                            <p class="text-xs font-bold text-slate-600 uppercase">${i.descripcion || i.producto_nombre}</p>
-                                        </td>
-                                        <td class="p-3 text-center text-xs font-bold text-slate-500">${i.cantidad}</td>
-                                        <td class="p-3 text-right text-xs font-black text-slate-700">${AppUtils.formatCurrency(i.cantidad * i.costo_unitario)}</td>
+                                    <tr class="hover:bg-slate-50/50">
+                                        <td class="p-2 text-slate-700 font-medium uppercase">${i.descripcion || i.producto_nombre}</td>
+                                        <td class="p-2 text-center font-bold text-slate-500">${i.cantidad}</td>
+                                        <td class="p-2 text-right text-slate-500">${AppUtils.formatCurrency(i.costo_unitario)}</td>
+                                        <td class="p-2 text-right font-black text-rose-600">${AppUtils.formatCurrency(i.cantidad * i.costo_unitario)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
