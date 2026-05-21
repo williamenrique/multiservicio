@@ -73,9 +73,13 @@ class ModelReportes {
 
     public function obtenerReporteDetallado($desde, $hasta) {
         // 1. Detalle de Ventas (Vehículos + Items)
-        $this->db->query("SELECT v.id, v.fecha, v.placa, v.modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, (vd.cantidad * vd.precio_unitario) as subtotal_item
+        $this->db->query("SELECT v.id, v.fecha, v.placa, v.modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, 
+                                 (vd.cantidad * vd.precio_unitario) as subtotal_item, s.nombre as usuario_nombre, c.nombre as cliente_nombre
                           FROM table_ventas v
                           JOIN table_ventas_detalle vd ON v.id = vd.venta_id
+                          JOIN table_usuarios u ON v.usuario_id = u.id
+                          JOIN table_staff s ON u.staff_id = s.id
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'COMPLETADO' AND DATE(v.fecha) BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
         $this->db->bind(':desde', $desde);

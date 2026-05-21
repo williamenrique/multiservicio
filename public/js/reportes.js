@@ -167,19 +167,8 @@ async function cargarReporteDetallado() {
         const data = await res.json();
         rawAuditData = data; // Guardamos para el buscador
 
-        // Unificamos Ventas y Compras (si existen) para una auditoría total
-        const auditItems = [
-            ...(data.ventas || []).map(v => ({ ...v, tipo: 'VENTA' })),
-            ...(data.compras || []).map(c => ({
-                ...c,
-                tipo: 'GASTO',
-                subtotal_item: parseFloat(c.total || 0),
-                total_operacion: parseFloat(c.total || 0),
-                modelo_vehiculo: c.proveedor_nombre || 'GASTO GENERAL',
-                placa: 'EGRESO',
-                cliente_nombre: c.proveedor_nombre || 'PROVEEDOR'
-            }))
-        ];
+        // Solo mostramos los trabajos realizados (VENTAS) en esta pestaña
+        const auditItems = (data.ventas || []).map(v => ({ ...v, tipo: 'VENTA' }));
 
         renderAuditoriaLista(auditItems);
     } catch (e) {
@@ -201,10 +190,9 @@ function renderAuditoriaLista(items) {
                 fecha: current.fecha,
                 vehiculo: current.modelo_vehiculo,
                 placa: current.placa,
-                cliente: current.cliente_nombre || (current.tipo === 'GASTO' ? current.proveedor_nombre : 'VENTA RÁPIDA'),
-                usuario: current.usuario_nombre || 'SISTEMA',
+                cliente: current.cliente_nombre || 'VENTA RÁPIDA',
                 total_final: 0,
-                usuario: current.usuario_nombre || 'SISTEMA',
+                usuario: current.usuario_nombre || 'N/A',
                 pagado: parseFloat(current.pagado || 0),
                 items: []
             };
@@ -235,7 +223,7 @@ function renderAuditoriaLista(items) {
         <div class="glass-card overflow-hidden rounded-2xl border border-slate-100 hover:shadow-lg transition-all mb-4">
             <div class="bg-slate-50/80 p-5 border-b border-slate-100 flex justify-between items-center">
                 <div class="flex items-center gap-5">
-                    <button onclick="${f.tipo === 'VENTA' ? 'verDetalleVenta' : 'verDetalleCompra'}(${f.id})" 
+                    <button onclick="verDetalleVenta(${f.id})" 
                             class="bg-navy-blue text-white p-3 rounded-2xl hover:scale-110 transition-all shadow-lg shadow-navy-blue/20 group" 
                             title="Ver Detalle Completo">
                         <i data-lucide="eye" class="w-5 h-5 text-neon-green group-hover:rotate-12 transition-transform"></i>
@@ -254,9 +242,6 @@ function renderAuditoriaLista(items) {
                 <div class="text-right">
                     <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Total Operación</p>
                     <p class="text-xl font-black ${colorClass}">${AppUtils.formatCurrency(totalFactura)}</p>
-                    ${f.tipo === 'GASTO' && f.pagado < totalFactura ? `
-                        <div class="text-[9px] font-black text-amber-500 uppercase mt-1">Saldo: ${AppUtils.formatCurrency(totalFactura - f.pagado)}</div>
-                    ` : ''}
                 </div>
             </div>
             <div class="p-5 space-y-3 bg-white">
@@ -477,8 +462,14 @@ function filtrarAuditoria(term) {
     if (!rawAuditData) return;
     const t = term.toLowerCase();
 
-    const table = $('#auditTable').DataTable();
-    if (table) {
-        table.search(t).draw();
-    }
+    // Filtrar sobre los trabajos realizados (Ventas)
+    const filtrados = (rawAuditData.ventas || []).filter(v =>
+        (v.modelo_vehiculo && v.modelo_vehiculo.toLowerCase().includes(t)) ||
+        (v.placa && v.placa.toLowerCase().includes(t)) ||
+        (v.descripcion && v.descripcion.toLowerCase().includes(t)) ||
+        (v.cliente_nombre && v.cliente_nombre.toLowerCase().includes(t)) ||
+        (String(v.id).includes(t))
+    ).map(v => ({ ...v, tipo: 'VENTA' }));
+
+    renderAuditoriaLista(filtrados);
 }
