@@ -70,6 +70,9 @@
                             <i data-lucide="user-cog" class="inline w-4 h-4 mr-1"></i> <?php echo $o->mecanico_nombre; ?>
                         </td>
                         <td class="px-6 py-4 text-right">
+                            <button onclick="imprimirOrden(<?php echo $o->id; ?>)" class="text-slate-400 hover:text-blue-600 p-2 transition-colors" title="Imprimir Orden">
+                                <i data-lucide="printer" class="w-5 h-5"></i>
+                            </button>
                             <button onclick="verDetalle(<?php echo $o->id; ?>)" class="text-navy-blue hover:text-neon-green p-2 transition-colors" title="Ver Detalles">
                                 <i data-lucide="external-link" class="w-5 h-5"></i>
                             </button>
@@ -80,10 +83,43 @@
             </table>
         </div>
     </div>
+</div>
+
 <script>
 function buscarHistorial() {
     const placa = document.getElementById('busquedaPlaca').value;
     if(placa) window.location.href = `<?php echo URLROOT; ?>/taller/historial/${placa}`;
     else AppUtils.showToast('Ingresa una placa', 'warning');
+}
+
+/**
+ * Actualiza el estado de la orden en la base de datos
+ */
+async function cambiarEstado(id, estado) {
+    try {
+        const response = await fetch(`${URLROOT}/taller/cambiarEstado`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, estado })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            AppUtils.showToast(result.mensaje, 'success');
+        } else {
+            AppUtils.showToast(result.mensaje || 'Error al actualizar', 'error');
+        }
+    } catch (error) {
+        AppUtils.showToast('Error de comunicación con el servidor', 'error');
+    }
+}
+
+function verDetalle(id) {
+    // Por ahora redirigimos al flujo de trabajo o mostramos un aviso informativo
+    AppUtils.showToast('Cargando detalles técnicos de la Orden #' + id, 'info');
+}
+
+function imprimirOrden(id) {
+    window.open(`${URLROOT}/taller/imprimir/${id}`, '_blank');
 }
 </script>

@@ -44,6 +44,7 @@ class ModelInventario {
         if (!$this->db->execute()) {
             throw new Exception("Error al insertar el producto en la base de datos.");
         }
+        return true;
     }
 
     public function actualizar($datos) {
@@ -69,6 +70,7 @@ class ModelInventario {
         if (!$this->db->execute()) {
             throw new Exception("Error al actualizar los datos del producto.");
         }
+        return true;
     }
 
     public function eliminar($id) {

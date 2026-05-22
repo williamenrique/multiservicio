@@ -18,6 +18,9 @@ class PdfService {
         $db->query("SELECT * FROM table_company_settings WHERE id = 1");
         $data['empresa'] = $db->single();
 
+        // Extraer variables para que estén disponibles directamente en las vistas (header, footer y templates)
+        extract($data);
+
         // Iniciamos el buffer de salida para capturar el HTML
         ob_start();
         

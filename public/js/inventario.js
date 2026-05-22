@@ -33,8 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
             responsive: true,
             pageLength: 10,
             lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
-            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' },
-            drawCallback: () => lucide.createIcons()
+            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' }
         });
     };
 
@@ -99,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tableBody.appendChild(row);
         });
         initializeDataTable(); // Inicializar después de renderizar
+        if (window.lucide) lucide.createIcons(); // Llamar explícitamente a Lucide para renderizar los iconos
     };
 
     searchInput.addEventListener('input', (e) => {

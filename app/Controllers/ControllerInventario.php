@@ -82,16 +82,15 @@ class ControllerInventario extends Controller {
                 }
             }
 
-            if (!empty($data['id'])) {
-                $res = $this->inventarioModel->actualizar($data);
-            } else {
-                $res = $this->inventarioModel->crear($data);
-            }
-
-            if ($res) {
+            try {
+                if (!empty($data['id'])) {
+                    $this->inventarioModel->actualizar($data);
+                } else {
+                    $this->inventarioModel->crear($data);
+                }
                 echo json_encode(['success' => true, 'mensaje' => 'Producto guardado']);
-            } else {
-                echo json_encode(['success' => false, 'mensaje' => 'Error en la base de datos']);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
             }
         }
     }

@@ -2,12 +2,16 @@
     <div style="background: #f8fafc; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
         <table width="100%">
             <tr>
-                <td><strong>VEHÍCULO:</strong> <?php echo $orden->marca . ' ' . $orden->modelo; ?></td>
+                <td><strong>VEHICULO:</strong> <?php echo $orden->marca . ' ' . $orden->modelo; ?></td>
                 <td><strong>PLACA:</strong> <?php echo $orden->placa; ?></td>
             </tr>
             <tr>
                 <td><strong>KILOMETRAJE:</strong> <?php echo number_format($orden->kilometraje); ?> KM</td>
                 <td><strong>COMBUSTIBLE:</strong> <?php echo $orden->nivel_combustible; ?></td>
+            </tr>
+            <tr>
+                <td><strong>FECHA INGRESO:</strong> <?php echo date('d/m/Y - h:i A', strtotime($orden->fecha_entrada)); ?></td>
+                <td><strong>ESTADO ACTUAL:</strong> <?php echo $orden->estado; ?></td>
             </tr>
         </table>
     </div>

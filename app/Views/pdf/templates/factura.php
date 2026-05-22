@@ -1,7 +1,8 @@
-<div class="content">
+ <div class="content">
     <div style="margin-bottom: 15px;">
         <strong>CLIENTE:</strong> <?php echo $venta->cliente_nombre; ?><br>
-        <strong>PLACA:</strong> <?php echo $venta->placa ?: 'N/A'; ?> | <strong>VEHÍCULO:</strong> <?php echo $venta->modelo_vehiculo ?: 'N/A'; ?>
+        <strong>PLACA:</strong> <?php echo $venta->placa ?: 'N/A'; ?> | <strong>VEHÍCULO:</strong> <?php echo $venta->modelo_vehiculo ?: 'N/A'; ?><br>
+        <strong>FECHA DE EMISIÓN:</strong> <?php echo date('d/m/Y - h:i A', strtotime($venta->fecha)); ?>
     </div>
 
     <table class="items-table">

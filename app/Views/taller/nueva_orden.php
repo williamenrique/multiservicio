@@ -96,6 +96,14 @@
 document.getElementById('formNuevaOrden').addEventListener('submit', async function(e) {
     e.preventDefault();
     
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalContent = submitBtn.innerHTML;
+
+    // Bloquear el botón para evitar doble clic
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i data-lucide="loader" class="animate-spin w-5 h-5 mr-2"></i> Procesando...';
+    if(window.lucide) lucide.createIcons();
+
     const formData = new FormData(this);
     const checklist = [];
     
@@ -135,7 +143,16 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
             setTimeout(() => window.location.href = `${URLROOT}/taller`, 1500);
         } else {
             AppUtils.showToast(res.error || 'Error al guardar', 'error');
+            // Re-habilitar el botón en caso de error del servidor
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalContent;
+            if(window.lucide) lucide.createIcons();
         }
-    } catch (err) { AppUtils.showToast('Error de conexión', 'error'); }
+    } catch (err) { 
+        AppUtils.showToast('Error de conexión', 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalContent;
+        if(window.lucide) lucide.createIcons();
+    }
 });
 </script>

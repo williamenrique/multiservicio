@@ -104,4 +104,25 @@ class ControllerFacturacion extends Controller {
             echo json_encode(['success' => $resultado]);
         }
     }
+
+    /**
+     * Genera el PDF de la Factura de Venta
+     */
+    public function imprimir($id = null) {
+        if (!$id) {
+            redirect('facturacion');
+        }
+
+        $venta = $this->facturaModel->obtenerVentaCompleta($id);
+        if (!$venta) {
+            die("La factura #$id no existe o no ha sido completada.");
+        }
+
+        $pdf = new PdfService();
+        $pdf->generarDocumento('factura', [
+            'titulo_documento' => 'Factura de Venta',
+            'documento_id' => $venta->id,
+            'venta' => $venta
+        ], 'Factura_' . $id . '.pdf');
+    }
 }

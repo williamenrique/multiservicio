@@ -27,7 +27,7 @@ LISTO 3. Inventario Avanzado
     Métodos de Pago Múltiples: Permitir que una factura se pague con una parte en efectivo y otra por transferencia.
     Cuentas por Cobrar (Créditos a Clientes): Al igual que tienes deudas con proveedores, podrías permitir créditos a clientes recurrentes y gestionar sus abonos.
 
-5. Mejoras en la Arquitectura de Software
+LISTO 5. Mejoras en la Arquitectura de Software
     Manejo de Excepciones: En lugar de retornar false en los modelos, podrías lanzar Exceptions con mensajes específicos que el controlador pueda capturar y mostrar al usuario.
     Servicios (Business Logic Layer): Si un proceso es muy complejo (como registrarCompra en ModelProveedor), sería mejor mover esa lógica a una carpeta app/Services, dejando los modelos solo para consultas SQL puras.
     Generación de Documentos: Implementar la generación de PDF para facturas, recibos de caja y órdenes de servicio (usando librerías como Dompdf).

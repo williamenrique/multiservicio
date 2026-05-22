@@ -455,38 +455,62 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeInvoice) return;
         if (activeInvoice.items.length === 0) return AppUtils.showToast('La factura está vacía', 'warning');
 
-        activeInvoice.placa = inputPlaca.value;
-        activeInvoice.modelo = inputModelo.value;
-        activeInvoice.cliente_id = inputCliente.value;
+        // 1. Guardar el contenido original para restaurarlo en caso de error
+        const originalContent = btnProcessSale.innerHTML;
 
-        // Recalcular finales antes de procesar el cierre
-        const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-        const isIvaEnabled = activeInvoice.iva_activo === true;
-        const ivaMonto = isIvaEnabled ? (subtotal * (IVA_PERCENT / 100)) : 0;
+        // 2. Deshabilitar el botón y mostrar el Spinner
+        btnProcessSale.disabled = true;
+        btnProcessSale.innerHTML = `
+            <i data-lucide="loader" class="w-6 h-6 animate-spin"></i>
+            <span>PROCESANDO VENTA...</span>
+        `;
+        if (window.lucide) lucide.createIcons();
 
-        activeInvoice.subtotal = subtotal;
-        activeInvoice.iva_monto = ivaMonto;
-        activeInvoice.total = subtotal + ivaMonto;
+        try {
+            activeInvoice.placa = inputPlaca.value;
+            activeInvoice.modelo = inputModelo.value;
+            activeInvoice.cliente_id = inputCliente.value;
 
-        const res = await fetch(`${URLROOT}/facturacion/procesar`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(activeInvoice)
-        });
-        const data = await res.json();
-        if (data.success) {
-            AppUtils.showAlert('Éxito', 'Factura procesada correctamente', 'success');
+            // Recalcular finales antes de procesar el cierre
+            const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+            const isIvaEnabled = activeInvoice.iva_activo === true;
+            const ivaMonto = isIvaEnabled ? (subtotal * (IVA_PERCENT / 100)) : 0;
 
-            const index = openInvoices.findIndex(inv => inv.id === activeInvoiceId);
-            openInvoices.splice(index, 1);
+            activeInvoice.subtotal = subtotal;
+            activeInvoice.iva_monto = ivaMonto;
+            activeInvoice.total = subtotal + ivaMonto;
 
-            activeInvoiceId = openInvoices.length > 0 ? openInvoices[0].id : null;
+            const res = await fetch(`${URLROOT}/facturacion/procesar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(activeInvoice)
+            });
+            const data = await res.json();
 
-            if (!activeInvoiceId) clearInputs();
-            // Forzamos recarga del servidor para limpiar borradores
-            loadInvoicesFromServer();
-        } else {
-            AppUtils.showToast(data.mensaje, 'error');
+            if (data.success) {
+                // Preguntar si desea imprimir después del éxito
+                AppUtils.confirmAction(
+                    '¡Venta Exitosa!',
+                    '¿Desea imprimir el comprobante de pago ahora?',
+                    () => window.open(`${URLROOT}/facturacion/imprimir/${data.venta_id}`, '_blank'),
+                    'success',
+                    'Sí, Imprimir',
+                    '#10b981'
+                );
+
+                const index = openInvoices.findIndex(inv => inv.id === activeInvoiceId);
+                openInvoices.splice(index, 1);
+                activeInvoiceId = openInvoices.length > 0 ? openInvoices[0].id : null;
+                if (!activeInvoiceId) clearInputs();
+                loadInvoicesFromServer();
+            } else {
+                throw new Error(data.mensaje || 'Error al procesar la venta');
+            }
+        } catch (error) {
+            AppUtils.showToast(error.message, 'error');
+            btnProcessSale.disabled = false;
+            btnProcessSale.innerHTML = originalContent;
+            if (window.lucide) lucide.createIcons();
         }
     });
 

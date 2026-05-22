@@ -83,4 +83,15 @@ class ModelOrden {
                           ORDER BY os.fecha_entrada DESC");
         return $this->db->resultSet();
     }
+
+    public function obtenerDetalleOrden($id) {
+        $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, v.color, v.anio, 
+                          c.nombre as cliente_nombre, c.telefono as cliente_telefono
+                          FROM table_ordenes_servicio os
+                          INNER JOIN table_vehiculos v ON os.vehiculo_id = v.id
+                          INNER JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE os.id = :id");
+        $this->db->bind(':id', $id);
+        return $this->db->single();
+    }
 }

@@ -157,4 +157,40 @@ class ModelFacturacion {
     public function procesarVenta($datos) {
         return $this->guardarFactura($datos, 'COMPLETADO');
     }
+
+    /**
+     * Obtiene los detalles completos de una venta para su impresión
+     */
+    public function obtenerVentaCompleta($id) {
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email
+                          FROM table_ventas v
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.id = :id");
+        $this->db->bind(':id', $id);
+        $venta = $this->db->single();
+
+        if ($venta) {
+            $this->db->query("SELECT vd.descripcion, vd.cantidad, vd.precio_unitario 
+                              FROM table_ventas_detalle vd 
+                              WHERE vd.venta_id = :vid");
+            $this->db->bind(':vid', $id);
+            $venta->items = $this->db->resultSet();
+        }
+        return $venta;
+    }
+
+    /**
+     * Métodos de gestión de borradores requeridos por el controlador
+     */
+    public function obtenerBorradorPorId($id) {
+        $this->db->query("SELECT * FROM table_ventas WHERE id = :id AND status = 'PENDIENTE'");
+        $this->db->bind(':id', $id);
+        return $this->db->single();
+    }
+
+    public function eliminarBorrador($id) {
+        $this->db->query("DELETE FROM table_ventas WHERE id = :id AND status = 'PENDIENTE'");
+        $this->db->bind(':id', $id);
+        return $this->db->execute();
+    }
 }

@@ -87,4 +87,25 @@ class ControllerTaller extends Controller {
             'mensaje' => $res ? 'Estado actualizado' : 'Error al actualizar'
         ]);
     }
+
+    /**
+     * Genera el PDF de la Orden de Servicio
+     */
+    public function imprimir($id = null) {
+        if (!$id) {
+            redirect('taller');
+        }
+
+        $orden = $this->ordenModel->obtenerDetalleOrden($id);
+        if (!$orden) {
+            die("La orden de servicio #$id no existe.");
+        }
+
+        $pdf = new PdfService();
+        $pdf->generarDocumento('orden', [
+            'titulo_documento' => 'Orden de Servicio',
+            'documento_id' => $orden->id,
+            'orden' => $orden
+        ], 'OrdenServicio_' . $id . '.pdf');
+    }
 }

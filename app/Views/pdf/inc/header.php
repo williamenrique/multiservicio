@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <title><?php echo ($titulo_documento ?? 'Documento') . (isset($documento_id) ? ' #' . $documento_id : ''); ?></title>
     <style>
         body { font-family: 'Helvetica', sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
         .header-table { width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 20px; }
@@ -32,7 +33,7 @@
         <td width="40%" class="doc-details">
             <div class="doc-title"><?php echo $titulo_documento ?? 'Documento'; ?></div>
             <div class="doc-number">ID: <?php echo $documento_id ?? '000'; ?></div>
-            <div>Fecha: <?php echo date('d/m/Y H:i'); ?></div>
+            <div>Generado el: <?php echo date('d/m/Y - h:i A'); ?></div>
         </td>
     </tr>
 </table>
