@@ -41,7 +41,9 @@ class ModelInventario {
         $this->db->bind(':precio', $datos['precio']);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
 
-        return $this->db->execute();
+        if (!$this->db->execute()) {
+            throw new Exception("Error al insertar el producto en la base de datos.");
+        }
     }
 
     public function actualizar($datos) {
@@ -64,7 +66,9 @@ class ModelInventario {
         $this->db->bind(':precio', $datos['precio']);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
 
-        return $this->db->execute();
+        if (!$this->db->execute()) {
+            throw new Exception("Error al actualizar los datos del producto.");
+        }
     }
 
     public function eliminar($id) {
