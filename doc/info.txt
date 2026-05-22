@@ -17,7 +17,7 @@ Actualmente, el sistema está muy enfocado en "Facturación" e "Inventario", per
     Checklist de Entrada: Registrar cómo llega el vehículo (rayones, nivel de combustible, objetos personales).
     Historial por Vehículo (Hoja de Vida): Aunque tienes un historial de ventas, una búsqueda por Placa que muestre todas las reparaciones pasadas, repuestos cambiados y kilometrajes ayuda a fidelizar al cliente.
 
-3. Inventario Avanzado
+LISTO 3. Inventario Avanzado
     Kardex de Inventario: Actualmente solo sumas y restas stock. Un sistema robusto necesita un historial de movimientos por producto (Entrada por compra, Salida por venta, Ajuste manual, Devolución).
     Alertas de Stock Mínimo: Implementar una notificación automática (o una vista en el dashboard) cuando un producto baje de su "punto de reorden" para evitar quedarse sin insumos críticos.
     Gestión de Marcas y Modelos: Relacionar repuestos con vehículos específicos para evitar errores al facturar.
