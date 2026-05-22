@@ -2,7 +2,7 @@
     <h2 class="text-3xl font-extrabold text-navy-blue tracking-tight mb-6"><?php echo $data['titulo']; ?></h2>
     <p class="text-gray-400 mt-1 mb-8">Administra la información general y fiscal de tu taller.</p>
 
-    <div class="max-w-2xl">
+   <div class="w-full max-w-2xl">
         <div class="glass-card p-8 rounded-xl">
             <form id="companyForm" class="space-y-4">
                 <!-- Sección del Logo -->
