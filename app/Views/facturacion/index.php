@@ -28,9 +28,14 @@
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Cliente</label>
-                    <select id="pos-cliente-id" class="w-full p-2 border border-slate-300 rounded-lg outline-none text-sm">
-                        <option value="">Cliente</option>
-                    </select>
+                    <div class="flex gap-2">
+                        <select id="pos-cliente-id" class="flex-1 p-2 border border-slate-300 rounded-lg outline-none text-sm">
+                            <option value="">Cliente</option>
+                        </select>
+                        <button type="button" id="btn-quick-client" class="bg-navy-blue text-white px-3 rounded-lg hover:bg-slate-800 transition-colors shadow-lg" title="Registro Rápido">
+                            <i data-lucide="user-plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 

@@ -38,7 +38,8 @@ class ControllerClientes extends Controller {
      * Guarda o actualiza un cliente
      */
     public function guardar() {
-        RoleGuard::isAdmin(); // Solo Administradores pueden crear/editar clientes
+        // Permitir a Administradores y Mecánicos crear clientes (necesario para facturación rápida)
+        RoleGuard::hasAccess(['ADMINISTRADOR', 'MECANICO']); 
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
             

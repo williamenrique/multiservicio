@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cartBody = document.getElementById('pos-cart-body');
     const btnProcessSale = document.getElementById('btn-process-sale');
     const inputIvaToggle = document.getElementById('pos-iva-toggle');
+    const btnQuickClient = document.getElementById('btn-quick-client');
 
     // Usamos la constante global IVA_RATE inyectada desde el header (SQL)
     const IVA_PERCENT = (typeof IVA_RATE !== 'undefined') ? (IVA_RATE * 100) : 0;
@@ -104,6 +105,49 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Error al cargar clientes:", e);
         }
     };
+
+    /**
+     * Registro rápido de cliente desde la pantalla de facturación
+     */
+    btnQuickClient.addEventListener('click', async () => {
+        const { value: formValues } = await Swal.fire({
+            title: 'REGISTRO RÁPIDO DE CLIENTE',
+            html:
+                '<input id="swal-input1" class="swal2-input" placeholder="NIT / CÉDULA">' +
+                '<input id="swal-input2" class="swal2-input" placeholder="NOMBRE COMPLETO">',
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'REGISTRAR',
+            confirmButtonColor: '#10b981',
+            preConfirm: () => {
+                return [
+                    document.getElementById('swal-input1').value.trim(),
+                    document.getElementById('swal-input2').value.trim()
+                ]
+            }
+        });
+
+        if (formValues && formValues[0] && formValues[1]) {
+            const res = await fetch(`${URLROOT}/clientes/guardar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: formValues[0],
+                    nombre: formValues[1],
+                    email: '', telefono: '', direccion: ''
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                await loadClients();
+                inputCliente.value = formValues[0]; // Seleccionar automáticamente
+                updateActiveData('cliente_id', formValues[0]);
+                AppUtils.showToast('Cliente registrado');
+            } else {
+                AppUtils.showToast(data.mensaje, 'error');
+            }
+        }
+    });
 
     const initNewInvoice = async (forceSave = false) => {
         // 1. Limpiar inputs físicamente ANTES de crear el objeto para no heredar datos
