@@ -1,0 +1,90 @@
+<?php
+class ControllerTaller extends Controller {
+    private $ordenModel;
+    private $vehiculoModel;
+
+    public function __construct() {
+        AuthGuard::handle();
+        $this->ordenModel = $this->model('Orden');
+        $this->vehiculoModel = $this->model('Vehiculo');
+    }
+
+    public function index() {
+        $ordenesActivas = $this->ordenModel->obtenerOrdenesActivas();
+        $this->view('taller/index', [
+            'titulo' => 'Panel Operativo del Taller',
+            'ordenes' => $ordenesActivas
+        ]);
+    }
+
+    public function nuevaOrden() {
+        $this->view('taller/nueva_orden', [
+            'titulo' => 'Nueva Orden de Servicio'
+        ]);
+    }
+
+    /**
+     * Muestra la hoja de vida de un vehículo por placa
+     */
+    public function historial($placa = '') {
+        $vehiculo = $this->vehiculoModel->buscarPorPlaca($placa);
+        $historial = $vehiculo ? $this->vehiculoModel->obtenerHistorial($vehiculo->id) : [];
+
+        $this->view('taller/vehiculos/historial', [
+            'titulo' => 'Hoja de Vida: ' . strtoupper($placa),
+            'vehiculo' => $vehiculo,
+            'historial' => $historial
+        ]);
+    }
+
+    /**
+     * Procesa la creación de una nueva Orden de Servicio
+     */
+    public function guardarOrden() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            // Lógica: Si el vehículo no existe, se registra primero
+            $vehiculo = $this->vehiculoModel->buscarPorPlaca($input['placa']);
+            
+            if (!$vehiculo) {
+                // Validar que el cliente exista antes de registrar el vehículo
+                $clienteModel = $this->model('Cliente');
+                if (!$clienteModel->obtenerPorId($input['cliente_id'])) {
+                    return $this->jsonResponse(['success' => false, 'error' => "El cliente con ID {$input['cliente_id']} no existe. Por favor, regístrelo primero en el módulo de Clientes."], 404);
+                }
+                $vehiculoId = $this->vehiculoModel->registrar($input);
+            } else {
+                $vehiculoId = $vehiculo->id;
+            }
+
+            if ($vehiculoId) {
+                $input['vehiculo_id'] = $vehiculoId;
+                $ordenId = $this->ordenModel->crear($input);
+                
+                if ($ordenId) {
+                    // Guardar Checklist de entrada
+                    if (!empty($input['checklist'])) {
+                        $this->ordenModel->guardarChecklist($ordenId, $input['checklist']);
+                    }
+                    logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
+                    return $this->jsonResponse(['success' => true, 'id' => $ordenId, 'mensaje' => 'Orden creada correctamente']);
+                }
+            }
+            return $this->jsonResponse(['success' => false, 'error' => 'No se pudo crear la orden']);
+        }
+    }
+
+    /**
+     * Actualiza el estado del ciclo de vida (API)
+     */
+    public function cambiarEstado() {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $res = $this->ordenModel->actualizarEstado($input['id'], $input['estado'], $input['comentario'] ?? '');
+        
+        return $this->jsonResponse([
+            'success' => $res, 
+            'mensaje' => $res ? 'Estado actualizado' : 'Error al actualizar'
+        ]);
+    }
+}

@@ -9,7 +9,7 @@
 Logs de Auditoría: El sistema no registra "quién hizo qué". Implementar una tabla de audit_logs que guarde la
  acción (CREATE, UPDATE, DELETE), el usuario y la fecha es vital para el control administrativo.
 
-2. Gestión Operativa del Taller (El Corazón del Negocio)
+LISTO 2. Gestión Operativa del Taller (El Corazón del Negocio)
 Actualmente, el sistema está muy enfocado en "Facturación" e "Inventario", pero para un taller avanzado faltan:
 
     Módulo de Órdenes de Servicio (O.S.): No solo vender el repuesto, sino gestionar el ciclo de vida de la reparación.

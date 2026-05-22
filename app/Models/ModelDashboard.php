@@ -15,8 +15,8 @@ class ModelDashboard {
      */
     public function getInventoryStats() {
         $this->db->query("SELECT 
-            SUM(CASE WHEN stock > 5 THEN 1 ELSE 0 END) as ok,
-            SUM(CASE WHEN stock <= 5 AND stock > 0 THEN 1 ELSE 0 END) as critico,
+            SUM(CASE WHEN stock > stock_minimo THEN 1 ELSE 0 END) as ok,
+            SUM(CASE WHEN stock <= stock_minimo AND stock > 0 THEN 1 ELSE 0 END) as critico,
             SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END) as agotado
             FROM table_inventario");
         return $this->db->single();

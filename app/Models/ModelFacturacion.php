@@ -136,6 +136,10 @@ class ModelFacturacion {
 
                 // SOLO descontar stock físico si la venta se FINALIZÓ (COMPLETADO)
                 if ($status === 'COMPLETADO' && $item['tipo'] === 'PRODUCTO' && !empty($item['id'])) {
+                    // Registrar en Kardex antes de actualizar el stock
+                    $invModel = new ModelInventario();
+                    $invModel->registrarMovimiento($item['id'], 'SALIDA_VENTA', $item['cantidad'], $ventaId, "Venta Finalizada");
+
                     $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
                     $this->db->bind(':cant', $item['cantidad']);
                     $this->db->bind(':pid', $item['id']);

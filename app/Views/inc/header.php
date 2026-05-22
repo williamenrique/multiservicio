@@ -39,14 +39,16 @@
                 </a>
                 <div class="mt-4">
                     <p class="text-xs uppercase text-gray-500 px-3 mb-2">Gestión</p>
+                    <?php if($_SESSION['user_role'] === 'ADMINISTRADOR'): ?>
                     <a href="<?php echo URLROOT; ?>/inventario" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'inventario') !== false) ? 'active' : ''; ?>" data-section="inventario">
                         <i data-lucide="package"></i> <span>Inventario</span>
                     </a>
+                    <?php endif; ?>
                     <a href="<?php echo URLROOT; ?>/facturacion" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'facturacion') !== false) ? 'active' : ''; ?>" data-section="facturacion">
                         <i data-lucide="receipt"></i> <span>Facturación</span>
                     </a>
-                    <a href="<?php echo URLROOT; ?>/historial" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'historial') !== false) ? 'active' : ''; ?>" data-section="historial">
-                        <i data-lucide="history"></i> <span>Historial de Ventas</span>
+                    <a href="<?php echo URLROOT; ?>/taller" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'taller') !== false) ? 'active' : ''; ?>" data-section="taller">
+                        <i data-lucide="wrench"></i> <span>Taller</span>
                     </a>
                     <a href="<?php echo URLROOT; ?>/proveedores" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'proveedores') !== false) ? 'active' : ''; ?>" data-section="proveedores">
                         <i data-lucide="truck"></i> <span>Proveedores</span>

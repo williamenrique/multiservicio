@@ -52,45 +52,5 @@ CREATE TABLE IF NOT EXISTS table_orden_estados_log (
     FOREIGN KEY (orden_id) REFERENCES table_ordenes_servicio(id) ON DELETE CASCADE,
     FOREIGN KEY (usuario_id) REFERENCES table_usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-  `nombre` varchar(150) NOT NULL,
-  `categoria` varchar(50) NOT NULL,
-  `stock` int(11) NOT NULL DEFAULT 0,
-  `stock_minimo` int(11) NOT NULL DEFAULT 5,
-  `ultimo_costo` decimal(15,2) NOT NULL DEFAULT 0.00,
-  `precio` decimal(15,2) NOT NULL DEFAULT 0.00,
-  `imagen` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `idx_inv_nombre` (`nombre`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- 12.1 Tabla de Kardex (Historial de Movimientos)
-CREATE TABLE IF NOT EXISTS `table_kardex` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `producto_id` int(11) NOT NULL,
-  `tipo_movimiento` enum('ENTRADA_COMPRA', 'SALIDA_VENTA', 'AJUSTE_MANUAL', 'DEVOLUCION') NOT NULL,
-  `cantidad` int(11) NOT NULL,
-  `stock_anterior` int(11) NOT NULL,
-  `stock_actual` int(11) NOT NULL,
-  `referencia_id` varchar(50) DEFAULT NULL, -- ID de Venta o Compra
-  `usuario_id` int(11) NOT NULL,
-  `observaciones` text DEFAULT NULL,
-  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `fk_kardex_producto` (`producto_id`),
-  CONSTRAINT `fk_kardex_producto` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- 12.2 Tabla de Compatibilidad (Repuestos vs Vehículos)
-CREATE TABLE IF NOT EXISTS `table_inventario_compatibilidad` (
-  `producto_id` int(11) NOT NULL,
-  `marca_vehiculo` varchar(50) NOT NULL,
-  `modelo_vehiculo` varchar(50) NOT NULL,
-  PRIMARY KEY (`producto_id`, `marca_vehiculo`, `modelo_vehiculo`),
-  CONSTRAINT `fk_compatibilidad_prod` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- 13. Tabla de Ventas (Historial)
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -8,7 +8,7 @@ class ControllerInventario extends Controller {
     }
 
     public function index() {
-        RoleGuard::hasAccess(['ADMINISTRADOR', 'MECANICO']);
+        RoleGuard::isAdmin();
         $data = [
             'titulo' => 'Control de Inventario',
             'user_role' => $_SESSION['user_role']
@@ -20,6 +20,28 @@ class ControllerInventario extends Controller {
     public function listar() {
         header('Content-Type: application/json');
         echo json_encode($this->inventarioModel->listar());
+    }
+
+    /**
+     * Muestra el historial de movimientos (Kardex) para un producto específico.
+     */
+    public function kardex($producto_id = null) {
+        if (!$producto_id) {
+            redirect('inventario');
+        }
+
+        RoleGuard::isAdmin();
+        $producto = $this->inventarioModel->obtenerPorId($producto_id);
+        if (!$producto) {
+            redirect('inventario?error=producto_no_encontrado');
+        }
+        $kardexMovimientos = $this->inventarioModel->obtenerKardexPorProducto($producto_id);
+
+        $this->view('inventario/kardex', [
+            'titulo' => 'Kardex de ' . $producto->nombre,
+            'producto' => $producto,
+            'kardexMovimientos' => $kardexMovimientos
+        ]);
     }
 
     public function guardar() {

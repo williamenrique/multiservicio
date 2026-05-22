@@ -83,7 +83,14 @@ class ModelProveedor {
                 $this->db->bind(':precio', $precioVenta);
                 $this->db->execute();
                 $productoId = $this->db->lastInsertId();
+                // Si es nuevo, el stock inicial es 0, registramos la entrada
+                $invModel = new ModelInventario();
+                $invModel->registrarMovimiento($productoId, 'ENTRADA_COMPRA', $datos['cantidad'], null, "Compra Inicial");
             } else {
+                // Registrar Kardex para producto existente
+                $invModel = new ModelInventario();
+                $invModel->registrarMovimiento($productoId, 'ENTRADA_COMPRA', $datos['cantidad'], null, "Reposición de Stock");
+
                 // 2. Si existe, sumamos el stock y actualizamos costos/precios (Estrategia Reposición)
                 $this->db->query("UPDATE table_inventario SET stock = stock + :cant, ultimo_costo = :costo, precio = :precio WHERE id = :id");
                 $this->db->bind(':cant', $datos['cantidad']);

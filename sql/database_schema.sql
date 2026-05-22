@@ -83,7 +83,70 @@ CREATE TABLE IF NOT EXISTS `table_clientes` (
   KEY `idx_cliente_nombre` (`nombre`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 6. Tabla de Proveedores
+-- 6. Tabla de Vehículos (Depende de Clientes)
+CREATE TABLE IF NOT EXISTS `table_vehiculos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `placa` varchar(20) NOT NULL,
+  `marca` varchar(50) NOT NULL,
+  `modelo` varchar(50) NOT NULL,
+  `anio` int(11) DEFAULT NULL,
+  `color` varchar(30) DEFAULT NULL,
+  `cliente_id` varchar(50) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `placa` (`placa`),
+  KEY `fk_vehiculo_cliente` (`cliente_id`),
+  CONSTRAINT `fk_vehiculo_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 7. Tabla de Órdenes de Servicio (O.S.)
+CREATE TABLE IF NOT EXISTS `table_ordenes_servicio` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `vehiculo_id` int(11) NOT NULL,
+  `usuario_id` int(11) NOT NULL, -- Mecánico/Responsable
+  `kilometraje` int(11) NOT NULL,
+  `nivel_combustible` varchar(20) DEFAULT NULL, -- Ej: 1/4, 1/2, Lleno
+  `observaciones_entrada` text DEFAULT NULL,
+  `estado` enum('RECIBIDO','DIAGNOSTICANDO','ESPERANDO_REPUESTOS','EN_REPARACION','LISTO','ENTREGADO') DEFAULT 'RECIBIDO',
+  `fecha_entrada` timestamp NOT NULL DEFAULT current_timestamp(),
+  `fecha_entrega_estimada` datetime DEFAULT NULL,
+  `total_estimado` decimal(10,2) DEFAULT 0.00,
+  PRIMARY KEY (`id`),
+  KEY `fk_orden_vehiculo` (`vehiculo_id`),
+  KEY `fk_orden_usuario` (`usuario_id`),
+  CONSTRAINT `fk_orden_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`),
+  CONSTRAINT `fk_orden_vehiculo` FOREIGN KEY (`vehiculo_id`) REFERENCES `table_vehiculos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 8. Checklist de Entrada (Accesorios y estado del vehículo)
+CREATE TABLE IF NOT EXISTS `table_orden_checklist` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `orden_id` int(11) NOT NULL,
+  `item` varchar(100) NOT NULL, -- Ej: Llaves, Gato, Herramientas
+  `estado` tinyint(1) DEFAULT 0,
+  `observacion` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_checklist_orden` (`orden_id`),
+  CONSTRAINT `fk_checklist_orden` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 9. Historial de Estados (Trazabilidad del ciclo de vida)
+CREATE TABLE IF NOT EXISTS `table_orden_estados_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `orden_id` int(11) NOT NULL,
+  `estado_anterior` varchar(50) DEFAULT NULL,
+  `estado_nuevo` varchar(50) DEFAULT NULL,
+  `usuario_id` int(11) DEFAULT NULL,
+  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
+  `comentario` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_log_orden` (`orden_id`),
+  KEY `fk_log_usuario` (`usuario_id`),
+  CONSTRAINT `fk_log_orden` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_log_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 10. Tabla de Proveedores
 CREATE TABLE IF NOT EXISTS `table_proveedores` (
   `id` varchar(50) NOT NULL,
   `nombre` varchar(100) NOT NULL,
@@ -97,7 +160,7 @@ CREATE TABLE IF NOT EXISTS `table_proveedores` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 7. Tabla de ConfiguraciOn de la Empresa
+-- 11. Tabla de ConfiguraciOn de la Empresa
 CREATE TABLE IF NOT EXISTS `table_company_settings` (
   `id` INT(11) NOT NULL DEFAULT 1, -- Siempre serA 1, para asegurar una única fila
   `name` VARCHAR(100) NOT NULL,
@@ -111,12 +174,13 @@ CREATE TABLE IF NOT EXISTS `table_company_settings` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 8. Tabla de Inventario (Repuestos y Servicios)
+-- 12. Tabla de Inventario (Repuestos y Servicios)
 CREATE TABLE IF NOT EXISTS `table_inventario` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre` varchar(150) NOT NULL,
   `categoria` varchar(50) NOT NULL,
   `stock` int(11) NOT NULL DEFAULT 0,
+  `stock_minimo` int(11) NOT NULL DEFAULT 5,
   `ultimo_costo` decimal(15,2) NOT NULL DEFAULT 0.00,
   `precio` decimal(15,2) NOT NULL DEFAULT 0.00,
   `imagen` text DEFAULT NULL,
@@ -126,7 +190,35 @@ CREATE TABLE IF NOT EXISTS `table_inventario` (
   KEY `idx_inv_nombre` (`nombre`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 9. Tabla de Ventas (Historial)
+-- 12.1 Tabla de Kardex (Historial de Movimientos)
+CREATE TABLE IF NOT EXISTS `table_kardex` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `producto_id` int(11) NOT NULL,
+  `tipo_movimiento` enum('ENTRADA_COMPRA', 'SALIDA_VENTA', 'AJUSTE_MANUAL', 'DEVOLUCION') NOT NULL,
+  `cantidad` int(11) NOT NULL,
+  `stock_anterior` int(11) NOT NULL,
+  `stock_actual` int(11) NOT NULL,
+  `referencia_id` varchar(50) DEFAULT NULL, -- ID de Venta o Compra
+  `usuario_id` int(11) DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_kardex_producto` (`producto_id`),
+  KEY `fk_kardex_usuario` (`usuario_id`),
+  CONSTRAINT `fk_kardex_producto` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_kardex_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 12.2 Tabla de Compatibilidad (Repuestos vs Vehículos)
+CREATE TABLE IF NOT EXISTS `table_inventario_compatibilidad` (
+  `producto_id` int(11) NOT NULL,
+  `marca_vehiculo` varchar(50) NOT NULL,
+  `modelo_vehiculo` varchar(50) NOT NULL,
+  PRIMARY KEY (`producto_id`, `marca_vehiculo`, `modelo_vehiculo`),
+  CONSTRAINT `fk_compatibilidad_prod` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 13. Tabla de Ventas (Historial)
 CREATE TABLE IF NOT EXISTS `table_ventas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `cliente_id` varchar(50) DEFAULT NULL, -- Corregido de 20 a 50 para coincidir con table_clientes.id
@@ -147,7 +239,7 @@ CREATE TABLE IF NOT EXISTS `table_ventas` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
--- 10. Detalle de Ventas
+-- 14. Detalle de Ventas
 CREATE TABLE IF NOT EXISTS `table_ventas_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `venta_id` int(11) NOT NULL,
@@ -157,10 +249,12 @@ CREATE TABLE IF NOT EXISTS `table_ventas_detalle` (
   `precio_unitario` decimal(15,2) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_detalle_venta` (`venta_id`),
-  CONSTRAINT `fk_detalle_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE
+  KEY `fk_detalle_producto_venta` (`producto_id`),
+  CONSTRAINT `fk_detalle_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_detalle_producto_venta` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 11. Tabla de Gastos (Egresos Operativos del Taller)
+-- 15. Tabla de Gastos (Egresos Operativos del Taller)
 DROP TABLE IF EXISTS `table_gastos`;
 CREATE TABLE IF NOT EXISTS `table_gastos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -177,7 +271,7 @@ CREATE TABLE IF NOT EXISTS `table_gastos` (
   CONSTRAINT `fk_gasto_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 12. Tabla de Compras (Entrada de Mercancía y Deudas)
+-- 16. Tabla de Compras (Entrada de Mercancía y Deudas)
 CREATE TABLE IF NOT EXISTS `table_compras` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `proveedor_id` varchar(50) NOT NULL,
@@ -194,7 +288,7 @@ CREATE TABLE IF NOT EXISTS `table_compras` (
   CONSTRAINT `fk_compra_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 13. Detalle de Compras
+-- 17. Detalle de Compras
 CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `compra_id` int(11) NOT NULL,
@@ -209,7 +303,7 @@ CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
   CONSTRAINT `fk_detalle_producto_compra` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 14. Tabla de Solicitudes de Recuperación de Acceso
+-- 18. Tabla de Solicitudes de Recuperación de Acceso
 CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) NOT NULL,
@@ -219,7 +313,7 @@ CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
   CONSTRAINT `fk_recuperaciones_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 15. Tabla de Auditoría (Bitácora de movimientos y seguridad)
+-- 19. Tabla de Auditoría (Bitácora de movimientos y seguridad)
 CREATE TABLE IF NOT EXISTS `table_audit_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) DEFAULT NULL,
@@ -240,6 +334,20 @@ CREATE TABLE IF NOT EXISTS `table_audit_logs` (
 -- Limpiar tablas antes de insertar (Orden inverso de FK)
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE `table_usuario_sessions`;
+TRUNCATE TABLE `table_orden_estados_log`;
+TRUNCATE TABLE `table_orden_checklist`;
+TRUNCATE TABLE `table_ordenes_servicio`;
+TRUNCATE TABLE `table_vehiculos`;
+TRUNCATE TABLE `table_ventas_detalle`;
+TRUNCATE TABLE `table_ventas`;
+TRUNCATE TABLE `table_compras_detalle`;
+TRUNCATE TABLE `table_compras`;
+TRUNCATE TABLE `table_gastos`;
+TRUNCATE TABLE `table_kardex`;
+TRUNCATE TABLE `table_inventario_compatibilidad`;
+TRUNCATE TABLE `table_inventario`;
+TRUNCATE TABLE `table_proveedores`;
+TRUNCATE TABLE `table_clientes`;
 TRUNCATE TABLE `table_recuperaciones`;
 TRUNCATE TABLE `table_audit_logs`;
 TRUNCATE TABLE `table_usuarios`;

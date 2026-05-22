@@ -37,6 +37,7 @@
                         <th class="px-8 py-6">Categoría</th>
                         <th class="px-8 py-6">Stock</th>
                         <th class="px-8 py-6">Precio Unitario</th>
+                        <th class="px-8 py-6">Estado</th>
                         <th class="px-8 py-6 text-right">Acciones</th>
                     </tr>
                 </thead>
@@ -82,7 +83,7 @@
                 <input type="text" name="nombre" id="prodNombre" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all">
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Categoría</label>
                     <select name="categoria" id="prodCategoria" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
@@ -96,6 +97,10 @@
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Existencia (Stock)</label>
                     <input type="number" name="stock" id="prodStock" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Mínimo (Alerta)</label>
+                    <input type="number" name="stock_minimo" id="prodStockMin" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
                 </div>
             </div>
 
@@ -116,6 +121,12 @@
 </div>
 
 <script>
-    const USER_ROLE = "<?php echo $_SESSION['user_role']; ?>";
+    // Usamos el objeto window para asegurar alcance global y evitar SyntaxError por re-declaración de constantes
+    window.USER_ROLE = "<?php echo $_SESSION['user_role'] ?? 'MECANICO'; ?>";
+    
+    // Solo definimos URLROOT si no ha sido definido previamente por el sistema (ej. en el header)
+    if (typeof window.URLROOT === 'undefined') {
+        window.URLROOT = "<?php echo URLROOT; ?>";
+    }
 </script>
 <script src="<?php echo URLROOT; ?>/js/inventario.js"></script>
