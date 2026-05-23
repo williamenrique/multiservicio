@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
+    <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.min.css">
     <script>
         // Definimos la constante global para que todos los JS la usen
         const URLROOT = "<?php echo URLROOT; ?>";

@@ -3,12 +3,7 @@
  * Modelo de Usuario
  * Gestiona la lógica de datos de acceso, personal vinculado y control de sesiones.
  */
-class ModelUsuario {
-    private $db;
-
-    public function __construct() {
-        $this->db = new Database();
-    }
+class ModelUsuario extends Model {
 
     /**
      * Busca un usuario permitiendo el acceso mediante su Nick (tabla usuarios)
@@ -56,9 +51,7 @@ class ModelUsuario {
      * Elimina los registros de sesión para un usuario
      */
     public function eliminarSesiones($usuario_id) {
-        $this->db->query("DELETE FROM table_usuario_sessions WHERE usuario_id = :id");
-        $this->db->bind(':id', $usuario_id);
-        return $this->db->execute();
+        return $this->db->delete('table_usuario_sessions', 'usuario_id', $usuario_id);
     }
 
     /**
@@ -87,10 +80,11 @@ class ModelUsuario {
      * Registra una nueva solicitud de recuperación de acceso.
      */
     public function registrarSolicitudRecuperacion($usuario_id, $tipo = 'RECUPERACION') {
-        $this->db->query("INSERT INTO table_recuperaciones (usuario_id, tipo, fecha) VALUES (:uid, :tipo, NOW())");
-        $this->db->bind(':uid', $usuario_id);
-        $this->db->bind(':tipo', $tipo);
-        return $this->db->execute();
+        return $this->db->insert('table_recuperaciones', [
+            'usuario_id' => $usuario_id,
+            'tipo' => $tipo,
+            'fecha' => date('Y-m-d H:i:s')
+        ]);
     }
 
     /**
@@ -109,8 +103,6 @@ class ModelUsuario {
      * Elimina una solicitud (Marcada como procesada).
      */
     public function eliminarSolicitud($id) {
-        $this->db->query("DELETE FROM table_recuperaciones WHERE id = :id");
-        $this->db->bind(':id', $id);
-        return $this->db->execute();
+        return $this->db->delete('table_recuperaciones', 'id', $id);
     }
 }

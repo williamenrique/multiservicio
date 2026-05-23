@@ -88,4 +88,58 @@ class Database {
     public function rollBack() {
         return $this->dbh->rollBack();
     }
+
+    /**
+     * Inserta un registro de forma sencilla (Mini Query Builder)
+     * @param string $table Nombre de la tabla
+     * @param array $data Arreglo asociativo ['columna' => 'valor']
+     */
+    public function insert($table, $data) {
+        $fields = implode(", ", array_keys($data));
+        $placeholders = ":" . implode(", :", array_keys($data));
+
+        $this->query("INSERT INTO {$table} ({$fields}) VALUES ({$placeholders})");
+
+        foreach ($data as $key => $value) {
+            $this->bind(":$key", $value);
+        }
+
+        return $this->execute();
+    }
+
+    /**
+     * Actualiza registros basado en una condición simple
+     * @param string $table Nombre de la tabla
+     * @param array $data Arreglo asociativo de cambios
+     * @param string $where Columna para el filtro
+     * @param mixed $whereValue Valor del filtro
+     */
+    public function update($table, $data, $where, $whereValue) {
+        $sets = "";
+        foreach ($data as $key => $value) {
+            $sets .= "{$key} = :{$key}, ";
+        }
+        $sets = rtrim($sets, ", ");
+
+        $this->query("UPDATE {$table} SET {$sets} WHERE {$where} = :whereVal");
+
+        foreach ($data as $key => $value) {
+            $this->bind(":$key", $value);
+        }
+        $this->bind(":whereVal", $whereValue);
+
+        return $this->execute();
+    }
+
+    /**
+     * Elimina registros basado en una condición simple
+     * @param string $table Nombre de la tabla
+     * @param string $where Columna para el filtro
+     * @param mixed $value Valor del filtro
+     */
+    public function delete($table, $where, $value) {
+        $this->query("DELETE FROM {$table} WHERE {$where} = :val");
+        $this->bind(":val", $value);
+        return $this->execute();
+    }
 }

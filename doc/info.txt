@@ -35,3 +35,9 @@ LISTO 5. Mejoras en la Arquitectura de Software
 6. Experiencia del Cliente (Plus de Valor)
     Notificaciones Automáticas: Enviar un correo o mensaje (vía API de WhatsApp) cuando la orden de servicio cambie a estado "Terminado".
     Portal de Consulta: Una página simple donde el cliente, con su placa y cédula, vea el progreso actual de su vehículo.
+
+
+Iniciar el modo desarrollo: Cada vez que vayas a programar, ejecuta en la terminal:
+
+bash
+npm run dev

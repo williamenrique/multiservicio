@@ -1,15 +1,15 @@
 <?php
+/**
+ * Controlador de Errores
+ * Maneja las respuestas para páginas no encontradas o errores internos.
+ */
 class ControllerErrores extends Controller {
-    
+
     public function index() {
-        // Enviamos el código de estado HTTP 404 al navegador
+        // Establecer código de respuesta HTTP 404
         http_response_code(404);
         
-        $data = [
-            'titulo' => 'Página no encontrada',
-            'mensaje' => 'Lo sentimos, el recurso que buscas no existe en el sistema del taller.'
-        ];
-
+        $data = ['titulo' => '404 - No Encontrado'];
         $this->view('errores/404', $data);
     }
 }

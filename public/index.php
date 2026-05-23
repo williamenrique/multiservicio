@@ -16,6 +16,12 @@ require_once __DIR__ . '/../app/Helpers/helpers.php';
 // 4. Autoload de Composer (Si usas librerías externas como Dotenv o Dompdf)
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
+
+    // Inicializar variables de entorno
+    if (class_exists('Dotenv\Dotenv')) {
+        $dotenv = Dotenv\Dotenv::createImmutable(dirname(__DIR__));
+        $dotenv->load();
+    }
 }
 
 // 5. Autoload de clases del sistema (Core, Controllers, Models, etc.)

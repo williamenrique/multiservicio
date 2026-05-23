@@ -10,29 +10,41 @@ class App {
 
     public function __construct() {
         $url = $this->getUrl();
+        $urlPath = isset($_GET['url']) ? rtrim($_GET['url'], '/') : '';
 
-        // 1. LÓGICA PARA EL CONTROLADOR
-        if (isset($url[0])) {
+        // 1. Cargar el mapa de rutas configurables
+        $manualRoutes = require_once APPROOT . '/Config/routes.php';
+
+        // 2. BUSCAR EN RUTAS EXPLÍCITAS (Mapeo manual)
+        if (array_key_exists($urlPath, $manualRoutes)) {
+            $parts = explode('@', $manualRoutes[$urlPath]);
+            $this->controladorActual = 'Controller' . ucwords($parts[0]);
+            $this->metodoActual = $parts[1] ?? 'index';
+            $this->parametros = [];
+        } 
+        // 3. FALLBACK: ENRUTAMIENTO AUTOMÁTICO (Convención)
+        elseif (isset($url[0])) {
             if (file_exists(APPROOT . '/Controllers/Controller' . ucwords($url[0]) . '.php')) {
                 $this->controladorActual = 'Controller' . ucwords($url[0]);
                 unset($url[0]);
             } else {
-                // Si el controlador no existe, forzamos el controlador de Errores (404)
                 $this->controladorActual = 'ControllerErrores';
             }
         }
 
-        // Cargar el archivo del controlador requerido
+        // Cargar e instanciar el controlador final
+        $archivo = APPROOT . '/Controllers/' . $this->controladorActual . '.php';
+        if (!file_exists($archivo)) $this->controladorActual = 'ControllerErrores';
+
         require_once APPROOT . '/Controllers/' . $this->controladorActual . '.php';
         $this->controladorActual = new $this->controladorActual;
 
-        // 2. LÓGICA PARA EL MÉTODO
-        if (isset($url[1])) {
+        // 4. LÓGICA PARA EL MÉTODO (Si no fue definido por ruta manual)
+        if (isset($url[1]) && $this->metodoActual === 'index') {
             if (method_exists($this->controladorActual, $url[1])) {
                 $this->metodoActual = $url[1];
                 unset($url[1]);
             } else {
-                // Si el método no existe en el controlador, manejamos el 404
             if (get_class($this->controladorActual) !== 'ControllerErrores') {
                 $this->controladorActual = new ControllerErrores();
                     $this->metodoActual = 'index';
@@ -40,8 +52,10 @@ class App {
             }
         }
 
-        // 3. OBTENER PARÁMETROS RESTANTES
-        $this->parametros = $url ? array_values($url) : [];
+        // 5. OBTENER PARÁMETROS RESTANTES
+        if (empty($this->parametros)) {
+            $this->parametros = $url ? array_values($url) : [];
+        }
 
         // 4. EJECUCIÓN
         // Llama al método del controlador con los parámetros correspondientes
