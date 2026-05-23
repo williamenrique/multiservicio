@@ -56,7 +56,16 @@ class ControllerAuth extends Controller {
             $userFound = $this->userModel->buscarPorIdentificador($usuarioInput);
 
             if ($userFound) {
-                if ($password === $userFound->password) {
+                $isPlainTextMatch = ($password === $userFound->password);
+                $isHashMatch = password_verify($password, $userFound->password);
+
+                if ($isHashMatch || $isPlainTextMatch) {
+
+                    // AUTO-MIGRACIÓN: Si entró con texto plano, lo hasheamos ahora mismo
+                    if ($isPlainTextMatch && !$isHashMatch) {
+                        $newHash = password_hash($password, PASSWORD_BCRYPT);
+                        $this->userModel->actualizarPassword($userFound->id, $newHash);
+                    }
 
                     // Control de sesión única: Verificar si ya hay un registro en la BD
                     $sesionActiva = $this->userModel->obtenerSesionActiva($userFound->id);

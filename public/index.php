@@ -4,7 +4,20 @@
  */
 
 // 1. Iniciar la sesión (Fundamental para AuthGuard y RoleGuard)
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Generar Token CSRF si no existe
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// 1.1 Cabeceras de Seguridad HTTP
+header("X-Content-Type-Options: nosniff");
+header("X-Frame-Options: DENY");
+header("X-XSS-Protection: 1; mode=block");
+header("Referrer-Policy: strict-origin-when-cross-origin");
 
 // 2. Cargar el archivo de configuración y constantes
 // Subimos un nivel para llegar a la carpeta de lógica interna

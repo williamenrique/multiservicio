@@ -105,4 +105,11 @@ class ModelUsuario extends Model {
     public function eliminarSolicitud($id) {
         return $this->db->delete('table_recuperaciones', 'id', $id);
     }
+
+    /**
+     * Actualiza la contraseña de un usuario (útil para migraciones de texto plano a hash)
+     */
+    public function actualizarPassword($id, $hash) {
+        return $this->db->update('table_usuarios', ['password' => $hash], 'id', $id);
+    }
 }
