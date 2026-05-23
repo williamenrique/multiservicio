@@ -142,4 +142,51 @@ class Database {
         $this->bind(":val", $value);
         return $this->execute();
     }
+
+    /**
+     * Procesa una petición de DataTables Server-Side.
+     * Retorna el formato JSON requerido: draw, recordsTotal, recordsFiltered, data.
+     */
+    public function getDataTableResponse($baseQuery, $params, $searchColumns = []) {
+        $draw = isset($params['draw']) ? (int)$params['draw'] : 1;
+        $start = isset($params['start']) ? (int)$params['start'] : 0;
+        $length = isset($params['length']) ? (int)$params['length'] : 10;
+        
+        // 1. Obtener Total de registros sin filtros
+        $this->query("SELECT COUNT(*) as total FROM ($baseQuery) as sub");
+        $totalRecords = $this->single()->total;
+
+        // 2. Construir query con filtros de búsqueda
+        $filterQuery = $baseQuery;
+        $binds = [];
+        if (!empty($params['search']['value']) && !empty($searchColumns)) {
+            $search = $params['search']['value'];
+            $clauses = array_map(fn($col) => "$col LIKE :search_" . str_replace('.', '_', $col), $searchColumns);
+            $filterQuery = "SELECT * FROM ($baseQuery) as sub WHERE " . implode(' OR ', $clauses);
+            foreach ($searchColumns as $col) {
+                $binds[":search_" . str_replace('.', '_', $col)] = "%$search%";
+            }
+        }
+
+        // 3. Obtener Total de registros filtrados
+        $this->query("SELECT COUNT(*) as total FROM ($filterQuery) as filtered_sub");
+        foreach ($binds as $key => $val) $this->bind($key, $val);
+        $totalFiltered = $this->single()->total;
+
+        // 4. Aplicar Orden y Límite
+        $finalQuery = $filterQuery;
+        if (isset($params['order']) && isset($params['columns'])) {
+            $colIdx = $params['order'][0]['column'];
+            $colName = $params['columns'][$colIdx]['data'];
+            $dir = $params['order'][0]['dir'];
+            $finalQuery .= " ORDER BY $colName $dir";
+        }
+        $finalQuery .= " LIMIT $start, $length";
+
+        $this->query($finalQuery);
+        foreach ($binds as $key => $val) $this->bind($key, $val);
+        $data = $this->resultSet();
+
+        return ['draw' => $draw, 'recordsTotal' => $totalRecords, 'recordsFiltered' => $totalFiltered, 'data' => $data];
+    }
 }

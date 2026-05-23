@@ -46,13 +46,25 @@ class Controller {
                 extract($data);
                 
                 // Cargar empresa si no existe (fallback)
-                if (!isset($company)) {
+                if (isset($_SESSION['company_settings'])) {
+                    $company = $_SESSION['company_settings'];
+                } else {
                     try {
                         $db = new Database();
                         $db->query("SELECT * FROM table_company_settings WHERE id = 1");
                         $company = $db->single();
-                    } catch (Throwable $e) { $company = (object) ['name' => 'TALLER']; }
+                        $_SESSION['company_settings'] = $company;
+                    } catch (Throwable $e) { 
+                        $company = (object) [
+                            'name' => 'TALLER PRO',
+                            'iva' => 0,
+                            'logo' => ''
+                        ]; 
+                    }
                 }
+
+                // Aseguramos que extra_scripts siempre sea un array
+                $extra_scripts = $extra_scripts ?? [];
 
                 // Determinamos si la vista requiere el layout del dashboard (header/footer)
                 // Las vistas de login o errores deben ser independientes

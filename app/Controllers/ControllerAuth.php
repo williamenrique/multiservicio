@@ -101,7 +101,9 @@ class ControllerAuth extends Controller {
 
                     return $this->jsonResponse(['success' => true, 'redirect' => URLROOT . '/dashboard']);
                 } else {
-                    return $this->jsonResponse(['success' => false, 'error' => 'Contraseña incorrecta.'], 401);
+                    // Auditoría de fallo de contraseña
+                    logAction('AUTH', 'LOGIN_FAIL', "Intento fallido para el usuario: {$usuarioInput}");
+                    return $this->jsonResponse(['success' => false, 'error' => 'Las credenciales no coinciden.'], 401);
                 }
             } else {
                 return $this->jsonResponse(['success' => false, 'error' => 'Usuario no encontrado o inactivo.'], 404);

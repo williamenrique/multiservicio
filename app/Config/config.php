@@ -35,13 +35,12 @@ define('SITENAME', $_ENV['SITENAME'] ?? 'Taller Pro');
 define('APPVERSION', '1.0.0');
 
 // 6. Configuración de Entorno (development / production)
-// En 'development' se muestran los errores, en 'production' se ocultan por seguridad
 define('ENVIRONMENT', $_ENV['ENVIRONMENT'] ?? 'development');
 
-// 7. Define paths for static assets (if needed in PHP)
-define('URL_CSS', URLROOT . '/public/css/');
-define('URL_JS', URLROOT . '/public/js/');
-define('URL_IMG', URLROOT . '/public/img/');
+define('URL_CSS', URLROOT . '/css/');
+define('URL_JS', URLROOT . '/js/');
+define('URL_IMG', URLROOT . '/img/');
+
 if (ENVIRONMENT == 'development') {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
