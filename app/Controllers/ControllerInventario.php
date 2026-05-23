@@ -18,8 +18,31 @@ class ControllerInventario extends Controller {
     }
 
     public function listar() {
-        header('Content-Type: application/json');
-        echo json_encode($this->inventarioModel->listar());
+        // Detectar si la petición viene de DataTables (Server-side)
+        if (isset($_GET['draw'])) {
+            $start = $_GET['start'] ?? 0;
+            $length = $_GET['length'] ?? 10;
+            $search = $_GET['search']['value'] ?? '';
+            
+            // Mapeo corregido según el orden real de las columnas en el JS
+            $columns = [0 => 'id', 1 => 'nombre', 2 => 'categoria', 3 => 'stock', 4 => 'precio', 5 => 'stock'];
+            $orderColIndex = intval($_GET['order'][0]['column'] ?? 1);
+            $orderCol = $columns[$orderColIndex] ?? 'nombre';
+            $orderDir = $_GET['order'][0]['dir'] ?? 'asc';
+
+            $totalRecords = $this->inventarioModel->contarTodos();
+            $filteredRecords = !empty($search) ? $this->inventarioModel->contarFiltrados($search) : $totalRecords;
+            $data = $this->inventarioModel->obtenerPaginado($start, $length, $search, $orderCol, $orderDir) ?: [];
+
+            return $this->jsonResponse([
+                "draw" => intval($_GET['draw']),
+                "recordsTotal" => intval($totalRecords),
+                "recordsFiltered" => intval($filteredRecords),
+                "data" => $data
+            ]);
+        }
+
+        return $this->jsonResponse($this->inventarioModel->listar());
     }
 
     /**

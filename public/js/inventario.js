@@ -7,104 +7,89 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('fileInput');
     const imagePreview = document.getElementById('imagePreview');
 
-    let items = [];
-
-    const loadData = async () => {
-        try {
-            const res = await fetch(`${URLROOT}/inventario/listar`);
-            items = await res.json();
-            renderTable(items);
-        } catch (e) {
-            console.error("Error detallado en loadData:", e);
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-red-500">Error de comunicación.</td></tr>';
-        }
-    };
-
-    // Función para destruir y recrear DataTable
-    const destroyDataTable = () => {
-        if ($.fn.DataTable.isDataTable('#inventoryTable')) {
-            $('#inventoryTable').DataTable().destroy();
-        }
-    };
+    let inventarioTable;
 
     // Función para inicializar DataTable
     const initializeDataTable = () => {
-        $('#inventoryTable').DataTable({
+        inventarioTable = $('#inventoryTable').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: `${URLROOT}/inventario/listar`,
+                type: 'GET'
+            },
             responsive: true,
             pageLength: 10,
             lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
-            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' }
+            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' },
+            columns: [
+                {
+                    data: 'imagen',
+                    orderable: false,
+                    render: function (data, type, row) {
+                        const cleanPath = data ? data.trim() : null;
+                        const isRemote = cleanPath && (cleanPath.toLowerCase().startsWith('http') || cleanPath.toLowerCase().startsWith('data:'));
+                        const imgUrl = isRemote ? cleanPath : (cleanPath ? `${URLROOT}/${cleanPath}` : null);
+
+                        return `
+                            <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 ${imgUrl ? 'cursor-zoom-in hover:opacity-80 transition-all' : ''}" 
+                                 ${imgUrl ? `onclick="AppUtils.viewImage('${imgUrl}', '${row.nombre}')"` : ''}>
+                                ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="package" class="w-5 h-5 text-slate-300"></i>`}
+                            </div>`;
+                    }
+                },
+                { data: 'nombre', className: 'font-bold text-slate-700 uppercase' },
+                {
+                    data: 'categoria',
+                    render: data => `<span class="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded-md text-slate-500">${data}</span>`
+                },
+                {
+                    data: 'stock',
+                    render: (data, type, row) => {
+                        const isLowStock = parseInt(data) <= (parseInt(row.stock_minimo) || 5);
+                        const color = isLowStock ? 'text-red-500 font-bold' : 'text-slate-600';
+                        return `<span class="${color}">${data} uds</span>`;
+                    }
+                },
+                {
+                    data: 'precio',
+                    className: 'font-mono font-bold text-navy-blue',
+                    render: data => AppUtils.formatCurrency(data)
+                },
+                {
+                    data: 'stock',
+                    render: (data, type, row) => {
+                        const isLowStock = parseInt(data) <= (parseInt(row.stock_minimo) || 5);
+                        const label = isLowStock ? (parseInt(data) === 0 ? 'AGOTADO' : 'CRÍTICO') : 'OK';
+                        const color = isLowStock ? 'text-red-600' : 'text-emerald-600';
+                        return `<span class="text-[9px] font-black ${color}">${label}</span>`;
+                    }
+                },
+                {
+                    data: null,
+                    orderable: false,
+                    className: 'text-right',
+                    render: function (data, type, row) {
+                        if (USER_ROLE !== 'ADMINISTRADOR') return `<span class="text-[10px] italic text-slate-400">Lectura</span>`;
+                        return `
+                            <div class="flex justify-end gap-2 items-center">
+                                <a href="${URLROOT}/inventario/kardex/${row.id}" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-navy-blue hover:text-neon-green rounded-lg transition-all" title="Ver Kardex"><i data-lucide="history" class="w-4 h-4"></i></a>
+                                <button onclick="editItem(${row.id})" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-neon-green rounded-lg transition-all"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                                <button onclick="deleteItem(${row.id})" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-red-500 hover:text-white rounded-lg transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>`;
+                    }
+                }
+            ],
+            drawCallback: function (settings) {
+                if (window.lucide) lucide.createIcons();
+
+                // Actualizar el contador de productos total en la interfaz
+                if (totalCount) {
+                    totalCount.textContent = settings._iRecordsTotal;
+                }
+            }
         });
     };
-
-    const renderTable = (data) => {
-        destroyDataTable(); // Destruir antes de renderizar
-
-        tableBody.innerHTML = '';
-        totalCount.textContent = data.length;
-
-        // VALIDACIÓN: Si no hay resultados, mostrar mensaje amigable
-        if (!data || data.length === 0) {
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="px-8 py-12 text-center text-gray-400 italic">
-                        <div class="flex flex-col items-center justify-center gap-2">
-                            <i data-lucide="search-x" class="w-8 h-8"></i>
-                            <span>No se encontraron productos que coincidan con la búsqueda.</span>
-                        </div>
-                    </td>
-                </tr>`;
-            if (window.lucide) lucide.createIcons();
-            return;
-        }
-
-        data.forEach(item => {
-            const isLowStock = item.stock <= (item.stock_minimo || 5);
-            const stockColor = isLowStock ? 'text-red-500 font-bold' : 'text-slate-600';
-            const statusLabel = isLowStock ? (item.stock === 0 ? 'AGOTADO' : 'CRÍTICO') : 'OK';
-
-            // Limpiar y validar la URL de la imagen
-            const cleanPath = item.imagen ? item.imagen.trim() : null;
-            // Normalizamos a minúsculas antes de comparar protocolos
-            const isRemote = cleanPath && (cleanPath.toLowerCase().startsWith('http') || cleanPath.toLowerCase().startsWith('data:'));
-            const imgUrl = isRemote
-                ? cleanPath
-                : (cleanPath ? `${URLROOT}/${cleanPath}` : null);
-
-            const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-50 transition-colors border-b border-slate-100';
-            row.innerHTML = `
-                <td class="px-8 py-4">
-                    <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 ${imgUrl ? 'cursor-zoom-in hover:opacity-80 transition-all' : ''}" 
-                         ${imgUrl ? `onclick="AppUtils.viewImage('${imgUrl}', '${item.nombre}')"` : ''}>
-                        ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="package" class="w-5 h-5 text-slate-300"></i>`}
-                    </div>
-                </td>
-                <td class="px-8 py-4 font-bold text-slate-700 uppercase">${item.nombre}</td>
-                <td class="px-8 py-4"><span class="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded-md text-slate-500">${item.categoria}</span></td>
-                <td class="px-8 py-4 ${stockColor}">${item.stock} uds</td>
-                <td class="px-8 py-4 font-mono font-bold text-navy-blue">${AppUtils.formatCurrency(item.precio)}</td>
-                <td class="px-8 py-4"><span class="text-[9px] font-black ${isLowStock ? 'text-red-600' : 'text-emerald-600'}">${statusLabel}</span></td>
-                <td class="px-8 py-4 text-right">
-                    <div class="flex justify-end gap-2 items-center">
-                        ${USER_ROLE === 'ADMINISTRADOR' ? `
-                            <a href="${URLROOT}/inventario/kardex/${item.id}" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-navy-blue hover:text-neon-green rounded-lg transition-all" title="Ver Kardex"><i data-lucide="history" class="w-4 h-4"></i></a>
-                            <button onclick="editItem(${item.id})" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-neon-green rounded-lg transition-all"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                            <button onclick="deleteItem(${item.id})" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-red-500 hover:text-white rounded-lg transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                        ` : `<span class="text-[10px] italic text-slate-400">Lectura</span>`}
-                    </div>
-                </td>
-            `;
-            tableBody.appendChild(row);
-        });
-        initializeDataTable(); // Inicializar después de renderizar
-        if (window.lucide) lucide.createIcons(); // Llamar explícitamente a Lucide para renderizar los iconos
-    };
-
-    searchInput.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-        renderTable(items.filter(i => i.nombre.toLowerCase().includes(term) || i.categoria.toLowerCase().includes(term)));
-    });
 
     // Previsualización de imagen (Local)
     fileInput.addEventListener('change', (e) => {
@@ -141,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await res.json();
         if (result.success) {
             toggleModal(false);
-            loadData();
+            inventarioTable.ajax.reload(null, false);
             AppUtils.showToast(result.mensaje);
         }
     });
@@ -162,7 +147,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnCancel')?.addEventListener('click', () => toggleModal(false));
 
     window.editItem = (id) => {
-        const item = items.find(i => i.id == id);
+        // Obtenemos los datos directamente de la tabla actual
+        const item = inventarioTable.rows().data().toArray().find(i => i.id == id);
+        if (!item) return;
         document.getElementById('prodId').value = item.id;
         document.getElementById('prodNombre').value = item.nombre;
         document.getElementById('prodCategoria').value = item.categoria;
@@ -191,10 +178,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await res.json();
             if (result.success) {
                 AppUtils.showToast('Producto eliminado');
-                loadData();
+                inventarioTable.ajax.reload(null, false);
             }
         });
     };
 
-    loadData();
+    // Inicializamos la tabla en lugar de llamar a loadData
+    initializeDataTable();
+
+    // Vinculamos el buscador externo con la lógica de Server-Side
+    searchInput?.addEventListener('input', function () {
+        inventarioTable.search(this.value).draw();
+    });
 });

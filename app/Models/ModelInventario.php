@@ -114,4 +114,46 @@ class ModelInventario {
         $this->db->bind(':pid', $producto_id);
         return $this->db->resultSet();
     }
+
+    public function contarTodos() {
+        $this->db->query("SELECT COUNT(*) as total FROM table_inventario");
+        $res = $this->db->single();
+        return $res ? $res->total : 0;
+    }
+
+    public function contarFiltrados($term) {
+        $this->db->query("SELECT COUNT(*) as total FROM table_inventario 
+                          WHERE nombre LIKE :term OR categoria LIKE :term");
+        $this->db->bind(':term', "%$term%");
+        $res = $this->db->single();
+        return $res ? $res->total : 0;
+    }
+
+    public function obtenerPaginado($start, $length, $search, $order, $dir) {
+        $sql = "SELECT * FROM table_inventario";
+        
+        if (!empty($search)) {
+            $sql .= " WHERE nombre LIKE :term OR categoria LIKE :term";
+        }
+        
+        // Sanitización de ordenamiento
+        $validColumns = ['id', 'nombre', 'categoria', 'stock', 'precio'];
+        $order = in_array($order, $validColumns) ? $order : 'nombre';
+        $dir = strtoupper($dir) === 'DESC' ? 'DESC' : 'ASC';
+        
+        $sql .= " ORDER BY $order $dir";
+
+        // Manejar el caso de length = -1 (Mostrar todos)
+        if ((int)$length !== -1) {
+            $sql .= " LIMIT " . (int)$start . ", " . (int)$length;
+        }
+        
+        $this->db->query($sql);
+
+        if (!empty($search)) {
+            $this->db->bind(':term', "%$search%");
+        }
+        
+        return $this->db->resultSet();
+    }
 }
