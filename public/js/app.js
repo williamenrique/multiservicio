@@ -2,7 +2,6 @@
  * App Main Logic
  */
 
-// Instancia global para control de DataTable y refresco de datos
 // Variable global para el usuario logueado (se cargará de la DB)
 let currentLoggedInUser = null;
 

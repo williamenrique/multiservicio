@@ -14,6 +14,34 @@ class ModelInventario {
         return $this->db->resultSet();
     }
 
+    public function listarServerSide($start, $length, $search) {
+        // 1. Total sin filtrar
+        $this->db->query("SELECT COUNT(*) as total FROM table_inventario");
+        $total = $this->db->single()->total;
+
+        // 2. Query con filtro
+        $sql = "SELECT * FROM table_inventario WHERE (nombre LIKE :search OR categoria LIKE :search)";
+        
+        // 3. Contar filtrados
+        $this->db->query("SELECT COUNT(*) as total FROM table_inventario WHERE (nombre LIKE :search OR categoria LIKE :search)");
+        $this->db->bind(':search', "%$search%");
+        $filtrados = $this->db->single()->total;
+
+        // 4. Obtener data paginada
+        $this->db->query($sql . " ORDER BY nombre ASC LIMIT :start, :length");
+        $this->db->bind(':search', "%$search%");
+        $this->db->bind(':start', (int)$start, PDO::PARAM_INT);
+        $this->db->bind(':length', (int)$length, PDO::PARAM_INT);
+        
+        $data = $this->db->resultSet();
+
+        return [
+            'total' => $total,
+            'filtrados' => $filtrados,
+            'data' => $data
+        ];
+    }
+
     public function buscar($termino) {
         $this->db->query("SELECT * FROM table_inventario 
                           WHERE nombre LIKE :term 

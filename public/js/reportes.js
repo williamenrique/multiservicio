@@ -1,9 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
-    cargarReporte(); // Carga el resumen por defecto
+    initReportTable(); // Inicializar estructura de la tabla
+    cargarReporte();   // Carga inicial (totales y disparar tabla)
 
     // Vincular buscador de auditoría
-    document.getElementById('search-audit')?.addEventListener('input', (e) => filtrarAuditoria(e.target.value));
+    document.getElementById('search-audit')?.addEventListener('input', AppUtils.debounce((e) => filtrarAuditoria(e.target.value), 400));
 });
+
+let reportTable;
 
 window.switchReportTab = (tab) => {
     const secResumen = document.getElementById('sec-resumen');
@@ -38,124 +41,91 @@ async function cargarReporte() {
     const hasta = document.getElementById('rep-hasta').value;
 
     try {
-        const res = await fetch(`${URLROOT}/reportes/generar?desde=${desde}&hasta=${hasta}`);
-
-        // Verificar si la respuesta es realmente JSON
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-            const text = await res.text();
-            console.error("Respuesta no válida del servidor:", text);
-            throw new Error("El servidor no devolvió JSON. Revisa la consola.");
-        }
-
+        // 1. Obtener solo los totales (Payload ligero)
+        const res = await fetch(`${URLROOT}/reportes/obtenerTotales?desde=${desde}&hasta=${hasta}`);
         const data = await res.json();
 
-        // Actualizar Totales
         document.getElementById('total-ingresos').textContent = AppUtils.formatCurrency(data.totales.ingresos);
         document.getElementById('total-egresos').textContent = AppUtils.formatCurrency(data.totales.egresos);
         document.getElementById('total-deuda').textContent = AppUtils.formatCurrency(data.totales.deuda);
         document.getElementById('total-balance').textContent = AppUtils.formatCurrency(data.totales.balance);
 
-        // Renderizar Tabla
-        const tbody = document.getElementById('report-body');
-
-        // Limpieza de DataTable para evitar el error mData (desajuste de columnas)
-        if ($.fn.DataTable.isDataTable('#reportTable')) {
-            $('#reportTable').DataTable().clear().destroy();
-        }
-        tbody.innerHTML = '';
-
-        const formatDateLong = (dateStr) => {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return 'Fecha inválida';
-            const day = d.getDate();
-            const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-            const month = meses[d.getMonth()];
-            const year = d.getFullYear();
-            return `${day} de ${month} de ${year}.`;
-        };
-
-        tbody.innerHTML = data.movimientos.map(m => {
-            const isVenta = (m.tipo === 'VENTA');
-            const isProveedor = (!!m.proveedor_nombre || m.tipo === 'COMPRA');
-
-            let descriptionContent = '';
-
-            if (isVenta) {
-                descriptionContent = `
-                    <div class="flex flex-col gap-1">
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-black text-navy-blue uppercase tracking-tight">${m.modelo_vehiculo || 'VEHÍCULO GENERAL'}</span>
-                            <span class="text-[10px] text-slate-400 font-mono tracking-tighter border px-1.5 rounded bg-slate-50 border-slate-100">${m.placa || 'SIN PLACA'}</span>
-                        </div>
-                        <div class="text-[10px] text-slate-500 font-bold uppercase leading-tight">Cliente: ${m.cliente_nombre || m.entidad || 'VENTA RÁPIDA'}</div>
-                        <div class="flex items-center gap-1.5 mt-0.5 text-[9px] font-black text-blue-600 uppercase">
-                            <i data-lucide="package" class="w-3 h-3"></i> ${m.cantidad_items || m.total_productos || 0} SERVICIOS/ARTÍCULOS
-                        </div>
-                    </div>`;
-            } else if (isProveedor) {
-                descriptionContent = `
-                    <div class="flex flex-col gap-1">
-                        <div class="text-xs font-black text-slate-700 uppercase tracking-tight">PAGO / ABONO PROVEEDOR</div>
-                        <div class="text-[10px] text-navy-blue font-bold uppercase leading-tight">Proveedor: ${m.proveedor_nombre || m.entidad}</div>
-                        ${(m.saldo_pendiente > 0) ? `<div class="text-[9px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full font-black border border-rose-100 italic w-fit mt-1">DEUDA: ${AppUtils.formatCurrency(m.saldo_pendiente)}</div>` : ''}
-                    </div>`;
-            } else {
-                descriptionContent = `
-                    <div class="flex flex-col gap-1">
-                        <div class="text-xs font-black text-slate-700 uppercase tracking-tight">${m.descripcion || 'GASTO OPERATIVO'}</div>
-                        <div class="text-[10px] text-slate-400 font-bold uppercase leading-tight">${m.categoria || 'GENERAL'}</div>
-                    </div>`;
-            }
-
-            return `
-                <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
-                    <td class="px-4 py-5 font-mono text-xs text-slate-400 align-middle">#${m.id_db || m.id}</td>
-                    <td class="px-4 py-5 text-[11px] font-bold text-slate-500 uppercase tracking-tighter whitespace-nowrap align-middle">${formatDateLong(m.fecha)}</td>
-                    <td class="px-4 py-5 text-center align-middle">
-                        <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${m.tipo === 'VENTA' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}">
-                            ${m.tipo}
-                        </span>
-                    </td>
-                    <td class="px-4 py-5">${descriptionContent}</td>
-                    <td class="px-4 py-5 text-right font-black text-sm ${m.tipo === 'VENTA' ? 'text-blue-600' : 'text-rose-600'} align-middle">
-                        ${m.tipo === 'VENTA' ? '+' : '-'} ${AppUtils.formatCurrency(m.monto)}
-                    </td>
-                    <td class="px-4 py-5 text-right align-middle">
-                        <div class="flex items-center justify-end gap-2">
-                            ${isProveedor ? `
-                                <button onclick="verDetalleCompra(${m.id})" class="p-2 bg-slate-100 text-slate-400 hover:text-rose-600 rounded-xl transition-colors shadow-sm" title="Ver Detalle de Compra">
-                                    <i data-lucide="eye" class="w-4 h-4"></i>
-                                </button>` : isVenta ? `
-                                <button onclick="verDetalleVenta(${m.id})" class="p-2 bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors shadow-sm" title="Ver Detalle de Venta">
-                                    <i data-lucide="eye" class="w-4 h-4"></i>
-                                </button>` : ''}
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-
-        $('#reportTable').DataTable({
-            responsive: true,
-            order: [[0, 'desc']],
-            columns: [
-                { orderable: true }, // ID
-                { orderable: true }, // FECHA
-                { orderable: false }, // TIPO
-                { orderable: true }, // DESCRIPCIÓN
-                { orderable: true }, // TOTAL
-                { orderable: false } // ACCIONES
-            ],
-            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' },
-            drawCallback: () => lucide.createIcons()
-        });
-
-        lucide.createIcons();
+        // 2. Recargar la tabla (Ajax Server-Side se encargará del resto)
+        reportTable.ajax.reload();
     } catch (e) {
         console.error("Error cargando reporte:", e);
-        AppUtils.showToast("Error al generar el reporte", "error");
     }
+}
+
+function initReportTable() {
+    reportTable = $('#reportTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: `${URLROOT}/reportes/listarMovimientos`,
+            data: function (d) {
+                d.desde = document.getElementById('rep-desde').value;
+                d.hasta = document.getElementById('rep-hasta').value;
+            }
+        },
+        order: [[0, 'desc']],
+        columns: [
+            { data: 'id', className: 'font-mono text-xs text-slate-400 align-middle' },
+            {
+                data: 'fecha',
+                render: d => new Date(d).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+            },
+            {
+                data: 'tipo',
+                className: 'text-center',
+                render: d => `<span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${d === 'VENTA' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}">${d}</span>`
+            },
+            {
+                data: null,
+                render: (data, type, m) => {
+                    const isVenta = (m.tipo === 'VENTA');
+                    const isProveedor = (!!m.proveedor_nombre || m.tipo === 'COMPRA');
+                    if (isVenta) {
+                        return `
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-black text-navy-blue uppercase tracking-tight">${m.modelo_vehiculo || 'VEHÍCULO'}</span>
+                                    <span class="text-[10px] text-slate-400 font-mono tracking-tighter border px-1.5 rounded bg-slate-50">${m.placa || '---'}</span>
+                                </div>
+                                <div class="text-[10px] text-slate-500 font-bold uppercase">Cliente: ${m.cliente_nombre || 'VENTA RÁPIDA'}</div>
+                            </div>`;
+                    } else if (isProveedor) {
+                        return `
+                            <div class="flex flex-col gap-1">
+                                <div class="text-xs font-black text-slate-700 uppercase">PAGO PROVEEDOR</div>
+                                <div class="text-[10px] text-navy-blue font-bold uppercase">${m.proveedor_nombre || m.entidad}</div>
+                            </div>`;
+                    }
+                    return `<div class="text-xs font-black text-slate-700 uppercase">${m.descripcion || 'GASTO'}</div>`;
+                }
+            },
+            {
+                data: 'monto',
+                className: 'text-right font-black text-sm align-middle',
+                render: (d, type, m) => `<span class="${m.tipo === 'VENTA' ? 'text-blue-600' : 'text-rose-600'}">${m.tipo === 'VENTA' ? '+' : '-'} ${AppUtils.formatCurrency(d)}</span>`
+            },
+            {
+                data: 'id',
+                className: 'text-right align-middle',
+                render: (d, type, m) => {
+                    const isVenta = (m.tipo === 'VENTA');
+                    const isComp = (!!m.proveedor_nombre || m.tipo === 'COMPRA');
+                    return `
+                        <div class="flex items-center justify-end gap-2">
+                            ${isComp ? `<button onclick="verDetalleCompra(${d})" class="p-2 bg-slate-100 text-slate-400 hover:text-rose-600 rounded-xl transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` :
+                            isVenta ? `<button onclick="verDetalleVenta(${d})" class="p-2 bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
+                        </div>`;
+                }
+            }
+        ],
+        drawCallback: () => { if (window.lucide) lucide.createIcons(); },
+        language: { url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' }
+    });
 }
 
 async function cargarReporteDetallado() {

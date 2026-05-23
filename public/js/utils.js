@@ -2,7 +2,28 @@
  * Core App Utilities
  * Centraliza funciones comunes para mantener el código DRY.
  */
-const AppUtils = {
+
+// Inicialización segura para evitar que otros scripts lo sobrescriban
+window.AppUtils = window.AppUtils || {};
+
+/**
+ * Evita que una función se ejecute demasiadas veces seguidas (ej: búsquedas)
+ * @param {function} func Función a ejecutar.
+ * @param {number} wait Tiempo de espera en milisegundos.
+ */
+AppUtils.debounce = (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+};
+
+Object.assign(AppUtils, {
     /**
      * Muestra una alerta informativa o de éxito usando SweetAlert2.
      * @param {string} title Título de la alerta.
@@ -116,4 +137,4 @@ const AppUtils = {
      * Oculta la pantalla de carga
      */
     hideLoading: () => { Swal.close(); }
-};
+});

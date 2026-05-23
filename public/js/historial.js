@@ -1,74 +1,41 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const tableBody = document.getElementById('tableBody');
     const searchInput = document.getElementById('searchVentas');
-    const totalCount = document.getElementById('totalCount');
 
-    let ventas = [];
-
-    /**
-     * Carga los datos del historial de ventas desde el servidor.
-     */
-    const loadData = async () => {
-        try {
-            // Llama al método listar() en ControllerHistorial
-            const res = await fetch(`${URLROOT}/historial/listar`);
-            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-            ventas = await res.json();
-            renderTable(ventas);
-        } catch (e) {
-            console.error("Error al cargar el historial de ventas:", e);
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-red-500">Error de conexión o al cargar datos.</td></tr>';
-        }
-    };
-
-    /**
-     * Renderiza la tabla de ventas con los datos proporcionados.
-     * @param {Array} data Array de objetos de venta.
-     */
-    const renderTable = (data) => {
-        if ($.fn.DataTable.isDataTable('#salesTable')) {
-            $('#salesTable').DataTable().destroy();
-        }
-
-        tableBody.innerHTML = '';
-        totalCount.textContent = data.length;
-
-        if (data.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-400 italic">No hay ventas registradas.</td></tr>';
-            return;
-        }
-
-        data.forEach(venta => {
-            const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-50 transition-colors border-b border-slate-100';
-            row.innerHTML = `
-                <td class="px-8 py-5 font-mono text-xs text-slate-500">#${venta.id}</td>
-                <td class="px-8 py-5">${new Date(venta.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                <td class="px-8 py-5">
-                    <div class="font-bold text-slate-700 uppercase">${venta.modelo_vehiculo || 'N/A'}</div>
-                    <div class="text-[10px] text-slate-400">${venta.placa || 'Sin Placa'}</div>
-                </td>
-                <td class="px-8 py-5">${venta.cliente_nombre || 'Sin Cliente'}</td>
-                <td class="px-8 py-5 font-bold text-navy-blue">${AppUtils.formatCurrency(venta.total)}</td>
-                <td class="px-8 py-5 text-right">
-                    <button onclick="openSaleDetailModal(${venta.id})" class="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all" title="Ver Detalles"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                </td>
-            `;
-            tableBody.appendChild(row);
-        });
-
-        $('#salesTable').DataTable({
-            responsive: true,
-            pageLength: 10,
-            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
-            language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
+    const salesTable = $('#salesTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: `${URLROOT}/historial/listar`,
+            type: 'GET'
+        },
+        order: [[0, 'desc']],
+        columns: [
+            { data: 'id', className: 'font-mono text-xs text-slate-500' },
+            {
+                data: 'fecha',
+                render: d => new Date(d).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
             },
-            drawCallback: () => lucide.createIcons()
-        });
+            {
+                data: null,
+                render: (data, type, row) => `
+                    <div class="font-bold text-slate-700 uppercase">${row.modelo_vehiculo || 'N/A'}</div>
+                    <div class="text-[10px] text-slate-400">${row.placa || 'Sin Placa'}</div>`
+            },
+            { data: 'cliente_nombre', defaultContent: 'Sin Cliente' },
+            { data: 'total', render: d => `<span class="font-bold text-navy-blue">${AppUtils.formatCurrency(d)}</span>` },
+            {
+                data: 'id',
+                className: 'text-right',
+                render: d => `<button onclick="openSaleDetailModal(${d})" class="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all"><i data-lucide="eye" class="w-4 h-4"></i></button>`
+            }
+        ],
+        drawCallback: () => { if (window.lucide) lucide.createIcons(); },
+        language: { url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' }
+    });
 
-        lucide.createIcons();
-    };
+    searchInput.addEventListener('input', AppUtils.debounce((e) => {
+        salesTable.search(e.target.value).draw();
+    }, 400));
 
     /**
      * Abre un modal con los detalles de una venta específica.
@@ -164,20 +131,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /**
-     * Maneja la búsqueda en tiempo real en la tabla de ventas.
-     */
-    searchInput.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-        const filtered = ventas.filter(v =>
-            String(v.id).includes(term) ||
-            (v.placa && v.placa.toLowerCase().includes(term)) ||
-            (v.modelo_vehiculo && v.modelo_vehiculo.toLowerCase().includes(term)) ||
-            (v.cliente_nombre && v.cliente_nombre.toLowerCase().includes(term))
-        );
-        renderTable(filtered);
-    });
-
-    // Cargar datos al iniciar la página
-    loadData();
 });

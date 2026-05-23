@@ -18,8 +18,26 @@ class ControllerInventario extends Controller {
     }
 
     public function listar() {
-        header('Content-Type: application/json');
-        echo json_encode($this->inventarioModel->listar());
+        // Parámetros que envía DataTables automáticamente
+        $draw = isset($_GET['draw']) ? (int)$_GET['draw'] : 1;
+        $start = isset($_GET['start']) ? (int)$_GET['start'] : 0;
+        $length = isset($_GET['length']) ? (int)$_GET['length'] : 10;
+        $search = isset($_GET['search']['value']) ? $_GET['search']['value'] : '';
+
+        $resultado = $this->inventarioModel->listarServerSide($start, $length, $search);
+
+        $this->jsonResponse([
+            "draw" => $draw,
+            "recordsTotal" => $resultado['total'],
+            "recordsFiltered" => $resultado['filtrados'],
+            "data" => $resultado['data']
+        ]);
+    }
+
+    public function obtener($id) {
+        RoleGuard::isAdmin();
+        $producto = $this->inventarioModel->obtenerPorId($id);
+        $this->jsonResponse($producto);
     }
 
     /**

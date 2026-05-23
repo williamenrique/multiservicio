@@ -30,8 +30,22 @@ class ControllerClientes extends Controller {
      */
     public function listar() {
         header('Content-Type: application/json');
-        $clientes = $this->clienteModel->listar();
-        echo json_encode($clientes);
+
+        // Parámetros que envía DataTables automáticamente
+        $draw = isset($_GET['draw']) ? (int)$_GET['draw'] : 1;
+        $start = isset($_GET['start']) ? (int)$_GET['start'] : 0;
+        $length = isset($_GET['length']) ? (int)$_GET['length'] : 10;
+        $search = isset($_GET['search']['value']) ? $_GET['search']['value'] : '';
+
+        // El modelo debe retornar un array con: total_registros, registros_filtrados y los datos
+        $resultado = $this->clienteModel->listarServerSide($start, $length, $search);
+
+        echo json_encode([
+            "draw" => $draw,
+            "recordsTotal" => $resultado['total'],
+            "recordsFiltered" => $resultado['filtrados'],
+            "data" => $resultado['data']
+        ]);
     }
 
     /**
