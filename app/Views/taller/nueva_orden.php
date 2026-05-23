@@ -1,3 +1,10 @@
+<script>
+    // Definir URLROOT solo si no ha sido definida por el header para evitar SyntaxError
+    if (typeof URLROOT === 'undefined') {
+        window.URLROOT = '<?php echo URLROOT; ?>';
+    }
+</script>
+
 <div class="space-y-6">
     <div class="bg-navy-blue p-6 rounded-xl border border-gray-800 shadow-lg flex justify-between items-center">
         <div>
@@ -16,14 +23,19 @@
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Información del Vehículo</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Placa *</label>
                         <input type="text" name="placa" id="inputPlaca" required class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none font-bold text-navy-blue" placeholder="ABC-123">
                     </div>
+                    <div class="relative">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Identificación Cliente *</label>
+                        <input type="text" name="cliente_id" id="cliente_id" required placeholder="Cédula o NIT" autocomplete="off" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
+                        <div id="cliente_results" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
+                    </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">ID Cliente (Cédula/RUC) *</label>
-                        <input type="text" name="cliente_id" required placeholder="ID del Propietario" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre del Cliente</label>
+                        <input type="text" id="cliente_nombre" readonly class="w-full bg-slate-100 border border-gray-200 rounded-lg px-4 py-2 outline-none font-bold text-navy-blue italic" placeholder="Ingrese ID para buscar...">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Marca *</label>
@@ -46,7 +58,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nivel de Combustible</label>
-                        <select name="nivel_combustible" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 outline-none">
+                        <select name="nivel_combustible" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
                             <option value="E">Vacío (E)</option>
                             <option value="1/4">1/4</option>
                             <option value="1/2">1/2</option>
@@ -59,7 +71,8 @@
                         <input type="datetime-local" name="fecha_entrega" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
                     </div>
                 </div>
-                <div class="mt-4">
+
+                <div class="mt-6">
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Motivo de Ingreso / Observaciones</label>
                     <textarea name="observaciones_entrada" rows="4" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none" placeholder="Describa el problema o el servicio solicitado..."></textarea>
                 </div>
@@ -91,6 +104,8 @@
         </div>
     </form>
 </div>
+
+<script src="<?php echo URLROOT; ?>/js/taller_nueva_orden.js"></script>
 
 <script>
 document.getElementById('formNuevaOrden').addEventListener('submit', async function(e) {

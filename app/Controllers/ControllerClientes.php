@@ -35,6 +35,16 @@ class ControllerClientes extends Controller {
     }
 
     /**
+     * Endpoint API para obtener un cliente por su ID/Cédula (Cédula)
+     */
+    public function obtener($id) {
+        RoleGuard::hasAccess(['ADMINISTRADOR', 'MECANICO']);
+        $cliente = $this->clienteModel->obtenerPorId($id);
+        header('Content-Type: application/json');
+        echo json_encode($cliente);
+    }
+
+    /**
      * Guarda o actualiza un cliente
      */
     public function guardar() {
