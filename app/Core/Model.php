@@ -6,8 +6,12 @@
 class Model {
     protected $db;
 
-    public function __construct() {
-        // Instancia la clase de conexión para que esté disponible en los hijos
-        $this->db = new Database();
+    /**
+     * Permite inyectar una instancia de Database. 
+     * Si no se provee una, crea una nueva por defecto.
+     * Esto facilita enormemente las pruebas unitarias (Mocking).
+     */
+    public function __construct(Database $db = null) {
+        $this->db = $db ?? new Database();
     }
 }

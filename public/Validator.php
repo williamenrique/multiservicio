@@ -8,9 +8,9 @@ class Validator {
     private $errors = [];
     private $db;
 
-    public function __construct($data) {
+    public function __construct($data, Database $db = null) {
         $this->data = $data;
-        $this->db = new Database();
+        $this->db = $db ?? new Database();
     }
 
     /**
