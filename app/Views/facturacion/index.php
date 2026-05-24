@@ -17,7 +17,7 @@
         <!-- Columna Izquierda: Entradas y Búsqueda (4 de 12) -->
         <div class="lg:col-span-4 space-y-6">
             <!-- Metadatos del Vehículo -->
-            <div class="glass-card p-6 rounded-xl space-y-4">
+            <div class="glass-card p-6 rounded-xl space-y-4 relative z-30">
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Descripción / Vehículo</label>
                     <input type="text" id="pos-modelo" placeholder="Ej: CORSA BLANCO" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-sm">
@@ -26,16 +26,22 @@
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Placa</label>
                     <input type="text" id="pos-placa" placeholder="EJ: ABC123" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-sm">
                 </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Cliente</label>
-                    <div class="flex gap-2">
-                        <select id="pos-cliente-id" class="flex-1 p-2 border border-slate-300 rounded-lg outline-none text-sm">
-                            <option value="">Cliente</option>
-                        </select>
-                        <button type="button" id="btn-quick-client" class="bg-navy-blue text-white px-3 rounded-lg hover:bg-slate-800 transition-colors shadow-lg" title="Registro Rápido">
+                <div class="relative w-full">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">Buscar Cliente (Nombre o Cédula)</label>
+                        <button type="button" id="btn-quick-client" class="text-navy-blue hover:text-neon-green transition-colors" title="Registro Rápido">
                             <i data-lucide="user-plus" class="w-4 h-4"></i>
                         </button>
                     </div>
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-300 w-4 h-4"></i>
+                        <input type="text" id="pos-client-search" placeholder="Escriba para buscar..." 
+                               class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-neon-green outline-none shadow-sm transition-all uppercase">
+                    </div>
+                    <div id="pos-client-results" class="absolute z-[110] left-0 right-0 mt-1 bg-white border border-slate-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto hidden"></div>
+                    <select id="pos-cliente-id" class="hidden">
+                        <option value="">SIN CLIENTE</option>
+                    </select>
                 </div>
             </div>
 

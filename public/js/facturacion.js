@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnProcessSale = document.getElementById('btn-process-sale');
     const inputIvaToggle = document.getElementById('pos-iva-toggle');
     const btnQuickClient = document.getElementById('btn-quick-client');
+    const clientSearchInput = document.getElementById('pos-client-search');
+    const clientSearchResults = document.getElementById('pos-client-results');
 
     // Usamos la constante global IVA_RATE inyectada desde el header (SQL)
     const IVA_PERCENT = (typeof IVA_RATE !== 'undefined') ? (IVA_RATE * 100) : 0;
@@ -29,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let selectedItemFromSearch = null;
     let lastSearchResults = []; // Almacén temporal para evitar errores de sintaxis en HTML
+    let lastClientResults = [];
 
     // Escuchar cuando el usuario global esté cargado para refrescar permisos
     document.addEventListener('userLoaded', () => {
@@ -50,7 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 iva_activo: (parseFloat(d.iva_monto) > 0),
                 items: d.items || [],
                 usuario_id: d.usuario_id,
-                usuario_nombre: d.usuario_nombre
+                usuario_nombre: d.usuario_nombre,
+                cliente_nombre: d.cliente_nombre || ''
             }));
 
             // Validar si la factura activa fue cerrada o eliminada por otro usuario
@@ -139,8 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (data.success) {
-                await loadClients();
+                // Tras registro rápido, actualizamos el buscador
                 inputCliente.value = formValues[0]; // Seleccionar automáticamente
+                if (clientSearchInput) clientSearchInput.value = formValues[1];
                 updateActiveData('cliente_id', formValues[0]);
                 AppUtils.showToast('Cliente registrado');
             } else {
@@ -168,7 +173,8 @@ document.addEventListener('DOMContentLoaded', () => {
             iva_activo: false,
             items: [],
             usuario_id: currentLoggedInUser ? currentLoggedInUser.id : null,
-            usuario_nombre: userName
+            usuario_nombre: userName,
+            cliente_nombre: ''
         };
 
         // Enviar a DB inmediatamente para obtener ID real y evitar LocalStorage
@@ -207,6 +213,68 @@ document.addEventListener('DOMContentLoaded', () => {
     inputCliente.addEventListener('change', (e) => {
         updateActiveData('cliente_id', e.target.value);
     });
+
+    /**
+     * Buscador de clientes en tiempo real
+     */
+    if (clientSearchInput) {
+        clientSearchInput.addEventListener('input', async (e) => {
+            const term = e.target.value.trim();
+            if (term.length < 2) {
+                clientSearchResults.classList.add('hidden');
+                if (term.length === 0) {
+                    inputCliente.value = '';
+                    updateActiveData('cliente_id', '');
+                }
+                return;
+            }
+
+            const res = await fetch(`${URLROOT}/clientes/listar?search[value]=${term}&length=5&start=0`);
+            const data = await res.json();
+            lastClientResults = data.data || [];
+
+            if (lastClientResults.length > 0) {
+                clientSearchResults.innerHTML = lastClientResults.map((c, i) => {
+                    return `
+                    <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center group transition-colors" 
+                         onclick="selectClientFromResults('${i}')">
+                        <div>
+                            <p class="font-black text-xs uppercase text-navy-blue leading-none mb-1 group-hover:text-black">${c.nombre}</p>
+                            <p class="text-[10px] text-slate-400 font-mono italic font-bold">CC/NIT: ${c.id}</p>
+                        </div>
+                        <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 group-hover:text-neon-green"></i>
+                    </div>`;
+                }).join('');
+                clientSearchResults.classList.remove('hidden');
+                if (window.lucide) lucide.createIcons();
+            } else {
+                clientSearchResults.innerHTML = '<p class="p-3 text-center text-slate-400 text-xs uppercase">No encontrado</p>';
+                clientSearchResults.classList.remove('hidden');
+            }
+        });
+    }
+
+    window.selectClientFromResults = (index) => {
+        const client = lastClientResults[index];
+        if (client) {
+            // Asegurar que el ID existe en el select oculto para que el valor se mantenga
+            let option = inputCliente.querySelector(`option[value="${client.id}"]`);
+            if (!option) {
+                option = document.createElement('option');
+                option.value = client.id;
+                option.textContent = client.nombre;
+                inputCliente.appendChild(option);
+            }
+
+            inputCliente.value = client.id;
+            if (clientSearchInput) clientSearchInput.value = client.nombre;
+            clientSearchResults.classList.add('hidden');
+            const inv = openInvoices.find(i => i.id === activeInvoiceId);
+            if (inv) inv.cliente_nombre = client.nombre;
+            updateActiveData('cliente_id', client.id);
+            AppUtils.showToast('Cliente vinculado');
+        }
+    };
 
     if (inputIvaToggle) {
         inputIvaToggle.addEventListener('change', (e) => {
@@ -441,7 +509,22 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('pos-user-name').textContent = activeInvoice.usuario_nombre || '---';
         inputPlaca.value = activeInvoice.placa;
         inputModelo.value = activeInvoice.modelo;
-        inputCliente.value = activeInvoice.cliente_id;
+
+        // Si hay un cliente_id pero no está en el select, agregamos la opción temporalmente
+        if (activeInvoice.cliente_id) {
+            let option = inputCliente.querySelector(`option[value="${activeInvoice.cliente_id}"]`);
+            if (!option) {
+                option = document.createElement('option');
+                option.value = activeInvoice.cliente_id;
+                option.textContent = activeInvoice.cliente_nombre || activeInvoice.cliente_id;
+                inputCliente.appendChild(option);
+            }
+        }
+        inputCliente.value = activeInvoice.cliente_id || '';
+
+        if (clientSearchInput) {
+            clientSearchInput.value = activeInvoice.cliente_nombre || '';
+        }
 
         if (inputIvaToggle) {
             inputIvaToggle.checked = (activeInvoice.iva_activo !== false);
@@ -619,10 +702,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('click', (e) => {
-        if (!searchResults.contains(e.target) && e.target !== searchInput) searchResults.classList.add('hidden');
+        if (searchResults && !searchResults.contains(e.target) && e.target !== searchInput)
+            searchResults.classList.add('hidden');
+        if (clientSearchResults && !clientSearchResults.contains(e.target) && e.target !== clientSearchInput)
+            clientSearchResults.classList.add('hidden');
     });
 
-    loadClients();
     loadInvoicesFromServer();
 
     // Polling: Actualizar cola de facturas cada 10 segundos para ver lo de otros usuarios
