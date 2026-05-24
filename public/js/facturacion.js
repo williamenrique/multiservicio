@@ -540,13 +540,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     'success',
                     'Sí, Imprimir',
                     '#10b981'
-                );
+                ).then(() => {
+                    // Rehabilitar el botón y restaurar el contenido original independientemente de la elección
+                    btnProcessSale.disabled = false;
+                    btnProcessSale.innerHTML = originalContent;
+                    if (window.lucide) lucide.createIcons();
 
-                const index = openInvoices.findIndex(inv => inv.id === activeInvoiceId);
-                openInvoices.splice(index, 1);
-                activeInvoiceId = openInvoices.length > 0 ? openInvoices[0].id : null;
-                if (!activeInvoiceId) clearInputs();
-                loadInvoicesFromServer();
+                    const index = openInvoices.findIndex(inv => inv.id === activeInvoiceId);
+                    openInvoices.splice(index, 1);
+                    activeInvoiceId = openInvoices.length > 0 ? openInvoices[0].id : null;
+                    if (!activeInvoiceId) clearInputs();
+                    loadInvoicesFromServer();
+                });
             } else {
                 throw new Error(data.mensaje || 'Error al procesar la venta');
             }
