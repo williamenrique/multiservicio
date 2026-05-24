@@ -30,8 +30,25 @@ class ControllerClientes extends Controller {
      */
     public function listar() {
         header('Content-Type: application/json');
-        $clientes = $this->clienteModel->listar();
-        echo json_encode($clientes);
+        
+        $limit = isset($_GET['length']) ? (int)$_GET['length'] : null;
+        $offset = isset($_GET['start']) ? (int)$_GET['start'] : null;
+        $search = isset($_GET['search']['value']) ? $_GET['search']['value'] : null;
+
+        if ($limit !== null && $offset !== null) {
+            $items = $this->clienteModel->listar($limit, $offset, $search);
+            $total = $this->clienteModel->contarTotal();
+            $filtered = $search ? $this->clienteModel->contarFiltrados($search) : $total;
+            
+            echo json_encode([
+                'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
+                'recordsTotal' => $total,
+                'recordsFiltered' => $filtered,
+                'data' => $items
+            ]);
+        } else {
+            echo json_encode($this->clienteModel->listar());
+        }
     }
 
     /**

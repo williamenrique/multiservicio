@@ -13,9 +13,45 @@ class ModelCliente {
     /**
      * Obtener todos los clientes
      */
-    public function listar() {
-        $this->db->query("SELECT * FROM table_clientes ORDER BY created_at DESC");
+    public function listar($limit = null, $offset = null, $search = null) {
+        $sql = "SELECT * FROM table_clientes";
+        
+        if ($search) {
+            $sql .= " WHERE nombre LIKE :search OR id LIKE :search OR telefono LIKE :search";
+        }
+
+        $sql .= " ORDER BY created_at DESC";
+        
+        if ($limit !== null && $offset !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+        }
+        
+        $this->db->query($sql);
+        
+        if ($search) {
+            $this->db->bind(':search', "%$search%");
+        }
+        
+        if ($limit !== null && $offset !== null) {
+            $this->db->bind(':limit', (int)$limit);
+            $this->db->bind(':offset', (int)$offset);
+        }
+
         return $this->db->resultSet();
+    }
+
+    public function contarTotal() {
+        $this->db->query("SELECT COUNT(*) as total FROM table_clientes");
+        return (int)$this->db->single()->total;
+    }
+
+    public function contarFiltrados($search) {
+        $this->db->query("SELECT COUNT(*) as total FROM table_clientes 
+                          WHERE nombre LIKE :search 
+                          OR id LIKE :search 
+                          OR telefono LIKE :search");
+        $this->db->bind(':search', "%$search%");
+        return (int)$this->db->single()->total;
     }
 
     /**
