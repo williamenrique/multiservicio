@@ -34,7 +34,7 @@
     <!-- Tabla de Proveedores -->
     <div class="glass-card rounded-xl overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+            <table id="proveedorTable" class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 border-b border-slate-100">
                         <th class="px-8 py-4 font-bold text-slate-400 text-[10px] uppercase tracking-wider">ID / NIT</th>
@@ -45,7 +45,7 @@
                 </thead>
                 <tbody id="tableBody">
                     <!-- Se llena dinámicamente con proveedores.js -->
-                    <tr><td colspan="4" class="text-center py-20 text-slate-300 italic uppercase text-xs tracking-widest">Cargando proveedores...</td></tr>
+                    <tr><td colspan="4" class="px-8 py-16 text-center text-slate-400 italic tracking-widest animate-pulse font-medium">CARGANDO DIRECTORIO...</td></tr>
                 </tbody>
             </table>
         </div>

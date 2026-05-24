@@ -26,7 +26,25 @@ class ControllerProveedores extends Controller {
 
     public function listar() {
         header('Content-Type: application/json');
-        echo json_encode($this->proveedorModel->listar());
+        
+        $limit = isset($_GET['length']) ? (int)$_GET['length'] : null;
+        $offset = isset($_GET['start']) ? (int)$_GET['start'] : null;
+        $search = isset($_GET['search']['value']) ? $_GET['search']['value'] : null;
+
+        if ($limit !== null && $offset !== null) {
+            $items = $this->proveedorModel->listar($limit, $offset, $search);
+            $total = $this->proveedorModel->contarTotal();
+            $filtered = $search ? $this->proveedorModel->contarFiltrados($search) : $total;
+            
+            echo json_encode([
+                'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
+                'recordsTotal' => $total,
+                'recordsFiltered' => $filtered,
+                'data' => $items
+            ]);
+        } else {
+            echo json_encode($this->proveedorModel->listar());
+        }
     }
 
     public function listarDeudas() {

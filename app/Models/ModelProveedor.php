@@ -6,9 +6,48 @@ class ModelProveedor {
         $this->db = new Database();
     }
 
-    public function listar() {
-        $this->db->query("SELECT * FROM table_proveedores ORDER BY nombre ASC");
+       /**
+     * Obtener todos los proveedores
+     */
+    public function listar($limit = null, $offset = null, $search = null) {
+        $sql = "SELECT * FROM table_proveedores";
+        
+        if ($search) {
+            $sql .= " WHERE nombre LIKE :search OR id LIKE :search OR telefono LIKE :search";
+        }
+
+        $sql .= " ORDER BY nombre ASC";
+        
+        if ($limit !== null && $offset !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+        }
+        
+        $this->db->query($sql);
+        
+        if ($search) {
+            $this->db->bind(':search', "%$search%");
+        }
+        
+        if ($limit !== null && $offset !== null) {
+            $this->db->bind(':limit', (int)$limit);
+            $this->db->bind(':offset', (int)$offset);
+        }
+
         return $this->db->resultSet();
+    }
+
+    public function contarTotal() {
+        $this->db->query("SELECT COUNT(*) as total FROM table_proveedores");
+        return (int)$this->db->single()->total;
+    }
+
+    public function contarFiltrados($search) {
+        $this->db->query("SELECT COUNT(*) as total FROM table_proveedores 
+                          WHERE nombre LIKE :search 
+                          OR id LIKE :search 
+                          OR telefono LIKE :search");
+        $this->db->bind(':search', "%$search%");
+        return (int)$this->db->single()->total;
     }
 
     public function listarDeudas() {
