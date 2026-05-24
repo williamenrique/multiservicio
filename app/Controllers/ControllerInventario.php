@@ -19,7 +19,27 @@ class ControllerInventario extends Controller {
 
     public function listar() {
         header('Content-Type: application/json');
-        echo json_encode($this->inventarioModel->listar());
+        
+        // Detectar si se solicitan parámetros de paginación (DataTables usa 'start' y 'length')
+        $limit = isset($_GET['length']) ? (int)$_GET['length'] : null;
+        $offset = isset($_GET['start']) ? (int)$_GET['start'] : null;
+        $search = isset($_GET['search']['value']) ? $_GET['search']['value'] : null;
+
+        if ($limit !== null && $offset !== null) {
+            $items = $this->inventarioModel->listar($limit, $offset, $search);
+            $total = $this->inventarioModel->contarTotal();
+            $filtered = $search ? $this->inventarioModel->contarFiltrados($search) : $total;
+            
+            echo json_encode([
+                'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
+                'recordsTotal' => $total,
+                'recordsFiltered' => $filtered,
+                'data' => $items
+            ]);
+        } else {
+            // Mantiene compatibilidad con la carga total actual si no hay parámetros
+            echo json_encode($this->inventarioModel->listar());
+        }
     }
 
     /**

@@ -9,9 +9,53 @@ class ModelInventario {
         $this->db = new Database();
     }
 
-    public function listar() {
-        $this->db->query("SELECT * FROM table_inventario ORDER BY nombre ASC");
+    /**
+     * Lista productos con soporte opcional para paginación (LIMIT/OFFSET)
+     */
+    public function listar($limit = null, $offset = null, $search = null) {
+        $sql = "SELECT * FROM table_inventario";
+        
+        if ($search) {
+            $sql .= " WHERE nombre LIKE :search OR categoria LIKE :search";
+        }
+
+        $sql .= " ORDER BY nombre ASC";
+        
+        if ($limit !== null && $offset !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+        }
+        
+        $this->db->query($sql);
+        
+        if ($search) {
+            $this->db->bind(':search', "%$search%");
+        }
+        
+        if ($limit !== null && $offset !== null) {
+            $this->db->bind(':limit', (int)$limit);
+            $this->db->bind(':offset', (int)$offset);
+        }
+
         return $this->db->resultSet();
+    }
+
+    /**
+     * Retorna la cantidad total de registros en el inventario
+     */
+    public function contarTotal() {
+        $this->db->query("SELECT COUNT(*) as total FROM table_inventario");
+        return (int)$this->db->single()->total;
+    }
+
+    /**
+     * Retorna la cantidad de registros que coinciden con la búsqueda
+     */
+    public function contarFiltrados($search) {
+        $this->db->query("SELECT COUNT(*) as total FROM table_inventario 
+                          WHERE nombre LIKE :search 
+                          OR categoria LIKE :search");
+        $this->db->bind(':search', "%$search%");
+        return (int)$this->db->single()->total;
     }
 
     public function buscar($termino) {

@@ -29,7 +29,7 @@
 
     <div class="glass-card rounded-2xl overflow-hidden shadow-xl">
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
+            <table id="inventoryTable" class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
                         <th class="px-8 py-6">Imagen</th>
