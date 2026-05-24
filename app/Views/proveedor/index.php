@@ -85,6 +85,7 @@
         </div>
         
         <form id="formProveedor" class="p-6 space-y-4">
+            <input type="hidden" name="id_existente" id="provIdExistente">
             <div class="grid grid-cols-1 gap-4">
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">NIT o Identificación</label>
@@ -189,6 +190,92 @@
 <!-- Variables de Configuración para JS -->
 <script>
     const MARKUP_DEFAULT = <?php echo $data['markup_default'] ?? 30; ?>;
+
+    const closeModal = () => {
+        const modal = document.getElementById('proveedorModal');
+        if (modal) modal.classList.add('hidden');
+        document.getElementById('formProveedor').reset();
+        document.getElementById('provIdExistente').value = '';
+        document.getElementById('provId').readOnly = false;
+    };
+
+    /**
+     * Función global para editar un proveedor.
+     * Se encarga de buscar los datos y llenar el modal.
+     */
+    window.editItem = async (id) => {
+        try {
+            const res = await fetch(`${URLROOT}/proveedores/obtener/${id}`);
+            const data = await res.json();
+
+            if (data) {
+                // Cambiar título y preparar campos
+                document.getElementById('modalTitle').textContent = 'Editar Proveedor';
+                document.getElementById('provId').value = data.id;
+                document.getElementById('provId').readOnly = true; // El ID/NIT no suele cambiarse
+                document.getElementById('provIdExistente').value = data.id; // Marca para el controlador
+                
+                document.getElementById('provNombre').value = data.nombre;
+                document.getElementById('provTelefono').value = data.telefono;
+                document.getElementById('provEmail').value = data.email;
+                document.getElementById('provDireccion').value = data.direccion;
+
+                // Mostrar el modal
+                document.getElementById('proveedorModal').classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error("Error al cargar datos del proveedor:", error);
+        }
+    };
+
+    // Resetear el formulario cuando se abre para un nuevo proveedor
+    document.getElementById('btnOpenModal')?.addEventListener('click', () => {
+        document.getElementById('formProveedor').reset();
+        document.getElementById('provIdExistente').value = '';
+        document.getElementById('provId').readOnly = false;
+        document.getElementById('modalTitle').textContent = 'Registrar Proveedor';
+    });
+
+    // Manejadores para cerrar el modal (Icono X y botón Cancelar)
+    document.getElementById('btnCloseModal')?.addEventListener('click', closeModal);
+    document.getElementById('btnCancel')?.addEventListener('click', closeModal);
+
+    /**
+     * Manejo del envío del formulario vía AJAX
+     * Previene la recarga de la página y envía los datos como JSON
+     */
+    document.getElementById('formProveedor')?.addEventListener('submit', async (e) => {
+        e.preventDefault(); // Detener la recarga de la página
+
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+
+        try {
+            const response = await fetch(`${URLROOT}/proveedores/guardar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                AppUtils.showToast('Proveedor guardado correctamente');
+                closeModal();
+                // Recargar la tabla si la función existe en proveedores.js
+                if (typeof window.loadProveedores === 'function') {
+                    window.loadProveedores();
+                }
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al guardar el proveedor', 'error');
+            }
+        } catch (error) {
+            console.error("Error en la petición:", error);
+            AppUtils.showToast('Error de conexión con el servidor', 'error');
+        }
+    });
 </script>
 
 <!-- Script específico del módulo -->

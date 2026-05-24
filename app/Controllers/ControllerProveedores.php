@@ -115,4 +115,13 @@ class ControllerProveedores extends Controller {
         header('Content-Type: application/json');
         echo json_encode($this->proveedorModel->obtenerDetalleCompra($id));
     }
+
+    /**
+     * Endpoint para obtener los datos de un proveedor específico (AJAX)
+     */
+    public function obtener($id) {
+        RoleGuard::isAdmin();
+        header('Content-Type: application/json');
+        echo json_encode($this->proveedorModel->obtenerPorId($id));
+    }
 }

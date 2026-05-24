@@ -50,6 +50,15 @@ class ModelProveedor {
         return (int)$this->db->single()->total;
     }
 
+    /**
+     * Obtiene un solo proveedor por su identificador (NIT/ID)
+     */
+    public function obtenerPorId($id) {
+        $this->db->query("SELECT * FROM table_proveedores WHERE id = :id");
+        $this->db->bind(':id', $id);
+        return $this->db->single();
+    }
+
     public function listarDeudas() {
         $this->db->query("SELECT p.id, p.nombre, p.telefono, 
                           SUM(c.total) as total_compras,
