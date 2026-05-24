@@ -23,7 +23,7 @@
                 <i data-lucide="box" class="w-4 h-4 text-slate-400"></i>
                 <span>Items en Catálogo:</span>
             </div>
-            <strong id="totalCount" class="text-navy-blue text-lg">0</strong>
+            <strong id="totalCount" class="text-navy-blue text-lg"><?php echo $data['total_items'] ?? 0; ?></strong>
         </div>
     </div>
 
@@ -130,3 +130,37 @@
     }
 </script>
 <script src="<?php echo URLROOT; ?>/js/inventario.js"></script>
+<script>
+    /** 
+     * SINCRONIZADOR DINÁMICO DE CONTADOR
+     * En lugar de hacer fetch adicionales, observamos los cambios en el cuerpo de la tabla.
+     * Esto garantiza que el contador refleje EXACTAMENTE lo que el usuario ve en pantalla,
+     * sin importar qué script (inventario.js) modifique la tabla.
+     */
+    const syncCatalogCounter = () => {
+        const tableBody = document.getElementById('tableBody');
+        const totalDisplay = document.getElementById('totalCount');
+        
+        if (!tableBody || !totalDisplay) return;
+
+        const updateCount = () => {
+            // Contamos las filas que no sean mensajes de error o de carga
+            const rows = tableBody.querySelectorAll('tr:not(.status-row)');
+            // Si hay una sola fila y tiene un colspan grande, es un mensaje de "No hay resultados"
+            if (rows.length === 1 && rows[0].cells.length === 1) {
+                totalDisplay.textContent = '0';
+            } else {
+                totalDisplay.textContent = rows.length;
+            }
+        };
+
+        // Observamos cambios en los hijos de tableBody (filas agregadas/eliminadas)
+        const observer = new MutationObserver(updateCount);
+        observer.observe(tableBody, { childList: true });
+        
+        // Ejecución inicial
+        updateCount();
+    };
+
+    document.addEventListener('DOMContentLoaded', syncCatalogCounter);
+</script>

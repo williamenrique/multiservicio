@@ -9,9 +9,11 @@ class ControllerInventario extends Controller {
 
     public function index() {
         RoleGuard::isAdmin();
+        $total = $this->inventarioModel->contarTotal();
         $data = [
             'titulo' => 'Control de Inventario',
-            'user_role' => $_SESSION['user_role']
+            'user_role' => $_SESSION['user_role'],
+            'total_items' => $total
         ];
 
         $this->view('inventario/index', $data);
@@ -20,15 +22,19 @@ class ControllerInventario extends Controller {
     public function listar() {
         header('Content-Type: application/json');
         
-        // Detectar si se solicitan parámetros de paginación (DataTables usa 'start' y 'length')
         $limit = isset($_GET['length']) ? (int)$_GET['length'] : null;
         $offset = isset($_GET['start']) ? (int)$_GET['start'] : null;
-        $search = isset($_GET['search']['value']) ? $_GET['search']['value'] : null;
+        
+        // Detectar búsqueda compatible con DataTables y peticiones manuales vía URL
+        $searchValue = $_GET['search']['value'] ?? $_GET['search'] ?? null;
+        $search = ($searchValue !== '' && $searchValue !== null) ? $searchValue : null;
+
+        // Aseguramos que los conteos siempre devuelvan enteros
+        $total = (int)$this->inventarioModel->contarTotal();
+        $filtered = ($search !== null) ? (int)$this->inventarioModel->contarFiltrados($search) : $total;
 
         if ($limit !== null && $offset !== null) {
             $items = $this->inventarioModel->listar($limit, $offset, $search);
-            $total = $this->inventarioModel->contarTotal();
-            $filtered = $search ? $this->inventarioModel->contarFiltrados($search) : $total;
             
             echo json_encode([
                 'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
@@ -37,8 +43,14 @@ class ControllerInventario extends Controller {
                 'data' => $items
             ]);
         } else {
-            // Mantiene compatibilidad con la carga total actual si no hay parámetros
-            echo json_encode($this->inventarioModel->listar());
+            // Carga manual sin DataTables
+            $items = $this->inventarioModel->listar(null, null, $search);
+            echo json_encode([
+                'success' => true,
+                'recordsTotal' => $total,
+                'recordsFiltered' => $filtered,
+                'data' => $items
+            ]);
         }
     }
 
