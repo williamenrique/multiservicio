@@ -44,7 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`${URLROOT}/facturacion/listarBorradores`);
             const drafts = await res.json();
 
-            openInvoices = drafts.map(d => ({
+            // Preservar facturas locales que aún no tienen id_db (no se han guardado en el servidor)
+            // Esto evita que el refresco automático borre lo que el usuario está empezando a escribir
+            const localInvoices = openInvoices.filter(inv => !inv.id_db);
+
+            const serverInvoices = drafts.map(d => ({
                 id: 'TKT-' + d.id,
                 id_db: d.id,
                 placa: d.placa || '',
@@ -56,6 +60,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 usuario_nombre: d.usuario_nombre,
                 cliente_nombre: d.cliente_nombre || ''
             }));
+
+            openInvoices = [...serverInvoices, ...localInvoices];
 
             // Validar si la factura activa fue cerrada o eliminada por otro usuario
             if (activeInvoiceId && activeInvoiceId.startsWith('TKT-')) {
@@ -176,6 +182,19 @@ document.addEventListener('DOMContentLoaded', () => {
             usuario_nombre: userName,
             cliente_nombre: ''
         };
+
+        // Si no es un guardado forzado (clic en "Nueva Factura"), solo creamos el objeto localmente.
+        // Esto evita llenar la base de datos con borradores vacíos al solo entrar a la vista.
+        if (!forceSave) {
+            // Solo añadir si no hay ya una factura local vacía para evitar duplicidad de pestañas "limpias"
+            if (!openInvoices.some(inv => !inv.id_db)) {
+                openInvoices.push(invData);
+            }
+            activeInvoiceId = invData.id;
+            renderQueue();
+            renderInvoice();
+            return;
+        }
 
         // Enviar a DB inmediatamente para obtener ID real y evitar LocalStorage
         try {
@@ -425,7 +444,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await res.json();
             if (data.success) {
-                inv.id_db = data.venta_id; // Actualizamos el ID de la base de datos
+                const isFirstSync = !inv.id_db;
+                inv.id_db = data.venta_id;
+
+                // Si es la primera vez que se guarda en DB, convertimos el ID temporal PROV- en un ID TKT- real
+                if (isFirstSync) {
+                    const oldId = inv.id;
+                    inv.id = 'TKT-' + data.venta_id;
+                    if (activeInvoiceId === oldId) activeInvoiceId = inv.id;
+
+                    renderQueue();
+                    renderInvoice(); // Actualiza el número de factura visible en el encabezado
+                }
             }
         } catch (error) {
             console.error("Error sincronizando con el servidor:", error);
