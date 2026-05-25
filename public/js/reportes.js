@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Vincular buscador de auditoría
     document.getElementById('search-audit')?.addEventListener('input', (e) => filtrarAuditoria(e.target.value));
+
+    // Vincular buscador de flujo de caja
+    document.getElementById('search-report')?.addEventListener('input', (e) => filtrarReporte(e.target.value));
 });
 
 window.switchReportTab = (tab) => {
@@ -18,6 +21,8 @@ window.switchReportTab = (tab) => {
         tabResumen.classList.remove('border-transparent', 'text-slate-400');
         tabDetallado.classList.remove('border-neon-green', 'text-navy-blue');
         tabDetallado.classList.add('border-transparent', 'text-slate-400');
+
+        if (document.getElementById('search-report')) document.getElementById('search-report').value = '';
         cargarReporte();
     } else {
         secResumen.classList.add('hidden');
@@ -26,6 +31,8 @@ window.switchReportTab = (tab) => {
         tabDetallado.classList.remove('border-transparent', 'text-slate-400');
         tabResumen.classList.remove('border-neon-green', 'text-navy-blue');
         tabResumen.classList.add('border-transparent', 'text-slate-400');
+
+        if (document.getElementById('search-audit')) document.getElementById('search-audit').value = '';
         cargarReporteDetallado();
     }
     lucide.createIcons();
@@ -33,6 +40,7 @@ window.switchReportTab = (tab) => {
 
 let rawAuditData = null; // Para filtrar sin volver al servidor
 let rawReportData = []; // Datos del flujo de caja
+let filteredReportData = []; // Datos filtrados para el flujo de caja
 let state = {
     page: 1,
     limit: 10,
@@ -58,8 +66,9 @@ async function cargarReporte() {
         document.getElementById('total-balance').textContent = AppUtils.formatCurrency(data.totales.balance);
 
         rawReportData = data.movimientos || [];
+        filteredReportData = [...rawReportData];
         state.total = rawReportData.length;
-        state.filtered = rawReportData.length;
+        state.filtered = filteredReportData.length;
         state.page = 1; // Reiniciar página al cargar nuevas fechas
 
         renderReportTable();
@@ -84,7 +93,7 @@ function renderReportTable() {
     if (!tbody) return;
 
     const start = (state.page - 1) * state.limit;
-    const paginatedItems = rawReportData.slice(start, start + state.limit);
+    const paginatedItems = filteredReportData.slice(start, start + state.limit);
 
     tbody.innerHTML = paginatedItems.map(m => {
         const isVenta = (m.tipo === 'VENTA');
@@ -238,19 +247,6 @@ function renderAuditoriaLista(items) {
     let html = '';
 
     for (const [month, monthItems] of Object.entries(groupedByMonth)) {
-        // Renderizar Encabezado del Mes (Sticky)
-        html += `
-            <div class="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md py-4 px-6 border-b border-slate-200 flex justify-between items-center shadow-sm mb-4">
-                <h3 class="font-black text-navy-blue text-sm uppercase tracking-[0.2em] flex items-center gap-3">
-                    <i data-lucide="calendar" class="w-4 h-4 text-neon-green"></i>
-                    ${month}
-                </h3>
-                <span class="text-[11px] font-black text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded-full uppercase">
-                    ${monthItems.length} TRABAJOS REGISTRADOS
-                </span>
-            </div>
-        `;
-
         // 2. Agrupar por Factura dentro del mes
         const invoices = monthItems.reduce((acc, current) => {
             const key = `V-${current.id}`;
@@ -271,6 +267,21 @@ function renderAuditoriaLista(items) {
             acc[key].items.push(current);
             return acc;
         }, {});
+
+        const totalInvoices = Object.keys(invoices).length;
+
+        // Renderizar Encabezado del Mes (Sticky) con el conteo real de órdenes
+        html += `
+            <div class="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md py-4 px-6 border-b border-slate-200 flex justify-between items-center shadow-sm mb-4">
+                <h3 class="font-black text-navy-blue text-sm uppercase tracking-[0.2em] flex items-center gap-3">
+                    <i data-lucide="calendar" class="w-4 h-4 text-neon-green"></i>
+                    ${month}
+                </h3>
+                <span class="text-[11px] font-black text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded-full uppercase">
+                    ${totalInvoices} TRABAJOS REGISTRADOS
+                </span>
+            </div>
+        `;
 
         html += Object.values(invoices).map(f => {
             // Asegurar el total: usar el del servidor o calcularlo si viene en 0
@@ -542,4 +553,26 @@ function filtrarAuditoria(term) {
     ).map(v => ({ ...v, tipo: 'VENTA' }));
 
     renderAuditoriaLista(filtrados);
+}
+
+/**
+ * Filtra los datos del Flujo de Caja (Resumen) en tiempo real
+ */
+function filtrarReporte(term) {
+    const t = term.toLowerCase();
+
+    filteredReportData = rawReportData.filter(m =>
+        (m.descripcion && m.descripcion.toLowerCase().includes(t)) ||
+        (m.entidad && m.entidad.toLowerCase().includes(t)) ||
+        (m.proveedor_nombre && m.proveedor_nombre.toLowerCase().includes(t)) ||
+        (m.cliente_nombre && m.cliente_nombre.toLowerCase().includes(t)) ||
+        (m.placa && m.placa.toLowerCase().includes(t)) ||
+        (m.modelo_vehiculo && m.modelo_vehiculo.toLowerCase().includes(t)) ||
+        (m.categoria && m.categoria.toLowerCase().includes(t)) ||
+        (String(m.id_db || m.id).includes(t))
+    );
+
+    state.filtered = filteredReportData.length;
+    state.page = 1;
+    renderReportTable();
 }

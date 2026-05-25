@@ -41,32 +41,3 @@ Iniciar el modo desarrollo: Cada vez que vayas a programar, ejecuta en la termin
 
 bash
 npm run dev
-Propuesta Estructural: "Feed de Facturas Detallado"
-En lugar de tarjetas sueltas, imagina una tabla de vista extendida dentro de un contenedor con scroll propio. La estructura se dividiría así:
-
-1. Encabezado de Agrupación (El Mes)
-Una barra fija (sticky) que diga "OCTUBRE 2023" con un resumen rápido a la derecha (Ej: 45 Trabajos - Total: $15,000,000). Esto ayuda a saber dónde estás parado mientras bajas.
-2. Bloque de Trabajo (Formato Lista-Factura)
-Cada trabajo no sería una tarjeta cerrada, sino una "sección" limpia con separadores sutiles:
-
-Línea de Cabecera (Resumen):
-
-A la izquierda: #Factura | Fecha y Hora | Atendido por: [Nombre].
-Al centro: [PLACA] - Modelo del Vehículo.
-A la derecha: Cliente: [Nombre] | Total: $[Monto].
-Visualmente: Esta línea podría tener un color de fondo muy suave (un gris o azul casi blanco) para separar un trabajo del otro.
-Cuerpo del Trabajo (El Desglose):
-
-Inmediatamente debajo, sin necesidad de abrir modales, una tabla compacta de 3 o 4 columnas:
-Cant.
-Descripción (Repuesto o Servicio)
-Precio Unit.
-Subtotal
-Detalle: Si el item es un servicio, un pequeño badge o color de texto distinto para diferenciarlo del repuesto.
-Pie de Trabajo (Totales):
-
-Una pequeña línea al final del bloque que indique: Items: [X] | IVA: [Incluido/No] | Método de Pago: [Efectivo/Transferencia].
-3. UX y Navegación
-Contenedor con Scroll Interno: La sección sec-detallado tendría una altura fija (por ejemplo, el 70% de la pantalla). Esto permite que el buscador de arriba y los totales generales siempre estén a la vista.
-Separación Visual: En lugar de sombras pesadas de tarjetas, usaríamos una línea punteada o un cambio sutil de tono entre factura y factura.
-Buscador Inteligente: Que al escribir la placa, el scroll salte automáticamente al primer registro que coincida o filtre la lista instantáneamente.
