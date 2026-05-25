@@ -121,15 +121,40 @@
                         </label>
                     </div>
 
+                    <!-- Desglose de Pago -->
+                    <div class="grid grid-cols-2 gap-4 mb-6 pt-4 border-t border-gray-700/50">
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Pago Efectivo</label>
+                            <div class="relative">
+                                <span class="absolute left-2 top-2 text-slate-500 text-xs">$</span>
+                                <input type="number" id="pos-pago-efectivo" value="0" step="0.01" 
+                                       class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 pl-5 pr-2 text-white font-bold text-sm focus:border-neon-green outline-none transition-all">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1">Transferencia</label>
+                            <div class="relative">
+                                <span class="absolute left-2 top-2 text-slate-500 text-xs">$</span>
+                                <input type="number" id="pos-pago-transferencia" value="0" step="0.01" 
+                                       class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 pl-5 pr-2 text-white font-bold text-sm focus:border-neon-green outline-none transition-all">
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="space-y-3">
-                        <div class="flex justify-between items-center text-gray-400">
-                            <span class="text-[10px] uppercase font-bold">Subtotal</span>
-                            <p id="pos-subtotal" class="text-xl font-bold text-white">$0.00</p>
+                        <div class="flex justify-between items-center text-slate-200">
+                            <span class="text-xs uppercase font-black tracking-widest">Subtotal</span>
+                            <p id="pos-subtotal" class="text-2xl font-black text-white">$0.00</p>
                         </div>
-                        <div class="flex justify-between items-center text-gray-400">
-                            <span class="text-[10px] uppercase font-bold">IVA (<span id="pos-iva-percent-display">0</span>%)</span>
-                            <p id="pos-iva" class="text-xl font-bold text-white">$0.00</p>
+                        <div class="flex justify-between items-center text-slate-200">
+                            <span class="text-xs uppercase font-black tracking-widest">IVA (<span id="pos-iva-percent-display">0</span>%)</span>
+                            <p id="pos-iva" class="text-2xl font-black text-white">$0.00</p>
                         </div>
+                        <div class="flex justify-between items-center text-rose-400 border-t border-rose-500/20 pt-4" id="pos-container-deuda">
+                            <span class="text-xs uppercase font-black tracking-widest">Saldo Pendiente (Crédito)</span>
+                            <p id="pos-saldo-pendiente" class="text-3xl font-black">$0.00</p>
+                        </div>
+                        
                         <div class="flex justify-between items-end pt-4 border-t border-gray-700">
                             <span class="text-[10px] uppercase font-bold tracking-widest text-neon-green">Total Facturado</span>
                             <p id="pos-total" class="text-5xl font-black text-neon-green">$0.00</p>

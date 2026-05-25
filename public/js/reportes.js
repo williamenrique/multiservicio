@@ -245,6 +245,7 @@ function renderAuditoriaLista(items) {
     }
 
     let html = '';
+    let debtorsSummary = {}; // Para agrupar deudores por cliente
 
     for (const [month, monthItems] of Object.entries(groupedByMonth)) {
         // 2. Agrupar por Factura dentro del mes
@@ -261,6 +262,10 @@ function renderAuditoriaLista(items) {
                     iva: parseFloat(current.iva_monto || 0),
                     subtotal: parseFloat(current.subtotal || 0),
                     total: parseFloat(current.total || 0),
+                    status: current.status,
+                    pago_efectivo: parseFloat(current.pago_efectivo || 0),
+                    pago_transferencia: parseFloat(current.pago_transferencia || 0),
+                    saldo_pendiente: parseFloat(current.saldo_pendiente || 0), // <-- Asegurarse de que este campo venga del backend
                     items: []
                 };
             }
@@ -287,12 +292,23 @@ function renderAuditoriaLista(items) {
             // Asegurar el total: usar el del servidor o calcularlo si viene en 0
             const totalFactura = f.total > 0 ? f.total : f.items.reduce((sum, item) => sum + (item.cantidad * item.precio_unitario), 0);
 
+            // Detección robusta: Si el saldo pendiente es > 0 O si la suma de pagos es menor al total
+            const isCredit = f.saldo_pendiente > 0 || (totalFactura > (f.pago_efectivo + f.pago_transferencia) + 0.01);
+
+            if (isCredit) {
+                if (!debtorsSummary[f.cliente]) {
+                    debtorsSummary[f.cliente] = { total: 0, count: 0 };
+                }
+                debtorsSummary[f.cliente].total += f.saldo_pendiente;
+                debtorsSummary[f.cliente].count++;
+            }
+
             return `
-            <div class="border-b border-slate-100 py-8 last:border-0 group animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div class="border-b border-slate-100 py-8 last:border-0 group animate-in fade-in slide-in-from-bottom-2 duration-300 ${isCredit ? 'bg-amber-50/30 -mx-6 px-6 border-l-4 border-l-amber-400' : ''}">
                 <!-- Cabecera de Entrada (Libro Contable) -->
                 <div class="flex flex-wrap justify-between items-start gap-6 mb-5">
                     <div class="flex items-center gap-6">
-                        <div class="h-14 w-14 rounded-2xl bg-navy-blue flex flex-col items-center justify-center text-neon-green shadow-lg shadow-navy-blue/10">
+                        <div class="h-14 w-14 rounded-2xl ${isCredit ? 'bg-amber-500 text-white' : 'bg-navy-blue text-neon-green'} flex flex-col items-center justify-center shadow-lg shadow-navy-blue/10">
                             <span class="text-[10px] font-black uppercase opacity-60 leading-none mb-0.5">ORD</span>
                             <span class="text-base font-black tracking-tighter leading-none">#${f.id}</span>
                         </div>
@@ -313,8 +329,9 @@ function renderAuditoriaLista(items) {
                         <div class="text-right">
                             <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Atendió: <span class="text-slate-600">${f.usuario}</span></p>
                             <div class="flex items-center justify-end gap-3">
-                                <span class="text-xs font-black text-slate-300 uppercase tracking-tighter">TOTAL TRABAJO</span>
-                                <span class="text-3xl font-black text-blue-600 tracking-tighter">${AppUtils.formatCurrency(totalFactura)}</span>
+                                <span class="text-xs font-black text-slate-300 uppercase tracking-tighter">${isCredit ? 'DEUDA PENDIENTE' : 'TOTAL TRABAJO'}</span>
+                                <span class="text-3xl font-black ${isCredit ? 'text-amber-600' : 'text-emerald-600'} tracking-tighter">${AppUtils.formatCurrency(isCredit ? f.saldo_pendiente : totalFactura)}</span>
+                                ${isCredit ? `<span class="text-[10px] font-black bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase">CRÉDITO</span>` : ''}
                             </div>
                         </div>
                         <button onclick="verDetalleVenta(${f.id})" class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-navy-blue hover:border-navy-blue hover:bg-slate-50 transition-all shadow-sm">
@@ -353,6 +370,37 @@ function renderAuditoriaLista(items) {
         }).join('');
     }
 
+    // Renderizar tarjeta de deudores
+    const debtorsContainer = document.getElementById('debtors-summary-container');
+    if (debtorsContainer) {
+        const debtorsArray = Object.entries(debtorsSummary).map(([cliente, data]) => ({ cliente, ...data }));
+        if (debtorsArray.length > 0) {
+            debtorsContainer.innerHTML = `
+                <div class="glass-card p-6 rounded-xl border-l-4 border-rose-500 shadow-sm mb-8 animate-in fade-in slide-in-from-top-2 duration-500">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-black text-rose-600 uppercase flex items-center gap-2">
+                            <i data-lucide="user-x" class="w-5 h-5"></i> Clientes con Crédito
+                        </h3>
+                        <span class="text-[11px] font-black text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded-full uppercase">
+                            ${debtorsArray.length} DEUDORES
+                        </span>
+                    </div>
+                    <div class="space-y-3">
+                        ${debtorsArray.map(d => `
+                            <div class="flex justify-between items-center border-b border-rose-50/50 pb-2 last:border-0">
+                                <p class="text-sm font-bold text-slate-700">${d.cliente}</p>
+                                <span class="text-base font-black text-rose-600">${AppUtils.formatCurrency(d.total)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+            debtorsContainer.classList.remove('hidden');
+        } else {
+            debtorsContainer.classList.add('hidden');
+        }
+    }
     container.innerHTML = html;
     if (window.lucide) lucide.createIcons();
 }

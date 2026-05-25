@@ -86,6 +86,9 @@
             <input type="text" id="search-audit" placeholder="Buscar vehículo, placa o repuesto..." 
                    class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-neon-green outline-none transition-all shadow-sm">
         </div>
+        
+        <!-- Contenedor para la tarjeta de deudores -->
+        <div id="debtors-summary-container" class="hidden"></div>
 
         <!-- Contenedor de la lista agrupada con scroll interno -->
         <div class="max-h-[75vh] overflow-y-auto pr-4 rounded-3xl border border-slate-100 shadow-sm bg-white custom-scrollbar" id="audit-scroll-area">

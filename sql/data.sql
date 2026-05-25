@@ -1,96 +1,37 @@
-SET FOREIGN_KEY_CHECKS = 0;
+-- 1. Actualizar tabla de ventas para soportar pagos parciales
+ALTER TABLE `table_ventas` 
+ADD COLUMN `pago_efectivo` DECIMAL(10,2) DEFAULT 0.00 AFTER `total`,
+ADD COLUMN `pago_transferencia` DECIMAL(10,2) DEFAULT 0.00 AFTER `pago_efectivo`,
+ADD COLUMN `saldo_pendiente` DECIMAL(10,2) DEFAULT 0.00 AFTER `pago_transferencia`;
 
-
--- Tabla de Vehículos
-CREATE TABLE IF NOT EXISTS table_vehiculos (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    placa VARCHAR(20) UNIQUE NOT NULL,
-    marca VARCHAR(50) NOT NULL,
-    modelo VARCHAR(50) NOT NULL,
-    anio INT,
-    color VARCHAR(30),
-    cliente_id VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (cliente_id) REFERENCES table_clientes(id)
+-- 2. Crear tabla para el control de Cierres de Caja (Arqueos)
+CREATE TABLE IF NOT EXISTS `table_cierres_caja` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `usuario_id` INT NOT NULL,
+  `monto_esperado` DECIMAL(10,2) NOT NULL,
+  `monto_real` DECIMAL(10,2) NOT NULL,
+  `diferencia` DECIMAL(10,2) NOT NULL,
+  `observaciones` TEXT DEFAULT NULL,
+  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_cierre_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Tabla de Órdenes de Servicio (O.S.)
-CREATE TABLE IF NOT EXISTS table_ordenes_servicio (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    vehiculo_id INT NOT NULL,
-    usuario_id INT NOT NULL, -- Mecánico/Responsable
-    kilometraje INT NOT NULL,
-    nivel_combustible VARCHAR(20), -- Ej: 1/4, 1/2, Lleno
-    observaciones_entrada TEXT,
-    estado ENUM('RECIBIDO', 'DIAGNOSTICANDO', 'ESPERANDO_REPUESTOS', 'EN_REPARACION', 'LISTO', 'ENTREGADO') DEFAULT 'RECIBIDO',
-    fecha_entrada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    fecha_entrega_estimada DATETIME,
-    total_estimado DECIMAL(10,2) DEFAULT 0.00,
-    FOREIGN KEY (vehiculo_id) REFERENCES table_vehiculos(id),
-    FOREIGN KEY (usuario_id) REFERENCES table_usuarios(id)
+-- 3. Crear tabla para Abonos de Clientes (Cuentas por Cobrar)
+CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `venta_id` INT NOT NULL,
+  `monto` DECIMAL(10,2) NOT NULL,
+  `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL,
+  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_abono_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Checklist de Entrada
-CREATE TABLE IF NOT EXISTS table_orden_checklist (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    orden_id INT NOT NULL,
-    item VARCHAR(100) NOT NULL, -- Ej: Llave de repuesto, Gato, Herramientas
-    estado BOOLEAN DEFAULT FALSE,
-    observacion VARCHAR(255),
-    FOREIGN KEY (orden_id) REFERENCES table_ordenes_servicio(id) ON DELETE CASCADE
+-- 4. Crear tabla para registrar pagos a proveedores (Egresos detallados)
+CREATE TABLE IF NOT EXISTS `table_compras_pagos` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `compra_id` INT NOT NULL,
+  `monto_pagado` DECIMAL(10,2) NOT NULL,
+  `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL,
+  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_pago_compra` FOREIGN KEY (`compra_id`) REFERENCES `table_compras` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- Historial de Estados (Para trazabilidad)
-CREATE TABLE IF NOT EXISTS table_orden_estados_log (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    orden_id INT NOT NULL,
-    estado_anterior VARCHAR(50),
-    estado_nuevo VARCHAR(50),
-    usuario_id INT,
-    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    comentario TEXT,
-    FOREIGN KEY (orden_id) REFERENCES table_ordenes_servicio(id) ON DELETE CASCADE,
-    FOREIGN KEY (usuario_id) REFERENCES table_usuarios(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-  `nombre` varchar(150) NOT NULL,
-  `categoria` varchar(50) NOT NULL,
-  `stock` int(11) NOT NULL DEFAULT 0,
-  `stock_minimo` int(11) NOT NULL DEFAULT 5,
-  `ultimo_costo` decimal(15,2) NOT NULL DEFAULT 0.00,
-  `precio` decimal(15,2) NOT NULL DEFAULT 0.00,
-  `imagen` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `idx_inv_nombre` (`nombre`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- 12.1 Tabla de Kardex (Historial de Movimientos)
-CREATE TABLE IF NOT EXISTS `table_kardex` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `producto_id` int(11) NOT NULL,
-  `tipo_movimiento` enum('ENTRADA_COMPRA', 'SALIDA_VENTA', 'AJUSTE_MANUAL', 'DEVOLUCION') NOT NULL,
-  `cantidad` int(11) NOT NULL,
-  `stock_anterior` int(11) NOT NULL,
-  `stock_actual` int(11) NOT NULL,
-  `referencia_id` varchar(50) DEFAULT NULL, -- ID de Venta o Compra
-  `usuario_id` int(11) NOT NULL,
-  `observaciones` text DEFAULT NULL,
-  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `fk_kardex_producto` (`producto_id`),
-  CONSTRAINT `fk_kardex_producto` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- 12.2 Tabla de Compatibilidad (Repuestos vs Vehículos)
-CREATE TABLE IF NOT EXISTS `table_inventario_compatibilidad` (
-  `producto_id` int(11) NOT NULL,
-  `marca_vehiculo` varchar(50) NOT NULL,
-  `modelo_vehiculo` varchar(50) NOT NULL,
-  PRIMARY KEY (`producto_id`, `marca_vehiculo`, `modelo_vehiculo`),
-  CONSTRAINT `fk_compatibilidad_prod` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- 13. Tabla de Ventas (Historial)
-
-SET FOREIGN_KEY_CHECKS = 1;

@@ -19,6 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnQuickClient = document.getElementById('btn-quick-client');
     const clientSearchInput = document.getElementById('pos-client-search');
     const clientSearchResults = document.getElementById('pos-client-results');
+    const inputPagoEfectivo = document.getElementById('pos-pago-efectivo');
+    const inputPagoTransferencia = document.getElementById('pos-pago-transferencia');
+    const displaySaldoPendiente = document.getElementById('pos-saldo-pendiente');
 
     // Usamos la constante global IVA_RATE inyectada desde el header (SQL)
     const IVA_PERCENT = (typeof IVA_RATE !== 'undefined') ? (IVA_RATE * 100) : 0;
@@ -55,6 +58,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 modelo: d.modelo_vehiculo || '',
                 cliente_id: d.cliente_id || '',
                 iva_activo: (parseFloat(d.iva_monto) > 0),
+                pago_efectivo: parseFloat(d.pago_efectivo || 0),
+                pago_transferencia: parseFloat(d.pago_transferencia || 0),
+                saldo_pendiente: parseFloat(d.saldo_pendiente || 0),
                 items: d.items || [],
                 usuario_id: d.usuario_id,
                 usuario_nombre: d.usuario_nombre,
@@ -177,6 +183,9 @@ document.addEventListener('DOMContentLoaded', () => {
             modelo: '',
             cliente_id: '',
             iva_activo: false,
+            pago_efectivo: 0,
+            pago_transferencia: 0,
+            saldo_pendiente: 0,
             items: [],
             usuario_id: currentLoggedInUser ? currentLoggedInUser.id : null,
             usuario_nombre: userName,
@@ -231,6 +240,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     inputCliente.addEventListener('change', (e) => {
         updateActiveData('cliente_id', e.target.value);
+    });
+
+    // Listeners para captura de pagos
+    inputPagoEfectivo?.addEventListener('input', (e) => {
+        updateActiveData('pago_efectivo', parseFloat(e.target.value) || 0);
+        renderInvoice();
+    });
+
+    inputPagoTransferencia?.addEventListener('input', (e) => {
+        updateActiveData('pago_transferencia', parseFloat(e.target.value) || 0);
+        renderInvoice();
     });
 
     /**
@@ -413,13 +433,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const subtotal = inv.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
         const isIvaEnabled = inv.iva_activo === true;
         const ivaMonto = isIvaEnabled ? (subtotal * (IVA_PERCENT / 100)) : 0;
+        const total = subtotal + ivaMonto;
+
+        // Calcular saldo pendiente
+        const pef = parseFloat(inv.pago_efectivo || 0);
+        const ptra = parseFloat(inv.pago_transferencia || 0);
+        const pendiente = total - (pef + ptra);
 
         inv.subtotal = subtotal;
         inv.iva_monto = ivaMonto;
-        inv.total = subtotal + ivaMonto;
+        inv.total = total;
+        inv.saldo_pendiente = pendiente > 0 ? pendiente : 0;
 
         // Evitar sincronizar facturas que no tienen contenido relevante (evita filas vacías en DB)
-        const hasContent = inv.items.length > 0 || inv.placa !== '' || inv.modelo !== '' || inv.cliente_id !== '';
+        const hasContent = inv.items.length > 0 || inv.placa !== '' || inv.modelo !== '' || inv.cliente_id !== '' || pef > 0 || ptra > 0;
         if (!hasContent && !inv.id_db && !force) {
             return;
         }
@@ -560,6 +587,10 @@ document.addEventListener('DOMContentLoaded', () => {
             inputIvaToggle.checked = (activeInvoice.iva_activo !== false);
         }
 
+        // Cargar valores de pago en los inputs
+        if (inputPagoEfectivo) inputPagoEfectivo.value = activeInvoice.pago_efectivo || 0;
+        if (inputPagoTransferencia) inputPagoTransferencia.value = activeInvoice.pago_transferencia || 0;
+
         cartBody.innerHTML = activeInvoice.items.length === 0
             ? '<tr><td class="py-32 text-center text-slate-300 uppercase text-xs font-bold tracking-widest opacity-50"><i data-lucide="shopping-cart" class="w-16 h-16 mx-auto mb-4"></i> No hay items en esta factura</td></tr>'
             : activeInvoice.items.map((item, i) => `
@@ -604,6 +635,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ivaPercentLabel) ivaPercentLabel.textContent = isIvaEnabled ? IVA_PERCENT.toFixed(0) : "0";
 
         document.getElementById('pos-total').textContent = AppUtils.formatCurrency(total);
+
+        // Actualizar visualización de deuda (Saldo Pendiente)
+        const saldoPendiente = total - (parseFloat(activeInvoice.pago_efectivo || 0) + parseFloat(activeInvoice.pago_transferencia || 0));
+        if (displaySaldoPendiente) {
+            displaySaldoPendiente.textContent = AppUtils.formatCurrency(saldoPendiente > 0 ? saldoPendiente : 0);
+
+            const containerDeuda = document.getElementById('pos-container-deuda');
+            if (containerDeuda) {
+                if (saldoPendiente > 0) containerDeuda.classList.remove('opacity-40');
+                else containerDeuda.classList.add('opacity-40');
+            }
+        }
         lucide.createIcons();
     };
 
@@ -628,6 +671,10 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.modelo = inputModelo.value;
             activeInvoice.cliente_id = inputCliente.value;
 
+            // Asegurar que los montos de pago se capturen incluso si no hubo evento 'input'
+            activeInvoice.pago_efectivo = parseFloat(inputPagoEfectivo.value) || 0;
+            activeInvoice.pago_transferencia = parseFloat(inputPagoTransferencia.value) || 0;
+
             // Recalcular finales antes de procesar el cierre
             const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
             const isIvaEnabled = activeInvoice.iva_activo === true;
@@ -636,6 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.subtotal = subtotal;
             activeInvoice.iva_monto = ivaMonto;
             activeInvoice.total = subtotal + ivaMonto;
+            activeInvoice.saldo_pendiente = activeInvoice.total - (activeInvoice.pago_efectivo + activeInvoice.pago_transferencia);
 
             const res = await fetch(`${URLROOT}/facturacion/procesar`, {
                 method: 'POST',

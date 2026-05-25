@@ -90,22 +90,34 @@ class ModelFacturacion {
             $iva_monto = $iva_activo ? ($subtotal * $iva_porcentaje) : 0;
             $total = $subtotal + $iva_monto;
 
+            // Nuevos campos de pago
+            $pago_efectivo = (float)($datos['pago_efectivo'] ?? 0);
+            $pago_transferencia = (float)($datos['pago_transferencia'] ?? 0);
+            $pago_total = $pago_efectivo + $pago_transferencia;
+            $saldo_pendiente = $total - $pago_total;
+
+            // Lógica de Estado Automática:
+            // Si se intenta completar pero hay saldo pendiente > 0, se marca como CREDITO
+            if ($status === 'COMPLETADO' && $saldo_pendiente > 0.05) {
+                $status = 'CREDITO';
+            }
+
             if ($ventaId) {
                 // Actualizar factura existente (Borrador)
                 $this->db->query("UPDATE table_ventas SET 
                                   cliente_id = :cid, placa = :placa, modelo_vehiculo = :modelo, 
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
+                                  pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
                                   status = :status" . 
                                   ($status === 'COMPLETADO' ? ", fecha_cierre = NOW()" : "") . " 
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
-                $this->db->bind(':status', $status);
             } else {
                 // Insertar nueva factura
-                $this->db->query("INSERT INTO table_ventas (cliente_id, placa, modelo_vehiculo, subtotal, iva_monto, total, usuario_id, status) 
-                                  VALUES (:cid, :placa, :modelo, :sub, :iva, :total, :uid, :status)");
+                $this->db->query("INSERT INTO table_ventas (cliente_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
+                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status) 
+                                  VALUES (:cid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status)");
                 $this->db->bind(':uid', $_SESSION['user_id']);
-                $this->db->bind(':status', $status);
             }
 
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
@@ -114,6 +126,11 @@ class ModelFacturacion {
             $this->db->bind(':sub', $subtotal);
             $this->db->bind(':iva', $iva_monto);
             $this->db->bind(':total', $total);
+            $this->db->bind(':pef', $pago_efectivo);
+            $this->db->bind(':ptra', $pago_transferencia);
+            $this->db->bind(':spend', ($saldo_pendiente > 0) ? $saldo_pendiente : 0);
+            $this->db->bind(':status', $status);
+            if ($ventaId) $this->db->bind(':id', $ventaId);
 
             $this->db->execute();
             if (!$ventaId) $ventaId = $this->db->lastInsertId();
@@ -189,9 +206,13 @@ class ModelFacturacion {
         return $this->db->single();
     }
 
+    /**
+     * Elimina un borrador de factura (Venta en estado PENDIENTE).
+     */
     public function eliminarBorrador($id) {
         $this->db->query("DELETE FROM table_ventas WHERE id = :id AND status = 'PENDIENTE'");
         $this->db->bind(':id', $id);
         return $this->db->execute();
     }
+
 }

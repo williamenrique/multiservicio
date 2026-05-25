@@ -227,8 +227,11 @@ CREATE TABLE IF NOT EXISTS `table_ventas` (
   `subtotal` decimal(10,2) NOT NULL,
   `iva_monto` decimal(10,2) NOT NULL,
   `total` decimal(10,2) NOT NULL,
+  `pago_efectivo` decimal(10,2) DEFAULT 0.00,
+  `pago_transferencia` decimal(10,2) DEFAULT 0.00,
+  `saldo_pendiente` decimal(10,2) DEFAULT 0.00,
   `usuario_id` int(11) NOT NULL,
-  `status` enum('PENDIENTE','COMPLETADO','CANCELADO') DEFAULT 'PENDIENTE',
+  `status` enum('PENDIENTE','COMPLETADO','CREDITO','CANCELADO') DEFAULT 'PENDIENTE',
   `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
   `fecha_cierre` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -288,6 +291,16 @@ CREATE TABLE IF NOT EXISTS `table_compras` (
   CONSTRAINT `fk_compra_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- 16.1 Pagos a Compras (Abonos a Proveedores)
+CREATE TABLE IF NOT EXISTS `table_compras_pagos` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `compra_id` INT NOT NULL,
+  `monto_pagado` DECIMAL(10,2) NOT NULL,
+  `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL,
+  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_pago_compra` FOREIGN KEY (`compra_id`) REFERENCES `table_compras` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 17. Detalle de Compras
 CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -302,6 +315,28 @@ CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
   CONSTRAINT `fk_detalle_compra` FOREIGN KEY (`compra_id`) REFERENCES `table_compras` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_detalle_producto_compra` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 18. Cierres de Caja (Arqueos)
+CREATE TABLE IF NOT EXISTS `table_cierres_caja` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `usuario_id` INT NOT NULL,
+  `monto_esperado` DECIMAL(10,2) NOT NULL,
+  `monto_real` DECIMAL(10,2) NOT NULL,
+  `diferencia` DECIMAL(10,2) NOT NULL,
+  `observaciones` TEXT DEFAULT NULL,
+  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_cierre_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 19. Abonos de Clientes (Cuentas por Cobrar)
+CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `venta_id` INT NOT NULL,
+  `monto` DECIMAL(10,2) NOT NULL,
+  `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL,
+  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_abono_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 18. Tabla de Solicitudes de Recuperación de Acceso
 CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
