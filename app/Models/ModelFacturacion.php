@@ -109,7 +109,7 @@ class ModelFacturacion {
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
                                   pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
                                   status = :status" . 
-                                  ($status === 'COMPLETADO' ? ", fecha_cierre = NOW()" : "") . " 
+                                  (in_array($status, ['COMPLETADO', 'CREDITO']) ? ", fecha_cierre = NOW()" : "") . " 
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
             } else {
@@ -142,6 +142,9 @@ class ModelFacturacion {
                 $this->db->execute();
             }
 
+            // Instanciamos el modelo de inventario fuera del bucle para mejor rendimiento
+            $invModel = new ModelInventario();
+
             foreach ($items as $item) {
                 $this->db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario) 
                                   VALUES (:vid, :pid, :desc, :cant, :precio)");
@@ -152,11 +155,10 @@ class ModelFacturacion {
                 $this->db->bind(':precio', $item['precio']);
                 $this->db->execute();
 
-                // SOLO descontar stock físico si la venta se FINALIZÓ (COMPLETADO)
-                if ($status === 'COMPLETADO' && $item['tipo'] === 'PRODUCTO' && !empty($item['id'])) {
+                // SOLO descontar stock físico si la venta se FINALIZÓ (COMPLETADO o CREDITO)
+                if (in_array($status, ['COMPLETADO', 'CREDITO']) && $item['tipo'] === 'PRODUCTO' && !empty($item['id'])) {
                     // Registrar en Kardex antes de actualizar el stock
-                    $invModel = new ModelInventario();
-                    $invModel->registrarMovimiento($item['id'], 'SALIDA_VENTA', $item['cantidad'], $ventaId, "Venta Finalizada");
+                    $invModel->registrarMovimiento($item['id'], 'SALIDA_VENTA', $item['cantidad'], $ventaId, "Venta Finalizada ($status)");
 
                     $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
                     $this->db->bind(':cant', $item['cantidad']);
@@ -213,6 +215,31 @@ class ModelFacturacion {
         $this->db->query("DELETE FROM table_ventas WHERE id = :id AND status = 'PENDIENTE'");
         $this->db->bind(':id', $id);
         return $this->db->execute();
+    }
+
+    /**
+     * Obtiene los datos para el reporte de auditoría de trabajos.
+     * Retorna el resumen de deudas (para tarjetas) y la lista de trabajos realizados.
+     */
+    public function obtenerAuditoriaTrabajos() {
+        // 1. Resumen de Deudores (Monto total pendiente y conteo)
+        $this->db->query("SELECT SUM(saldo_pendiente) as total_deuda, COUNT(*) as cantidad_deudores 
+                          FROM table_ventas WHERE status = 'CREDITO'");
+        $resumen = $this->db->single();
+
+        // 2. Lista de trabajos (Ventas finalizadas y a crédito) con datos relacionados
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, u.username as vendedor_nombre 
+                          FROM table_ventas v
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO')
+                          ORDER BY v.fecha DESC");
+        $lista = $this->db->resultSet();
+
+        return [
+            'resumen' => $resumen,
+            'lista' => $lista
+        ];
     }
 
 }

@@ -40,12 +40,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         data.forEach(venta => {
             const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-50 transition-colors border-b border-slate-100';
+            const isCredit = venta.status === 'CREDITO';
+            row.className = `hover:bg-slate-50 transition-colors border-b border-slate-100 ${isCredit ? 'bg-red-50/50' : ''}`;
             row.innerHTML = `
                 <td class="px-8 py-5 font-mono text-xs text-slate-500">#${venta.id}</td>
                 <td class="px-8 py-5">${new Date(venta.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                 <td class="px-8 py-5">
-                    <div class="font-bold text-slate-700 uppercase">${venta.modelo_vehiculo || 'N/A'}</div>
+                    <div class="font-bold text-slate-700 uppercase flex items-center gap-2">
+                        ${venta.modelo_vehiculo || 'N/A'}
+                        ${isCredit ? '<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>' : ''}
+                    </div>
                     <div class="text-[10px] text-slate-400">${venta.placa || 'Sin Placa'}</div>
                 </td>
                 <td class="px-8 py-5">${venta.cliente_nombre || 'Sin Cliente'}</td>
@@ -86,8 +90,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const statusBadge = venta.status === 'CREDITO' 
+                ? '<span class="px-3 py-1 rounded-full bg-red-100 text-red-600 text-[10px] font-black uppercase border border-red-200">Crédito Pendiente</span>'
+                : '<span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-black uppercase border border-emerald-200">Pago Completado</span>';
+
             Swal.fire({
-                title: `<span class="text-sm uppercase text-slate-400">Detalle de Venta:</span><br>#${venta.id}`,
+                title: `
+                    <div class="flex justify-between items-center w-full pr-6">
+                        <div class="text-left">
+                            <span class="text-sm uppercase text-slate-400">Detalle de Trabajo:</span><br>#${venta.id}
+                        </div>
+                        ${statusBadge}
+                    </div>`,
                 html: `
                     <div class="text-left space-y-4 pt-4">
                         <div class="grid grid-cols-2 gap-4 text-sm">
@@ -139,13 +153,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         <hr class="my-4 border-t border-slate-200">
 
+                        <div class="grid grid-cols-3 gap-2 text-[10px] mb-4">
+                            <div class="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                                <p class="text-slate-400 font-bold uppercase mb-1">Efectivo</p>
+                                <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_efectivo)}</p>
+                            </div>
+                            <div class="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                                <p class="text-slate-400 font-bold uppercase mb-1">Transferencia</p>
+                                <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_transferencia)}</p>
+                            </div>
+                            <div class="p-2 ${venta.saldo_pendiente > 0 ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'} rounded-xl border">
+                                <p class="${venta.saldo_pendiente > 0 ? 'text-red-400' : 'text-slate-400'} font-bold uppercase mb-1">Deuda</p>
+                                <p class="font-black ${venta.saldo_pendiente > 0 ? 'text-red-600' : 'text-slate-700'} text-sm">${AppUtils.formatCurrency(venta.saldo_pendiente)}</p>
+                            </div>
+                        </div>
+
                         <div class="flex justify-between text-sm font-bold">
                             <p>Subtotal:</p>
                             <p>${AppUtils.formatCurrency(venta.subtotal)}</p>
                         </div>
                         <div class="flex justify-between text-sm font-bold">
-                            <p>IVA (${(venta.iva_monto / venta.subtotal * 100).toFixed(0)}%):</p>
+                            <p>IVA (${venta.subtotal > 0 ? (venta.iva_monto / venta.subtotal * 100).toFixed(0) : 0}%):</p>
                             <p>${AppUtils.formatCurrency(venta.iva_monto)}</p>
+                        </div>
+                        <div class="flex justify-between text-sm font-bold text-emerald-600">
+                            <p>Total Abonado:</p>
+                            <p>${AppUtils.formatCurrency(parseFloat(venta.pago_efectivo) + parseFloat(venta.pago_transferencia))}</p>
                         </div>
                         <div class="flex justify-between text-lg font-black text-navy-blue">
                             <p>TOTAL:</p>

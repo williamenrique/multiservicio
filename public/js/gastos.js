@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }, 500);
         });
     }
-    
+
     loadExpenses();
 });
 
@@ -182,7 +182,7 @@ window.openExpenseModal = async function () { // Hacer la función asíncrona
         showCancelButton: true,
         preConfirm: () => {
             const descripcion = document.getElementById('ex-desc').value.trim().toUpperCase();
-            const monto = parseFloat(document.getElementById('ex-amount').value);
+            const monto = parseFloat(document.getElementById('ex-amount').value.replace(',', '.'));
             if (!descripcion || isNaN(monto) || monto <= 0) {
                 return Swal.showValidationMessage('Complete todos los campos correctamente');
             }

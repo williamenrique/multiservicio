@@ -223,6 +223,7 @@ CREATE TABLE IF NOT EXISTS `table_ventas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `cliente_id` varchar(50) DEFAULT NULL, -- Corregido de 20 a 50 para coincidir con table_clientes.id
   `placa` varchar(20) DEFAULT NULL,
+  `orden_id` int(11) DEFAULT NULL, -- Enlace opcional a la Orden de Servicio para Auditoría
   `modelo_vehiculo` varchar(100) DEFAULT NULL,
   `subtotal` decimal(10,2) NOT NULL,
   `iva_monto` decimal(10,2) NOT NULL,
@@ -237,8 +238,10 @@ CREATE TABLE IF NOT EXISTS `table_ventas` (
   PRIMARY KEY (`id`),
   KEY `fk_venta_cliente` (`cliente_id`),
   KEY `fk_venta_usuario` (`usuario_id`),
+  KEY `fk_venta_orden` (`orden_id`),
   CONSTRAINT `fk_venta_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_venta_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
+  CONSTRAINT `fk_venta_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`),
+  CONSTRAINT `fk_venta_orden` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 

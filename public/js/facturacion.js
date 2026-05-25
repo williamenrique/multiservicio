@@ -244,12 +244,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Listeners para captura de pagos
     inputPagoEfectivo?.addEventListener('input', (e) => {
-        updateActiveData('pago_efectivo', parseFloat(e.target.value) || 0);
+        updateActiveData('pago_efectivo', parseFloat(e.target.value.replace(',', '.')) || 0);
         renderInvoice();
     });
 
     inputPagoTransferencia?.addEventListener('input', (e) => {
-        updateActiveData('pago_transferencia', parseFloat(e.target.value) || 0);
+        updateActiveData('pago_transferencia', parseFloat(e.target.value.replace(',', '.')) || 0);
         renderInvoice();
     });
 
@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnAddService.addEventListener('click', () => {
         if (!activeInvoiceId) return AppUtils.showToast('Cree una factura primero', 'warning');
         const nombre = inputServicioNombre.value.trim();
-        const precio = parseFloat(inputServicioPrecio.value);
+        const precio = parseFloat(inputServicioPrecio.value.replace(',', '.')) || 0;
         if (!nombre || isNaN(precio) || precio <= 0) return AppUtils.showToast('Datos de servicio inválidos', 'warning');
 
         const activeInvoice = openInvoices.find(i => i.id === activeInvoiceId);
@@ -587,9 +587,13 @@ document.addEventListener('DOMContentLoaded', () => {
             inputIvaToggle.checked = (activeInvoice.iva_activo !== false);
         }
 
-        // Cargar valores de pago en los inputs
-        if (inputPagoEfectivo) inputPagoEfectivo.value = activeInvoice.pago_efectivo || 0;
-        if (inputPagoTransferencia) inputPagoTransferencia.value = activeInvoice.pago_transferencia || 0;
+        // Cargar valores de pago en los inputs (evitar sobrescribir mientras el usuario escribe la coma)
+        if (inputPagoEfectivo && document.activeElement !== inputPagoEfectivo) {
+            inputPagoEfectivo.value = activeInvoice.pago_efectivo || 0;
+        }
+        if (inputPagoTransferencia && document.activeElement !== inputPagoTransferencia) {
+            inputPagoTransferencia.value = activeInvoice.pago_transferencia || 0;
+        }
 
         cartBody.innerHTML = activeInvoice.items.length === 0
             ? '<tr><td class="py-32 text-center text-slate-300 uppercase text-xs font-bold tracking-widest opacity-50"><i data-lucide="shopping-cart" class="w-16 h-16 mx-auto mb-4"></i> No hay items en esta factura</td></tr>'
@@ -672,8 +676,8 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.cliente_id = inputCliente.value;
 
             // Asegurar que los montos de pago se capturen incluso si no hubo evento 'input'
-            activeInvoice.pago_efectivo = parseFloat(inputPagoEfectivo.value) || 0;
-            activeInvoice.pago_transferencia = parseFloat(inputPagoTransferencia.value) || 0;
+            activeInvoice.pago_efectivo = parseFloat(inputPagoEfectivo.value.replace(',', '.')) || 0;
+            activeInvoice.pago_transferencia = parseFloat(inputPagoTransferencia.value.replace(',', '.')) || 0;
 
             // Recalcular finales antes de procesar el cierre
             const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);

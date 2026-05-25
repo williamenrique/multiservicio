@@ -8,13 +8,13 @@ class ModelReportes {
 
     public function obtenerFlujoCaja($desde, $hasta) {
         // 1. Obtener Ventas (Ingresos)
-        $this->db->query("SELECT v.id, v.fecha, v.total as monto, v.total as monto_pagado, 'VENTA' as tipo, 'VENTA' as categoria,
+        $this->db->query("SELECT v.id, v.fecha, v.total as monto, (v.pago_efectivo + v.pago_transferencia) as monto_pagado, 'VENTA' as tipo, 'VENTA' as categoria,
                           v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
                           (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items,
-                          NULL as proveedor_nombre, 0 as saldo_pendiente
+                          NULL as proveedor_nombre, v.saldo_pendiente
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE v.status = 'COMPLETADO' AND DATE(v.fecha) BETWEEN :desde AND :hasta");
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO') AND DATE(v.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $ingresos = $this->db->resultSet() ?: [];
@@ -48,7 +48,7 @@ class ModelReportes {
 
         // Cálculos seguros
         $totalIngresos = array_reduce($ingresos, function($acc, $item) { 
-            return $acc + (float)($item->monto ?? 0); 
+            return $acc + (float)($item->monto_pagado ?? 0); 
         }, 0);
 
         // Egresos reales (Gastos + lo que se ha pagado de las compras)
@@ -74,13 +74,14 @@ class ModelReportes {
     public function obtenerReporteDetallado($desde, $hasta) {
         // 1. Detalle de Ventas (Vehículos + Items)
         $this->db->query("SELECT v.id, v.fecha, v.placa, v.modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, 
-                                 (vd.cantidad * vd.precio_unitario) as subtotal_item, s.nombre as usuario_nombre, c.nombre as cliente_nombre
+                                 (vd.cantidad * vd.precio_unitario) as subtotal_item, s.nombre as usuario_nombre, c.nombre as cliente_nombre,
+                                 v.subtotal, v.iva_monto, v.total, v.pago_efectivo, v.pago_transferencia, v.saldo_pendiente, v.status
                           FROM table_ventas v
                           JOIN table_ventas_detalle vd ON v.id = vd.venta_id
                           JOIN table_usuarios u ON v.usuario_id = u.id
                           JOIN table_staff s ON u.staff_id = s.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE v.status = 'COMPLETADO' AND DATE(v.fecha) BETWEEN :desde AND :hasta
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO') AND DATE(v.fecha) BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);

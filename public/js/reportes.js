@@ -304,7 +304,7 @@ function renderAuditoriaLista(items) {
             }
 
             return `
-            <div class="border-b border-slate-100 py-8 last:border-0 group animate-in fade-in slide-in-from-bottom-2 duration-300 ${isCredit ? 'bg-amber-50/30 -mx-6 px-6 border-l-4 border-l-amber-400' : ''}">
+            <div class="border-b border-slate-100 py-8 last:border-0 group animate-in fade-in slide-in-from-bottom-2 duration-300 ${isCredit ? 'bg-rose-50/30 -mx-6 px-6 border-l-4 border-l-rose-500' : ''}">
                 <!-- Cabecera de Entrada (Libro Contable) -->
                 <div class="flex flex-wrap justify-between items-start gap-6 mb-5">
                     <div class="flex items-center gap-6">
@@ -329,9 +329,9 @@ function renderAuditoriaLista(items) {
                         <div class="text-right">
                             <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Atendió: <span class="text-slate-600">${f.usuario}</span></p>
                             <div class="flex items-center justify-end gap-3">
-                                <span class="text-xs font-black text-slate-300 uppercase tracking-tighter">${isCredit ? 'DEUDA PENDIENTE' : 'TOTAL TRABAJO'}</span>
-                                <span class="text-3xl font-black ${isCredit ? 'text-amber-600' : 'text-emerald-600'} tracking-tighter">${AppUtils.formatCurrency(isCredit ? f.saldo_pendiente : totalFactura)}</span>
-                                ${isCredit ? `<span class="text-[10px] font-black bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase">CRÉDITO</span>` : ''}
+                                <span class="text-xs font-black text-slate-300 uppercase tracking-tighter">${isCredit ? 'SALDO DEUDOR' : 'TOTAL TRABAJO'}</span>
+                                <span class="text-3xl font-black ${isCredit ? 'text-rose-600' : 'text-emerald-600'} tracking-tighter">${AppUtils.formatCurrency(isCredit ? f.saldo_pendiente : totalFactura)}</span>
+                                ${isCredit ? `<span class="text-[10px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-tighter border border-rose-200">En Crédito</span>` : ''}
                             </div>
                         </div>
                         <button onclick="verDetalleVenta(${f.id})" class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-navy-blue hover:border-navy-blue hover:bg-slate-50 transition-all shadow-sm">
@@ -461,6 +461,21 @@ window.verDetalleVenta = async (ventaId) => {
                         </table>
                     </div>
 
+                    <div class="grid grid-cols-3 gap-2 text-[10px]">
+                        <div class="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                            <p class="text-slate-400 font-bold uppercase mb-1">Efectivo</p>
+                            <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_efectivo)}</p>
+                        </div>
+                        <div class="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                            <p class="text-slate-400 font-bold uppercase mb-1">Transf.</p>
+                            <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_transferencia)}</p>
+                        </div>
+                        <div class="p-2 ${venta.saldo_pendiente > 0 ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'} rounded-xl border">
+                            <p class="${venta.saldo_pendiente > 0 ? 'text-rose-400' : 'text-slate-400'} font-bold uppercase mb-1">Deuda</p>
+                            <p class="font-black ${venta.saldo_pendiente > 0 ? 'text-rose-600' : 'text-slate-700'} text-sm">${AppUtils.formatCurrency(venta.saldo_pendiente)}</p>
+                        </div>
+                    </div>
+
                     <div class="bg-navy-blue p-5 rounded-2xl space-y-3 text-white">
                         <div class="flex justify-between items-center text-xs opacity-70">
                             <span class="font-bold uppercase">Subtotal Neto</span>
@@ -469,6 +484,10 @@ window.verDetalleVenta = async (ventaId) => {
                         <div class="flex justify-between items-center text-xs opacity-70">
                             <span class="font-bold uppercase">Impuestos (IVA)</span>
                             <span class="font-bold">${AppUtils.formatCurrency(venta.iva_monto)}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs text-emerald-400 pt-1 border-t border-white/5">
+                            <span class="font-bold uppercase">Total Abonado</span>
+                            <span class="font-bold">${AppUtils.formatCurrency(parseFloat(venta.pago_efectivo) + parseFloat(venta.pago_transferencia))}</span>
                         </div>
                         <div class="flex justify-between items-center pt-3 border-t border-white/10">
                             <span class="font-black uppercase text-xs tracking-widest text-neon-green">Total de la Venta</span>
