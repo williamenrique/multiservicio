@@ -25,8 +25,12 @@ class ModelDashboard {
     /**
      * Suma de ventas completadas en el día actual
      */
-    public function getIncomeToday() {
-        $this->db->query("SELECT SUM(total) as total FROM table_ventas WHERE DATE(fecha) = CURDATE() AND status = 'COMPLETADO'");
+    public function getIncomeToday($usuarioId = null) {
+        $sql = "SELECT SUM(total) as total FROM table_ventas WHERE DATE(fecha) = CURDATE() AND status IN ('COMPLETADO', 'CREDITO')";
+        if ($usuarioId) $sql .= " AND usuario_id = :uid";
+        
+        $this->db->query($sql);
+        if ($usuarioId) $this->db->bind(':uid', $usuarioId);
         return $this->db->single()->total ?? 0;
     }
 
@@ -41,26 +45,35 @@ class ModelDashboard {
     /**
      * Obtiene las últimas 5 ventas para el widget de actividad reciente
      */
-    public function getRecentSales() {
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre 
+    public function getRecentSales($usuarioId = null) {
+        $sql = "SELECT v.*, c.nombre as cliente_nombre 
                           FROM table_ventas v 
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id 
-                          ORDER BY v.fecha DESC LIMIT 5");
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO')";
+        if ($usuarioId) $sql .= " AND v.usuario_id = :uid";
+        $sql .= " ORDER BY v.fecha DESC LIMIT 5";
+
+        $this->db->query($sql);
+        if ($usuarioId) $this->db->bind(':uid', $usuarioId);
         return $this->db->resultSet();
     }
 
     /**
      * Obtiene los borradores (ventas pendientes)
      */
-    public function getPendingDrafts() {
-        $this->db->query("SELECT v.id, v.usuario_id, v.fecha, v.placa, v.modelo_vehiculo, v.total, 
+    public function getPendingDrafts($usuarioId = null) {
+        $sql = "SELECT v.id, v.usuario_id, v.fecha, v.placa, v.modelo_vehiculo, v.total, 
                                  c.nombre as cliente_nombre, s.nombre as responsable_nombre 
                           FROM table_ventas v 
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id 
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
-                          WHERE v.status = 'PENDIENTE' 
-                          ORDER BY v.fecha DESC LIMIT 6");
+                          WHERE v.status = 'PENDIENTE'";
+        if ($usuarioId) $sql .= " AND v.usuario_id = :uid";
+        $sql .= " ORDER BY v.fecha DESC LIMIT 6";
+
+        $this->db->query($sql);
+        if ($usuarioId) $this->db->bind(':uid', $usuarioId);
         return $this->db->resultSet();
     }
 
@@ -81,12 +94,18 @@ class ModelDashboard {
     /**
      * Obtiene el historial financiero de los últimos N días para la gráfica de rendimiento
      */
-    public function getFinancialHistory($days = 7) {
+    public function getFinancialHistory($days = 7, $usuarioId = null) {
         $dateStart = date('Y-m-d', strtotime("-" . ($days - 1) . " days"));
 
         // Ingresos agrupados por día
-        $this->db->query("SELECT DATE(fecha) as date, SUM(total) as total FROM table_ventas WHERE DATE(fecha) >= :start AND status = 'COMPLETADO' GROUP BY DATE(fecha)");
+        $sql = "SELECT DATE(fecha) as date, SUM(total) as total FROM table_ventas 
+                WHERE DATE(fecha) >= :start AND status IN ('COMPLETADO', 'CREDITO')";
+        if ($usuarioId) $sql .= " AND usuario_id = :uid";
+        $sql .= " GROUP BY DATE(fecha)";
+
+        $this->db->query($sql);
         $this->db->bind(':start', $dateStart);
+        if ($usuarioId) $this->db->bind(':uid', $usuarioId);
         $incomeRows = $this->db->resultSet();
 
         // Gastos agrupados por día

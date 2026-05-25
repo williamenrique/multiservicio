@@ -36,6 +36,19 @@ class RoleGuard {
     public static function isAdmin() {
         self::hasAccess(['Administrador', 'ADMINISTRADOR']);
     }
+
+    /**
+     * Retorna verdadero si el usuario es administrador (ID 1 o Nombre ADMINISTRADOR)
+     * Útil para filtrar consultas SQL en los controladores.
+     */
+    public static function is_admin_check() {
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        
+        $is_admin_id = isset($_SESSION['user_role_id']) && (int)$_SESSION['user_role_id'] === 1;
+        $is_admin_name = isset($_SESSION['user_role']) && strtoupper($_SESSION['user_role']) === 'ADMINISTRADOR';
+        
+        return ($is_admin_id || $is_admin_name);
+    }
 }
 /*
 uso

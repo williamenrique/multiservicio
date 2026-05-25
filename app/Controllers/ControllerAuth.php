@@ -84,8 +84,8 @@ class ControllerAuth extends Controller {
                     $_SESSION['user_nick'] = $userFound->username;
                     $_SESSION['user_email'] = $userFound->email;
                     $_SESSION['user_nombre'] = $userFound->nombre;
-                    $_SESSION['user_role'] = $userFound->nombre_rol;
-                    $_SESSION['user_role_id'] = $userFound->role_id;
+                    $_SESSION['user_role'] = strtoupper($userFound->nombre_rol ?? '');
+                    $_SESSION['user_role_id'] = isset($userFound->role_id) ? (int)$userFound->role_id : 0;
                     $_SESSION['user_staff_id'] = $userFound->staff_id ?? null;
                     $_SESSION['user_foto'] = $userFound->foto;
 

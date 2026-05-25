@@ -21,15 +21,19 @@ class ControllerDashboard extends Controller {
      * Obtiene estadísticas reales desde la base de datos para el Dashboard
      */
     public function getStats() {
+        // Determinamos el filtro según el rol: Rol 1 (ADMIN) ve todo (null), otros ven solo lo suyo.
+        // Usamos el helper is_admin_check() que definimos en RoleGuard.
+        $usuarioFiltro = RoleGuard::is_admin_check() ? null : $_SESSION['user_id'];
+
         // Centralizamos la llamada a través del modelo
         $this->jsonResponse([
             'inventory' => $this->dashboardModel->getInventoryStats(),
-            'ingresosHoy' => $this->dashboardModel->getIncomeToday(),
+            'ingresosHoy' => $this->dashboardModel->getIncomeToday($usuarioFiltro),
             'gastosMes' => $this->dashboardModel->getExpensesMonth(),
-            'recentSales' => $this->dashboardModel->getRecentSales(),
-            'drafts' => $this->dashboardModel->getPendingDrafts(),
+            'recentSales' => $this->dashboardModel->getRecentSales($usuarioFiltro),
+            'drafts' => $this->dashboardModel->getPendingDrafts($usuarioFiltro),
             'supplierDebts' => $this->dashboardModel->getSupplierDebtsSummary(),
-            'history' => $this->dashboardModel->getFinancialHistory(),
+            'history' => $this->dashboardModel->getFinancialHistory(7, $usuarioFiltro),
             'recentExpenses' => $this->dashboardModel->getRecentExpenses()
         ]);
     }
