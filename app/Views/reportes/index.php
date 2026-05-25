@@ -18,29 +18,29 @@
     <!-- Totales Rápidos -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div class="glass-card p-6 rounded-2xl border-l-4 border-blue-500 shadow-sm">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Ingresos (Ventas)</p>
+            <p class="text-xs font-black text-slate-400 uppercase mb-1">Ingresos (Ventas)</p>
             <h2 id="total-ingresos" class="text-3xl font-black text-blue-600">$0.00</h2>
         </div>
         <div class="glass-card p-6 rounded-2xl border-l-4 border-red-500 shadow-sm">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Egresos (Pagado)</p>
+            <p class="text-xs font-black text-slate-400 uppercase mb-1">Egresos (Pagado)</p>
             <h2 id="total-egresos" class="text-3xl font-black text-red-600">$0.00</h2>
         </div>
         <div class="glass-card p-6 rounded-2xl border-l-4 border-amber-500 shadow-sm">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Deuda Proveedores</p>
+            <p class="text-xs font-black text-slate-400 uppercase mb-1">Deuda Proveedores</p>
             <h2 id="total-deuda" class="text-3xl font-black text-amber-600">$0.00</h2>
         </div>
         <div class="glass-card p-6 rounded-2xl border-l-4 border-emerald-500 shadow-sm">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Utilidad Real (Caja)</p>
+            <p class="text-xs font-black text-slate-400 uppercase mb-1">Utilidad Real (Caja)</p>
             <h2 id="total-balance" class="text-3xl font-black text-emerald-600">$0.00</h2>
         </div>
     </div>
 
     <!-- Tabs de Navegación -->
     <div class="flex gap-6 border-b border-slate-200">
-        <button onclick="switchReportTab('resumen')" id="tab-resumen" class="pb-3 px-1 border-b-2 border-neon-green font-bold text-navy-blue transition-all text-xs uppercase tracking-widest flex items-center gap-2">
+        <button onclick="switchReportTab('resumen')" id="tab-resumen" class="pb-3 px-1 border-b-2 border-neon-green font-bold text-navy-blue transition-all text-sm uppercase tracking-widest flex items-center gap-2">
             <i data-lucide="pie-chart" class="w-4 h-4"></i> Flujo de Caja
         </button>
-        <button onclick="switchReportTab('detallado')" id="tab-detallado" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-xs uppercase tracking-widest flex items-center gap-2">
+        <button onclick="switchReportTab('detallado')" id="tab-detallado" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
             <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Auditoría de Trabajos
         </button>
     </div>
@@ -55,12 +55,12 @@
                 <table id="reportTable" class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-slate-50/80 border-b border-slate-100">
-                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">ID</th>
-                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">FECHA</th>
-                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">TIPO</th>
-                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">DESCRIPCIÓN</th>
-                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">TOTAL</th>
-                            <th class="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">ACCIONES</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-left">ID</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-left">FECHA</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">TIPO</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-left">DESCRIPCIÓN</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">TOTAL</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">ACCIONES</th>
                         </tr>
                     </thead>
                     <tbody id="report-body" class="divide-y divide-slate-50 bg-white">
@@ -80,10 +80,12 @@
                    class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-neon-green outline-none transition-all shadow-sm">
         </div>
 
-        <!-- Contenedor de la lista agrupada -->
-        <div id="audit-list-container" class="grid grid-cols-1 gap-4">
-            <!-- Dinámico desde JS -->
-            <div class="text-center py-20 text-slate-400 italic">Cargando desglose de trabajos...</div>
+        <!-- Contenedor de la lista agrupada con scroll interno -->
+        <div class="max-h-[75vh] overflow-y-auto pr-4 rounded-3xl border border-slate-100 shadow-sm bg-white custom-scrollbar" id="audit-scroll-area">
+            <div id="audit-list-container" class="p-8">
+                <!-- Dinámico desde JS -->
+                <div class="text-center py-20 text-slate-400 italic">Cargando desglose de trabajos...</div>
+            </div>
         </div>
     </div>
 

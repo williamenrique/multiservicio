@@ -217,101 +217,133 @@ async function cargarReporteDetallado() {
 
 function renderAuditoriaLista(items) {
     const container = document.getElementById('audit-list-container');
+    if (!container) return;
 
-    // Agrupar ventas por ID de factura
-    const agrupado = items.reduce((acc, current) => {
-        const key = `${current.tipo}-${current.id}`;
-        if (!acc[key]) {
-            acc[key] = {
-                id: current.id,
-                tipo: current.tipo,
-                fecha: current.fecha,
-                vehiculo: current.modelo_vehiculo,
-                placa: current.placa,
-                cliente: current.cliente_nombre || 'VENTA RÁPIDA',
-                total_final: 0,
-                usuario: current.usuario_nombre || 'N/A',
-                pagado: parseFloat(current.pagado || 0),
-                items: []
-            };
-        }
-        acc[key].items.push(current);
+    // 1. Agrupar por Mes y Año para los encabezados sticky
+    const meses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+
+    const groupedByMonth = items.reduce((acc, current) => {
+        const d = new Date(current.fecha);
+        const monthKey = `${meses[d.getMonth()]} ${d.getFullYear()}`;
+        if (!acc[monthKey]) acc[monthKey] = [];
+        acc[monthKey].push(current);
         return acc;
     }, {});
 
-    const registros = Object.values(agrupado);
-
-    if (registros.length === 0) {
+    if (Object.keys(groupedByMonth).length === 0) {
         container.innerHTML = '<div class="text-center py-20 text-slate-400 italic font-bold uppercase tracking-widest">No hay registros en este periodo</div>';
         return;
     }
 
-    const formatDateForAudit = (d) => new Date(d).toLocaleDateString('es-ES', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-    }).replace('.', '');
+    let html = '';
 
-    container.innerHTML = registros.map(f => {
-        const totalFactura = f.items.reduce((sum, i) => sum + parseFloat(i.subtotal_item || 0), 0);
-        const colorClass = f.tipo === 'VENTA' ? 'text-blue-600' : 'text-rose-600';
-        const badgeClass = f.tipo === 'VENTA' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600';
-
-        return `
-        <div class="glass-card overflow-hidden rounded-2xl border border-slate-100 hover:shadow-lg transition-all mb-4">
-            <div class="bg-slate-50/80 p-5 border-b border-slate-100 flex justify-between items-center">
-                <div class="flex items-center gap-5">
-                    <button onclick="verDetalleVenta(${f.id})" 
-                            class="bg-navy-blue text-white p-3 rounded-2xl hover:scale-110 transition-all shadow-lg shadow-navy-blue/20 group" 
-                            title="Ver Detalle Completo">
-                        <i data-lucide="eye" class="w-5 h-5 text-neon-green group-hover:rotate-12 transition-transform"></i>
-                    </button>
-                    <div>
-                        <div class="flex items-center gap-3 mb-1">
-                            <h4 class="font-black text-navy-blue uppercase text-sm tracking-tight">${f.vehiculo}</h4>
-                            <span class="text-slate-400 font-mono text-[10px] bg-white px-2 py-0.5 rounded border border-slate-100">${f.placa || '---'}</span>
-                            <span class="px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${badgeClass}">${f.tipo}</span>
-                        </div>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                            Factura #${f.id} • ${formatDateForAudit(f.fecha)} • <span class="text-slate-600">${f.cliente}</span>
-                        </p>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Total Operación</p>
-                    <p class="text-xl font-black ${colorClass}">${AppUtils.formatCurrency(totalFactura)}</p>
-                </div>
+    for (const [month, monthItems] of Object.entries(groupedByMonth)) {
+        // Renderizar Encabezado del Mes (Sticky)
+        html += `
+            <div class="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md py-4 px-6 border-b border-slate-200 flex justify-between items-center shadow-sm mb-4">
+                <h3 class="font-black text-navy-blue text-sm uppercase tracking-[0.2em] flex items-center gap-3">
+                    <i data-lucide="calendar" class="w-4 h-4 text-neon-green"></i>
+                    ${month}
+                </h3>
+                <span class="text-[11px] font-black text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded-full uppercase">
+                    ${monthItems.length} TRABAJOS REGISTRADOS
+                </span>
             </div>
-            <div class="p-5 space-y-3 bg-white">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    ${f.items.map(i => `
-                        <div class="flex justify-between items-center p-3 bg-slate-50/50 rounded-xl border border-transparent hover:border-slate-100 transition-all group">
-                            <div class="flex items-center gap-4">
-                                <span class="w-8 h-8 flex items-center justify-center bg-white rounded-lg font-black text-xs text-slate-500 shadow-sm">${i.cantidad}</span>
-                                <div>
-                                    <p class="font-bold text-slate-700 uppercase text-xs">${i.descripcion || 'Servicio/Articulo'}</p>
-                                    <p class="text-[9px] text-slate-400 font-bold">P. Unit: ${AppUtils.formatCurrency(i.precio_unitario || (i.subtotal_item / i.cantidad))}</p>
-                                </div>
+        `;
+
+        // 2. Agrupar por Factura dentro del mes
+        const invoices = monthItems.reduce((acc, current) => {
+            const key = `V-${current.id}`;
+            if (!acc[key]) {
+                acc[key] = {
+                    id: current.id,
+                    fecha: current.fecha,
+                    vehiculo: current.modelo_vehiculo || 'GENERAL',
+                    placa: current.placa || '---',
+                    cliente: current.cliente_nombre || 'VENTA RÁPIDA',
+                    usuario: current.usuario_nombre || 'N/A',
+                    iva: parseFloat(current.iva_monto || 0),
+                    subtotal: parseFloat(current.subtotal || 0),
+                    total: parseFloat(current.total || 0),
+                    items: []
+                };
+            }
+            acc[key].items.push(current);
+            return acc;
+        }, {});
+
+        html += Object.values(invoices).map(f => {
+            // Asegurar el total: usar el del servidor o calcularlo si viene en 0
+            const totalFactura = f.total > 0 ? f.total : f.items.reduce((sum, item) => sum + (item.cantidad * item.precio_unitario), 0);
+
+            return `
+            <div class="border-b border-slate-100 py-8 last:border-0 group animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <!-- Cabecera de Entrada (Libro Contable) -->
+                <div class="flex flex-wrap justify-between items-start gap-6 mb-5">
+                    <div class="flex items-center gap-6">
+                        <div class="h-14 w-14 rounded-2xl bg-navy-blue flex flex-col items-center justify-center text-neon-green shadow-lg shadow-navy-blue/10">
+                            <span class="text-[10px] font-black uppercase opacity-60 leading-none mb-0.5">ORD</span>
+                            <span class="text-base font-black tracking-tighter leading-none">#${f.id}</span>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-3">
+                                <h4 class="font-black text-navy-blue uppercase text-base tracking-tight">${f.vehiculo}</h4>
+                                <span class="bg-slate-50 border border-slate-200 text-slate-500 font-mono text-xs px-2 py-0.5 rounded font-black">${f.placa}</span>
                             </div>
-                            <span class="font-black text-slate-500 text-xs">${AppUtils.formatCurrency(i.subtotal_item)}</span>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                <span class="text-slate-600">${f.cliente}</span> 
+                                <span class="text-slate-200 mx-2">|</span> 
+                                ${new Date(f.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
                         </div>
-                    `).join('')}
+                    </div>
+                    
+                    <div class="flex items-center gap-10">
+                        <div class="text-right">
+                            <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Atendió: <span class="text-slate-600">${f.usuario}</span></p>
+                            <div class="flex items-center justify-end gap-3">
+                                <span class="text-xs font-black text-slate-300 uppercase tracking-tighter">TOTAL TRABAJO</span>
+                                <span class="text-3xl font-black text-blue-600 tracking-tighter">${AppUtils.formatCurrency(totalFactura)}</span>
+                            </div>
+                        </div>
+                        <button onclick="verDetalleVenta(${f.id})" class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-navy-blue hover:border-navy-blue hover:bg-slate-50 transition-all shadow-sm">
+                            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="flex justify-between items-center pt-4 border-t border-slate-50">
-                    <div class="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
-                        <i data-lucide="user" class="w-3 h-3"></i>
-                        Responsable: <span class="text-navy-blue">${f.usuario}</span>
-                    </div>
-                    <div class="text-[10px] font-black text-slate-300 uppercase tracking-widest">
-                        ${f.items.length} Servicios registrados
-                    </div>
+
+                <!-- Desglose de Servicios/Repuestos (Formato Ledger) -->
+                <div class="pl-[80px]">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b border-slate-50">
+                                <th class="pb-2 text-xs font-black text-slate-300 uppercase tracking-widest">Cant.</th>
+                                <th class="pb-2 text-xs font-black text-slate-300 uppercase tracking-widest">Descripción detallada</th>
+                                <th class="pb-2 text-xs font-black text-slate-300 uppercase tracking-widest text-right">P. Unitario</th>
+                                <th class="pb-2 text-xs font-black text-slate-300 uppercase tracking-widest text-right">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50">
+                            ${f.items.map(i => `
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3 text-sm font-bold text-slate-400">${i.cantidad}</td>
+                                    <td class="py-3">
+                                        <span class="text-sm font-bold text-slate-700 uppercase tracking-tight">${i.descripcion}</span>
+                                    </td>
+                                    <td class="py-3 text-right text-sm font-medium text-slate-500">${AppUtils.formatCurrency(i.precio_unitario)}</td>
+                                    <td class="py-3 text-right text-sm font-black text-slate-600">${AppUtils.formatCurrency(i.cantidad * i.precio_unitario)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </div>
-        `
-    }).join('');
+            `;
+        }).join('');
+    }
 
-    lucide.createIcons();
+    container.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
 }
 
 /**
