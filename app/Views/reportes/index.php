@@ -93,4 +93,18 @@
         </button>
     </div>
 </div>
+<script>
+    // Definir URLROOT para que esté disponible en los scripts de reportes
+    if (typeof window.URLROOT === 'undefined') {
+        window.URLROOT = "<?php echo URLROOT; ?>";
+    }
+
+    /**
+     * Definimos editItem de forma global para evitar el error de referencia.
+     * En la vista de reportes, redirigimos al usuario al módulo de proveedores.
+     */
+    window.editItem = (id) => {
+        window.location.href = `${window.URLROOT}/proveedores`;
+    };
+</script>
 <script src="<?php echo URLROOT; ?>/public/js/reportes.js"></script>

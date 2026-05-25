@@ -32,21 +32,22 @@ window.switchReportTab = (tab) => {
 };
 
 let rawAuditData = null; // Para filtrar sin volver al servidor
+let rawReportData = []; // Datos del flujo de caja
+let state = {
+    page: 1,
+    limit: 10,
+    total: 0,
+    filtered: 0
+};
 
 async function cargarReporte() {
     const desde = document.getElementById('rep-desde').value;
     const hasta = document.getElementById('rep-hasta').value;
+    const tbody = document.getElementById('report-body');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-16 text-slate-400 italic animate-pulse">GENERANDO BALANCE...</td></tr>';
 
     try {
         const res = await fetch(`${URLROOT}/reportes/generar?desde=${desde}&hasta=${hasta}`);
-
-        // Verificar si la respuesta es realmente JSON
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-            const text = await res.text();
-            console.error("Respuesta no válida del servidor:", text);
-            throw new Error("El servidor no devolvió JSON. Revisa la consola.");
-        }
 
         const data = await res.json();
 
@@ -56,107 +57,144 @@ async function cargarReporte() {
         document.getElementById('total-deuda').textContent = AppUtils.formatCurrency(data.totales.deuda);
         document.getElementById('total-balance').textContent = AppUtils.formatCurrency(data.totales.balance);
 
-        // Renderizar Tabla
-        const tbody = document.getElementById('report-body');
+        rawReportData = data.movimientos || [];
+        state.total = rawReportData.length;
+        state.filtered = rawReportData.length;
+        state.page = 1; // Reiniciar página al cargar nuevas fechas
 
-        // Limpieza de DataTable para evitar el error mData (desajuste de columnas)
-        if ($.fn.DataTable.isDataTable('#reportTable')) {
-            $('#reportTable').DataTable().clear().destroy();
-        }
-        tbody.innerHTML = '';
-
-        const formatDateLong = (dateStr) => {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return 'Fecha inválida';
-            const day = d.getDate();
-            const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-            const month = meses[d.getMonth()];
-            const year = d.getFullYear();
-            return `${day} de ${month} de ${year}.`;
-        };
-
-        tbody.innerHTML = data.movimientos.map(m => {
-            const isVenta = (m.tipo === 'VENTA');
-            const isProveedor = (!!m.proveedor_nombre || m.tipo === 'COMPRA');
-
-            let descriptionContent = '';
-
-            if (isVenta) {
-                descriptionContent = `
-                    <div class="flex flex-col gap-1">
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-black text-navy-blue uppercase tracking-tight">${m.modelo_vehiculo || 'VEHÍCULO GENERAL'}</span>
-                            <span class="text-[10px] text-slate-400 font-mono tracking-tighter border px-1.5 rounded bg-slate-50 border-slate-100">${m.placa || 'SIN PLACA'}</span>
-                        </div>
-                        <div class="text-[10px] text-slate-500 font-bold uppercase leading-tight">Cliente: ${m.cliente_nombre || m.entidad || 'VENTA RÁPIDA'}</div>
-                        <div class="flex items-center gap-1.5 mt-0.5 text-[9px] font-black text-blue-600 uppercase">
-                            <i data-lucide="package" class="w-3 h-3"></i> ${m.cantidad_items || m.total_productos || 0} SERVICIOS/ARTÍCULOS
-                        </div>
-                    </div>`;
-            } else if (isProveedor) {
-                descriptionContent = `
-                    <div class="flex flex-col gap-1">
-                        <div class="text-xs font-black text-slate-700 uppercase tracking-tight">PAGO / ABONO PROVEEDOR</div>
-                        <div class="text-[10px] text-navy-blue font-bold uppercase leading-tight">Proveedor: ${m.proveedor_nombre || m.entidad}</div>
-                        ${(m.saldo_pendiente > 0) ? `<div class="text-[9px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full font-black border border-rose-100 italic w-fit mt-1">DEUDA: ${AppUtils.formatCurrency(m.saldo_pendiente)}</div>` : ''}
-                    </div>`;
-            } else {
-                descriptionContent = `
-                    <div class="flex flex-col gap-1">
-                        <div class="text-xs font-black text-slate-700 uppercase tracking-tight">${m.descripcion || 'GASTO OPERATIVO'}</div>
-                        <div class="text-[10px] text-slate-400 font-bold uppercase leading-tight">${m.categoria || 'GENERAL'}</div>
-                    </div>`;
-            }
-
-            return `
-                <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
-                    <td class="px-4 py-5 font-mono text-xs text-slate-400 align-middle">#${m.id_db || m.id}</td>
-                    <td class="px-4 py-5 text-[11px] font-bold text-slate-500 uppercase tracking-tighter whitespace-nowrap align-middle">${formatDateLong(m.fecha)}</td>
-                    <td class="px-4 py-5 text-center align-middle">
-                        <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${m.tipo === 'VENTA' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}">
-                            ${m.tipo}
-                        </span>
-                    </td>
-                    <td class="px-4 py-5">${descriptionContent}</td>
-                    <td class="px-4 py-5 text-right font-black text-sm ${m.tipo === 'VENTA' ? 'text-blue-600' : 'text-rose-600'} align-middle">
-                        ${m.tipo === 'VENTA' ? '+' : '-'} ${AppUtils.formatCurrency(m.monto)}
-                    </td>
-                    <td class="px-4 py-5 text-right align-middle">
-                        <div class="flex items-center justify-end gap-2">
-                            ${isProveedor ? `
-                                <button onclick="verDetalleCompra(${m.id})" class="p-2 bg-slate-100 text-slate-400 hover:text-rose-600 rounded-xl transition-colors shadow-sm" title="Ver Detalle de Compra">
-                                    <i data-lucide="eye" class="w-4 h-4"></i>
-                                </button>` : isVenta ? `
-                                <button onclick="verDetalleVenta(${m.id})" class="p-2 bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors shadow-sm" title="Ver Detalle de Venta">
-                                    <i data-lucide="eye" class="w-4 h-4"></i>
-                                </button>` : ''}
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-
-        $('#reportTable').DataTable({
-            responsive: true,
-            order: [[0, 'desc']],
-            columns: [
-                { orderable: true }, // ID
-                { orderable: true }, // FECHA
-                { orderable: false }, // TIPO
-                { orderable: true }, // DESCRIPCIÓN
-                { orderable: true }, // TOTAL
-                { orderable: false } // ACCIONES
-            ],
-            language: { url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' },
-            drawCallback: () => lucide.createIcons()
-        });
-
-        lucide.createIcons();
+        renderReportTable();
     } catch (e) {
         console.error("Error cargando reporte:", e);
         AppUtils.showToast("Error al generar el reporte", "error");
     }
 }
+
+const formatDateLong = (dateStr) => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'Fecha inválida';
+    const day = d.getDate();
+    const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+    const month = meses[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day} de ${month} de ${year}.`;
+};
+
+function renderReportTable() {
+    const tbody = document.getElementById('report-body');
+    if (!tbody) return;
+
+    const start = (state.page - 1) * state.limit;
+    const paginatedItems = rawReportData.slice(start, start + state.limit);
+
+    tbody.innerHTML = paginatedItems.map(m => {
+        const isVenta = (m.tipo === 'VENTA');
+        const isProveedor = (!!m.proveedor_nombre || m.tipo === 'COMPRA');
+
+        let descriptionContent = '';
+
+        if (isVenta) {
+            descriptionContent = `
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-black text-navy-blue uppercase tracking-tight">${m.modelo_vehiculo || 'VEHÍCULO GENERAL'}</span>
+                        <span class="text-[10px] text-slate-400 font-mono tracking-tighter border px-1.5 rounded bg-slate-50 border-slate-100">${m.placa || 'SIN PLACA'}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 font-bold uppercase leading-tight">Cliente: ${m.cliente_nombre || m.entidad || 'VENTA RÁPIDA'}</div>
+                    <div class="flex items-center gap-1.5 mt-0.5 text-[9px] font-black text-blue-600 uppercase">
+                        <i data-lucide="package" class="w-3 h-3"></i> ${m.cantidad_items || m.total_productos || 0} SERVICIOS/ARTÍCULOS
+                    </div>
+                </div>`;
+        } else if (isProveedor) {
+            descriptionContent = `
+                <div class="flex flex-col gap-1">
+                    <div class="text-xs font-black text-slate-700 uppercase tracking-tight">PAGO / ABONO PROVEEDOR</div>
+                    <div class="text-[10px] text-navy-blue font-bold uppercase leading-tight">Proveedor: ${m.proveedor_nombre || m.entidad}</div>
+                    ${(m.saldo_pendiente > 0) ? `<div class="text-[9px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full font-black border border-rose-100 italic w-fit mt-1">DEUDA: ${AppUtils.formatCurrency(m.saldo_pendiente)}</div>` : ''}
+                </div>`;
+        } else {
+            descriptionContent = `
+                <div class="flex flex-col gap-1">
+                    <div class="text-xs font-black text-slate-700 uppercase tracking-tight">${m.descripcion || 'GASTO OPERATIVO'}</div>
+                    <div class="text-[10px] text-slate-400 font-bold uppercase leading-tight">${m.categoria || 'GENERAL'}</div>
+                </div>`;
+        }
+
+        return `
+            <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
+                <td class="px-4 py-5 font-mono text-xs text-slate-400 align-middle">#${m.id_db || m.id}</td>
+                <td class="px-4 py-5 text-[11px] font-bold text-slate-500 uppercase tracking-tighter whitespace-nowrap align-middle">${formatDateLong(m.fecha)}</td>
+                <td class="px-4 py-5 text-center align-middle">
+                    <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${m.tipo === 'VENTA' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}">
+                        ${m.tipo}
+                    </span>
+                </td>
+                <td class="px-4 py-5">${descriptionContent}</td>
+                <td class="px-4 py-5 text-right font-black text-sm ${m.tipo === 'VENTA' ? 'text-blue-600' : 'text-rose-600'} align-middle">
+                    ${m.tipo === 'VENTA' ? '+' : '-'} ${AppUtils.formatCurrency(m.monto)}
+                </td>
+                <td class="px-4 py-5 text-right align-middle">
+                    <div class="flex items-center justify-end gap-2">
+                        ${isProveedor ? `
+                            <button onclick="verDetalleCompra(${m.id})" class="p-2 bg-slate-100 text-slate-400 hover:text-rose-600 rounded-xl transition-colors shadow-sm" title="Ver Detalle de Compra">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </button>` : isVenta ? `
+                            <button onclick="verDetalleVenta(${m.id})" class="p-2 bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors shadow-sm" title="Ver Detalle de Venta">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </button>` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    renderReportControls();
+    if (window.lucide) lucide.createIcons();
+}
+
+function renderReportControls() {
+    const table = document.getElementById('reportTable');
+    if (!table) return;
+    const wrapper = table.closest('div');
+
+    let bottom = document.getElementById('custom-bottom-controls');
+    if (!bottom) {
+        bottom = document.createElement('div');
+        bottom.id = 'custom-bottom-controls';
+        bottom.className = 'flex flex-col sm:flex-row justify-between items-center gap-6 mt-6 px-8 py-5 bg-white/50 rounded-3xl border border-slate-100 shadow-sm mx-2 animate-in fade-in slide-in-from-bottom-2 duration-500';
+        wrapper.parentNode.insertBefore(bottom, wrapper.nextSibling);
+    }
+
+    const start = (state.page - 1) * state.limit + 1;
+    const end = Math.min(state.page * state.limit, state.filtered);
+    const totalPages = Math.ceil(state.filtered / state.limit) || 1;
+
+    bottom.innerHTML = `
+        <div class="flex items-center gap-3">
+            <div class="w-2.5 h-2.5 rounded-full bg-neon-green animate-pulse shadow-[0_0_8px_rgba(57,255,20,0.5)]"></div>
+            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                Mostrando <span class="text-navy-blue text-xs ml-1">${start}-${end}</span> <span class="text-slate-300 mx-2 text-lg font-thin">|</span> Total <span class="text-navy-blue text-xs ml-1">${state.filtered}</span>
+            </span>
+        </div>
+        <div class="flex items-center gap-1.5">
+            <button onclick="window.changeReportPage(${state.page - 1})" ${state.page === 1 ? 'disabled' : ''} 
+                class="flex items-center justify-center w-10 h-10 rounded-2xl transition-all ${state.page === 1 ? 'text-slate-300 bg-slate-50 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-500 hover:bg-navy-blue hover:text-neon-green hover:border-navy-blue shadow-sm cursor-pointer'}">
+                <i data-lucide="chevron-left" class="w-5 h-5"></i>
+            </button>
+            <button onclick="window.changeReportPage(${state.page + 1})" ${state.page >= totalPages ? 'disabled' : ''} 
+                class="flex items-center justify-center w-10 h-10 rounded-2xl transition-all ${state.page >= totalPages ? 'text-slate-300 bg-slate-50 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-500 hover:bg-navy-blue hover:text-neon-green hover:border-navy-blue shadow-sm cursor-pointer'}">
+                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+            </button>
+        </div>
+    `;
+    if (window.lucide) lucide.createIcons();
+}
+
+window.changeReportPage = (p) => {
+    if (p > 0 && p <= Math.ceil(state.filtered / state.limit)) {
+        state.page = p;
+        renderReportTable();
+    }
+};
 
 async function cargarReporteDetallado() {
     const desde = document.getElementById('rep-desde').value;
