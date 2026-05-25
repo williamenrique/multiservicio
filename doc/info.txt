@@ -1,38 +1,4 @@
-LISTO 1. Fortalecimiento de la Seguridad (Prioridad Alta)
-    Estandarización de Contraseñas: He notado que en ControllerAuth.php comparas contraseñas en texto 
-    plano ($password === $userFound->password). Sin embargo, en ControllerPerfil.php usas password_hash.
-    Riesgo: Debes migrar todo el sistema a password_hash() y password_verify(). Nunca guardes claves legibles.
-
-    Validación de Datos (Server-side): Actualmente confías mucho en que el JSON llegue bien desde el frontend.
-     Sería ideal implementar una clase Validator para asegurar que los correos sean válidos, los montos sean
-      positivos y los IDs existan antes de tocar la base de datos.
-Logs de Auditoría: El sistema no registra "quién hizo qué". Implementar una tabla de audit_logs que guarde la
- acción (CREATE, UPDATE, DELETE), el usuario y la fecha es vital para el control administrativo.
-
-LISTO 2. Gestión Operativa del Taller (El Corazón del Negocio)
-Actualmente, el sistema está muy enfocado en "Facturación" e "Inventario", pero para un taller avanzado faltan:
-
-    Módulo de Órdenes de Servicio (O.S.): No solo vender el repuesto, sino gestionar el ciclo de vida de la reparación.
-    Estados: Recibido -> Diagnosticando -> Esperando Repuestos -> En Reparación -> Listo para Entrega.
-    Checklist de Entrada: Registrar cómo llega el vehículo (rayones, nivel de combustible, objetos personales).
-    Historial por Vehículo (Hoja de Vida): Aunque tienes un historial de ventas, una búsqueda por Placa que muestre todas las reparaciones pasadas, repuestos cambiados y kilometrajes ayuda a fidelizar al cliente.
-
-LISTO 3. Inventario Avanzado
-    Kardex de Inventario: Actualmente solo sumas y restas stock. Un sistema robusto necesita un historial de movimientos por producto (Entrada por compra, Salida por venta, Ajuste manual, Devolución).
-    Alertas de Stock Mínimo: Implementar una notificación automática (o una vista en el dashboard) cuando un producto baje de su "punto de reorden" para evitar quedarse sin insumos críticos.
-    Gestión de Marcas y Modelos: Relacionar repuestos con vehículos específicos para evitar errores al facturar.
-
-4. Control Financiero y Contabilidad
-    Cierres de Caja (Arqueos): Falta un proceso de "Cierre Diario" donde el sistema compare el efectivo/tarjetas esperado contra lo que el empleado reporta al final del turno.
-    Métodos de Pago Múltiples: Permitir que una factura se pague con una parte en efectivo y otra por transferencia.
-    Cuentas por Cobrar (Créditos a Clientes): Al igual que tienes deudas con proveedores, podrías permitir créditos a clientes recurrentes y gestionar sus abonos.
-
-LISTO 5. Mejoras en la Arquitectura de Software
-    Manejo de Excepciones: En lugar de retornar false en los modelos, podrías lanzar Exceptions con mensajes específicos que el controlador pueda capturar y mostrar al usuario.
-    Servicios (Business Logic Layer): Si un proceso es muy complejo (como registrarCompra en ModelProveedor), sería mejor mover esa lógica a una carpeta app/Services, dejando los modelos solo para consultas SQL puras.
-    Generación de Documentos: Implementar la generación de PDF para facturas, recibos de caja y órdenes de servicio (usando librerías como Dompdf).
-
-6. Experiencia del Cliente (Plus de Valor)
+1. Experiencia del Cliente (Plus de Valor)
     Notificaciones Automáticas: Enviar un correo o mensaje (vía API de WhatsApp) cuando la orden de servicio cambie a estado "Terminado".
     Portal de Consulta: Una página simple donde el cliente, con su placa y cédula, vea el progreso actual de su vehículo.
 
@@ -41,41 +7,3 @@ Iniciar el modo desarrollo: Cada vez que vayas a programar, ejecuta en la termin
 
 bash
 npm run dev
-
--- 1. Actualizar tabla de ventas para soportar pagos parciales
-ALTER TABLE `table_ventas` 
-ADD COLUMN `pago_efectivo` DECIMAL(10,2) DEFAULT 0.00 AFTER `total`,
-ADD COLUMN `pago_transferencia` DECIMAL(10,2) DEFAULT 0.00 AFTER `pago_efectivo`,
-ADD COLUMN `saldo_pendiente` DECIMAL(10,2) DEFAULT 0.00 AFTER `pago_transferencia`;
-
--- 2. Crear tabla para el control de Cierres de Caja (Arqueos)
-CREATE TABLE IF NOT EXISTS `table_cierres_caja` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `usuario_id` INT NOT NULL,
-  `monto_esperado` DECIMAL(10,2) NOT NULL,
-  `monto_real` DECIMAL(10,2) NOT NULL,
-  `diferencia` DECIMAL(10,2) NOT NULL,
-  `observaciones` TEXT DEFAULT NULL,
-  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT `fk_cierre_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- 3. Crear tabla para Abonos de Clientes (Cuentas por Cobrar)
-CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `venta_id` INT NOT NULL,
-  `monto` DECIMAL(10,2) NOT NULL,
-  `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL,
-  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT `fk_abono_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- 4. Crear tabla para registrar pagos a proveedores (Egresos detallados)
-CREATE TABLE IF NOT EXISTS `table_compras_pagos` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `compra_id` INT NOT NULL,
-  `monto_pagado` DECIMAL(10,2) NOT NULL,
-  `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL,
-  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT `fk_pago_compra` FOREIGN KEY (`compra_id`) REFERENCES `table_compras` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
