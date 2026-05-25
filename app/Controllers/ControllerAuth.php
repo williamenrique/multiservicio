@@ -85,6 +85,7 @@ class ControllerAuth extends Controller {
                     $_SESSION['user_email'] = $userFound->email;
                     $_SESSION['user_nombre'] = $userFound->nombre;
                     $_SESSION['user_role'] = $userFound->nombre_rol;
+                    $_SESSION['user_role_id'] = $userFound->role_id;
                     $_SESSION['user_staff_id'] = $userFound->staff_id ?? null;
                     $_SESSION['user_foto'] = $userFound->foto;
 
@@ -125,6 +126,7 @@ class ControllerAuth extends Controller {
                     'username' => $_SESSION['user_nick'],
                     'staffName' => $_SESSION['user_nombre'],
                     'role' => $_SESSION['user_role'],
+                    'roleId' => $_SESSION['user_role_id'] ?? null,
                     'foto' => $_SESSION['user_foto'] ?? 'img/default.png'
                 ]
             ]);
@@ -208,22 +210,10 @@ class ControllerAuth extends Controller {
      * Muestra la vista de gestión de solicitudes de recuperación (Solo Admin).
      */
     public function solicitudes() {
-        AuthGuard::role('Administrador');
+        RoleGuard::isAdmin();
         $data = [
             'titulo' => 'Solicitudes de Acceso'
         ];
-        $this->view('recuperar/index', $data);
-    }
-
-    /**
-     * Elimina una solicitud de recuperación (marcar como comprobado).
-     */
-    public function eliminarSolicitud($id) {
-        if (isset($_SESSION['user_role']) && strtoupper($_SESSION['user_role']) === 'ADMINISTRADOR') {
-            $res = $this->userModel->eliminarSolicitud($id);
-            return $this->jsonResponse(['success' => $res]);
-        } else {
-            return $this->jsonResponse(['success' => false], 403);
-        }
+        $this->view('auth/solicitudes', $data);
     }
 }

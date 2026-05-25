@@ -71,38 +71,19 @@ class ControllerClientes extends Controller {
             $input = json_decode(file_get_contents('php://input'), true);
             
             if (empty($input['id'])) {
-                echo json_encode(['success' => false, 'mensaje' => 'El ID del cliente es requerido']);
+                echo json_encode(['success' => false, 'mensaje' => 'La identificación es obligatoria']);
                 return;
             }
 
-            // Validar si es actualización (ya tiene ID) o creación
-            $clienteExistente = $this->clienteModel->obtenerPorId($input['id']);
-
-            if ($clienteExistente) {
-                $resultado = $this->clienteModel->actualizar($input);
-            } else {
-                $resultado = $this->clienteModel->crear($input);
-            }
-
-            if ($resultado) {
-                echo json_encode(['success' => true, 'mensaje' => 'Cliente guardado correctamente']);
-            } else {
-                echo json_encode(['success' => false, 'mensaje' => 'Error al guardar el cliente']);
-            }
+            $res = $this->clienteModel->guardar($input);
+            echo json_encode(['success' => $res, 'mensaje' => $res ? 'Cliente guardado' : 'Error al guardar']);
         }
     }
 
-    /**
-     * Elimina un cliente por ID
-     */
-    public function eliminar($id = null) {
-        RoleGuard::isAdmin(); // Solo Administradores pueden eliminar clientes
-        if ($_SERVER['REQUEST_METHOD'] == 'DELETE' && $id) {
-            if ($this->clienteModel->eliminar($id)) {
-                echo json_encode(['success' => true]);
-            } else {
-                echo json_encode(['success' => false]);
-            }
-        }
+    public function eliminar($id) {
+        RoleGuard::isAdmin();
+        header('Content-Type: application/json');
+        $res = $this->clienteModel->eliminar($id);
+        echo json_encode(['success' => $res]);
     }
 }

@@ -97,16 +97,9 @@ class ControllerInventario extends Controller {
                 
                 $subfolder = 'inventario';
                 $uploadPath = APPROOT . '/../public/uploads/' . $subfolder . '/';
-                
-                // Crear subcarpeta específica si no existe
+
                 if (!is_dir($uploadPath)) {
                     mkdir($uploadPath, 0777, true);
-                }
-
-                // Validar tamaño (máx 2MB)
-                if ($archivo['size'] > 2097152) {
-                    echo json_encode(['success' => false, 'mensaje' => 'La imagen es muy pesada (Máx 2MB)']);
-                    return;
                 }
 
                 if (move_uploaded_file($archivo['tmp_name'], $uploadPath . $nombreFinal)) {
@@ -114,27 +107,22 @@ class ControllerInventario extends Controller {
                 }
             }
 
-            try {
-                if (!empty($data['id'])) {
-                    $this->inventarioModel->actualizar($data);
-                } else {
-                    $this->inventarioModel->crear($data);
-                }
-                echo json_encode(['success' => true, 'mensaje' => 'Producto guardado']);
-            } catch (Exception $e) {
-                echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
+            if (!empty($data['id'])) {
+                $res = $this->inventarioModel->actualizar($data);
+                $mensaje = "Producto actualizado";
+            } else {
+                $res = $this->inventarioModel->registrar($data);
+                $mensaje = "Producto registrado";
             }
+
+            echo json_encode(['success' => $res, 'mensaje' => $res ? $mensaje : 'Error al procesar']);
         }
     }
 
-    public function eliminar($id = null) {
+    public function eliminar($id) {
         RoleGuard::isAdmin();
-        if ($_SERVER['REQUEST_METHOD'] == 'DELETE' && $id) {
-            if ($this->inventarioModel->eliminar($id)) {
-                echo json_encode(['success' => true]);
-            } else {
-                echo json_encode(['success' => false]);
-            }
-        }
+        header('Content-Type: application/json');
+        $res = $this->inventarioModel->eliminar($id);
+        echo json_encode(['success' => $res]);
     }
 }

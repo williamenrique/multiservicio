@@ -1,8 +1,8 @@
                 <!-- Dashboard Section -->
                 <section id="sec-dashboard" class="content-section">
                     <h2 class="text-2xl font-bold mb-6">Resumen del Taller</h2>
-
-                    <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2">
+                    
+                    <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2" id="financial-summary-heading">
                         <i data-lucide="activity"></i> Resumen Financiero
                     </h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" id="financial-status-cards">
@@ -22,17 +22,17 @@
                         <!-- Pending bills cards generated via JS -->
                     </div>
 
-                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2">
+                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2" id="supplier-debts-heading">
                         <i data-lucide="truck"></i> Cuentas por Pagar (Proveedores)
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="supplier-debts-dashboard"></div>
 
-                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2">
+                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2" id="expenses-month-heading">
                         <i data-lucide="trending-down"></i> Gastos del Mes en Curso
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" id="expenses-dashboard"></div>
 
-                    <div class="flex justify-between items-center my-6">
+                    <div class="flex justify-between items-center my-6" id="financial-performance-block">
                         <h3 class="text-lg font-semibold text-slate-600 flex items-center gap-2">
                             <i data-lucide="trending-up"></i> Rendimiento Financiero
                         </h3>

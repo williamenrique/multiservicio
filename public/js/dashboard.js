@@ -49,11 +49,44 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
+     * Verifica si el usuario actual tiene permisos de administrador.
+     * Según tu definición: Rol 1 es Admin, Rol 2 es Mecánico.
+     */
+    const isAdmin = () => {
+        if (!window.currentLoggedInUser) return false;
+        return window.currentLoggedInUser.roleId == 1 || window.currentLoggedInUser.role.toUpperCase() === 'ADMINISTRADOR';
+    };
+
+    /**
+     * Oculta visualmente los contenedores financieros para usuarios no autorizados
+     */
+    const setupRoleVisibility = () => {
+        if (!isAdmin()) {
+            const financialElements = [
+                statsElements.financialStatusCards,
+                statsElements.expensesDashboard,
+                statsElements.supplierDebts,
+                document.getElementById('salesChart')?.closest('.glass-card'), // Contenedor del gráfico
+                statsElements.financialContainer, // El div vacío al lado del gráfico
+                document.getElementById('financial-summary-heading'),
+                document.getElementById('supplier-debts-heading'),
+                document.getElementById('expenses-month-heading'),
+                document.getElementById('financial-performance-block') // Bloque completo de rendimiento financiero
+            ];
+            financialElements.forEach(el => {
+                if (el) el.classList.add('hidden');
+            });
+        }
+    };
+
+    /**
      * Actualiza el DOM con los nuevos datos
      */
     const renderDashboard = (data) => {
+        setupRoleVisibility();
+
         // 1. Renderizar Tarjetas Financieras (Ventas, Órdenes, Gastos)
-        if (statsElements.financialStatusCards) {
+        if (statsElements.financialStatusCards && isAdmin()) {
             const ingresos = parseFloat(data.ingresosHoy) || 0;
             const gastos = parseFloat(data.gastosMes) || 0;
             const ordenesActivas = data.drafts ? data.drafts.length : 0;
@@ -119,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 3. Renderizar Lista de Gastos Detallados (Tarjetas individuales)
-        if (statsElements.expensesDashboard && data.recentExpenses) {
+        if (statsElements.expensesDashboard && data.recentExpenses && isAdmin()) {
             if (data.recentExpenses.length === 0) {
                 statsElements.expensesDashboard.innerHTML = `
                     <div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400">
@@ -142,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Gráfica de Rendimiento
-        if (data.history) renderChart(data.history);
+        if (data.history && isAdmin()) renderChart(data.history);
 
         // Renderizar Borradores (Drafts)
         if (statsElements.draftsContainer && data.drafts) {
@@ -181,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Renderizar Deudas Proveedores
-        if (statsElements.supplierDebts && data.supplierDebts) {
+        if (statsElements.supplierDebts && data.supplierDebts && isAdmin()) {
             if (data.supplierDebts.length === 0) {
                 statsElements.supplierDebts.innerHTML = `
                     <div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400 border-2 border-dashed border-slate-100">
@@ -331,4 +364,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inicializar y configurar refresco automático cada 60 segundos
     updateDashboard();
     setInterval(updateDashboard, 60000);
+
+    // Re-renderizar si la información del usuario llega después de la carga inicial (Race condition)
+    document.addEventListener('userLoaded', () => {
+        updateDashboard();
+    });
 });

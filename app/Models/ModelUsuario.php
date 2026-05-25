@@ -12,7 +12,7 @@ class ModelUsuario extends Model {
      * @return object|bool Fila del usuario con datos de staff y rol unidos.
      */
     public function buscarPorIdentificador($identificador) {
-        $this->db->query("SELECT u.id, u.username, u.password, u.role_id, u.staff_id, u.estado, s.nombre, s.email, s.foto, r.nombre_rol 
+        $this->db->query("SELECT u.id, u.username, u.password, u.role_id, u.staff_id, u.estado, s.nombre, s.email, s.foto, s.cargo, r.nombre_rol 
                           FROM table_usuarios u 
                           INNER JOIN table_staff s ON u.staff_id = s.id 
                           INNER JOIN table_roles r ON u.role_id = r.id 
