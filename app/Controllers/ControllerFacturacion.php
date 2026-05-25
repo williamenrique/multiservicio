@@ -125,4 +125,48 @@ class ControllerFacturacion extends Controller {
             'venta' => $venta
         ], 'Factura_' . $id . '.pdf');
     }
+        /**
+     * Procesa la petición AJAX para registrar un abono a una deuda de cliente.
+     * Ruta: /facturacion/registrarAbono
+     */
+    public function registrarAbono() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            // Leer el cuerpo de la petición JSON
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            // Validar que lleguen los datos mínimos
+            if (!isset($input['venta_id']) || !isset($input['monto']) || !isset($input['metodo'])) {
+                return $this->jsonResponse([
+                    'success' => false, 
+                    'mensaje' => 'Datos insuficientes para procesar el pago.'
+                ], 400);
+            }
+
+            $ventaId = (int)$input['venta_id'];
+            $monto = (float)$input['monto'];
+            $metodo = strtoupper($input['metodo']);
+
+            // Usamos $this->facturaModel que es como está definido en el __construct
+            $resultado = $this->facturaModel->registrarAbono($ventaId, $monto, $metodo);
+
+            if ($resultado) {
+                // Registrar la acción en la bitácora de auditoría del sistema
+                logAction('VENTA', 'ABONO', "Se registró un abono de " . $monto . " a la factura #" . $ventaId . " vía " . $metodo);
+                
+                return $this->jsonResponse([
+                    'success' => true,
+                    'mensaje' => '¡Abono registrado con éxito!'
+                ]);
+            } else {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'mensaje' => 'Error interno al intentar guardar el abono en la base de datos.'
+                ], 500);
+            }
+        } else {
+            // Bloquear accesos que no sean POST
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Método no permitido'], 405);
+        }
+    }
+
 }

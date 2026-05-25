@@ -242,4 +242,48 @@ class ModelFacturacion {
         ];
     }
 
+    /**
+     * Registra un abono a una venta con deuda.
+     * Si el saldo llega a cero, la factura pasa a COMPLETADO.
+     */
+    public function registrarAbono($ventaId, $monto, $metodo) {
+        try {
+            $this->db->query("SELECT total, pago_efectivo, pago_transferencia, saldo_pendiente FROM table_ventas WHERE id = :id");
+            $this->db->bind(':id', $ventaId);
+            $venta = $this->db->single();
+
+            if (!$venta) return false;
+
+            $monto = (float)$monto;
+            $nuevoPendiente = $venta->saldo_pendiente - $monto;
+            
+            // 1. Insertar el registro en la tabla de abonos
+            $this->db->query("INSERT INTO table_abonos_clientes (venta_id, monto, metodo_pago) VALUES (:vid, :monto, :metodo)");
+            $this->db->bind(':vid', $ventaId);
+            $this->db->bind(':monto', $monto);
+            $this->db->bind(':metodo', $metodo);
+            $this->db->execute();
+
+            // 2. Determinar qué columna de pago actualizar
+            $columnaPago = ($metodo === 'TRANSFERENCIA') ? 'pago_transferencia' : 'pago_efectivo';
+            
+            // 3. Actualizar la venta principal
+            // Si el saldo pendiente es muy cercano a cero (por decimales), marcar como COMPLETADO
+            $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
+
+            $this->db->query("UPDATE table_ventas SET 
+                              $columnaPago = $columnaPago + :monto,
+                              saldo_pendiente = :pendiente,
+                              status = :status
+                              WHERE id = :id");
+            $this->db->bind(':monto', $monto);
+            $this->db->bind(':pendiente', $nuevoPendiente > 0 ? $nuevoPendiente : 0);
+            $this->db->bind(':status', $nuevoStatus);
+            $this->db->bind(':id', $ventaId);
+
+            return $this->db->execute();
+        } catch (Exception $e) {
+            return false;
+        }
+    }
 }

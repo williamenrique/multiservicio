@@ -334,6 +334,12 @@ function renderAuditoriaLista(items) {
                                 ${isCredit ? `<span class="text-[10px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-tighter border border-rose-200">En Crédito</span>` : ''}
                             </div>
                         </div>
+                        ${isCredit ? `
+                            <button onclick="registrarAbonoCliente(${f.id}, ${f.saldo_pendiente})" class="p-3 rounded-xl bg-rose-500 text-white hover:bg-rose-600 transition-all shadow-md flex items-center gap-2 group/btn" title="Registrar Pago">
+                                <i data-lucide="hand-coins" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i>
+                                <span class="text-[10px] font-black uppercase">Abonar</span>
+                            </button>
+                        ` : ''}
                         <button onclick="verDetalleVenta(${f.id})" class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-navy-blue hover:border-navy-blue hover:bg-slate-50 transition-all shadow-sm">
                             <i data-lucide="maximize-2" class="w-4 h-4"></i>
                         </button>
@@ -604,6 +610,65 @@ window.verDetalleCompra = async (id) => {
 window.printVenta = (id) => {
     AppUtils.showToast('Generando documento...', 'info');
     window.open(`${URLROOT}/facturacion/imprimir/${id}`, '_blank');
+};
+
+/**
+ * Abre el modal para registrar un abono a una deuda
+ */
+window.registrarAbonoCliente = async (ventaId, saldoPendiente) => {
+    const { value: formValues } = await Swal.fire({
+        title: `<span class="text-xs uppercase text-slate-400 font-black">Registrar Pago</span><br>ORDEN #${ventaId}`,
+        html: `
+            <div class="text-left space-y-4 pt-4">
+                <div class="p-3 bg-rose-50 rounded-xl border border-rose-100 flex justify-between items-center">
+                    <span class="text-[10px] font-black text-rose-600 uppercase">Saldo Actual:</span>
+                    <span class="text-lg font-black text-rose-600">${AppUtils.formatCurrency(saldoPendiente)}</span>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Monto a Pagar</label>
+                    <input id="pay-amount" type="text" class="w-full p-3 bg-slate-50 border rounded-xl font-black text-navy-blue" value="${saldoPendiente.toFixed(2)}">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Método de Pago</label>
+                    <select id="pay-method" class="w-full p-3 bg-slate-50 border rounded-xl font-bold text-sm">
+                        <option value="EFECTIVO">EFECTIVO</option>
+                        <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+                    </select>
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'CONFIRMAR PAGO',
+        confirmButtonColor: '#10b981',
+        preConfirm: () => {
+            const monto = parseFloat(document.getElementById('pay-amount').value.replace(',', '.'));
+            if (isNaN(monto) || monto <= 0 || monto > (saldoPendiente + 0.01)) {
+                Swal.showValidationMessage('Monto inválido o superior a la deuda');
+                return false;
+            }
+            return {
+                venta_id: ventaId,
+                monto: monto,
+                metodo: document.getElementById('pay-method').value
+            };
+        }
+    });
+
+    if (formValues) {
+        try {
+            const res = await fetch(`${URLROOT}/facturacion/registrarAbono`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formValues)
+            });
+            const data = await res.json();
+            if (data.success) {
+                AppUtils.showToast('Pago registrado correctamente');
+                cargarReporteDetallado(); // Recargar la lista
+            } else {
+                AppUtils.showToast(data.mensaje, 'error');
+            }
+        } catch (e) { AppUtils.showToast('Error de conexión', 'error'); }
+    }
 };
 
 function filtrarAuditoria(term) {
