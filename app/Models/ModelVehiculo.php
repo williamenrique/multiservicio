@@ -1,0 +1,40 @@
+<?php
+class ModelVehiculo {
+    private $db;
+
+    public function __construct() {
+        $this->db = new Database();
+    }
+
+    public function buscarPorPlaca($placa) {
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono 
+                          FROM table_vehiculos v 
+                          INNER JOIN table_clientes c ON v.cliente_id = c.id 
+                          WHERE v.placa = :placa");
+        $this->db->bind(':placa', $placa);
+        return $this->db->single();
+    }
+
+    public function registrar($data) {
+        $this->db->query("INSERT INTO table_vehiculos (placa, marca, modelo, anio, color, cliente_id) 
+                          VALUES (:placa, :marca, :modelo, :anio, :color, :cliente_id)");
+        $this->db->bind(':placa', strtoupper($data['placa']));
+        $this->db->bind(':marca', $data['marca']);
+        $this->db->bind(':modelo', $data['modelo']);
+        $this->db->bind(':anio', $data['anio']);
+        $this->db->bind(':color', $data['color']);
+        $this->db->bind(':cliente_id', $data['cliente_id']);
+        return $this->db->execute() ? $this->db->lastInsertId() : false;
+    }
+
+    public function obtenerHistorial($vehiculo_id) {
+        $this->db->query("SELECT os.*, s.nombre as mecanico_nombre 
+                          FROM table_ordenes_servicio os
+                          INNER JOIN table_usuarios u ON os.usuario_id = u.id
+                          INNER JOIN table_staff s ON u.staff_id = s.id
+                          WHERE os.vehiculo_id = :vid 
+                          ORDER BY os.fecha_entrada DESC");
+        $this->db->bind(':vid', $vehiculo_id);
+        return $this->db->resultSet();
+    }
+}

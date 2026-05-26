@@ -1,0 +1,6 @@
+public/uploads/
+composer.json
+composer.lock
+package.json
+package-lock.json
+gulpfile.js
