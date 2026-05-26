@@ -43,24 +43,25 @@ class ControllerFacturacion extends Controller {
      */
     public function procesar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            header('Content-Type: application/json');
-            $datos = json_decode(file_get_contents('php://input'), true);
-            
-            if (empty($datos['items'])) {
-                echo json_encode(['success' => false, 'mensaje' => 'El carrito está vacío']);
-                return;
-            }
+            try {
+                header('Content-Type: application/json');
+                $datos = json_decode(file_get_contents('php://input'), true);
+                
+                if (empty($datos['items'])) {
+                    throw new AppException('El carrito está vacío');
+                }
 
-            $resultado = $this->facturaModel->procesarVenta($datos);
+                $resultado = $this->facturaModel->procesarVenta($datos);
 
-            if ($resultado) {
                 echo json_encode([
                     'success' => true, 
                     'mensaje' => 'Venta realizada con éxito',
                     'venta_id' => $resultado
                 ]);
-            } else {
-                echo json_encode(['success' => false, 'mensaje' => 'No se pudo procesar la venta. Verifique el stock.']);
+            } catch (StockException $e) {
+                echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'mensaje' => 'Error Crítico: ' . $e->getMessage()]);
             }
         }
     }
@@ -146,10 +147,10 @@ class ControllerFacturacion extends Controller {
             $monto = (float)$input['monto'];
             $metodo = strtoupper($input['metodo']);
 
-            // Usamos $this->facturaModel que es como está definido en el __construct
-            $resultado = $this->facturaModel->registrarAbono($ventaId, $monto, $metodo);
+            try {
+                // Usamos $this->facturaModel que es como está definido en el __construct
+                $resultado = $this->facturaModel->registrarAbono($ventaId, $monto, $metodo);
 
-            if ($resultado) {
                 // Registrar la acción en la bitácora de auditoría del sistema
                 logAction('VENTA', 'ABONO', "Se registró un abono de " . $monto . " a la factura #" . $ventaId . " vía " . $metodo);
                 
@@ -157,11 +158,8 @@ class ControllerFacturacion extends Controller {
                     'success' => true,
                     'mensaje' => '¡Abono registrado con éxito!'
                 ]);
-            } else {
-                return $this->jsonResponse([
-                    'success' => false,
-                    'mensaje' => 'Error interno al intentar guardar el abono en la base de datos.'
-                ], 500);
+            } catch (Exception $e) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
             }
         } else {
             // Bloquear accesos que no sean POST
@@ -203,19 +201,19 @@ class ControllerFacturacion extends Controller {
 
     public function procesarDevolucion() {
         RoleGuard::isAdmin();
-        $input = json_decode(file_get_contents('php://input'), true);
-        
-        $resultado = $this->facturaModel->procesarDevolucion(
-            $input['venta_id'], 
-            $input['detalle_id'], 
-            $input['destino']
-        );
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            $this->facturaModel->procesarDevolucion(
+                $input['venta_id'], 
+                $input['detalle_id'], 
+                $input['destino']
+            );
 
-        if ($resultado) {
             logAction('VENTA', 'DEVOLUCION', "Devolución de item en factura #{$input['venta_id']}. Destino: {$input['destino']}");
             echo json_encode(['success' => true, 'mensaje' => 'Devolución procesada correctamente']);
-        } else {
-            echo json_encode(['success' => false, 'mensaje' => 'No se pudo procesar la devolución o el plazo venció']);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
         }
     }
 

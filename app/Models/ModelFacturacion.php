@@ -77,7 +77,7 @@ class ModelFacturacion {
             // Obtener IVA dinámico desde la configuración de la empresa
             $this->db->query("SELECT iva FROM table_company_settings WHERE id = 1 LIMIT 1");
             $config = $this->db->single();
-            $iva_porcentaje = ($config->iva ?? 0) / 100;
+            $ivaPorcentaje = ($config->iva ?? 0) / 100;
 
             // Asegurar que items sea un array
             $items = isset($datos['items']) && is_array($datos['items']) ? $datos['items'] : [];
@@ -86,19 +86,19 @@ class ModelFacturacion {
             foreach ($items as $item) $subtotal += ($item['precio'] * $item['cantidad']);
 
             // Respetar el estado del interruptor de IVA enviado desde el frontend
-            $iva_activo = isset($datos['iva_activo']) ? (bool)$datos['iva_activo'] : false;
-            $iva_monto = $iva_activo ? ($subtotal * $iva_porcentaje) : 0;
-            $total = $subtotal + $iva_monto;
+            $ivaActivo = isset($datos['iva_activo']) ? (bool)$datos['iva_activo'] : false;
+            $ivaMonto = $ivaActivo ? ($subtotal * $ivaPorcentaje) : 0;
+            $total = $subtotal + $ivaMonto;
 
             // Nuevos campos de pago
-            $pago_efectivo = (float)($datos['pago_efectivo'] ?? 0);
-            $pago_transferencia = (float)($datos['pago_transferencia'] ?? 0);
-            $pago_total = $pago_efectivo + $pago_transferencia;
-            $saldo_pendiente = $total - $pago_total;
+            $pagoEfectivo = (float)($datos['pago_efectivo'] ?? 0);
+            $pagoTransferencia = (float)($datos['pago_transferencia'] ?? 0);
+            $pagoTotal = $pagoEfectivo + $pagoTransferencia;
+            $saldoPendiente = $total - $pagoTotal;
 
             // Lógica de Estado Automática:
             // Si se intenta completar pero hay saldo pendiente > 0, se marca como CREDITO
-            if ($status === 'COMPLETADO' && $saldo_pendiente > 0.05) {
+            if ($status === 'COMPLETADO' && $saldoPendiente > 0.05) {
                 $status = 'CREDITO';
             }
 
@@ -124,13 +124,12 @@ class ModelFacturacion {
             $this->db->bind(':placa', !empty($datos['placa']) ? mb_strtoupper($datos['placa'], 'UTF-8') : '');
             $this->db->bind(':modelo', !empty($datos['modelo']) ? mb_strtoupper($datos['modelo'], 'UTF-8') : '');
             $this->db->bind(':sub', $subtotal);
-            $this->db->bind(':iva', $iva_monto);
+            $this->db->bind(':iva', $ivaMonto);
             $this->db->bind(':total', $total);
-            $this->db->bind(':pef', $pago_efectivo);
-            $this->db->bind(':ptra', $pago_transferencia);
-            $this->db->bind(':spend', ($saldo_pendiente > 0) ? $saldo_pendiente : 0);
+            $this->db->bind(':pef', $pagoEfectivo);
+            $this->db->bind(':ptra', $pagoTransferencia);
+            $this->db->bind(':spend', ($saldoPendiente > 0) ? $saldoPendiente : 0);
             $this->db->bind(':status', $status);
-            if ($ventaId) $this->db->bind(':id', $ventaId);
 
             $this->db->execute();
             if (!$ventaId) $ventaId = $this->db->lastInsertId();
@@ -157,6 +156,16 @@ class ModelFacturacion {
 
                 // SOLO descontar stock físico si la venta se FINALIZÓ (COMPLETADO o CREDITO)
                 if (in_array($status, ['COMPLETADO', 'CREDITO']) && $item['tipo'] === 'PRODUCTO' && !empty($item['id'])) {
+                    
+                    // Validación de Stock Preventiva
+                    $this->db->query("SELECT stock FROM table_inventario WHERE id = :id");
+                    $this->db->bind(':id', $item['id']);
+                    $stockActual = (int)($this->db->single()->stock ?? 0);
+
+                    if ($stockActual < $item['cantidad']) {
+                        throw new StockException("Stock insuficiente para '{$item['nombre']}'. Disponible: $stockActual");
+                    }
+
                     // Registrar en Kardex antes de actualizar el stock
                     $invModel->registrarMovimiento($item['id'], 'SALIDA_VENTA', $item['cantidad'], $ventaId, "Venta Finalizada ($status)");
 
@@ -169,8 +178,8 @@ class ModelFacturacion {
 
             return $ventaId;
         } catch (Exception $e) {
-            error_log("Error en procesarVenta: " . $e->getMessage());
-            return false;
+            error_log("Error en guardarFactura: " . $e->getMessage());
+            throw $e;
         }
     }
 
@@ -252,7 +261,7 @@ class ModelFacturacion {
             $this->db->bind(':id', $ventaId);
             $venta = $this->db->single();
 
-            if (!$venta) return false;
+            if (!$venta) throw new AppException("Venta no encontrada para registrar el abono.");
 
             $monto = (float)$monto;
             $nuevoPendiente = $venta->saldo_pendiente - $monto;
@@ -283,7 +292,7 @@ class ModelFacturacion {
 
             return $this->db->execute();
         } catch (Exception $e) {
-            return false;
+            throw $e;
         }
     }
 
@@ -408,7 +417,7 @@ class ModelFacturacion {
         } catch (Exception $e) {
             $this->db->rollBack();
             error_log("Error Devolución: " . $e->getMessage());
-            return false;
+            throw $e;
         }
     }
 }

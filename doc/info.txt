@@ -3,31 +3,24 @@
     Portal de Consulta: Una página simple donde el cliente, con su placa y cédula, vea el progreso actual de su vehículo.
 
 
-Iniciar el modo desarrollo: Cada vez que vayas a programar, ejecuta en la terminal:
 
-bash
-npm run dev
+A- Lista de Mejoramiento (Calidad y Estabilidad)
+    1 Validación Centralizada: Actualmente, la validación ocurre dentro de los controladores (como en ControllerAuth). Sería mejor implementar un sistema de validación de esquemas para los JSON de entrada en la facturación, evitando que datos malformados lleguen al modelo.
+    2 Manejo de Excepciones: Muchos métodos retornan false en caso de error. Implementar Excepciones Personalizadas permitiría que el controlador capture el motivo exacto del fallo (ej: "Stock Insuficiente" vs "Error de Conexión") y lo muestre al usuario.
+    3 Estandarización de Nomenclatura: Se observa una mezcla de camelCase y snake_case en variables y llaves de arreglos. Unificar esto facilitaría el mantenimiento.
+    4 Seguridad CSRF Global: El token CSRF se verifica en el login, pero debería implementarse un middleware o verificación automática en todos los métodos POST, PUT y DELETE para proteger las acciones de facturación y personal.
+    5 Gestión de Sesiones: El sistema de sesión única en base de datos es muy bueno, pero le vendría bien un proceso de "limpieza" automática para sesiones que no cerraron correctamente pero ya expiraron por tiempo.
 
-
-
-
-5- Implementar Devolucion en los 5 primeros dias (DECIDIR QUE ARTICULOS SE LE HACE DEVOLUCION) despues de 5 dias no se puede hacer devoluion 
--- 20. Tabla de Devoluciones (Historial de repuestos devueltos)
-CREATE TABLE IF NOT EXISTS `table_devoluciones` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `venta_id` int(11) NOT NULL,
-  `producto_id` int(11) DEFAULT NULL,
-  `descripcion` varchar(255) NOT NULL,
-  `cantidad` int(11) NOT NULL,
-  `monto_devuelto` decimal(15,2) NOT NULL,
-  `destino` enum('STOCK','DANADO') NOT NULL,
-  `usuario_id` int(11) NOT NULL,
-  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `fk_devolucion_venta` (`venta_id`),
-  KEY `fk_devolucion_producto` (`producto_id`),
-  KEY `fk_devolucion_usuario` (`usuario_id`),
-  CONSTRAINT `fk_devolucion_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_devolucion_producto` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_devolucion_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+B- Funcionalidades Sugeridas (Nuevas Capacidades)
+    1 Análisis de Rentabilidad: Actualmente, el flujo de caja mide dinero que entra y sale. Se podría agregar una tarjeta de Utilidad Bruta, comparando el precio_unitario de venta contra el ultimo_costo registrado en el inventario para saber cuánto se ganó realmente, más allá del movimiento de caja.
+    2 Sistema de Notificaciones (Alertas):
+    Alertas automáticas cuando un producto llega al stock mínimo.
+    Notificación visual en el dashboard para créditos que superen los 15 días (usando la lógica que ya tienes en alertasCredito).
+    3 Módulo de "Órdenes de Trabajo": Antes de facturar, permitir crear una "Orden de Trabajo" (estado preventivo) donde se carguen servicios y repuestos sin afectar stock ni caja hasta que el cliente autorice y se convierta en factura.
+    4 Historial de Precios (Kardex Visual): Aunque el sistema registra movimientos en el Kardex, una vista para el administrador donde pueda ver la fluctuación del costo de un repuesto en el tiempo ayudaría a ajustar precios de venta.
+    5 Estado de Cuenta de Cliente: Una funcionalidad para generar un PDF o vista rápida de todos los abonos y saldos pendientes de un cliente específico, facilitando la cobranza.
+    6 Cierre de Caja Diario: Un proceso donde el sistema "congele" los movimientos del día y genere un reporte comparativo entre el dinero esperado en sistema y el dinero físico reportado por el cajero.
+    
+c- Observaciones en Frontend (JS)
+    Refactorización de Tablas: La transición que hiciste en personal.js eliminando DataTable por una carga manual es muy limpia y mejora el rendimiento. Esta misma lógica debería replicarse en el historial de devoluciones y auditoría de trabajos para mantener la coherencia visual.
+    Debounce en Búsquedas: La implementación del searchTimeout es un gran acierto para no saturar el servidor.
