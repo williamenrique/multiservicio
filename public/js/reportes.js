@@ -48,7 +48,7 @@ let state = {
     filtered: 0
 };
 
-async function cargarReporte() {
+window.cargarReporte = async function () {
     const desde = document.getElementById('rep-desde').value;
     const hasta = document.getElementById('rep-hasta').value;
     const tbody = document.getElementById('report-body');
@@ -149,6 +149,9 @@ function renderReportTable() {
                             </button>` : isVenta ? `
                             <button onclick="verDetalleVenta(${m.id})" class="p-2 bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors shadow-sm" title="Ver Detalle de Venta">
                                 <i data-lucide="eye" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="iniciarDevolucion(${m.id}, '${m.fecha}')" class="p-2 bg-slate-100 text-slate-400 hover:text-rose-600 rounded-xl transition-colors shadow-sm ml-1" title="Devolución">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                             </button>` : ''}
                     </div>
                 </td>
@@ -205,7 +208,7 @@ window.changeReportPage = (p) => {
     }
 };
 
-async function cargarReporteDetallado() {
+window.cargarReporteDetallado = async function () {
     const desde = document.getElementById('rep-desde').value;
     const hasta = document.getElementById('rep-hasta').value;
 
@@ -342,6 +345,9 @@ function renderAuditoriaLista(items) {
                         ` : ''}
                         <button onclick="verDetalleVenta(${f.id})" class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-navy-blue hover:border-navy-blue hover:bg-slate-50 transition-all shadow-sm">
                             <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="iniciarDevolucion(${f.id}, '${f.fecha}')" class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm ml-2" title="Devolución">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </div>
@@ -707,4 +713,52 @@ function filtrarReporte(term) {
     state.filtered = filteredReportData.length;
     state.page = 1;
     renderReportTable();
+}
+
+/**
+ * Carga y renderiza el historial de devoluciones
+ */
+async function cargarHistorialDevoluciones() {
+    const desde = document.getElementById('rep-desde').value;
+    const hasta = document.getElementById('rep-hasta').value;
+    const container = document.getElementById('devoluciones-list-container'); // Asumimos que existe este contenedor
+    if (!container) return;
+
+    try {
+        const res = await fetch(`${URLROOT}/facturacion/listarDevoluciones?desde=${desde}&hasta=${hasta}`);
+        const result = await res.json();
+
+        if (result.data.length === 0) {
+            container.innerHTML = '<p class="p-8 text-center text-slate-400 italic">No hay devoluciones registradas en este periodo.</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                        <th class="p-4">Fecha</th>
+                        <th class="p-4">Artículo / Factura</th>
+                        <th class="p-4">Estado/Destino</th>
+                        <th class="p-4 text-right">Monto</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    ${result.data.map(d => `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="p-4 text-[10px] font-bold text-slate-500">${new Date(d.fecha).toLocaleString()}</td>
+                            <td class="p-4">
+                                <p class="text-xs font-black text-navy-blue uppercase">${d.descripcion}</p>
+                                <p class="text-[9px] text-slate-400 font-bold uppercase">Factura #${d.venta_id} • Cliente: ${d.cliente_nombre || 'N/A'}</p>
+                            </td>
+                            <td class="p-4">
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
+                                    ${d.destino === 'STOCK' ? 'Reingreso Stock (Bueno)' : 'Garantía/Dañado (Malo)'}
+                                </span>
+                            </td>
+                            <td class="p-4 text-right font-black text-rose-600 text-sm">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
+                        </tr>`).join('')}
+                </tbody>
+            </table>`;
+    } catch (e) { console.error(e); }
 }

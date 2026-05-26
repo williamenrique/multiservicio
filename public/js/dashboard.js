@@ -13,7 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
         recentSalesTable: document.getElementById('salesBody'),
         draftsContainer: document.getElementById('pending-bills-dashboard'),
         supplierDebts: document.getElementById('supplier-debts-dashboard'),
-        financialStatusCards: document.getElementById('financial-status-cards')
+        financialStatusCards: document.getElementById('financial-status-cards'),
+        debtorsCard: document.getElementById('dashboard-debtors-card-container')
     };
 
     let performanceChart = null;
@@ -36,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Carga las estadísticas desde el servidor
      */
-    const updateDashboard = async () => {
+    window.updateDashboard = async () => {
         try {
             const response = await fetch(`${URLROOT}/dashboard/getStats`);
             if (!response.ok) throw new Error('Error al obtener datos');
@@ -68,12 +69,13 @@ document.addEventListener('DOMContentLoaded', () => {
             statsElements.financialStatusCards,
             statsElements.expensesDashboard,
             statsElements.supplierDebts,
-            document.getElementById('salesChart')?.closest('.glass-card'), 
-            statsElements.financialContainer, 
+            document.getElementById('salesChart')?.closest('.glass-card'),
+            statsElements.financialContainer,
+            statsElements.debtorsCard,
             document.getElementById('financial-summary-heading'),
             document.getElementById('supplier-debts-heading'),
             document.getElementById('expenses-month-heading'),
-            document.getElementById('financial-performance-block') 
+            document.getElementById('financial-performance-block')
         ];
 
         financialElements.forEach(el => {
@@ -127,8 +129,8 @@ document.addEventListener('DOMContentLoaded', () => {
             statsElements.financialStatusCards.innerHTML = finCards.map(c => `
                 <div class="glass-card p-6 rounded-xl flex items-center justify-between border-l-4 ${c.border} transition-all">
                     <div class="pointer-events-none">
-                        <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider">${c.label}</p>
-                        <h3 class="text-2xl font-black ${c.color}">${c.value}</h3>
+                        <p class="text-slate-400 text-xs font-bold uppercase tracking-wider">${c.label}</p>
+                        <h3 class="text-3xl font-black ${c.color}">${c.value}</h3>
                     </div>
                     <i data-lucide="${c.icon}" class="${c.color} w-8 h-8 opacity-30"></i>
                 </div>
@@ -147,8 +149,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div onclick="window.location.href='${c.link}'" 
                      class="glass-card p-6 rounded-xl flex items-center justify-between border-l-4 ${c.border} cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all group">
                     <div class="pointer-events-none">
-                        <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider">${c.label}</p>
-                        <h3 class="text-2xl font-black ${c.color}">${c.value}</h3>
+                        <p class="text-slate-400 text-xs font-bold uppercase tracking-wider">${c.label}</p>
+                        <h3 class="text-3xl font-black ${c.color}">${c.value}</h3>
                     </div>
                     <i data-lucide="${c.icon}" class="${c.color} w-8 h-8 opacity-30"></i>
                 </div>
@@ -172,12 +174,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 statsElements.expensesDashboard.innerHTML = data.recentExpenses.map(e => `
                     <div class="glass-card p-4 rounded-xl border-l-4 border-rose-500 flex justify-between items-center group hover:scale-[1.02] transition-transform cursor-default">
                         <div class="truncate mr-4">
-                            <p class="text-[10px] text-slate-400 font-bold uppercase">${e.categoria}</p>
-                            <h4 class="font-bold text-slate-800 uppercase text-sm truncate group-hover:text-rose-600 transition-colors">${e.descripcion}</h4>
-                            <p class="text-[10px] text-slate-400">${new Date(e.fecha).toLocaleDateString()}</p>
+                            <p class="text-xs text-slate-400 font-bold uppercase">${e.categoria}</p>
+                            <h4 class="font-bold text-slate-800 uppercase text-base truncate group-hover:text-rose-600 transition-colors">${e.descripcion}</h4>
+                            <p class="text-xs text-slate-400">${new Date(e.fecha).toLocaleDateString()}</p>
                         </div>
                         <div class="text-right flex-shrink-0">
-                            <span class="font-bold text-rose-600 text-lg">-${AppUtils.formatCurrency(parseFloat(e.monto) || 0)}</span>
+                            <span class="font-bold text-rose-600 text-xl">-${AppUtils.formatCurrency(parseFloat(e.monto) || 0)}</span>
                         </div>
                     </div>`).join('');
             }
@@ -202,19 +204,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="glass-card p-4 rounded-xl border-l-4 border-amber-400">
                     <div class="flex justify-between items-start mb-2">
                         <div class="flex flex-col">
-                            <span class="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded w-fit mb-1">BORRADOR</span>
-                            <span class="text-[10px] text-slate-400">${new Date(draft.fecha).toLocaleDateString()}</span>
+                            <span class="text-xs font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded w-fit mb-1">BORRADOR</span>
+                            <span class="text-xs text-slate-400">${new Date(draft.fecha).toLocaleDateString()}</span>
                         </div>
-                        <span class="text-xs text-slate-400">#${draft.id}</span>
+                        <span class="text-sm text-slate-400">#${draft.id}</span>
                     </div>
-                    <p class="font-bold text-slate-700 text-sm truncate">${draft.cliente_nombre || 'Sin Cliente'}</p>
-                    <div class="flex items-center gap-1 text-[10px] font-bold text-blue-600 uppercase mb-2">
+                    <p class="font-bold text-slate-700 text-base truncate">${draft.cliente_nombre || 'Sin Cliente'}</p>
+                    <div class="flex items-center gap-1 text-xs font-bold text-blue-600 uppercase mb-2">
                         <i data-lucide="user" class="w-3 h-3"></i>
                         <span>${draft.responsable_nombre || 'No asignado'}</span>
                     </div>
-                    <p class="text-xs text-slate-500 mb-3">${draft.placa || 'Sin placa'} - ${draft.modelo_vehiculo || 'N/A'}</p>
+                    <p class="text-sm text-slate-500 mb-3">${draft.placa || 'Sin placa'} - ${draft.modelo_vehiculo || 'N/A'}</p>
                     <div class="flex justify-between items-center border-t pt-2">
-                        <span class="text-sm font-black text-navy-blue">${AppUtils.formatCurrency(draft.total)}</span>
+                        <span class="text-base font-black text-navy-blue">${AppUtils.formatCurrency(draft.total)}</span>
                         <button onclick="continuarVenta(${draft.id})" class="text-xs font-bold text-blue-600 hover:underline">Continuar</button>
                     </div>
                 </div>
@@ -233,8 +235,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 statsElements.supplierDebts.innerHTML = data.supplierDebts.map(debt => `
                     <div class="glass-card p-4 rounded-xl">
-                        <p class="text-[10px] font-bold text-slate-400 uppercase">${debt.nombre}</p>
-                        <p class="text-lg font-black text-rose-500">${AppUtils.formatCurrency(debt.saldo_pendiente)}</p>
+                        <p class="text-xs font-bold text-slate-400 uppercase">${debt.nombre}</p>
+                        <p class="text-xl font-black text-rose-500">${AppUtils.formatCurrency(debt.saldo_pendiente)}</p>
                     </div>
                 `).join('');
             }
@@ -257,6 +259,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="px-2 py-1 rounded-full text-[10px] font-bold ${getStatusClass(sale.status)}">
                             ${sale.status}
                         </span>
+                        <button onclick="iniciarDevolucion(${sale.id}, '${sale.fecha}')" class="ml-2 p-1 text-slate-400 hover:text-rose-600 transition-colors" title="Devolución">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        </button>
                     </td>
                 </tr>
             `).join('');

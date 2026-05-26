@@ -112,4 +112,18 @@ class ModelReportes {
             'gastos' => $gastos
         ];
     }
+
+    public function obtenerReporteDevoluciones($desde, $hasta) {
+        $this->db->query("SELECT d.*, s.nombre as usuario_nombre, v.placa, c.nombre as cliente_nombre
+                          FROM table_devoluciones d
+                          JOIN table_ventas v ON d.venta_id = v.id
+                          JOIN table_usuarios u ON d.usuario_id = u.id
+                          JOIN table_staff s ON u.staff_id = s.id
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE DATE(d.fecha) BETWEEN :desde AND :hasta
+                          ORDER BY d.fecha DESC");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        return $this->db->resultSet();
+    }
 }

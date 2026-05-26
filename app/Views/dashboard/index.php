@@ -5,9 +5,12 @@
                     <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2" id="financial-summary-heading">
                         <i data-lucide="activity"></i> Resumen Financiero
                     </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" id="financial-status-cards">
-                        <!-- Tarjetas financieras generadas via JS -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6" id="financial-status-cards">
+                        <!-- Tarjetas financieras generadas via JS (Ventas, Órdenes, Gastos) -->
                     </div>
+
+                    <!-- Nueva Sección Independiente para Deudores -->
+                    <div id="dashboard-debtors-card-container" class="mb-8"></div>
 
                     <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2"><i
                             data-lucide="package"></i> Estado de Inventario</h3>

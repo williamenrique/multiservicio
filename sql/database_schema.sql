@@ -365,6 +365,26 @@ CREATE TABLE IF NOT EXISTS `table_audit_logs` (
   CONSTRAINT `fk_audit_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- 20. Tabla de Devoluciones (Historial de repuestos devueltos)
+CREATE TABLE IF NOT EXISTS `table_devoluciones` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `venta_id` int(11) NOT NULL,
+  `producto_id` int(11) DEFAULT NULL,
+  `descripcion` varchar(255) NOT NULL,
+  `cantidad` int(11) NOT NULL,
+  `monto_devuelto` decimal(15,2) NOT NULL,
+  `destino` enum('STOCK','DANADO') NOT NULL,
+  `usuario_id` int(11) NOT NULL,
+  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_devolucion_venta` (`venta_id`),
+  KEY `fk_devolucion_producto` (`producto_id`),
+  KEY `fk_devolucion_usuario` (`usuario_id`),
+  CONSTRAINT `fk_devolucion_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_devolucion_producto` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_devolucion_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- --------------------------------------------------------
 -- INSERCION DE DATOS INICIALES (SEMILLAS)
 -- --------------------------------------------------------
@@ -387,6 +407,7 @@ TRUNCATE TABLE `table_inventario`;
 TRUNCATE TABLE `table_proveedores`;
 TRUNCATE TABLE `table_clientes`;
 TRUNCATE TABLE `table_recuperaciones`;
+TRUNCATE TABLE `table_devoluciones`;
 TRUNCATE TABLE `table_audit_logs`;
 TRUNCATE TABLE `table_usuarios`;
 TRUNCATE TABLE `table_roles`;

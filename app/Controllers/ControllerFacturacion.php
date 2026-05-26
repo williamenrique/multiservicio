@@ -179,4 +179,55 @@ class ControllerFacturacion extends Controller {
         echo json_encode(['success' => true, 'data' => $data]);
     }
 
+    /**
+     * Endpoint para obtener el resumen de deudores para el dashboard (AJAX)
+     */
+    public function getDeudoresSummary() {
+        RoleGuard::isAdmin();
+        header('Content-Type: application/json');
+        $data = $this->facturaModel->obtenerAuditoriaTrabajos();
+        echo json_encode(['success' => true, 'data' => $data]);
+    }
+
+    /**
+     * Obtiene los items de una factura que son aptos para devolución (solo productos)
+     */
+    public function getItemsDevolucion($id) {
+        $venta = $this->facturaModel->obtenerVentaCompleta($id);
+        // Filtrar solo los que tienen producto_id (no servicios)
+        $items = array_filter($venta->items, function($it) {
+            return !empty($it->producto_id);
+        });
+        echo json_encode(['success' => true, 'items' => array_values($items)]);
+    }
+
+    public function procesarDevolucion() {
+        RoleGuard::isAdmin();
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $resultado = $this->facturaModel->procesarDevolucion(
+            $input['venta_id'], 
+            $input['detalle_id'], 
+            $input['destino']
+        );
+
+        if ($resultado) {
+            logAction('VENTA', 'DEVOLUCION', "Devolución de item en factura #{$input['venta_id']}. Destino: {$input['destino']}");
+            echo json_encode(['success' => true, 'mensaje' => 'Devolución procesada correctamente']);
+        } else {
+            echo json_encode(['success' => false, 'mensaje' => 'No se pudo procesar la devolución o el plazo venció']);
+        }
+    }
+
+    /**
+     * Endpoint para el historial de devoluciones
+     */
+    public function listarDevoluciones() {
+        RoleGuard::isAdmin();
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+        $reporteModel = $this->model('Reportes');
+        echo json_encode(['success' => true, 'data' => $reporteModel->obtenerReporteDevoluciones($desde, $hasta)]);
+    }
+
 }

@@ -190,7 +190,7 @@ class ModelFacturacion {
         $venta = $this->db->single();
 
         if ($venta) {
-            $this->db->query("SELECT vd.descripcion, vd.cantidad, vd.precio_unitario 
+            $this->db->query("SELECT vd.id, vd.producto_id, vd.descripcion, vd.cantidad, vd.precio_unitario 
                               FROM table_ventas_detalle vd 
                               WHERE vd.venta_id = :vid");
             $this->db->bind(':vid', $id);
@@ -302,4 +302,93 @@ class ModelFacturacion {
         $this->db->bind(':dias', $dias);
         return $this->db->resultSet();
     }
+
+    /**
+     * Procesa la devolución de un ítem específico de una factura.
+     */
+    public function procesarDevolucion($ventaId, $detalleId, $destino) {
+        try {
+            $this->db->beginTransaction();
+
+            // 1. Obtener datos exactos del ítem y de la factura
+            $this->db->query("SELECT vd.producto_id, vd.descripcion, vd.cantidad, vd.precio_unitario, 
+                                     v.fecha, v.subtotal, v.iva_monto, v.total, v.saldo_pendiente 
+                              FROM table_ventas_detalle vd
+                              JOIN table_ventas v ON vd.venta_id = v.id
+                              WHERE vd.id = :id AND v.id = :vid");
+            $this->db->bind(':id', $detalleId);
+            $this->db->bind(':vid', $ventaId);
+            $item = $this->db->single();
+
+            if (!$item || DATEDIFF_PHP(date('Y-m-d'), $item->fecha) > 5) {
+                throw new Exception("Plazo de devolución vencido (máx 5 días).");
+            }
+
+            // 2. Calcular montos proporcionales (Base + IVA)
+            $montoBase = (float)$item->precio_unitario * (int)$item->cantidad;
+            $factorIva = ((float)$item->subtotal > 0) ? ((float)$item->iva_monto / (float)$item->subtotal) : 0;
+            $ivaDevolver = $montoBase * $factorIva;
+            $totalARestar = $montoBase + $ivaDevolver;
+
+            // 2. Si es producto y el destino es REINGRESO, sumar al inventario
+            if (!empty($item->producto_id)) {
+                if ($destino === 'STOCK') {
+                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant WHERE id = :pid");
+                    $this->db->bind(':cant', $item->cantidad);
+                    $this->db->bind(':pid', $item->producto_id);
+                    $this->db->execute();
+                    
+                    $invModel = new ModelInventario();
+                    $invModel->registrarMovimiento($item->producto_id, 'ENTRADA_DEVOLUCION', $item->cantidad, $ventaId, "Devolución Factura #$ventaId");
+                }
+            }
+
+            // 3. Registrar en el historial de devoluciones para auditoría
+            $this->db->query("INSERT INTO table_devoluciones (venta_id, producto_id, descripcion, cantidad, monto_devuelto, destino, usuario_id) 
+                              VALUES (:vid, :pid, :desc, :cant, :monto, :dest, :uid)");
+            $this->db->bind(':vid', $ventaId);
+            $this->db->bind(':pid', $item->producto_id);
+            $this->db->bind(':desc', $item->descripcion);
+            $this->db->bind(':cant', $item->cantidad);
+            $this->db->bind(':monto', $totalARestar);
+            $this->db->bind(':dest', $destino);
+            $this->db->bind(':uid', $_SESSION['user_id']);
+            $this->db->execute();
+
+            // 4. Ajustar la factura (Restar del total y del saldo si es crédito)
+            $nuevoSubtotal = max(0, (float)$item->subtotal - $montoBase);
+            $nuevoIva = max(0, (float)$item->iva_monto - $ivaDevolver);
+            $nuevoTotal = max(0, (float)$item->total - $totalARestar);
+            $nuevoSaldo = max(0, (float)$item->saldo_pendiente - $totalARestar);
+
+            $this->db->query("UPDATE table_ventas SET 
+                              subtotal = :sub,
+                              iva_monto = :iva,
+                              total = :total, 
+                              saldo_pendiente = :saldo 
+                              WHERE id = :vid");
+            $this->db->bind(':sub', $nuevoSubtotal);
+            $this->db->bind(':iva', $nuevoIva);
+            $this->db->bind(':total', $nuevoTotal);
+            $this->db->bind(':saldo', $nuevoSaldo);
+            $this->db->bind(':vid', $ventaId);
+            $this->db->execute();
+
+            // 5. Eliminar el detalle de la factura original
+            $this->db->query("DELETE FROM table_ventas_detalle WHERE id = :id");
+            $this->db->bind(':id', $detalleId);
+            $this->db->execute();
+
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Error Devolución: " . $e->getMessage());
+            return false;
+        }
+    }
+}
+
+function DATEDIFF_PHP($d1, $d2) {
+    return round(abs(strtotime($d1) - strtotime($d2)) / 86400);
 }

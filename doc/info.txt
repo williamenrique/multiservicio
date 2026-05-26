@@ -8,8 +8,26 @@ Iniciar el modo desarrollo: Cada vez que vayas a programar, ejecuta en la termin
 bash
 npm run dev
 
-1- Agregar notificacion de deudas viejas
-2- Revisar el dash no muestra la informacion al administrador
-3- Agregar tarjeta de deudores en dash
-4- Revisar que es esta cuenta Utilidad Real (Caja)
+
+
+
 5- Implementar Devolucion en los 5 primeros dias (DECIDIR QUE ARTICULOS SE LE HACE DEVOLUCION) despues de 5 dias no se puede hacer devoluion 
+-- 20. Tabla de Devoluciones (Historial de repuestos devueltos)
+CREATE TABLE IF NOT EXISTS `table_devoluciones` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `venta_id` int(11) NOT NULL,
+  `producto_id` int(11) DEFAULT NULL,
+  `descripcion` varchar(255) NOT NULL,
+  `cantidad` int(11) NOT NULL,
+  `monto_devuelto` decimal(15,2) NOT NULL,
+  `destino` enum('STOCK','DANADO') NOT NULL,
+  `usuario_id` int(11) NOT NULL,
+  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_devolucion_venta` (`venta_id`),
+  KEY `fk_devolucion_producto` (`producto_id`),
+  KEY `fk_devolucion_usuario` (`usuario_id`),
+  CONSTRAINT `fk_devolucion_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_devolucion_producto` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_devolucion_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
