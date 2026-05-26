@@ -312,7 +312,8 @@ class ModelFacturacion {
 
             // 1. Obtener datos exactos del ítem y de la factura
             $this->db->query("SELECT vd.producto_id, vd.descripcion, vd.cantidad, vd.precio_unitario, 
-                                     v.fecha, v.subtotal, v.iva_monto, v.total, v.saldo_pendiente 
+                                     v.fecha, v.subtotal, v.iva_monto, v.total, v.saldo_pendiente,
+                                     v.pago_efectivo, v.pago_transferencia
                               FROM table_ventas_detalle vd
                               JOIN table_ventas v ON vd.venta_id = v.id
                               WHERE vd.id = :id AND v.id = :vid");
@@ -359,18 +360,41 @@ class ModelFacturacion {
             $nuevoSubtotal = max(0, (float)$item->subtotal - $montoBase);
             $nuevoIva = max(0, (float)$item->iva_monto - $ivaDevolver);
             $nuevoTotal = max(0, (float)$item->total - $totalARestar);
-            $nuevoSaldo = max(0, (float)$item->saldo_pendiente - $totalARestar);
+
+            // Lógica de Devolución de Dinero:
+            // 1. Primero restamos del saldo pendiente (si el cliente debía dinero)
+            $saldoAReducir = min((float)$item->saldo_pendiente, $totalARestar);
+            $restoParaPagos = $totalARestar - $saldoAReducir;
+            
+            $nuevoSaldo = (float)$item->saldo_pendiente - $saldoAReducir;
+            $nuevoPagoEfe = (float)$item->pago_efectivo;
+            $nuevoPagoTra = (float)$item->pago_transferencia;
+
+            // 2. Si aún queda monto por devolver, lo restamos de lo pagado (priorizando efectivo)
+            if ($restoParaPagos > 0) {
+                if ($nuevoPagoEfe >= $restoParaPagos) {
+                    $nuevoPagoEfe -= $restoParaPagos;
+                } else {
+                    $sobrante = $restoParaPagos - $nuevoPagoEfe;
+                    $nuevoPagoEfe = 0;
+                    $nuevoPagoTra = max(0, $nuevoPagoTra - $sobrante);
+                }
+            }
 
             $this->db->query("UPDATE table_ventas SET 
                               subtotal = :sub,
                               iva_monto = :iva,
                               total = :total, 
+                              pago_efectivo = :pefe,
+                              pago_transferencia = :ptra,
                               saldo_pendiente = :saldo 
                               WHERE id = :vid");
             $this->db->bind(':sub', $nuevoSubtotal);
             $this->db->bind(':iva', $nuevoIva);
             $this->db->bind(':total', $nuevoTotal);
-            $this->db->bind(':saldo', $nuevoSaldo);
+            $this->db->bind(':pefe', $nuevoPagoEfe);
+            $this->db->bind(':ptra', $nuevoPagoTra);
+            $this->db->bind(':saldo', $nuevoSaldo > 0 ? $nuevoSaldo : 0);
             $this->db->bind(':vid', $ventaId);
             $this->db->execute();
 

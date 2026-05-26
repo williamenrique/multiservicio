@@ -8,7 +8,12 @@ class ModelReportes {
 
     public function obtenerFlujoCaja($desde, $hasta) {
         // 1. Obtener Ventas (Pagos iniciales de facturas creadas en el periodo)
-        $this->db->query("SELECT v.id, v.fecha, v.total as monto, (v.pago_efectivo + v.pago_transferencia) as monto_pagado, 
+        // Restamos la suma de abonos del total pagado para obtener solo el pago inicial realizado en la fecha de la venta
+        $this->db->query("SELECT v.id, v.fecha, v.total as monto, 
+                          (
+                            (v.pago_efectivo + v.pago_transferencia) - 
+                            COALESCE((SELECT SUM(monto) FROM table_abonos_clientes WHERE venta_id = v.id), 0)
+                          ) as monto_pagado, 
                           'VENTA' as tipo, 'VENTA' as categoria,
                           v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
                           (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items,
@@ -77,26 +82,20 @@ class ModelReportes {
             $this->db->query("SELECT subtotal, iva_monto FROM table_ventas WHERE id = :vid");
             $this->db->bind(':vid', $mov->id);
             $vData = $this->db->single();
-            $factorIva = ($vData && (float)$vData->subtotal > 0) ? (1 + ((float)$vData->iva_monto / (float)$vData->subtotal)) : 1;
 
-            // Calculamos pesos reales: detalles actuales (normalizados con IVA) + devoluciones históricas
+            // Calculamos la proporción basada en los valores base (el factor de IVA se cancela en la división, no es necesario aplicarlo aquí)
             $this->db->query("SELECT 
-                ((SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NOT NULL) * :f1) 
-                + 
-                (SELECT COALESCE(SUM(monto_devuelto), 0) FROM table_devoluciones WHERE venta_id = :vid) as total_val_repuestos,
-                
-                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NULL) * :f2 as total_val_servicios");
+                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NOT NULL) as total_val_repuestos,
+                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NULL) as total_val_servicios");
             
             $this->db->bind(':vid', $mov->id);
-            $this->db->bind(':f1', $factorIva);
-            $this->db->bind(':f2', $factorIva);
             $pesos = $this->db->single();
             
-            $totalItems = (float)$pesos->val_repuestos + (float)$pesos->val_servicios;
+            $totalItems = (float)$pesos->total_val_repuestos + (float)$pesos->total_val_servicios;
             if ($totalItems > 0) {
                 $porcentajeRepuestos = (float)$pesos->total_val_repuestos / $totalItems;
-                $ingresoRepuestos += ((float)$mov->monto_pagado * $porcentajeRepuestos);
-                $ingresoServicios += ((float)$mov->monto_pagado * (1 - $porcentajeRepuestos));
+                $ingresoRepuestos += ((float)($mov->monto_pagado ?? 0) * $porcentajeRepuestos);
+                $ingresoServicios += ((float)($mov->monto_pagado ?? 0) * (1 - $porcentajeRepuestos));
             } else {
                 // Si no hay detalles (raro), lo sumamos a servicios
                 $ingresoServicios += (float)$mov->monto_pagado;
@@ -109,9 +108,9 @@ class ModelReportes {
         $this->db->bind(':hasta', $hasta);
         $totalDevolucionesPeriodo = (float)$this->db->single()->total;
 
-        // Ingresos Reales Netos (Restamos lo devuelto directamente del rubro de repuestos)
-        $ingresoRepuestosNeto = $ingresoRepuestos - $totalDevolucionesPeriodo;
-        $totalIngresosNetos = $ingresoRepuestosNeto + $ingresoServicios;
+        // Los ingresos ya vienen "netos" porque ajustamos pago_efectivo en la venta al devolver
+        // El total de devoluciones se muestra para fines informativos en el dashboard
+        $totalIngresosNetos = $ingresoRepuestos + $ingresoServicios;
 
         // Egresos Operativos (Gastos y Compras - Excluimos devoluciones de aquí para evitar resta doble)
         $totalEgresosOperativos = array_reduce($egresos, function($acc, $item) { 
@@ -128,7 +127,7 @@ class ModelReportes {
             'movimientos' => $movimientos,
             'totales' => [
                 'ingresos' => $totalIngresosNetos,
-                'ingreso_repuestos' => $ingresoRepuestosNeto,
+                'ingreso_repuestos' => $ingresoRepuestos,
                 'ingreso_servicios' => $ingresoServicios,
                 'egresos' => $totalEgresosOperativos,
                 'devoluciones' => $totalDevolucionesPeriodo,
