@@ -68,8 +68,9 @@ window.cargarReporte = async function () {
         const data = await res.json();
 
         // Actualizar Totales
-        document.getElementById('total-ingresos').textContent = AppUtils.formatCurrency(data.totales.ingresos);
-        document.getElementById('total-egresos').textContent = AppUtils.formatCurrency(data.totales.egresos);
+        document.getElementById('total-repuestos').textContent = AppUtils.formatCurrency(data.totales.ingreso_repuestos || 0);
+        document.getElementById('total-servicios').textContent = AppUtils.formatCurrency(data.totales.ingreso_servicios || 0);
+        document.getElementById('total-egresos').textContent = AppUtils.formatCurrency(data.totales.egresos || 0);
         document.getElementById('total-deuda').textContent = AppUtils.formatCurrency(data.totales.deuda);
         document.getElementById('total-balance').textContent = AppUtils.formatCurrency(data.totales.balance);
 

@@ -16,22 +16,26 @@
     </div>
 
     <!-- Totales Rápidos -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div class="glass-card p-6 rounded-2xl border-l-4 border-blue-500 shadow-sm">
-            <p class="text-xs font-black text-slate-400 uppercase mb-1">Ingresos (Ventas)</p>
-            <h2 id="total-ingresos" class="text-3xl font-black text-blue-600">$0.00</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div class="glass-card p-4 rounded-2xl border-l-4 border-blue-500 shadow-sm">
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Ingreso Neto Repuestos</p>
+            <h2 id="total-repuestos" class="text-xl font-black text-blue-600">$0.00</h2>
         </div>
-        <div class="glass-card p-6 rounded-2xl border-l-4 border-red-500 shadow-sm">
-            <p class="text-xs font-black text-slate-400 uppercase mb-1">Egresos (Pagado)</p>
-            <h2 id="total-egresos" class="text-3xl font-black text-red-600">$0.00</h2>
+        <div class="glass-card p-4 rounded-2xl border-l-4 border-indigo-500 shadow-sm">
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Ingreso Neto Servicios</p>
+            <h2 id="total-servicios" class="text-xl font-black text-indigo-600">$0.00</h2>
         </div>
-        <div class="glass-card p-6 rounded-2xl border-l-4 border-amber-500 shadow-sm">
-            <p class="text-xs font-black text-slate-400 uppercase mb-1">Deuda Proveedores</p>
-            <h2 id="total-deuda" class="text-3xl font-black text-amber-600">$0.00</h2>
+        <div class="glass-card p-4 rounded-2xl border-l-4 border-red-500 shadow-sm">
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Gastos y Compras</p>
+            <h2 id="total-egresos" class="text-xl font-black text-red-600">$0.00</h2>
         </div>
-        <div class="glass-card p-6 rounded-2xl border-l-4 border-emerald-500 shadow-sm">
-            <p class="text-xs font-black text-slate-400 uppercase mb-1">Utilidad Real (Caja)</p>
-            <h2 id="total-balance" class="text-3xl font-black text-emerald-600">$0.00</h2>
+        <div class="glass-card p-4 rounded-2xl border-l-4 border-amber-500 shadow-sm">
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Deuda Proveedores</p>
+            <h2 id="total-deuda" class="text-xl font-black text-amber-600">$0.00</h2>
+        </div>
+        <div class="glass-card p-4 rounded-2xl border-l-4 border-emerald-500 shadow-sm bg-emerald-50/30">
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Utilidad Real (Caja)</p>
+            <h2 id="total-balance" class="text-xl font-black text-emerald-600">$0.00</h2>
         </div>
     </div>
 

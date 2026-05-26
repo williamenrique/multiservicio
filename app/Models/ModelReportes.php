@@ -7,19 +7,32 @@ class ModelReportes {
     }
 
     public function obtenerFlujoCaja($desde, $hasta) {
-        // 1. Obtener Ventas (Ingresos)
-        $this->db->query("SELECT v.id, v.fecha, v.total as monto, (v.pago_efectivo + v.pago_transferencia) as monto_pagado, 'VENTA' as tipo, 'VENTA' as categoria,
+        // 1. Obtener Ventas (Pagos iniciales de facturas creadas en el periodo)
+        $this->db->query("SELECT v.id, v.fecha, v.total as monto, (v.pago_efectivo + v.pago_transferencia) as monto_pagado, 
+                          'VENTA' as tipo, 'VENTA' as categoria,
                           v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
                           (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items,
                           NULL as proveedor_nombre, v.saldo_pendiente
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE v.status IN ('COMPLETADO', 'CREDITO') AND DATE(v.fecha) BETWEEN :desde AND :hasta");
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO') 
+                          AND DATE(v.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $ingresos = $this->db->resultSet() ?: [];
 
-        // 2. Obtener Gastos (Egresos)
+        // 2. Obtener Abonos (Dinero que entró de deudas antiguas en este periodo)
+        $this->db->query("SELECT a.venta_id as id, a.fecha, a.monto as monto_pagado, 'ABONO' as tipo, 'ABONO CLIENTE' as categoria,
+                          v.placa, c.nombre as cliente_nombre
+                          FROM table_abonos_clientes a
+                          JOIN table_ventas v ON a.venta_id = v.id
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE DATE(a.fecha) BETWEEN :desde AND :hasta");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $abonos = $this->db->resultSet() ?: [];
+
+        // 3. Obtener Gastos, Compras y Devoluciones (Egresos Reales)
         // Unificamos gastos generales y compras a proveedores
         $this->db->query("SELECT g.id, g.fecha, g.monto, g.monto as monto_pagado, 'GASTO' as tipo, g.categoria, 
                           g.descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre, 
@@ -33,26 +46,76 @@ class ModelReportes {
                           p.nombre as proveedor_nombre, (c.total - c.pagado) as saldo_pendiente
                           FROM table_compras c
                           INNER JOIN table_proveedores p ON c.proveedor_id = p.id
-                          WHERE DATE(c.fecha) BETWEEN :desde AND :hasta");
+                          WHERE DATE(c.fecha) BETWEEN :desde AND :hasta
+                          UNION ALL
+                          SELECT d.id, d.fecha, d.monto_devuelto as monto, d.monto_devuelto as monto_pagado, 'DEVOLUCION' as tipo, 'DEVOLUCION' as categoria,
+                          d.descripcion, NULL as modelo_vehiculo, v.placa, NULL as cliente_nombre,
+                          1 as cantidad_items, NULL as proveedor_nombre, 0 as saldo_pendiente
+                          FROM table_devoluciones d
+                          JOIN table_ventas v ON d.venta_id = v.id
+                          WHERE DATE(d.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $egresos = $this->db->resultSet() ?: [];
 
-        // 3. Unificar y Calcular Totales
-        $movimientos = array_merge($ingresos, $egresos);
+        // 4. Unificar movimientos para el listado
+        $movimientos = array_merge($ingresos, $abonos, $egresos);
         
-        // Ordenar por fecha descendente
         usort($movimientos, function($a, $b) {
             return strtotime($b->fecha) - strtotime($a->fecha);
         });
 
-        // Cálculos seguros
-        $totalIngresos = array_reduce($ingresos, function($acc, $item) { 
-            return $acc + (float)($item->monto_pagado ?? 0); 
-        }, 0);
+        // 5. Calcular División de Ingresos (Repuestos vs Servicios)
+        $ingresoRepuestos = 0;
+        $ingresoServicios = 0;
+        $totalDevolucionesPeriodo = 0;
 
-        // Egresos reales (Gastos + lo que se ha pagado de las compras)
-        $totalEgresos = array_reduce($egresos, function($acc, $item) { 
+        // Analizamos cada venta que tuvo movimiento de dinero
+        $todasLasEntradas = array_merge($ingresos, $abonos);
+        foreach ($todasLasEntradas as $mov) {
+            // Obtenemos el factor de IVA de la venta para equiparar precios base con montos de devolución
+            $this->db->query("SELECT subtotal, iva_monto FROM table_ventas WHERE id = :vid");
+            $this->db->bind(':vid', $mov->id);
+            $vData = $this->db->single();
+            $factorIva = ($vData && (float)$vData->subtotal > 0) ? (1 + ((float)$vData->iva_monto / (float)$vData->subtotal)) : 1;
+
+            // Calculamos pesos reales: detalles actuales (normalizados con IVA) + devoluciones históricas
+            $this->db->query("SELECT 
+                ((SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NOT NULL) * :f1) 
+                + 
+                (SELECT COALESCE(SUM(monto_devuelto), 0) FROM table_devoluciones WHERE venta_id = :vid) as total_val_repuestos,
+                
+                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NULL) * :f2 as total_val_servicios");
+            
+            $this->db->bind(':vid', $mov->id);
+            $this->db->bind(':f1', $factorIva);
+            $this->db->bind(':f2', $factorIva);
+            $pesos = $this->db->single();
+            
+            $totalItems = (float)$pesos->val_repuestos + (float)$pesos->val_servicios;
+            if ($totalItems > 0) {
+                $porcentajeRepuestos = (float)$pesos->total_val_repuestos / $totalItems;
+                $ingresoRepuestos += ((float)$mov->monto_pagado * $porcentajeRepuestos);
+                $ingresoServicios += ((float)$mov->monto_pagado * (1 - $porcentajeRepuestos));
+            } else {
+                // Si no hay detalles (raro), lo sumamos a servicios
+                $ingresoServicios += (float)$mov->monto_pagado;
+            }
+        }
+
+        // Obtener Devoluciones del Periodo (dinero real que salió de caja)
+        $this->db->query("SELECT COALESCE(SUM(monto_devuelto), 0) as total FROM table_devoluciones WHERE DATE(fecha) BETWEEN :desde AND :hasta");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $totalDevolucionesPeriodo = (float)$this->db->single()->total;
+
+        // Ingresos Reales Netos (Restamos lo devuelto directamente del rubro de repuestos)
+        $ingresoRepuestosNeto = $ingresoRepuestos - $totalDevolucionesPeriodo;
+        $totalIngresosNetos = $ingresoRepuestosNeto + $ingresoServicios;
+
+        // Egresos Operativos (Gastos y Compras - Excluimos devoluciones de aquí para evitar resta doble)
+        $totalEgresosOperativos = array_reduce($egresos, function($acc, $item) { 
+            if ($item->tipo === 'DEVOLUCION') return $acc;
             return $acc + (float)($item->monto_pagado ?? 0); 
         }, 0);
 
@@ -64,10 +127,13 @@ class ModelReportes {
         return [
             'movimientos' => $movimientos,
             'totales' => [
-                'ingresos' => $totalIngresos,
-                'egresos' => $totalEgresos,
+                'ingresos' => $totalIngresosNetos,
+                'ingreso_repuestos' => $ingresoRepuestosNeto,
+                'ingreso_servicios' => $ingresoServicios,
+                'egresos' => $totalEgresosOperativos,
+                'devoluciones' => $totalDevolucionesPeriodo,
                 'deuda' => $totalDeuda,
-                'balance' => $totalIngresos - $totalEgresos
+                'balance' => $totalIngresosNetos - $totalEgresosOperativos
             ]
         ];
     }
