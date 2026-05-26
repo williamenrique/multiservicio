@@ -88,6 +88,7 @@
                 <div class="flex items-center gap-4 ml-auto px-4">
                     <!-- Contenedor dinámico para la campana de recuperación -->
                     <div id="recovery-bell-container"></div>
+                    <div id="credit-notifications-container"></div>
                     <div id="notifications-area"></div>
                 </div>
 

@@ -169,4 +169,14 @@ class ControllerFacturacion extends Controller {
         }
     }
 
+    /**
+     * Endpoint para obtener las alertas de créditos vencidos (AJAX)
+     */
+    public function alertasCredito() {
+        RoleGuard::isAdmin();
+        header('Content-Type: application/json');
+        $data = $this->facturaModel->obtenerCreditosVencidos(15);
+        echo json_encode(['success' => true, 'data' => $data]);
+    }
+
 }

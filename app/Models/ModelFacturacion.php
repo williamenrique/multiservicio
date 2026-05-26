@@ -286,4 +286,20 @@ class ModelFacturacion {
             return false;
         }
     }
+
+    /**
+     * Obtiene ventas a crédito con más de 15 días de antigüedad.
+     * @param int $dias Límite de días para considerar vencido.
+     * @return array
+     */
+    public function obtenerCreditosVencidos($dias = 15) {
+        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, v.placa, v.modelo_vehiculo, c.nombre as cliente_nombre 
+                          FROM table_ventas v
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.status = 'CREDITO' 
+                          AND DATEDIFF(NOW(), v.fecha) > :dias
+                          ORDER BY v.fecha ASC");
+        $this->db->bind(':dias', $dias);
+        return $this->db->resultSet();
+    }
 }
