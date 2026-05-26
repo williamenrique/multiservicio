@@ -7,3 +7,9 @@ Iniciar el modo desarrollo: Cada vez que vayas a programar, ejecuta en la termin
 
 bash
 npm run dev
+
+1- Agregar notificacion de deudas viejas
+2- Revisar el dash no muestra la informacion al administrador
+3- Agregar tarjeta de deudores en dash
+4- Revisar que es esta cuenta Utilidad Real (Caja)
+5- Implementar Devolucion en los 5 primeros dias (DECIDIR QUE ARTICULOS SE LE HACE DEVOLUCION) despues de 5 dias no se puede hacer devoluion 
