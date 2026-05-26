@@ -43,6 +43,10 @@
         <button onclick="switchReportTab('detallado')" id="tab-detallado" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
             <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Auditoría de Trabajos
         </button>
+        <button onclick="switchReportTab('devoluciones')" id="tab-devoluciones" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
+            Historial de Devoluciones
+        </button>
+
     </div>
 
     <!-- SECCIÓN 1: RESUMEN CONSOLIDADO -->
@@ -98,6 +102,15 @@
             </div>
         </div>
     </div>
+
+    <!-- SECCIÓN 3: HISTORIAL DE DEVOLUCIONES -->
+    <div id="sec-devoluciones" class="hidden animate-in fade-in duration-500">
+        <div class="glass-card rounded-2xl border border-slate-100 overflow-hidden" id="devoluciones-list-container">
+            <!-- La tabla se genera vía JS -->
+        </div>
+    </div>
+
+
 
     <div class="flex justify-end pt-4">
         <button onclick="window.print()" class="text-[10px] font-bold bg-slate-800 text-white px-6 py-2 rounded-xl flex items-center gap-2 hover:bg-black transition-all">

@@ -56,9 +56,10 @@ class ModelReportes {
             return $acc + (float)($item->monto_pagado ?? 0); 
         }, 0);
 
-        $totalDeuda = array_reduce($egresos, function($acc, $item) { 
-            return $acc + (float)($item->saldo_pendiente ?? 0); 
-        }, 0);
+        // Obtener la Deuda Total Global de Proveedores (Independiente del periodo seleccionado)
+        $this->db->query("SELECT SUM(total - pagado) as deuda FROM table_compras WHERE status = 'PENDIENTE'");
+        $resDeuda = $this->db->single();
+        $totalDeuda = (float)($resDeuda->deuda ?? 0);
 
         return [
             'movimientos' => $movimientos,

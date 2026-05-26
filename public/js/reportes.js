@@ -11,30 +11,38 @@ document.addEventListener('DOMContentLoaded', () => {
 window.switchReportTab = (tab) => {
     const secResumen = document.getElementById('sec-resumen');
     const secDetallado = document.getElementById('sec-detallado');
+    const secDevoluciones = document.getElementById('sec-devoluciones');
     const tabResumen = document.getElementById('tab-resumen');
     const tabDetallado = document.getElementById('tab-detallado');
+    const tabDevoluciones = document.getElementById('tab-devoluciones');
+
+    // Ocultar todas las secciones
+    if (secResumen) secResumen.classList.add('hidden');
+    if (secDetallado) secDetallado.classList.add('hidden');
+    if (secDevoluciones) secDevoluciones.classList.add('hidden');
+
+    // Resetear estilos de pestañas
+    [tabResumen, tabDetallado, tabDevoluciones].forEach(t => {
+        if (t) {
+            t.classList.remove('border-neon-green', 'text-navy-blue');
+            t.classList.add('border-transparent', 'text-slate-400');
+        }
+    });
 
     if (tab === 'resumen') {
-        secResumen.classList.remove('hidden');
-        secDetallado.classList.add('hidden');
-        tabResumen.classList.add('border-neon-green', 'text-navy-blue');
-        tabResumen.classList.remove('border-transparent', 'text-slate-400');
-        tabDetallado.classList.remove('border-neon-green', 'text-navy-blue');
-        tabDetallado.classList.add('border-transparent', 'text-slate-400');
-
-        if (document.getElementById('search-report')) document.getElementById('search-report').value = '';
+        if (secResumen) secResumen.classList.remove('hidden');
+        if (tabResumen) tabResumen.classList.add('border-neon-green', 'text-navy-blue');
         cargarReporte();
-    } else {
-        secResumen.classList.add('hidden');
-        secDetallado.classList.remove('hidden');
-        tabDetallado.classList.add('border-neon-green', 'text-navy-blue');
-        tabDetallado.classList.remove('border-transparent', 'text-slate-400');
-        tabResumen.classList.remove('border-neon-green', 'text-navy-blue');
-        tabResumen.classList.add('border-transparent', 'text-slate-400');
-
-        if (document.getElementById('search-audit')) document.getElementById('search-audit').value = '';
+    } else if (tab === 'detallado') {
+        if (secDetallado) secDetallado.classList.remove('hidden');
+        if (tabDetallado) tabDetallado.classList.add('border-neon-green', 'text-navy-blue');
         cargarReporteDetallado();
+    } else if (tab === 'devoluciones') {
+        if (secDevoluciones) secDevoluciones.classList.remove('hidden');
+        if (tabDevoluciones) tabDevoluciones.classList.add('border-neon-green', 'text-navy-blue');
+        cargarHistorialDevoluciones();
     }
+
     lucide.createIcons();
 };
 
@@ -103,42 +111,42 @@ function renderReportTable() {
 
         if (isVenta) {
             descriptionContent = `
-                <div class="flex flex-col gap-1">
+                <div class="flex flex-col gap-1.5">
                     <div class="flex items-center gap-2">
-                        <span class="text-xs font-black text-navy-blue uppercase tracking-tight">${m.modelo_vehiculo || 'VEHÍCULO GENERAL'}</span>
-                        <span class="text-[10px] text-slate-400 font-mono tracking-tighter border px-1.5 rounded bg-slate-50 border-slate-100">${m.placa || 'SIN PLACA'}</span>
+                        <span class="text-sm font-black text-navy-blue uppercase tracking-tight">${m.modelo_vehiculo || 'VEHÍCULO GENERAL'}</span>
+                        <span class="text-xs text-slate-400 font-mono tracking-tighter border px-1.5 rounded bg-slate-50 border-slate-100">${m.placa || 'SIN PLACA'}</span>
                     </div>
-                    <div class="text-[10px] text-slate-500 font-bold uppercase leading-tight">Cliente: ${m.cliente_nombre || m.entidad || 'VENTA RÁPIDA'}</div>
-                    <div class="flex items-center gap-1.5 mt-0.5 text-[9px] font-black text-blue-600 uppercase">
+                    <div class="text-xs text-slate-500 font-bold uppercase leading-tight">Cliente: ${m.cliente_nombre || m.entidad || 'VENTA RÁPIDA'}</div>
+                    <div class="flex items-center gap-1.5 mt-0.5 text-[11px] font-black text-blue-600 uppercase">
                         <i data-lucide="package" class="w-3 h-3"></i> ${m.cantidad_items || m.total_productos || 0} SERVICIOS/ARTÍCULOS
                     </div>
                 </div>`;
         } else if (isProveedor) {
             descriptionContent = `
                 <div class="flex flex-col gap-1">
-                    <div class="text-xs font-black text-slate-700 uppercase tracking-tight">PAGO / ABONO PROVEEDOR</div>
-                    <div class="text-[10px] text-navy-blue font-bold uppercase leading-tight">Proveedor: ${m.proveedor_nombre || m.entidad}</div>
+                    <div class="text-sm font-black text-slate-700 uppercase tracking-tight">PAGO / ABONO PROVEEDOR</div>
+                    <div class="text-xs text-navy-blue font-bold uppercase leading-tight">Proveedor: ${m.proveedor_nombre || m.entidad}</div>
                     ${(m.saldo_pendiente > 0) ? `<div class="text-[9px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full font-black border border-rose-100 italic w-fit mt-1">DEUDA: ${AppUtils.formatCurrency(m.saldo_pendiente)}</div>` : ''}
                 </div>`;
         } else {
             descriptionContent = `
                 <div class="flex flex-col gap-1">
-                    <div class="text-xs font-black text-slate-700 uppercase tracking-tight">${m.descripcion || 'GASTO OPERATIVO'}</div>
-                    <div class="text-[10px] text-slate-400 font-bold uppercase leading-tight">${m.categoria || 'GENERAL'}</div>
+                    <div class="text-sm font-black text-slate-700 uppercase tracking-tight">${m.descripcion || 'GASTO OPERATIVO'}</div>
+                    <div class="text-xs text-slate-400 font-bold uppercase leading-tight">${m.categoria || 'GENERAL'}</div>
                 </div>`;
         }
 
         return `
             <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group">
-                <td class="px-4 py-5 font-mono text-xs text-slate-400 align-middle">#${m.id_db || m.id}</td>
-                <td class="px-4 py-5 text-[11px] font-bold text-slate-500 uppercase tracking-tighter whitespace-nowrap align-middle">${formatDateLong(m.fecha)}</td>
+                <td class="px-4 py-5 font-mono text-sm text-slate-400 align-middle">#${m.id_db || m.id}</td>
+                <td class="px-4 py-5 text-xs font-bold text-slate-500 uppercase tracking-tighter whitespace-nowrap align-middle">${formatDateLong(m.fecha)}</td>
                 <td class="px-4 py-5 text-center align-middle">
-                    <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${m.tipo === 'VENTA' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}">
+                    <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase ${m.tipo === 'VENTA' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}">
                         ${m.tipo}
                     </span>
                 </td>
                 <td class="px-4 py-5">${descriptionContent}</td>
-                <td class="px-4 py-5 text-right font-black text-sm ${m.tipo === 'VENTA' ? 'text-blue-600' : 'text-rose-600'} align-middle">
+                <td class="px-4 py-5 text-right font-black text-base ${m.tipo === 'VENTA' ? 'text-blue-600' : 'text-rose-600'} align-middle">
                     ${m.tipo === 'VENTA' ? '+' : '-'} ${AppUtils.formatCurrency(m.monto)}
                 </td>
                 <td class="px-4 py-5 text-right align-middle">
@@ -281,11 +289,11 @@ function renderAuditoriaLista(items) {
         // Renderizar Encabezado del Mes (Sticky) con el conteo real de órdenes
         html += `
             <div class="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md py-4 px-6 border-b border-slate-200 flex justify-between items-center shadow-sm mb-4">
-                <h3 class="font-black text-navy-blue text-sm uppercase tracking-[0.2em] flex items-center gap-3">
+                <h3 class="font-black text-navy-blue text-base uppercase tracking-[0.2em] flex items-center gap-3">
                     <i data-lucide="calendar" class="w-4 h-4 text-neon-green"></i>
                     ${month}
                 </h3>
-                <span class="text-[11px] font-black text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded-full uppercase">
+                <span class="text-xs font-black text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded-full uppercase">
                     ${totalInvoices} TRABAJOS REGISTRADOS
                 </span>
             </div>
@@ -312,15 +320,15 @@ function renderAuditoriaLista(items) {
                 <div class="flex flex-wrap justify-between items-start gap-6 mb-5">
                     <div class="flex items-center gap-6">
                         <div class="h-14 w-14 rounded-2xl ${isCredit ? 'bg-amber-500 text-white' : 'bg-navy-blue text-neon-green'} flex flex-col items-center justify-center shadow-lg shadow-navy-blue/10">
-                            <span class="text-[10px] font-black uppercase opacity-60 leading-none mb-0.5">ORD</span>
-                            <span class="text-base font-black tracking-tighter leading-none">#${f.id}</span>
+                            <span class="text-xs font-black uppercase opacity-60 leading-none mb-0.5">ORD</span>
+                            <span class="text-lg font-black tracking-tighter leading-none">#${f.id}</span>
                         </div>
                         <div class="space-y-1">
                             <div class="flex items-center gap-3">
-                                <h4 class="font-black text-navy-blue uppercase text-base tracking-tight">${f.vehiculo}</h4>
-                                <span class="bg-slate-50 border border-slate-200 text-slate-500 font-mono text-xs px-2 py-0.5 rounded font-black">${f.placa}</span>
+                                <h4 class="font-black text-navy-blue uppercase text-lg tracking-tight">${f.vehiculo}</h4>
+                                <span class="bg-slate-50 border border-slate-200 text-slate-500 font-mono text-sm px-2 py-0.5 rounded font-black">${f.placa}</span>
                             </div>
-                            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            <p class="text-sm font-bold text-slate-400 uppercase tracking-widest">
                                 <span class="text-slate-600">${f.cliente}</span> 
                                 <span class="text-slate-200 mx-2">|</span> 
                                 ${new Date(f.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -330,9 +338,9 @@ function renderAuditoriaLista(items) {
                     
                     <div class="flex items-center gap-10">
                         <div class="text-right">
-                            <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Atendió: <span class="text-slate-600">${f.usuario}</span></p>
+                            <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Atendió: <span class="text-slate-600">${f.usuario}</span></p>
                             <div class="flex items-center justify-end gap-3">
-                                <span class="text-xs font-black text-slate-300 uppercase tracking-tighter">${isCredit ? 'SALDO DEUDOR' : 'TOTAL TRABAJO'}</span>
+                                <span class="text-sm font-black text-slate-300 uppercase tracking-tighter">${isCredit ? 'SALDO DEUDOR' : 'TOTAL TRABAJO'}</span>
                                 <span class="text-3xl font-black ${isCredit ? 'text-rose-600' : 'text-emerald-600'} tracking-tighter">${AppUtils.formatCurrency(isCredit ? f.saldo_pendiente : totalFactura)}</span>
                                 ${isCredit ? `<span class="text-[10px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-tighter border border-rose-200">En Crédito</span>` : ''}
                             </div>
@@ -357,20 +365,20 @@ function renderAuditoriaLista(items) {
                     <table class="w-full text-left">
                         <thead>
                             <tr class="border-b border-slate-50">
-                                <th class="pb-2 text-xs font-black text-slate-300 uppercase tracking-widest">Cant.</th>
-                                <th class="pb-2 text-xs font-black text-slate-300 uppercase tracking-widest">Descripción detallada</th>
-                                <th class="pb-2 text-xs font-black text-slate-300 uppercase tracking-widest text-right">P. Unitario</th>
-                                <th class="pb-2 text-xs font-black text-slate-300 uppercase tracking-widest text-right">Subtotal</th>
+                                <th class="pb-2 text-sm font-black text-slate-300 uppercase tracking-widest">Cant.</th>
+                                <th class="pb-2 text-sm font-black text-slate-300 uppercase tracking-widest">Descripción detallada</th>
+                                <th class="pb-2 text-sm font-black text-slate-300 uppercase tracking-widest text-right">P. Unitario</th>
+                                <th class="pb-2 text-sm font-black text-slate-300 uppercase tracking-widest text-right">Subtotal</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-50">
                             ${f.items.map(i => `
                                 <tr class="hover:bg-slate-50/50 transition-colors">
-                                    <td class="py-3 text-sm font-bold text-slate-400">${i.cantidad}</td>
+                                    <td class="py-3 text-base font-bold text-slate-400">${i.cantidad}</td>
                                     <td class="py-3">
-                                        <span class="text-sm font-bold text-slate-700 uppercase tracking-tight">${i.descripcion}</span>
+                                        <span class="text-base font-bold text-slate-700 uppercase tracking-tight">${i.descripcion}</span>
                                     </td>
-                                    <td class="py-3 text-right text-sm font-medium text-slate-500">${AppUtils.formatCurrency(i.precio_unitario)}</td>
+                                    <td class="py-3 text-right text-base font-medium text-slate-500">${AppUtils.formatCurrency(i.precio_unitario)}</td>
                                     <td class="py-3 text-right text-sm font-black text-slate-600">${AppUtils.formatCurrency(i.cantidad * i.precio_unitario)}</td>
                                 </tr>
                             `).join('')}
@@ -390,10 +398,10 @@ function renderAuditoriaLista(items) {
             debtorsContainer.innerHTML = `
                 <div class="glass-card p-6 rounded-xl border-l-4 border-rose-500 shadow-sm mb-8 animate-in fade-in slide-in-from-top-2 duration-500">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-black text-rose-600 uppercase flex items-center gap-2">
+                        <h3 class="text-xl font-black text-rose-600 uppercase flex items-center gap-2">
                             <i data-lucide="user-x" class="w-5 h-5"></i> Clientes con Crédito
                         </h3>
-                        <span class="text-[11px] font-black text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded-full uppercase">
+                        <span class="text-xs font-black text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded-full uppercase">
                             ${debtorsArray.length} DEUDORES
                         </span>
                     </div>
@@ -736,7 +744,7 @@ async function cargarHistorialDevoluciones() {
         container.innerHTML = `
             <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                    <tr class="text-xs font-black text-slate-400 uppercase border-b border-slate-100">
                         <th class="p-4">Fecha</th>
                         <th class="p-4">Artículo / Factura</th>
                         <th class="p-4">Estado/Destino</th>
@@ -746,17 +754,17 @@ async function cargarHistorialDevoluciones() {
                 <tbody class="divide-y divide-slate-50">
                     ${result.data.map(d => `
                         <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="p-4 text-[10px] font-bold text-slate-500">${new Date(d.fecha).toLocaleString()}</td>
+                            <td class="p-4 text-xs font-bold text-slate-500">${new Date(d.fecha).toLocaleString()}</td>
                             <td class="p-4">
-                                <p class="text-xs font-black text-navy-blue uppercase">${d.descripcion}</p>
-                                <p class="text-[9px] text-slate-400 font-bold uppercase">Factura #${d.venta_id} • Cliente: ${d.cliente_nombre || 'N/A'}</p>
+                                <p class="text-sm font-black text-navy-blue uppercase">${d.descripcion}</p>
+                                <p class="text-xs text-slate-400 font-bold uppercase">Factura #${d.venta_id} • Cliente: ${d.cliente_nombre || 'N/A'}</p>
                             </td>
                             <td class="p-4">
-                                <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
                                     ${d.destino === 'STOCK' ? 'Reingreso Stock (Bueno)' : 'Garantía/Dañado (Malo)'}
                                 </span>
                             </td>
-                            <td class="p-4 text-right font-black text-rose-600 text-sm">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
+                            <td class="p-4 text-right font-black text-rose-600 text-base">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
                         </tr>`).join('')}
                 </tbody>
             </table>`;
