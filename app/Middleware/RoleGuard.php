@@ -6,9 +6,13 @@
  */
 class RoleGuard {
 
+    // Constantes de Roles (Basado en la base de datos)
+    const ADMINISTRADOR = 1;
+    const MECANICO = 2;
+    const EMPLEADO = 3;
+
     /**
      * Permite el acceso solo si el usuario tiene uno de los roles permitidos
-     * @param array $allowedRoles Ejemplo: ['admin', 'recepcion']
      */
     public static function hasAccess($allowedRoles = []) {
         // 1. Verificamos que haya una sesión iniciada
@@ -22,8 +26,11 @@ class RoleGuard {
             exit();
         }
 
-        // 3. Verificamos si el rol del usuario actual está en la lista de permitidos
-        if (!in_array($_SESSION['user_role'], $allowedRoles)) {
+        // 3. Verificamos por nombre (case-insensitive) o por ID
+        $userRole = strtoupper($_SESSION['user_role']);
+        $userRoleId = (int)$_SESSION['user_role_id'];
+
+        if (!in_array($userRole, array_map('strtoupper', $allowedRoles)) && !in_array($userRoleId, $allowedRoles)) {
             // Si no tiene permiso, lo mandamos a una página de "Acceso Denegado" o Dashboard
             header('location: ' . URLROOT . '/dashboard?error=sin_permiso');
             exit();
@@ -34,34 +41,20 @@ class RoleGuard {
      * Atajo rápido para verificar solo administradores
      */
     public static function isAdmin() {
-        self::hasAccess(['Administrador', 'ADMINISTRADOR']);
+        self::hasAccess([self::ADMINISTRADOR, 'ADMINISTRADOR']);
     }
 
     /**
-     * Retorna verdadero si el usuario es administrador (ID 1 o Nombre ADMINISTRADOR)
+     * Retorna verdadero si el usuario tiene privilegios administrativos.
      * Útil para filtrar consultas SQL en los controladores.
      */
     public static function is_admin_check() {
         if (session_status() === PHP_SESSION_NONE) session_start();
-        
-        $is_admin_id = isset($_SESSION['user_role_id']) && (int)$_SESSION['user_role_id'] === 1;
-        $is_admin_name = isset($_SESSION['user_role']) && strtoupper($_SESSION['user_role']) === 'ADMINISTRADOR';
-        
-        return ($is_admin_id || $is_admin_name);
+
+        $roleId = isset($_SESSION['user_role_id']) ? (int)$_SESSION['user_role_id'] : 0;
+        $roleName = isset($_SESSION['user_role']) ? strtoupper($_SESSION['user_role']) : '';
+
+        // Retorna true si es ID 1 o si el nombre es ADMINISTRADOR (sin importar mayúsculas en la sesión)
+        return ($roleId === self::ADMINISTRADOR || $roleName === 'ADMINISTRADOR');
     }
 }
-/*
-uso
-// En app/Controllers/Personal.php
-public function __construct() {
-    AuthGuard::handle(); // Primero: ¿Estás logueado?
-    RoleGuard::isAdmin(); // Segundo: ¿Eres el jefe?
-}
-
-// En app/Controllers/Taller.php
-public function __construct() {
-    AuthGuard::handle();
-    // Aquí permitimos varios roles
-    RoleGuard::hasAccess(['admin', 'recepcion', 'mecanico']);
-}
-*/

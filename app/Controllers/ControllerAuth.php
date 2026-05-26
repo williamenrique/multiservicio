@@ -84,8 +84,8 @@ class ControllerAuth extends Controller {
                     $_SESSION['user_nick'] = $userFound->username;
                     $_SESSION['user_email'] = $userFound->email;
                     $_SESSION['user_nombre'] = $userFound->nombre;
-                    $_SESSION['user_role'] = strtoupper($userFound->nombre_rol ?? '');
-                    $_SESSION['user_role_id'] = isset($userFound->role_id) ? (int)$userFound->role_id : 0;
+                    $_SESSION['user_role'] = $userFound->nombre_rol ?? 'Sin Rol'; // Mantenemos formato original para UI
+                    $_SESSION['user_role_id'] = (int)$userFound->role_id;
                     $_SESSION['user_staff_id'] = $userFound->staff_id ?? null;
                     $_SESSION['user_foto'] = $userFound->foto;
 
@@ -198,7 +198,7 @@ class ControllerAuth extends Controller {
      * Retorna las solicitudes para la campana del administrador.
      */
     public function getSolicitudes() {
-        if (isset($_SESSION['user_role']) && strtoupper($_SESSION['user_role']) === 'ADMINISTRADOR') {
+        if (RoleGuard::is_admin_check()) {
             $solicitudes = $this->userModel->obtenerSolicitudesPendientes();
             return $this->jsonResponse(['success' => true, 'data' => $solicitudes]);
         } else {

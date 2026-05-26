@@ -51,27 +51,7 @@ class AuthGuard {
     public static function role($roleRequired) {
         self::handle(); // Primero verificamos que esté logueado
 
-        if (strtoupper($_SESSION['user_role']) !== strtoupper($roleRequired)) {
-            // Si el rol no coincide, lo mandamos al dashboard con un aviso
-            header('location: ' . URLROOT . '/dashboard?error=unauthorized');
-            exit();
-        }
+        // Delegamos al RoleGuard para mantener consistencia
+        RoleGuard::hasAccess([$roleRequired]);
     }
 }
-/*
-uso
-<?php
-class Facturacion extends Controller {
-    public function __construct() {
-        // Bloquea a cualquiera que no sea Administrador
-        AuthGuard::role('admin');
-        
-        $this->facturaModel = $this->model('Factura');
-    }
-
-    public function index() {
-        // Solo llega aquí si pasó la puerta del AuthGuard
-        $this->view('finanzas/index');
-    }
-}
-*/

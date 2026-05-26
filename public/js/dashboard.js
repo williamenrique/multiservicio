@@ -53,30 +53,39 @@ document.addEventListener('DOMContentLoaded', () => {
      * Según tu definición: Rol 1 es Admin, Rol 2 es Mecánico.
      */
     const isAdmin = () => {
-        if (!window.currentLoggedInUser) return false;
-        return window.currentLoggedInUser.roleId == 1 || window.currentLoggedInUser.role.toUpperCase() === 'ADMINISTRADOR';
+        const user = window.currentLoggedInUser || null;
+        if (!user) return false;
+        // Verificación robusta por ID (prioritario) o por nombre
+        return parseInt(user.roleId) === 1 || user.role.toUpperCase() === 'ADMINISTRADOR';
     };
 
     /**
      * Oculta visualmente los contenedores financieros para usuarios no autorizados
      */
     const setupRoleVisibility = () => {
-        if (!isAdmin()) {
-            const financialElements = [
-                statsElements.financialStatusCards,
-                statsElements.expensesDashboard,
-                statsElements.supplierDebts,
-                document.getElementById('salesChart')?.closest('.glass-card'), // Contenedor del gráfico
-                statsElements.financialContainer, // El div vacío al lado del gráfico
-                document.getElementById('financial-summary-heading'),
-                document.getElementById('supplier-debts-heading'),
-                document.getElementById('expenses-month-heading'),
-                document.getElementById('financial-performance-block') // Bloque completo de rendimiento financiero
-            ];
-            financialElements.forEach(el => {
-                if (el) el.classList.add('hidden');
-            });
-        }
+        const isUserAdmin = isAdmin();
+        const financialElements = [
+            statsElements.financialStatusCards,
+            statsElements.expensesDashboard,
+            statsElements.supplierDebts,
+            document.getElementById('salesChart')?.closest('.glass-card'), 
+            statsElements.financialContainer, 
+            document.getElementById('financial-summary-heading'),
+            document.getElementById('supplier-debts-heading'),
+            document.getElementById('expenses-month-heading'),
+            document.getElementById('financial-performance-block') 
+        ];
+
+        financialElements.forEach(el => {
+            if (el) {
+                // IMPORTANTE: Ahora si es admin, quitamos 'hidden'. Si no, lo ponemos.
+                if (isUserAdmin) {
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            }
+        });
     };
 
     /**
