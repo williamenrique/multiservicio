@@ -5,10 +5,12 @@
 
 
 A- Lista de Mejoramiento (Calidad y Estabilidad)
-    1 Validación Centralizada: Actualmente, la validación ocurre dentro de los controladores (como en ControllerAuth). Sería mejor implementar un sistema de validación de esquemas para los JSON de entrada en la facturación, evitando que datos malformados lleguen al modelo.
-    2 Manejo de Excepciones: Muchos métodos retornan false en caso de error. Implementar Excepciones Personalizadas permitiría que el controlador capture el motivo exacto del fallo (ej: "Stock Insuficiente" vs "Error de Conexión") y lo muestre al usuario.
-    3 Estandarización de Nomenclatura: Se observa una mezcla de camelCase y snake_case en variables y llaves de arreglos. Unificar esto facilitaría el mantenimiento.
+LISTO    1 Validación Centralizada: Actualmente, la validación ocurre dentro de los controladores (como en ControllerAuth). Sería mejor implementar un sistema de validación de esquemas para los JSON de entrada en la facturación, evitando que datos malformados lleguen al modelo.
+LISTO    2 Manejo de Excepciones: Muchos métodos retornan false en caso de error. Implementar Excepciones Personalizadas permitiría que el controlador capture el motivo exacto del fallo (ej: "Stock Insuficiente" vs "Error de Conexión") y lo muestre al usuario.
+LISTO    3 Estandarización de Nomenclatura: Se observa una mezcla de camelCase y snake_case en variables y llaves de arreglos. Unificar esto facilitaría el mantenimiento.
+
     4 Seguridad CSRF Global: El token CSRF se verifica en el login, pero debería implementarse un middleware o verificación automática en todos los métodos POST, PUT y DELETE para proteger las acciones de facturación y personal.
+
     5 Gestión de Sesiones: El sistema de sesión única en base de datos es muy bueno, pero le vendría bien un proceso de "limpieza" automática para sesiones que no cerraron correctamente pero ya expiraron por tiempo.
 
 B- Funcionalidades Sugeridas (Nuevas Capacidades)
@@ -20,7 +22,7 @@ B- Funcionalidades Sugeridas (Nuevas Capacidades)
     4 Historial de Precios (Kardex Visual): Aunque el sistema registra movimientos en el Kardex, una vista para el administrador donde pueda ver la fluctuación del costo de un repuesto en el tiempo ayudaría a ajustar precios de venta.
     5 Estado de Cuenta de Cliente: Una funcionalidad para generar un PDF o vista rápida de todos los abonos y saldos pendientes de un cliente específico, facilitando la cobranza.
     6 Cierre de Caja Diario: Un proceso donde el sistema "congele" los movimientos del día y genere un reporte comparativo entre el dinero esperado en sistema y el dinero físico reportado por el cajero.
-    
+
 c- Observaciones en Frontend (JS)
     Refactorización de Tablas: La transición que hiciste en personal.js eliminando DataTable por una carga manual es muy limpia y mejora el rendimiento. Esta misma lógica debería replicarse en el historial de devoluciones y auditoría de trabajos para mantener la coherencia visual.
     Debounce en Búsquedas: La implementación del searchTimeout es un gran acierto para no saturar el servidor.

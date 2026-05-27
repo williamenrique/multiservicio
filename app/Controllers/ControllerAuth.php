@@ -216,4 +216,31 @@ class ControllerAuth extends Controller {
         ];
         $this->view('auth/solicitudes', $data);
     }
+
+    /**
+     * Permite al administrador resetear la clave de un usuario desde la solicitud.
+     */
+    public function resetearClaveAdmin() {
+        RoleGuard::isAdmin();
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            $userId = (int)$input['user_id'];
+            $newPass = trim($input['password']);
+
+            if (empty($newPass)) {
+                return $this->jsonResponse(['success' => false, 'error' => 'La clave no puede estar vacía.']);
+            }
+
+            $hash = password_hash($newPass, PASSWORD_BCRYPT);
+            $res = $this->userModel->actualizarPassword($userId, $hash);
+
+            return $this->jsonResponse(['success' => $res]);
+        }
+    }
+
+    public function eliminarSolicitud($id) {
+        RoleGuard::isAdmin();
+        $res = $this->userModel->eliminarSolicitud($id);
+        return $this->jsonResponse(['success' => $res]);
+    }
 }

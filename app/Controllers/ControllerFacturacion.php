@@ -47,8 +47,15 @@ class ControllerFacturacion extends Controller {
                 header('Content-Type: application/json');
                 $datos = json_decode(file_get_contents('php://input'), true);
                 
-                if (empty($datos['items'])) {
-                    throw new AppException('El carrito está vacío');
+                // Validación de Esquema
+                $v = new Validator($datos);
+                $v->required(['items', 'pago_efectivo', 'pago_transferencia'])
+                  ->array('items')
+                  ->numeric(['pago_efectivo', 'pago_transferencia']);
+
+                if (!$v->success()) {
+                    $errorMsg = implode(" ", $v->getErrors());
+                    throw new AppException($errorMsg);
                 }
 
                 $resultado = $this->facturaModel->procesarVenta($datos);
@@ -74,6 +81,14 @@ class ControllerFacturacion extends Controller {
             header('Content-Type: application/json');
             $datos = json_decode(file_get_contents('php://input'), true);
             
+            // Validación mínima para borradores
+            $v = new Validator($datos);
+            $v->array('items', true); // Permitir items vacíos en borradores
+
+            if (!$v->success()) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Estructura de borrador inválida'], 400);
+            }
+
             // Guardamos con status PENDIENTE
             $resultado = $this->facturaModel->guardarFactura($datos, 'PENDIENTE');
 
@@ -135,11 +150,15 @@ class ControllerFacturacion extends Controller {
             // Leer el cuerpo de la petición JSON
             $input = json_decode(file_get_contents('php://input'), true);
 
-            // Validar que lleguen los datos mínimos
-            if (!isset($input['venta_id']) || !isset($input['monto']) || !isset($input['metodo'])) {
+            $v = new Validator($input);
+            $v->required(['venta_id', 'monto', 'metodo'])
+              ->numeric(['venta_id', 'monto'])
+              ->in('metodo', ['EFECTIVO', 'TRANSFERENCIA']);
+
+            if (!$v->success()) {
                 return $this->jsonResponse([
                     'success' => false, 
-                    'mensaje' => 'Datos insuficientes para procesar el pago.'
+                    'mensaje' => 'Datos inválidos: ' . implode(", ", $v->getErrors())
                 ], 400);
             }
 
@@ -203,6 +222,14 @@ class ControllerFacturacion extends Controller {
         RoleGuard::isAdmin();
         try {
             $input = json_decode(file_get_contents('php://input'), true);
+            
+            $v = new Validator($input);
+            $v->required(['venta_id', 'detalle_id', 'destino'])
+              ->in('destino', ['STOCK', 'BAJA']);
+
+            if (!$v->success()) {
+                throw new AppException('Datos de devolución incompletos o inválidos.');
+            }
             
             $this->facturaModel->procesarDevolucion(
                 $input['venta_id'], 

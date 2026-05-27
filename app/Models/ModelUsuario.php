@@ -91,7 +91,7 @@ class ModelUsuario extends Model {
      * Obtiene todas las solicitudes pendientes para el administrador.
      */
     public function obtenerSolicitudesPendientes() {
-        $this->db->query("SELECT r.id, u.username, u.password, s.nombre, s.email, s.cedula, r.tipo, r.fecha 
+        $this->db->query("SELECT r.id, u.id as user_id, u.username, u.password, s.nombre, s.email, s.cedula, r.tipo, r.fecha 
                           FROM table_recuperaciones r
                           INNER JOIN table_usuarios u ON r.usuario_id = u.id
                           INNER JOIN table_staff s ON u.staff_id = s.id
