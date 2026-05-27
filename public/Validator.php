@@ -54,6 +54,40 @@ class Validator {
         return $this;
     }
 
+    /**
+     * Verifica que el valor esté dentro de un conjunto de opciones
+     */
+    public function in($field, $options) {
+        if (isset($this->data[$field]) && !in_array($this->data[$field], $options)) {
+            $this->errors[$field] = "El valor seleccionado para " . str_replace('_', ' ', $field) . " no es válido.";
+        }
+        return $this;
+    }
+
+    /**
+     * Verifica que el campo sea un arreglo
+     */
+    public function array($field, $allowEmpty = false) {
+        if (!isset($this->data[$field]) || !is_array($this->data[$field])) {
+            $this->errors[$field] = "El campo " . str_replace('_', ' ', $field) . " debe ser una lista.";
+        } elseif (!$allowEmpty && empty($this->data[$field])) {
+            $this->errors[$field] = "La lista de " . str_replace('_', ' ', $field) . " no puede estar vacía.";
+        }
+        return $this;
+    }
+
+    /**
+     * Verifica que los campos sean numéricos
+     */
+    public function numeric($fields) {
+        foreach ($fields as $field) {
+            if (isset($this->data[$field]) && !is_numeric($this->data[$field])) {
+                $this->errors[$field] = "El campo " . str_replace('_', ' ', $field) . " debe ser un número.";
+            }
+        }
+        return $this;
+    }
+
     public function success() {
         return empty($this->errors);
     }

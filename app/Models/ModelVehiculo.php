@@ -37,4 +37,14 @@ class ModelVehiculo {
         $this->db->bind(':vid', $vehiculo_id);
         return $this->db->resultSet();
     }
+
+    /**
+     * Busca vehículos por placa, marca o modelo para el buscador global.
+     */
+    public function searchVehicles($term) {
+        $this->db->query("SELECT placa, marca, modelo FROM table_vehiculos
+                          WHERE placa LIKE :term OR marca LIKE :term OR modelo LIKE :term LIMIT 5");
+        $this->db->bind(':term', "%$term%");
+        return $this->db->resultSet();
+    }
 }

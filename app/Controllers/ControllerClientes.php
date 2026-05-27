@@ -57,8 +57,7 @@ class ControllerClientes extends Controller {
     public function obtener($id) {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'MECANICO']);
         $cliente = $this->clienteModel->obtenerPorId($id);
-        header('Content-Type: application/json');
-        echo json_encode($cliente);
+        return $this->jsonResponse($cliente);
     }
 
     /**
@@ -75,8 +74,15 @@ class ControllerClientes extends Controller {
                 return;
             }
 
-            $res = $this->clienteModel->guardar($input);
-            echo json_encode(['success' => $res, 'mensaje' => $res ? 'Cliente guardado' : 'Error al guardar']);
+            $existe = $this->clienteModel->obtenerPorId($input['id']);
+            
+            if ($existe) {
+                $res = $this->clienteModel->actualizar($input);
+            } else {
+                $res = $this->clienteModel->crear($input);
+            }
+
+            return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Cliente guardado' : 'Error al guardar']);
         }
     }
 

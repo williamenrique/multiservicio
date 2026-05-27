@@ -79,43 +79,46 @@ class ControllerInventario extends Controller {
     public function guardar() {
         RoleGuard::isAdmin();
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            // Ahora recibimos datos vía $_POST por usar FormData
-            $data = $_POST;
-            $data['imagen'] = isset($data['imagen']) ? trim($data['imagen']) : null;
-            
-            if (empty($data['nombre'])) {
-                echo json_encode(['success' => false, 'mensaje' => 'El nombre es obligatorio']);
-                return;
-            }
-
-            // Procesar Imagen Local
-            if (!empty($_FILES['imagen_archivo']['name'])) {
-                $archivo = $_FILES['imagen_archivo'];
-                $nombreLimpio = str_replace(' ', '_', strtolower($data['nombre']));
-                $extension = pathinfo($archivo['name'], PATHINFO_EXTENSION);
-                $nombreFinal = $nombreLimpio . "_" . time() . "." . $extension;
+            try {
+                // Ahora recibimos datos vía $_POST por usar FormData
+                $data = $_POST;
+                $data['imagen'] = isset($data['imagen']) ? trim($data['imagen']) : null;
                 
-                $subfolder = 'inventario';
-                $uploadPath = APPROOT . '/../public/uploads/' . $subfolder . '/';
-
-                if (!is_dir($uploadPath)) {
-                    mkdir($uploadPath, 0777, true);
+                if (empty($data['nombre'])) {
+                    return $this->jsonResponse(['success' => false, 'mensaje' => 'El nombre es obligatorio'], 400);
                 }
 
-                if (move_uploaded_file($archivo['tmp_name'], $uploadPath . $nombreFinal)) {
-                    $data['imagen'] = 'uploads/' . $subfolder . '/' . $nombreFinal;
+                // Procesar Imagen Local
+                if (!empty($_FILES['imagen_archivo']['name'])) {
+                    $archivo = $_FILES['imagen_archivo'];
+                    $nombreLimpio = str_replace(' ', '_', strtolower($data['nombre']));
+                    $extension = pathinfo($archivo['name'], PATHINFO_EXTENSION);
+                    $nombreFinal = $nombreLimpio . "_" . time() . "." . $extension;
+                    
+                    $subfolder = 'inventario';
+                    $uploadPath = APPROOT . '/../public/uploads/' . $subfolder . '/';
+
+                    if (!is_dir($uploadPath)) {
+                        mkdir($uploadPath, 0777, true);
+                    }
+
+                    if (move_uploaded_file($archivo['tmp_name'], $uploadPath . $nombreFinal)) {
+                        $data['imagen'] = 'uploads/' . $subfolder . '/' . $nombreFinal;
+                    }
                 }
-            }
 
-            if (!empty($data['id'])) {
-                $res = $this->inventarioModel->actualizar($data);
-                $mensaje = "Producto actualizado";
-            } else {
-                $res = $this->inventarioModel->registrar($data);
-                $mensaje = "Producto registrado";
-            }
+                if (!empty($data['id'])) {
+                    $res = $this->inventarioModel->actualizar($data);
+                    $mensaje = "Producto actualizado";
+                } else {
+                    $res = $this->inventarioModel->crear($data);
+                    $mensaje = "Producto registrado";
+                }
 
-            echo json_encode(['success' => $res, 'mensaje' => $res ? $mensaje : 'Error al procesar']);
+                return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? $mensaje : 'Error al procesar']);
+            } catch (Exception $e) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+            }
         }
     }
 

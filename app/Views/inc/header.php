@@ -56,19 +56,26 @@
                     <a href="<?php echo URLROOT; ?>/gastos" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'gastos') !== false) ? 'active' : ''; ?>" data-section="gastos">
                         <i data-lucide="wallet"></i> <span>Gastos del Taller</span>
                     </a>
+                    <?php if($_SESSION['user_role'] === 'ADMINISTRADOR'): ?>
+                    <a href="javascript:void(0);" onclick="event.preventDefault(); CajaUI.init()" class="nav-link" data-section="caja">
+                        <i data-lucide="calculator"></i> <span>Arqueo de Caja</span>
+                    </a>
                     <a href="<?php echo URLROOT; ?>/reportes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'reportes') !== false) ? 'active' : ''; ?>" data-section="reportes">
                         <i data-lucide="bar-chart-big"></i> <span>Reportes Contables</span>
                     </a>
+                    <?php endif; ?>
                     <p class="text-xs uppercase text-gray-500 px-3 mt-4 mb-2">Administración</p>
                     <a href="<?php echo URLROOT; ?>/clientes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'clientes') !== false) ? 'active' : ''; ?>" data-section="clientes">
                         <i data-lucide="users"></i> <span>Clientes</span>
                     </a>
+                    <?php if($_SESSION['user_role'] === 'ADMINISTRADOR'): ?>
                     <a href="<?php echo URLROOT; ?>/personal" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'personal') !== false) ? 'active' : ''; ?>" data-section="personal">
                         <i data-lucide="user-cog"></i> <span>Personal</span>
                     </a>
                     <a href="<?php echo URLROOT; ?>/empresa" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'empresa') !== false) ? 'active' : ''; ?>" data-section="empresa">
                         <i data-lucide="settings"></i> <span>Configuración</span>
                     </a>
+                    <?php endif; ?>
                 </div>
             </nav>
         </aside>
@@ -86,8 +93,15 @@
                 </div>
 
                 <div class="flex items-center gap-4 ml-auto px-4">
+                    <!-- Buscador Global -->
+                    <div class="relative group hidden md:block">
+                        <input type="text" id="globalSearchInput" placeholder="Buscar factura, placa, cliente..." class="w-64 bg-gray-800 border border-gray-700 text-white text-xs px-4 py-2 rounded-lg focus:outline-none focus:border-neon-green transition-all">
+                        <div id="globalSearchResults" class="absolute top-full right-0 mt-2 w-80 bg-white shadow-2xl rounded-xl border border-slate-100 hidden z-[100] overflow-hidden"></div>
+                    </div>
                     <!-- Contenedor dinámico para la campana de recuperación -->
                     <div id="recovery-bell-container"></div>
+                    <!-- Indicador de estado de caja -->
+                    <div id="caja-status-container"></div>
                     <div id="credit-notifications-container"></div>
                     <div id="notifications-area"></div>
                 </div>

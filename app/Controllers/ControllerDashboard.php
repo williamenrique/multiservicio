@@ -33,7 +33,8 @@ class ControllerDashboard extends Controller {
             'drafts' => $this->dashboardModel->getPendingDrafts($usuarioFiltro),
             'supplierDebts' => $this->dashboardModel->getSupplierDebtsSummary(),
             'history' => $this->dashboardModel->getFinancialHistory(7, $usuarioFiltro),
-            'recentExpenses' => $this->dashboardModel->getRecentExpenses()
+            'recentExpenses' => $this->dashboardModel->getRecentExpenses(),
+            'lowStock' => $this->dashboardModel->getLowStockProducts()
         ]);
     }
 }

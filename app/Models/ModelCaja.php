@@ -1,55 +1,64 @@
 <?php
-class ModelCaja extends Model {
-    /**
-     * Calcula el saldo esperado en efectivo para el turno actual
-     */
-    public function obtenerSaldoEsperado() {
-        // 1. Obtener la fecha del último cierre
-        $this->db->query("SELECT fecha FROM table_cierres_caja ORDER BY fecha DESC LIMIT 1");
-        $ultimoCierre = $this->db->single();
-        $desde = $ultimoCierre ? $ultimoCierre->fecha : '2000-01-01 00:00:00';
+class ModelCaja {
+    private $db;
 
-        // 2. Sumar ventas en efectivo
-        $this->db->query("SELECT SUM(pago_efectivo) as total FROM table_ventas 
-                          WHERE status = 'COMPLETADO' AND fecha_cierre > :desde");
-        $this->db->bind(':desde', $desde);
-        $ventas = $this->db->single()->total ?? 0;
-
-        // 3. Sumar abonos de clientes en efectivo
-        $this->db->query("SELECT SUM(monto) as total FROM table_abonos_clientes 
-                          WHERE metodo_pago = 'EFECTIVO' AND fecha > :desde");
-        $this->db->bind(':desde', $desde);
-        $abonos = $this->db->single()->total ?? 0;
-
-        // 4. Restar gastos pagados en efectivo
-        $this->db->query("SELECT SUM(monto) as total FROM table_gastos 
-                          WHERE metodo_pago = 'EFECTIVO' AND fecha > :desde");
-        $this->db->bind(':desde', $desde);
-        $gastos = $this->db->single()->total ?? 0;
-        
-        // 5. Restar pagos a proveedores en efectivo
-        $this->db->query("SELECT SUM(monto_pagado) as total FROM table_compras_pagos 
-                          WHERE metodo_pago = 'EFECTIVO' AND fecha > :desde");
-        $this->db->bind(':desde', $desde);
-        $compras = $this->db->single()->total ?? 0;
-
-        return [
-            'ventas_efectivo' => (float)$ventas,
-            'abonos_efectivo' => (float)$abonos,
-            'gastos_efectivo' => (float)$gastos,
-            'compras_efectivo' => (float)$compras,
-            'total_esperado' => ($ventas + $abonos) - ($gastos + $compras)
-        ];
+    public function __construct() {
+        $this->db = new Database();
     }
 
-    public function registrarCierre($datos) {
-        return $this->db->insert('table_cierres_caja', [
-            'usuario_id' => $_SESSION['user_id'],
-            'monto_esperado' => $datos['esperado'],
-            'monto_real' => $datos['real'],
-            'diferencia' => $datos['real'] - $datos['esperado'],
-            'observaciones' => mb_strtoupper($datos['observaciones'], 'UTF-8'),
-            'fecha' => date('Y-m-d H:i:s')
-        ]);
+    public function obtenerSesionActiva() {
+        $this->db->query("SELECT * FROM table_sesiones_caja WHERE estado = 'ABIERTA' LIMIT 1");
+        return $this->db->single();
+    }
+
+    public function abrirSesion($data) {
+        $this->db->query("INSERT INTO table_sesiones_caja (usuario_id, monto_inicial, estado) VALUES (:uid, :inicial, 'ABIERTA')");
+        $this->db->bind(':uid', $data['usuario_id']);
+        $this->db->bind(':inicial', $data['monto_inicial']);
+        return $this->db->execute() ? $this->db->lastInsertId() : false;
+    }
+
+    public function registrarMovimiento($data) {
+        $this->db->query("INSERT INTO table_caja_movimientos (sesion_id, tipo, monto, metodo_pago, referencia_id, concepto) 
+                          VALUES (:sid, :tipo, :monto, :metodo, :ref, :concepto)");
+        $this->db->bind(':sid', $data['sesion_id']);
+        $this->db->bind(':tipo', $data['tipo']);
+        $this->db->bind(':monto', $data['monto']);
+        $this->db->bind(':metodo', $data['metodo_pago']);
+        $this->db->bind(':ref', $data['referencia_id'] ?? null);
+        $this->db->bind(':concepto', $data['concepto']);
+        return $this->db->execute();
+    }
+
+    public function obtenerTotalesSesion($sesionId) {
+        // Sumar ingresos en efectivo (Ventas y abonos)
+        $this->db->query("SELECT SUM(monto) as total FROM table_caja_movimientos 
+                          WHERE sesion_id = :sid AND tipo = 'INGRESO' AND metodo_pago = 'EFECTIVO'");
+        $this->db->bind(':sid', $sesionId);
+        $efectivo = $this->db->single()->total ?? 0;
+
+        // Sumar egresos en efectivo (Gastos)
+        $this->db->query("SELECT SUM(monto) as total FROM table_caja_movimientos 
+                          WHERE sesion_id = :sid AND tipo = 'EGRESO' AND metodo_pago = 'EFECTIVO'");
+        $this->db->bind(':sid', $sesionId);
+        $egresos = $this->db->single()->total ?? 0;
+
+        return (float)$efectivo - (float)$egresos;
+    }
+
+    public function cerrarSesion($sesionId, $montoReal, $montoEsperado) {
+        $diferencia = $montoReal - $montoEsperado;
+        $this->db->query("UPDATE table_sesiones_caja 
+                          SET fecha_cierre = NOW(), 
+                              monto_final_esperado = :esperado, 
+                              monto_final_real = :real, 
+                              diferencia = :dif, 
+                              estado = 'CERRADA' 
+                          WHERE id = :id");
+        $this->db->bind(':esperado', $montoEsperado);
+        $this->db->bind(':real', $montoReal);
+        $this->db->bind(':dif', $diferencia);
+        $this->db->bind(':id', $sesionId);
+        return $this->db->execute();
     }
 }

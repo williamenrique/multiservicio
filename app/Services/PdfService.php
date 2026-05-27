@@ -12,7 +12,7 @@ class PdfService {
         $this->dompdf = new Dompdf($options);
     }
 
-    public function generarDocumento($view, $data = [], $filename = 'documento.pdf') {
+    public function generarDocumento($view, $data = [], $filename = 'documento.pdf', $stream = true) {
         // Cargamos la empresa para el encabezado global
         $db = new Database();
         $db->query("SELECT * FROM table_company_settings WHERE id = 1");
@@ -39,7 +39,17 @@ class PdfService {
         $this->dompdf->setPaper('letter', 'portrait');
         $this->dompdf->render();
         
-        // Stream al navegador
-        $this->dompdf->stream($filename, ["Attachment" => false]);
+        if ($stream) {
+            $this->dompdf->stream($filename, ["Attachment" => false]);
+            exit;
+        } else {
+            $output = $this->dompdf->output();
+            $tempDir = dirname(APPROOT) . '/public/temp_pdfs/';
+            if (!is_dir($tempDir)) mkdir($tempDir, 0777, true);
+            
+            $filePath = $tempDir . $filename;
+            file_put_contents($filePath, $output);
+            return 'temp_pdfs/' . $filename;
+        }
     }
 }

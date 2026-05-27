@@ -146,4 +146,14 @@ class ModelDashboard {
                           LIMIT 6");
         return $this->db->resultSet();
     }
+
+    /**
+     * Obtiene lista detallada de productos bajo el stock mínimo para alertas
+     */
+    public function getLowStockProducts() {
+        $this->db->query("SELECT id, nombre, stock, stock_minimo FROM table_inventario 
+                          WHERE stock <= stock_minimo 
+                          ORDER BY stock ASC LIMIT 10");
+        return $this->db->resultSet();
+    }
 }

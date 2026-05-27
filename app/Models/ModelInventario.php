@@ -74,14 +74,15 @@ class ModelInventario {
     }
 
     public function crear($datos) {
-        $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, stock_minimo, ultimo_costo, precio, imagen) 
-                          VALUES (:nombre, :categoria, :stock, :smin, :costo, :precio, :imagen)");
+        $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen) 
+                          VALUES (:nombre, :categoria, :stock, :smin, :costo, :cprom, :precio, :imagen)");
         
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
         $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
         $this->db->bind(':stock', $datos['stock']);
         $this->db->bind(':smin', $datos['stock_minimo'] ?? 5);
         $this->db->bind(':costo', $datos['ultimo_costo'] ?? 0);
+        $this->db->bind(':cprom', $datos['costo_promedio'] ?? $datos['ultimo_costo'] ?? 0);
         $this->db->bind(':precio', $datos['precio']);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
 
@@ -98,6 +99,7 @@ class ModelInventario {
                               stock = :stock,
                               stock_minimo = :smin,
                               ultimo_costo = :costo,
+                              costo_promedio = :cprom,
                               precio = :precio, 
                               imagen = :imagen 
                           WHERE id = :id");
@@ -108,6 +110,7 @@ class ModelInventario {
         $this->db->bind(':stock', $datos['stock']);
         $this->db->bind(':smin', $datos['stock_minimo'] ?? 5);
         $this->db->bind(':costo', $datos['ultimo_costo'] ?? 0);
+        $this->db->bind(':cprom', $datos['costo_promedio'] ?? 0);
         $this->db->bind(':precio', $datos['precio']);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
 
@@ -156,6 +159,14 @@ class ModelInventario {
                           WHERE k.producto_id = :pid
                           ORDER BY k.fecha DESC");
         $this->db->bind(':pid', $producto_id);
+        return $this->db->resultSet();
+    }
+
+    /**
+     * Obtiene los productos que están en nivel crítico o agotados
+     */
+    public function obtenerBajoStock() {
+        $this->db->query("SELECT id, nombre, stock, stock_minimo FROM table_inventario WHERE stock <= stock_minimo ORDER BY stock ASC");
         return $this->db->resultSet();
     }
 }

@@ -107,4 +107,14 @@ class ModelCliente {
         $this->db->bind(':id', $id);
         return $this->db->execute();
     }
+
+    /**
+     * Busca clientes por ID, nombre o teléfono para el buscador global.
+     */
+    public function searchClients($term) {
+        $this->db->query("SELECT id, nombre, telefono FROM table_clientes
+                          WHERE id LIKE :term OR nombre LIKE :term OR telefono LIKE :term LIMIT 5");
+        $this->db->bind(':term', "%$term%");
+        return $this->db->resultSet();
+    }
 }

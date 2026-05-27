@@ -16,6 +16,8 @@
 CREATE DATABASE IF NOT EXISTS `multiservicio` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_spanish_ci */;
 USE `multiservicio`;
 
+SET FOREIGN_KEY_CHECKS = 0;
+
 -- 1. Tabla de Roles (Independiente)
 CREATE TABLE IF NOT EXISTS `table_roles` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -99,6 +101,20 @@ CREATE TABLE IF NOT EXISTS `table_vehiculos` (
   CONSTRAINT `fk_vehiculo_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- 7. Tabla de ConfiguraciOn de la Empresa
+CREATE TABLE IF NOT EXISTS `table_company_settings` (
+  `id` INT(11) NOT NULL DEFAULT 1, -- Siempre serA 1, para asegurar una única fila
+  `name` VARCHAR(100) NOT NULL,
+  `nit` VARCHAR(50) DEFAULT NULL,
+  `iva` DECIMAL(5,2) DEFAULT 0.00,
+  `markup_default` DECIMAL(5,2) DEFAULT 30.00,
+  `logo` TEXT DEFAULT NULL,
+  `address` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT current_timestamp(),
+  `updated_at` TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- 7. Tabla de Órdenes de Servicio (O.S.)
 CREATE TABLE IF NOT EXISTS `table_ordenes_servicio` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -160,20 +176,6 @@ CREATE TABLE IF NOT EXISTS `table_proveedores` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 11. Tabla de ConfiguraciOn de la Empresa
-CREATE TABLE IF NOT EXISTS `table_company_settings` (
-  `id` INT(11) NOT NULL DEFAULT 1, -- Siempre serA 1, para asegurar una única fila
-  `name` VARCHAR(100) NOT NULL,
-  `nit` VARCHAR(50) DEFAULT NULL,
-  `iva` DECIMAL(5,2) DEFAULT 0.00,
-  `markup_default` DECIMAL(5,2) DEFAULT 30.00,
-  `logo` TEXT DEFAULT NULL,
-  `address` TEXT DEFAULT NULL,
-  `created_at` TIMESTAMP NOT NULL DEFAULT current_timestamp(),
-  `updated_at` TIMESTAMP NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
 -- 12. Tabla de Inventario (Repuestos y Servicios)
 CREATE TABLE IF NOT EXISTS `table_inventario` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -182,6 +184,7 @@ CREATE TABLE IF NOT EXISTS `table_inventario` (
   `stock` int(11) NOT NULL DEFAULT 0,
   `stock_minimo` int(11) NOT NULL DEFAULT 5,
   `ultimo_costo` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `costo_promedio` decimal(15,2) NOT NULL DEFAULT 0.00,
   `precio` decimal(15,2) NOT NULL DEFAULT 0.00,
   `imagen` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -253,12 +256,42 @@ CREATE TABLE IF NOT EXISTS `table_ventas_detalle` (
   `descripcion` varchar(255) NOT NULL,
   `cantidad` int(11) NOT NULL,
   `precio_unitario` decimal(15,2) NOT NULL,
+  `costo_unitario` decimal(15,2) NOT NULL DEFAULT 0.00,
   PRIMARY KEY (`id`),
   KEY `fk_detalle_venta` (`venta_id`),
   KEY `fk_detalle_producto_venta` (`producto_id`),
   CONSTRAINT `fk_detalle_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_detalle_producto_venta` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 15. Estructura para el control de sesiones de caja (Arqueo Global)
+CREATE TABLE IF NOT EXISTS `table_sesiones_caja` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `usuario_id` int(11) NOT NULL,
+  `fecha_apertura` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `fecha_cierre` datetime DEFAULT NULL,
+  `monto_inicial` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `monto_final_esperado` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `monto_final_real` decimal(12,2) DEFAULT NULL,
+  `diferencia` decimal(12,2) DEFAULT NULL,
+  `estado` enum('ABIERTA','CERRADA') NOT NULL DEFAULT 'ABIERTA',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 16. Estructura para los movimientos detallados de dinero dentro de la sesión
+CREATE TABLE IF NOT EXISTS `table_caja_movimientos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `sesion_id` int(11) NOT NULL,
+  `tipo` enum('INGRESO','EGRESO') NOT NULL,
+  `monto` decimal(12,2) NOT NULL,
+  `metodo_pago` enum('EFECTIVO','TRANSFERENCIA') NOT NULL,
+  `referencia_id` int(11) DEFAULT NULL COMMENT 'ID de la venta o abono relacionado',
+  `concepto` varchar(255) DEFAULT NULL,
+  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `sesion_id` (`sesion_id`),
+  CONSTRAINT `fk_movimiento_sesion` FOREIGN KEY (`sesion_id`) REFERENCES `table_sesiones_caja` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 15. Tabla de Gastos (Egresos Operativos del Taller)
 DROP TABLE IF EXISTS `table_gastos`;
@@ -318,18 +351,6 @@ CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
   CONSTRAINT `fk_detalle_compra` FOREIGN KEY (`compra_id`) REFERENCES `table_compras` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_detalle_producto_compra` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- 18. Cierres de Caja (Arqueos)
-CREATE TABLE IF NOT EXISTS `table_cierres_caja` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `usuario_id` INT NOT NULL,
-  `monto_esperado` DECIMAL(10,2) NOT NULL,
-  `monto_real` DECIMAL(10,2) NOT NULL,
-  `diferencia` DECIMAL(10,2) NOT NULL,
-  `observaciones` TEXT DEFAULT NULL,
-  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT `fk_cierre_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 19. Abonos de Clientes (Cuentas por Cobrar)
 CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
@@ -393,6 +414,10 @@ CREATE TABLE IF NOT EXISTS `table_devoluciones` (
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE `table_usuario_sessions`;
 TRUNCATE TABLE `table_orden_estados_log`;
+TRUNCATE TABLE `table_caja_movimientos`;
+TRUNCATE TABLE `table_sesiones_caja`;
+TRUNCATE TABLE `table_compras_pagos`;
+TRUNCATE TABLE `table_abonos_clientes`;
 TRUNCATE TABLE `table_orden_checklist`;
 TRUNCATE TABLE `table_ordenes_servicio`;
 TRUNCATE TABLE `table_vehiculos`;
@@ -434,6 +459,8 @@ VALUES
 -- Datos iniciales para la configuraciOn de la empresa
 INSERT INTO `table_company_settings` (`id`, `name`, `nit`, `iva`, `address`) VALUES
 (1, 'TALLER PRO', '0000000000', 19.00, 'DIRECCION PRINCIPAL DEL TALLER');
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- Restaurar configuraciones originales
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;

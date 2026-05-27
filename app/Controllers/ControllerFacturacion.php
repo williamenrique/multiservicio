@@ -2,11 +2,15 @@
 class ControllerFacturacion extends Controller {
     private $facturaModel;
     private $empresaModel;
+    private $cajaModel;
+    private $billingService;
 
     public function __construct() {
         AuthGuard::handle();
         $this->facturaModel = $this->model('Facturacion');
         $this->empresaModel = $this->model('Empresa');
+        $this->cajaModel = $this->model('Caja');
+        $this->billingService = new BillingService();
     }
 
     public function index() {
@@ -46,6 +50,7 @@ class ControllerFacturacion extends Controller {
             try {
                 header('Content-Type: application/json');
                 $datos = json_decode(file_get_contents('php://input'), true);
+
                 
                 // Validación de Esquema
                 $v = new Validator($datos);
@@ -58,7 +63,8 @@ class ControllerFacturacion extends Controller {
                     throw new AppException($errorMsg);
                 }
 
-                $resultado = $this->facturaModel->procesarVenta($datos);
+                // Delegar TODA la lógica pesada al Servicio
+                $resultado = $this->billingService->procesarVentaCompleta($datos);
 
                 echo json_encode([
                     'success' => true, 
@@ -89,16 +95,11 @@ class ControllerFacturacion extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'Estructura de borrador inválida'], 400);
             }
 
-            // Guardamos con status PENDIENTE
-            $resultado = $this->facturaModel->guardarFactura($datos, 'PENDIENTE');
-
-            if ($resultado) {
-                echo json_encode([
-                    'success' => true, 
-                    'venta_id' => $resultado
-                ]);
-            } else {
-                echo json_encode(['success' => false, 'mensaje' => 'No se pudo sincronizar el borrador']);
+            try {
+                $resultado = $this->billingService->sincronizarBorradorSeguro($datos);
+                echo json_encode(['success' => true, 'venta_id' => $resultado]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
             }
         }
     }
@@ -124,22 +125,51 @@ class ControllerFacturacion extends Controller {
     /**
      * Genera el PDF de la Factura de Venta
      */
-    public function imprimir($id = null) {
+    public function generarPdfAjax($id = null) {
         if (!$id) {
-            redirect('facturacion');
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de factura no proporcionado.'], 400);
         }
 
         $venta = $this->facturaModel->obtenerVentaCompleta($id);
         if (!$venta) {
-            die("La factura #$id no existe o no ha sido completada.");
+            return $this->jsonResponse(['success' => false, 'mensaje' => "La factura #$id no existe o no ha sido completada."], 404);
         }
 
-        $pdf = new PdfService();
-        $pdf->generarDocumento('factura', [
-            'titulo_documento' => 'Factura de Venta',
-            'documento_id' => $venta->id,
-            'venta' => $venta
-        ], 'Factura_' . $id . '.pdf');
+        try {
+            $pdfService = new PdfService();
+            $filename = 'Factura_' . $id . '_' . time() . '.pdf';
+            $filePath = $pdfService->generarDocumento('factura', [
+                'titulo_documento' => 'Factura de Venta',
+                'documento_id' => $venta->id,
+                'venta' => $venta
+            ], $filename, false);
+
+            return $this->jsonResponse(['success' => true, 'pdf_url' => URLROOT . '/' . $filePath]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Sirve el PDF generado (URL: /facturacion/imprimir/archivo.pdf)
+     */
+    public function imprimir($filename = null) {
+        if (!$filename) {
+            die("Documento no especificado.");
+        }
+
+        $filePath = APPROOT . '/../public/temp_pdfs/' . $filename;
+
+        if (file_exists($filePath)) {
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: inline; filename="' . $filename . '"');
+            readfile($filePath);
+            // Optionally delete the file after serving
+            // unlink($filePath); // Consider a cron job for cleanup instead
+            exit;
+        } else {
+            die("El documento solicitado no se encontró.");
+        }
     }
         /**
      * Procesa la petición AJAX para registrar un abono a una deuda de cliente.
@@ -167,10 +197,8 @@ class ControllerFacturacion extends Controller {
             $metodo = strtoupper($input['metodo']);
 
             try {
-                // Usamos $this->facturaModel que es como está definido en el __construct
-                $resultado = $this->facturaModel->registrarAbono($ventaId, $monto, $metodo);
-
-                // Registrar la acción en la bitácora de auditoría del sistema
+                // Usamos el servicio para garantizar que el abono y el movimiento de caja ocurran juntos
+                $this->billingService->registrarAbonoSeguro($ventaId, $monto, $metodo);
                 logAction('VENTA', 'ABONO', "Se registró un abono de " . $monto . " a la factura #" . $ventaId . " vía " . $metodo);
                 
                 return $this->jsonResponse([
@@ -191,9 +219,8 @@ class ControllerFacturacion extends Controller {
      */
     public function alertasCredito() {
         RoleGuard::isAdmin();
-        header('Content-Type: application/json');
         $data = $this->facturaModel->obtenerCreditosVencidos(15);
-        echo json_encode(['success' => true, 'data' => $data]);
+        return $this->jsonResponse(['success' => true, 'data' => $data]);
     }
 
     /**
@@ -201,9 +228,8 @@ class ControllerFacturacion extends Controller {
      */
     public function getDeudoresSummary() {
         RoleGuard::isAdmin();
-        header('Content-Type: application/json');
         $data = $this->facturaModel->obtenerAuditoriaTrabajos();
-        echo json_encode(['success' => true, 'data' => $data]);
+        return $this->jsonResponse(['success' => true, 'data' => $data]);
     }
 
     /**
@@ -218,6 +244,20 @@ class ControllerFacturacion extends Controller {
         echo json_encode(['success' => true, 'items' => array_values($items)]);
     }
 
+    /**
+     * Lista las devoluciones realizadas (Endpoint para el reporte de historial)
+     */
+    public function listarDevoluciones() {
+        RoleGuard::isAdmin();
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+
+        $reporteModel = $this->model('Reportes');
+        $data = $reporteModel->obtenerReporteDevoluciones($desde, $hasta);
+        
+        return $this->jsonResponse(['success' => true, 'data' => $data]);
+    }
+
     public function procesarDevolucion() {
         RoleGuard::isAdmin();
         try {
@@ -225,34 +265,17 @@ class ControllerFacturacion extends Controller {
             
             $v = new Validator($input);
             $v->required(['venta_id', 'detalle_id', 'destino'])
-              ->in('destino', ['STOCK', 'BAJA']);
+              ->in('destino', ['STOCK', 'DANADO']); // Ajustado para coincidir con el valor del frontend
 
             if (!$v->success()) {
-                throw new AppException('Datos de devolución incompletos o inválidos.');
+                throw new Exception('Datos de devolución inválidos');
             }
-            
-            $this->facturaModel->procesarDevolucion(
-                $input['venta_id'], 
-                $input['detalle_id'], 
-                $input['destino']
-            );
 
-            logAction('VENTA', 'DEVOLUCION', "Devolución de item en factura #{$input['venta_id']}. Destino: {$input['destino']}");
-            echo json_encode(['success' => true, 'mensaje' => 'Devolución procesada correctamente']);
+            $this->billingService->procesarDevolucionSegura($input);
+            return $this->jsonResponse(['success' => true, 'mensaje' => 'Devolución procesada correctamente']);
+
         } catch (Exception $e) {
-            echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
-
-    /**
-     * Endpoint para el historial de devoluciones
-     */
-    public function listarDevoluciones() {
-        RoleGuard::isAdmin();
-        $desde = $_GET['desde'] ?? date('Y-m-01');
-        $hasta = $_GET['hasta'] ?? date('Y-m-d');
-        $reporteModel = $this->model('Reportes');
-        echo json_encode(['success' => true, 'data' => $reporteModel->obtenerReporteDevoluciones($desde, $hasta)]);
-    }
-
 }

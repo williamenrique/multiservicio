@@ -5,11 +5,13 @@
 class ControllerProveedores extends Controller {
     private $proveedorModel;
     private $inventarioModel;
+    private $cajaModel;
 
     public function __construct() {
         AuthGuard::handle();
         $this->proveedorModel = $this->model('Proveedor');
         $this->inventarioModel = $this->model('Inventario');
+        $this->cajaModel = $this->model('Caja');
     }
 
     public function index() {
@@ -37,6 +39,7 @@ class ControllerProveedores extends Controller {
             $filtered = $search ? $this->proveedorModel->contarFiltrados($search) : $total;
             
             echo json_encode([
+            return $this->jsonResponse([
                 'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
                 'recordsTotal' => $total,
                 'recordsFiltered' => $filtered,
@@ -44,17 +47,22 @@ class ControllerProveedores extends Controller {
             ]);
         } else {
             echo json_encode($this->proveedorModel->listar());
+            return $this->jsonResponse($this->proveedorModel->listar());
         }
     }
 
     public function listarDeudas() {
         header('Content-Type: application/json');
         echo json_encode($this->proveedorModel->listarDeudas());
+        $data = $this->proveedorModel->listarDeudas();
+        return $this->jsonResponse(['success' => true, 'data' => $data]);
     }
 
     public function listarComprasPendientes($id) {
         header('Content-Type: application/json');
         echo json_encode($this->proveedorModel->obtenerComprasPendientes($id));
+        $data = $this->proveedorModel->obtenerComprasPendientes($id);
+        return $this->jsonResponse(['success' => true, 'data' => $data]);
     }
 
     public function registrarPago() {
@@ -62,11 +70,31 @@ class ControllerProveedores extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
             $data = json_decode(file_get_contents('php://input'), true);
+
+            // Validar caja si el pago es en efectivo
+            $sesionActiva = $this->cajaModel->obtenerSesionActiva();
+            if (!$sesionActiva) {
+                echo json_encode(['success' => false, 'mensaje' => 'Debe abrir caja para registrar pagos en efectivo.']);
+                return;
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Debe abrir caja para registrar pagos en efectivo.'], 400);
+            }
             
             if ($this->proveedorModel->registrarPagoCompra($data)) {
+                // Registrar el egreso en caja
+                $this->cajaModel->registrarMovimiento([
+                    'sesion_id' => $sesionActiva->id,
+                    'tipo' => 'EGRESO',
+                    'monto' => $data['monto'],
+                    'metodo_pago' => 'EFECTIVO',
+                    'referencia_id' => $data['compra_id'],
+                    'concepto' => "PAGO PROVEEDOR: Compra #" . $data['compra_id']
+                ]);
+
                 echo json_encode(['success' => true, 'mensaje' => 'Abono registrado correctamente']);
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Abono registrado correctamente']);
             } else {
                 echo json_encode(['success' => false, 'mensaje' => 'Error al registrar el pago']);
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al registrar el pago'], 500);
             }
         }
     }
@@ -84,14 +112,17 @@ class ControllerProveedores extends Controller {
             if (!$data) {
                 echo json_encode(['success' => false, 'mensaje' => 'Datos inválidos']);
                 return;
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Datos inválidos'], 400);
             }
 
             $resultado = $this->proveedorModel->registrarCompra($data);
 
             if ($resultado) {
                 echo json_encode(['success' => true, 'mensaje' => 'Mercancía registrada y stock actualizado']);
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Mercancía registrada y stock actualizado']);
             } else {
                 echo json_encode(['success' => false, 'mensaje' => 'Error al procesar la operación']);
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al procesar la operación'], 500);
             }
         }
     }
@@ -102,6 +133,7 @@ class ControllerProveedores extends Controller {
             $data = json_decode(file_get_contents('php://input'), true);
             $res = $this->proveedorModel->guardar($data);
             echo json_encode(['success' => $res]);
+            return $this->jsonResponse(['success' => $res]);
         }
     }
 
@@ -109,11 +141,13 @@ class ControllerProveedores extends Controller {
         RoleGuard::isAdmin();
         $res = $this->proveedorModel->eliminar($id);
         echo json_encode(['success' => $res]);
+        return $this->jsonResponse(['success' => $res]);
     }
 
     public function obtenerDetalleCompra($id) {
         header('Content-Type: application/json');
         echo json_encode($this->proveedorModel->obtenerDetalleCompra($id));
+        return $this->jsonResponse($this->proveedorModel->obtenerDetalleCompra($id));
     }
 
     /**
@@ -123,5 +157,6 @@ class ControllerProveedores extends Controller {
         RoleGuard::isAdmin();
         header('Content-Type: application/json');
         echo json_encode($this->proveedorModel->obtenerPorId($id));
+        return $this->jsonResponse($this->proveedorModel->obtenerPorId($id));
     }
 }

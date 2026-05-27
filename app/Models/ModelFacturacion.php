@@ -11,6 +11,19 @@ class ModelFacturacion {
     }
 
     /**
+     * Busca facturas por ID, nombre de cliente o placa para el buscador global.
+     */
+    public function searchInvoices($term) {
+        $this->db->query("SELECT v.id, v.placa, c.nombre as cliente_nombre
+                          FROM table_ventas v
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE (v.id LIKE :term OR v.placa LIKE :term OR c.nombre LIKE :term)
+                          AND v.status IN ('COMPLETADO', 'CREDITO') LIMIT 5");
+        $this->db->bind(':term', "%$term%");
+        return $this->db->resultSet();
+    }
+
+    /**
      * Busca productos o servicios disponibles en el inventario
      */
     public function buscarItems($termino) {
@@ -24,6 +37,7 @@ class ModelFacturacion {
                           ), 0)) as stock_disponible
                           FROM table_inventario i
                           WHERE (i.nombre LIKE :term OR i.categoria LIKE :term)
+                          HAVING stock_disponible > 0
                           LIMIT 15");
         $this->db->bind(':term', "%$termino%");
         return $this->db->resultSet();
@@ -145,13 +159,18 @@ class ModelFacturacion {
             $invModel = new ModelInventario();
 
             foreach ($items as $item) {
-                $this->db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario) 
-                                  VALUES (:vid, :pid, :desc, :cant, :precio)");
+                // Obtener costo actual para persistirlo en el detalle
+                $prodInfo = !empty($item['id']) ? $invModel->obtenerPorId($item['id']) : null;
+                $costoActual = $prodInfo ? (float)$prodInfo->costo_promedio : 0;
+
+                $this->db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                                  VALUES (:vid, :pid, :desc, :cant, :precio, :costo)");
                 $this->db->bind(':vid', $ventaId);
                 $this->db->bind(':pid', !empty($item['id']) ? $item['id'] : null);
                 $this->db->bind(':desc', $item['nombre']);
                 $this->db->bind(':cant', $item['cantidad']);
                 $this->db->bind(':precio', $item['precio']);
+                $this->db->bind(':costo', $costoActual);
                 $this->db->execute();
 
                 // SOLO descontar stock físico si la venta se FINALIZÓ (COMPLETADO o CREDITO)
@@ -317,7 +336,8 @@ class ModelFacturacion {
      */
     public function procesarDevolucion($ventaId, $detalleId, $destino) {
         try {
-            $this->db->beginTransaction();
+            // Se elimina beginTransaction de aquí. 
+            // La transacción ahora es controlada por BillingService.
 
             // 1. Obtener datos exactos del ítem y de la factura
             $this->db->query("SELECT vd.producto_id, vd.descripcion, vd.cantidad, vd.precio_unitario, 
@@ -412,13 +432,28 @@ class ModelFacturacion {
             $this->db->bind(':id', $detalleId);
             $this->db->execute();
 
-            $this->db->commit();
             return true;
         } catch (Exception $e) {
-            $this->db->rollBack();
             error_log("Error Devolución: " . $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * Obtiene un reporte de utilidad bruta (Venta - Costo)
+     */
+    public function obtenerReporteUtilidad($desde, $hasta) {
+        $this->db->query("SELECT 
+                            SUM(vd.precio_unitario * vd.cantidad) as total_ventas,
+                            SUM(vd.costo_unitario * vd.cantidad) as total_costos,
+                            (SUM(vd.precio_unitario * vd.cantidad) - SUM(vd.costo_unitario * vd.cantidad)) as utilidad_bruta
+                          FROM table_ventas_detalle vd
+                          JOIN table_ventas v ON vd.venta_id = v.id
+                          WHERE DATE(v.fecha) BETWEEN :desde AND :hasta 
+                          AND v.status IN ('COMPLETADO', 'CREDITO')");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        return $this->db->single();
     }
 }
 
