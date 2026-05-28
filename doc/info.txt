@@ -16,13 +16,13 @@ LISTO    3 Estandarización de Nomenclatura: Se observa una mezcla de camelCase 
 LISTO B- Funcionalidades Sugeridas (Nuevas Capacidades)
     1 Análisis de Rentabilidad: Actualmente, el flujo de caja mide dinero que entra y sale. Se podría agregar una tarjeta de Utilidad Bruta, comparando el precio_unitario de venta contra el ultimo_costo registrado en el inventario para saber cuánto se ganó realmente, más allá del movimiento de caja.
     
-    2 Sistema de Notificaciones (Alertas):
+LISTO    2 Sistema de Notificaciones (Alertas):
     Alertas automáticas cuando un producto llega al stock mínimo.
     Notificación visual en el dashboard para créditos que superen los 15 días (usando la lógica que ya tienes en alertasCredito).
     
     3 Módulo de "Órdenes de Trabajo": Antes de facturar, permitir crear una "Orden de Trabajo" (estado preventivo) donde se carguen servicios y repuestos sin afectar stock ni caja hasta que el cliente autorice y se convierta en factura.
     
-    4 Historial de Precios (Kardex Visual): Aunque el sistema registra movimientos en el Kardex, una vista para el administrador donde pueda ver la fluctuación del costo de un repuesto en el tiempo ayudaría a ajustar precios de venta.
+LISTO    4 Historial de Precios (Kardex Visual): Aunque el sistema registra movimientos en el Kardex, una vista para el administrador donde pueda ver la fluctuación del costo de un repuesto en el tiempo ayudaría a ajustar precios de venta.
     
     5 Estado de Cuenta de Cliente: Una funcionalidad para generar un PDF o vista rápida de todos los abonos y saldos pendientes de un cliente específico, facilitando la cobranza.
     

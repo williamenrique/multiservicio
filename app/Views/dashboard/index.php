@@ -2,6 +2,10 @@
                 <section id="sec-dashboard" class="content-section">
                     <h2 class="text-2xl font-bold mb-6">Resumen del Taller</h2>
                     
+                    <!-- Contenedores para Alertas Críticas (Stock y Cartera) -->
+                    <div id="dashboard-overdue-alert"></div>
+                    <div id="dashboard-stock-alert"></div>
+
                     <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2" id="financial-summary-heading">
                         <i data-lucide="activity"></i> Resumen Financiero
                     </h3>
@@ -9,11 +13,11 @@
                         <!-- Tarjetas financieras generadas via JS (Ventas, Órdenes, Gastos) -->
                     </div>
 
-                    <!-- Contenedor para la Tarjeta de Rentabilidad (Utilidad Bruta) -->
-                    <div id="dashboard-profitability-container" class="mb-8"></div>
-
-                    <!-- Nueva Sección Independiente para Deudores -->
-                    <div id="dashboard-debtors-card-container" class="mb-8"></div>
+                    <!-- Sección de Rentabilidad y Cartera en la misma fila -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div id="dashboard-profitability-container"></div>
+                        <div id="dashboard-debtors-card-container"></div>
+                    </div>
 
                     <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2"><i
                             data-lucide="package"></i> Estado de Inventario</h3>

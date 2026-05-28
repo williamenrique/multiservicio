@@ -1,89 +1,139 @@
-<div class="space-y-6">
-    <div class="bg-navy-blue p-6 rounded-xl border border-gray-800 shadow-lg flex justify-between items-center">
-        <div>
-            <h2 class="text-2xl font-bold text-white flex items-center gap-2">
-                <i data-lucide="package" class="text-neon-green"></i> Kardex de Inventario
-            </h2>
-            <p class="text-gray-400">Historial de movimientos para el producto: <span class="font-bold text-white"><?php echo s($producto->nombre); ?></span></p>
-        </div>
-        <a href="<?php echo URLROOT; ?>/inventario" class="text-gray-400 hover:text-white transition-colors">
-            <i data-lucide="x-circle" class="w-8 h-8"></i>
+<div class="container mx-auto p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-navy-blue">Kardex de: <span class="text-neon-green"><?php echo s($producto->nombre); ?></span></h2>
+        <a href="<?php echo URLROOT; ?>/inventario" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300 transition shadow-sm">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver al Inventario
         </a>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Información del Producto -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-fit">
-            <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Detalles del Producto</h3>
-            <div class="space-y-3">
-                <p class="flex justify-between text-sm">
-                    <span class="text-gray-500">Nombre:</span>
-                    <span class="font-bold text-slate-800"><?php echo s($producto->nombre); ?></span>
-                </p>
-                <p class="flex justify-between text-sm">
-                    <span class="text-gray-500">Categoría:</span>
-                    <span class="font-bold text-slate-800"><?php echo s($producto->categoria); ?></span>
-                </p>
-                <p class="flex justify-between text-sm">
-                    <span class="text-gray-500">Stock Actual:</span>
-                    <span class="font-bold text-slate-800"><?php echo $producto->stock; ?></span>
-                </p>
-                <p class="flex justify-between text-sm">
-                    <span class="text-gray-500">Stock Mínimo:</span>
-                    <span class="font-bold text-slate-800"><?php echo $producto->stock_minimo; ?></span>
-                </p>
-                <p class="flex justify-between text-sm">
-                    <span class="text-gray-500">Último Costo:</span>
-                    <span class="font-bold text-slate-800">$<?php echo number_format($producto->ultimo_costo, 2); ?></span>
-                </p>
-                <p class="flex justify-between text-sm">
-                    <span class="text-gray-500">Precio Venta:</span>
-                    <span class="font-bold text-slate-800">$<?php echo number_format($producto->precio, 2); ?></span>
-                </p>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div class="lg:col-span-1 glass-card p-6 rounded-xl border border-slate-100 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-600 mb-4">Detalles del Producto</h3>
+            <div class="flex items-center gap-4 mb-4">
+                <?php if (!empty($producto->imagen)): ?>
+                    <img src="<?php echo URLROOT . '/' . s($producto->imagen); ?>" class="w-20 h-20 object-cover rounded-lg border border-slate-200" alt="Imagen Producto">
+                <?php else: ?>
+                    <div class="w-20 h-20 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400">
+                        <i data-lucide="image-off" class="w-10 h-10"></i>
+                    </div>
+                <?php endif; ?>
+                <div>
+                    <p class="text-xl font-black text-navy-blue uppercase"><?php echo s($producto->nombre); ?></p>
+                    <p class="text-sm text-slate-500">Categoría: <span class="font-bold"><?php echo s($producto->categoria); ?></span></p>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <p class="text-sm text-slate-600">Stock Actual: <span class="font-bold text-navy-blue"><?php echo s($producto->stock); ?></span></p>
+                <p class="text-sm text-slate-600">Stock Mínimo: <span class="font-bold text-rose-500"><?php echo s($producto->stock_minimo); ?></span></p>
+                <p class="text-sm text-slate-600">Último Costo: <span class="font-bold text-emerald-600"><?php echo '$ ' . number_format((float)$producto->ultimo_costo, 2, ',', '.'); ?></span></p>
+                <p class="text-sm text-slate-600">Precio Venta: <span class="font-bold text-blue-600"><?php echo '$ ' . number_format((float)$producto->precio, 2, ',', '.'); ?></span></p>
             </div>
         </div>
 
-        <!-- Tabla de Movimientos Kardex -->
-        <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                <h3 class="font-bold text-slate-700 uppercase text-sm tracking-wider flex items-center gap-2">
-                    <i data-lucide="list-ordered" class="w-4 h-4"></i> Movimientos
-                </h3>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-100 text-slate-600 text-[11px] uppercase tracking-widest">
-                            <th class="px-6 py-4 font-bold">Fecha</th>
-                            <th class="px-6 py-4 font-bold">Tipo</th>
-                            <th class="px-6 py-4 font-bold">Cantidad</th>
-                            <th class="px-6 py-4 font-bold">Stock Anterior</th>
-                            <th class="px-6 py-4 font-bold">Stock Actual</th>
-                            <th class="px-6 py-4 font-bold">Usuario</th>
-                            <th class="px-6 py-4 font-bold">Observaciones</th>
+        <div class="lg:col-span-2 glass-card p-6 rounded-xl border border-slate-100 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-600 mb-4">Historial de Costos (Gráfico)</h3>
+            <?php if (!empty($costHistory)): ?>
+                <canvas id="costHistoryChart"></canvas>
+            <?php else: ?>
+                <div class="text-center py-10 text-slate-400 italic font-bold uppercase tracking-widest">
+                    No hay datos de compras para mostrar el historial de costos.
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <div class="glass-card p-6 rounded-xl w-full">
+        <h3 class="text-lg font-semibold text-slate-600 mb-4">Movimientos de Kardex</h3>
+        <?php if (!empty($kardexMovimientos)): ?>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Fecha</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tipo</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Cantidad</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock Anterior</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock Actual</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Referencia</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Observaciones</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        <?php if (empty($kardexMovimientos)): ?>
+                    <tbody class="bg-white divide-y divide-slate-200">
+                        <?php foreach ($kardexMovimientos as $mov): ?>
                             <tr>
-                                <td colspan="7" class="px-6 py-12 text-center text-gray-400 italic">No hay movimientos registrados para este producto.</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s(date('d/m/Y H:i', strtotime($mov->fecha))); ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium <?php echo ($mov->tipo_movimiento === 'ENTRADA_COMPRA' || $mov->tipo_movimiento === 'DEVOLUCION') ? 'text-emerald-600' : 'text-rose-600'; ?>"><?php echo s(str_replace('_', ' ', $mov->tipo_movimiento)); ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->cantidad); ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->stock_anterior); ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->stock_actual); ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->referencia_id); ?></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->observaciones); ?></td>
                             </tr>
-                        <?php else: ?>
-                            <?php foreach($kardexMovimientos as $mov): ?>
-                            <tr class="hover:bg-slate-50 transition-colors">
-                                <td class="px-6 py-4 text-sm"><?php echo date('d/m/Y H:i', strtotime($mov->fecha)); ?></td>
-                                <td class="px-6 py-4 text-sm font-bold <?php echo (strpos($mov->tipo_movimiento, 'ENTRADA') !== false || strpos($mov->tipo_movimiento, 'DEVOLUCION') !== false) ? 'text-green-600' : 'text-red-600'; ?>"><?php echo s(str_replace('_', ' ', $mov->tipo_movimiento)); ?></td>
-                                <td class="px-6 py-4 text-sm"><?php echo $mov->cantidad; ?></td>
-                                <td class="px-6 py-4 text-sm"><?php echo $mov->stock_anterior; ?></td>
-                                <td class="px-6 py-4 text-sm"><?php echo $mov->stock_actual; ?></td>
-                                <td class="px-6 py-4 text-sm"><?php echo s($mov->usuario_nombre); ?></td>
-                                <td class="px-6 py-4 text-sm text-gray-600"><?php echo s($mov->observaciones); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
-        </div>
+        <?php else: ?>
+            <div class="text-center py-10 text-slate-400 italic font-bold uppercase tracking-widest">
+                No hay movimientos de kardex para este producto.
+            </div>
+        <?php endif; ?>
     </div>
 </div>
+
+<?php if (!empty($costHistory)): ?>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const costHistoryData = <?php echo json_encode($costHistory); ?>;
+        const ctx = document.getElementById('costHistoryChart').getContext('2d');
+
+        const labels = costHistoryData.map(item => new Date(item.fecha).toLocaleDateString());
+        const data = costHistoryData.map(item => parseFloat(item.costo_unitario));
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Costo Unitario',
+                    data: data,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, // Permite que el gráfico se ajuste al contenedor
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Fluctuación del Costo Unitario a lo largo del tiempo'
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'category', // Usa 'category' para cadenas de fecha
+                        title: {
+                            display: true,
+                            text: 'Fecha de Compra'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Costo Unitario (COP)'
+                        },
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value, index, values) {
+                                return AppUtils.formatCurrency(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+<?php endif; ?>

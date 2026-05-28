@@ -68,11 +68,13 @@ class ControllerInventario extends Controller {
             redirect('inventario?error=producto_no_encontrado');
         }
         $kardexMovimientos = $this->inventarioModel->obtenerKardexPorProducto($producto_id);
+        $costHistory = $this->inventarioModel->getCostHistory($producto_id);
 
         $this->view('inventario/kardex', [
             'titulo' => 'Kardex de ' . $producto->nombre,
             'producto' => $producto,
-            'kardexMovimientos' => $kardexMovimientos
+            'kardexMovimientos' => $kardexMovimientos,
+            'costHistory' => $costHistory
         ]);
     }
 

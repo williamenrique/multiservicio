@@ -163,6 +163,19 @@ class ModelInventario {
     }
 
     /**
+     * Obtiene el historial de costos de un producto a partir de sus compras.
+     */
+    public function getCostHistory($productId) {
+        $this->db->query("SELECT cd.costo_unitario, c.fecha
+                          FROM table_compras_detalle cd
+                          JOIN table_compras c ON cd.compra_id = c.id
+                          WHERE cd.producto_id = :pid
+                          ORDER BY c.fecha ASC");
+        $this->db->bind(':pid', $productId);
+        return $this->db->resultSet();
+    }
+
+    /**
      * Obtiene los productos que están en nivel crítico o agotados
      */
     public function obtenerBajoStock() {

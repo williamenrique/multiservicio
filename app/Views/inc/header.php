@@ -102,6 +102,7 @@
                     <div id="recovery-bell-container"></div>
                     <!-- Indicador de estado de caja -->
                     <div id="caja-status-container"></div>
+                    <div id="low-stock-notifications-container"></div>
                     <div id="credit-notifications-container"></div>
                     <div id="notifications-area"></div>
                 </div>
