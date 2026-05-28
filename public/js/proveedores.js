@@ -73,6 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td class="px-8 py-5 text-right align-middle">
                     <div class="flex justify-end gap-2">
+                        <button onclick="window.registrarCompra('${item.id}', '${item.nombre}')" class="flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-blue-500 text-slate-500 hover:text-white rounded-2xl transition-all shadow-sm" title="Ingresar Mercancía">
+                            <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                        </button>
                         <button onclick="editItem('${item.id}')" class="flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-neon-green text-slate-500 hover:text-black rounded-2xl transition-all shadow-sm">
                             <i data-lucide="edit-3" class="w-4 h-4"></i>
                         </button>
@@ -177,21 +180,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 500);
     });
 
-    window.switchTab = (tab) => {
+    window.switchProveedorTab = window.switchTab = (tab) => {
         const secLista = document.getElementById('sec-lista');
         const secDeudas = document.getElementById('sec-deudas');
+        const tabLista = document.getElementById('tab-lista');
+        const tabDeudas = document.getElementById('tab-deudas');
         const topControls = document.getElementById('custom-top-controls');
         const bottomControls = document.getElementById('custom-bottom-controls');
+
+        // Resetear estilos de pestañas (quitar resaltado verde)
+        [tabLista, tabDeudas].forEach(t => {
+            if (t) {
+                t.classList.remove('border-neon-green', 'text-navy-blue');
+                t.classList.add('border-transparent', 'text-slate-400');
+            }
+        });
 
         if (tab === 'lista') {
             secLista.classList.remove('hidden');
             secDeudas.classList.add('hidden');
+            if (tabLista) tabLista.classList.add('border-neon-green', 'text-navy-blue');
             if (topControls) topControls.classList.remove('hidden');
             if (bottomControls) bottomControls.classList.remove('hidden');
             loadProveedores();
         } else {
             secDeudas.classList.remove('hidden');
             secLista.classList.add('hidden');
+            if (tabDeudas) tabDeudas.classList.add('border-neon-green', 'text-navy-blue');
             if (topControls) topControls.classList.add('hidden');
             if (bottomControls) bottomControls.classList.add('hidden');
             // Carga simple para deudas (no requiere paginación compleja)
@@ -228,7 +243,163 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             tableDeudasBody.appendChild(row);
         });
+        if (window.lucide) lucide.createIcons();
     };
 
-    loadProveedores();
+    /**
+     * Abre el modal para registrar ingreso de mercancía (Compra)
+     */
+    window.registrarCompra = async (proveedorId, proveedorNombre) => {
+        const { value: formValues } = await Swal.fire({
+            title: `<span class="text-xs uppercase text-slate-400 font-black">Ingreso de Mercancía</span><br><span class="text-navy-blue">${proveedorNombre}</span>`,
+            html: `
+                <div class="text-left space-y-3 pt-4 relative">
+                    <input type="hidden" id="compra-producto-id">
+                    <div class="relative">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Buscar o Escribir Producto</label>
+                        <input id="compra-producto-nombre" class="w-full p-2 bg-slate-50 border rounded-lg text-sm uppercase" placeholder="Ej: ACEITE 20W50">
+                        <div id="compra-search-results" class="hidden absolute z-50 w-full bg-white shadow-xl rounded-lg border border-slate-100 max-h-40 overflow-y-auto mt-1"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Categoría</label>
+                            <input id="compra-categoria" class="w-full p-2 bg-slate-50 border rounded-lg text-sm uppercase" value="REPUESTOS">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Cantidad</label>
+                            <input id="compra-cantidad" type="number" class="w-full p-2 bg-slate-50 border rounded-lg text-sm" value="1">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Costo Unitario</label>
+                            <input id="compra-costo" type="number" class="w-full p-2 bg-slate-50 border rounded-lg text-sm" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Precio Venta Sugerido</label>
+                            <input id="compra-precio-venta" type="number" class="w-full p-2 bg-slate-50 border rounded-lg text-sm" placeholder="0">
+                        </div>
+                    </div>
+                    <hr class="border-slate-100">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Monto Abonado Hoy</label>
+                            <input id="compra-pagado" type="number" class="w-full p-2 bg-emerald-50 border-emerald-100 rounded-lg text-sm font-bold" value="0">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Fecha de Cobro (Límite)</label>
+                            <input id="compra-fecha-cobro" type="date" class="w-full p-2 bg-slate-50 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                </div>`,
+            showCancelButton: true,
+            confirmButtonText: 'REGISTRAR INGRESO',
+            confirmButtonColor: '#10b981',
+            didOpen: () => {
+                const input = document.getElementById('compra-producto-nombre');
+                const results = document.getElementById('compra-search-results');
+                input.addEventListener('input', async () => {
+                    const term = input.value.trim();
+                    if (term.length < 2) { results.classList.add('hidden'); return; }
+                    const res = await fetch(`${URLROOT}/facturacion/buscarItems?term=${term}`);
+                    const items = await res.json();
+                    if (items.length > 0) {
+                        results.innerHTML = items.map(i => `
+                            <div class="p-3 hover:bg-slate-50 cursor-pointer text-[11px] uppercase border-b border-slate-50 last:border-0 flex justify-between" 
+                                 onclick="window.setProductoCompra('${i.id}', '${i.nombre.replace(/'/g, "\\'")}', '${i.categoria}', ${i.ultimo_costo}, ${i.precio})">
+                                <span>${i.nombre}</span>
+                                <span class="font-bold text-navy-blue">${AppUtils.formatCurrency(i.precio)}</span>
+                            </div>`).join('');
+                        results.classList.remove('hidden');
+                    }
+                });
+            },
+            preConfirm: () => {
+                const nombre = document.getElementById('compra-producto-nombre').value;
+                const cantidad = parseFloat(document.getElementById('compra-cantidad').value);
+                const costo = parseFloat(document.getElementById('compra-costo').value);
+                if (!nombre || isNaN(cantidad) || isNaN(costo) || cantidad <= 0 || costo < 0) {
+                    Swal.showValidationMessage('Complete nombre, cantidad y costo correctamente');
+                    return false;
+                }
+                return {
+                    proveedor_id: proveedorId,
+                    producto_id: document.getElementById('compra-producto-id').value,
+                    nombre: nombre.toUpperCase(),
+                    categoria: document.getElementById('compra-categoria').value.toUpperCase(),
+                    cantidad,
+                    costo,
+                    precio_venta: parseFloat(document.getElementById('compra-precio-venta').value) || 0,
+                    pagado: parseFloat(document.getElementById('compra-pagado').value) || 0,
+                    fecha_cobro: document.getElementById('compra-fecha-cobro').value
+                };
+            }
+        });
+
+        if (formValues) {
+            AppUtils.showLoading('Procesando ingreso...');
+            const res = await fetch(`${URLROOT}/proveedores/registrarCompra`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formValues)
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            if (result.success) {
+                AppUtils.showToast(result.mensaje);
+                loadProveedores();
+            } else {
+                AppUtils.showAlert('Error', result.mensaje, 'error');
+            }
+        }
+    };
+
+    window.setProductoCompra = (id, nombre, cat, costo, precio) => {
+        document.getElementById('compra-producto-id').value = id;
+        document.getElementById('compra-producto-nombre').value = nombre;
+        document.getElementById('compra-categoria').value = cat;
+        document.getElementById('compra-costo').value = costo;
+        document.getElementById('compra-precio-venta').value = precio;
+        document.getElementById('compra-search-results').classList.add('hidden');
+    };
+
+    window.openPaymentModal = async (proveedorId) => {
+        const res = await fetch(`${URLROOT}/proveedores/listarComprasPendientes/${proveedorId}`);
+        const compras = await res.json();
+
+        const { value: formValues } = await Swal.fire({
+            title: 'Registrar Abono a Proveedor',
+            html: `
+                <div class="text-left space-y-4 pt-4">
+                    <select id="pago-compra-id" class="w-full p-2 border rounded-lg text-sm">
+                        ${compras.data.map(c => `<option value="${c.id}">Factura #${c.id} - Saldo: ${AppUtils.formatCurrency(c.total - c.pagado)}</option>`).join('')}
+                    </select>
+                    <input id="pago-monto" type="number" class="w-full p-2 border rounded-lg text-sm" placeholder="Monto a abonar">
+                </div>`,
+            preConfirm: () => ({
+                compra_id: document.getElementById('pago-compra-id').value,
+                monto: document.getElementById('pago-monto').value
+            })
+        });
+
+        if (formValues && formValues.monto > 0) {
+            const resPago = await fetch(`${URLROOT}/proveedores/registrarPago`, {
+                method: 'POST',
+                body: JSON.stringify(formValues)
+            });
+            const result = await resPago.json();
+            if (result.success) {
+                AppUtils.showToast(result.mensaje);
+                window.switchTab('deudas');
+            }
+        }
+    };
+
+    // Manejo de pestaña inicial por URL (Ej: proveedores?tab=deudas)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('tab') === 'deudas') {
+        window.switchTab('deudas');
+    } else {
+        loadProveedores();
+    }
 });
