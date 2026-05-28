@@ -195,12 +195,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (topControls) topControls.classList.add('hidden');
             if (bottomControls) bottomControls.classList.add('hidden');
             // Carga simple para deudas (no requiere paginación compleja)
-            fetch(`${URLROOT}/proveedores/listarDeudas`).then(r => r.json()).then(renderDeudas);
+            fetch(`${URLROOT}/proveedores/listarDeudas`)
+                .then(r => r.json())
+                .then(res => renderDeudas(res.data || []));
         }
     };
 
     const renderDeudas = (deudas) => {
         tableDeudasBody.innerHTML = '';
+
+        if (!deudas || deudas.length === 0) {
+            tableDeudasBody.innerHTML = `
+                <tr><td colspan="5" class="text-center py-20 text-slate-400 italic font-bold uppercase tracking-widest">No hay deudas pendientes con proveedores</td></tr>`;
+            return;
+        }
+
         deudas.forEach(d => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-50 border-b border-slate-100';
