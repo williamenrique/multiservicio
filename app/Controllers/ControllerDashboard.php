@@ -1,11 +1,13 @@
 <?php
 class ControllerDashboard extends Controller {
     private $dashboardModel;
+    private $facturaModel;
 
     public function __construct() {
         AuthGuard::handle(); // Asegurar que solo usuarios logueados accedan
         // Cargamos el modelo centralizado
         $this->dashboardModel = $this->model('Dashboard');
+        $this->facturaModel = $this->model('Facturacion');
     }
 
     public function index() {
@@ -24,6 +26,10 @@ class ControllerDashboard extends Controller {
         // El Administrador (Rol 1) no tiene filtro de usuario, ve todo.
         // Los demás roles (Mecánicos, etc.) ven solo sus registros.
         $usuarioFiltro = RoleGuard::is_admin_check() ? null : $_SESSION['user_id'];
+        
+        $desde = date('Y-m-01');
+        $hasta = date('Y-m-d');
+
         // Centralizamos la llamada a través del modelo
         $this->jsonResponse([
             'inventory' => $this->dashboardModel->getInventoryStats(),
@@ -34,7 +40,8 @@ class ControllerDashboard extends Controller {
             'supplierDebts' => $this->dashboardModel->getSupplierDebtsSummary(),
             'history' => $this->dashboardModel->getFinancialHistory(7, $usuarioFiltro),
             'recentExpenses' => $this->dashboardModel->getRecentExpenses(),
-            'lowStock' => $this->dashboardModel->getLowStockProducts()
+            'lowStock' => $this->dashboardModel->getLowStockProducts(),
+            'profitability' => $this->facturaModel->obtenerReporteUtilidad($desde, $hasta)
         ]);
     }
 }

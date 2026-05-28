@@ -23,12 +23,6 @@ class BillingService {
         try {
             $this->db->beginTransaction();
 
-            // 1. Validar Caja Abierta (Doble verificación de seguridad)
-            $sesionCaja = $this->cajaModel->obtenerSesionActiva();
-            if (!$sesionCaja) {
-                throw new Exception("No hay una sesión de caja abierta.");
-            }
-
             // 2. Validar Stock Disponible (Físico - Comprometido por otros)
             $ventaIdActual = !empty($datos['id_db']) ? $datos['id_db'] : 0;
 
@@ -65,7 +59,7 @@ class BillingService {
             // 4. Registrar Movimientos de Caja
             if ((float)$datos['pago_efectivo'] > 0) {
                 $this->cajaModel->registrarMovimiento([
-                    'sesion_id' => $sesionCaja->id,
+                    'sesion_id' => null,
                     'tipo' => 'INGRESO',
                     'monto' => $datos['pago_efectivo'],
                     'metodo_pago' => 'EFECTIVO',
@@ -76,7 +70,7 @@ class BillingService {
 
             if ((float)$datos['pago_transferencia'] > 0) {
                 $this->cajaModel->registrarMovimiento([
-                    'sesion_id' => $sesionCaja->id,
+                    'sesion_id' => null,
                     'tipo' => 'INGRESO',
                     'monto' => $datos['pago_transferencia'],
                     'metodo_pago' => 'TRANSFERENCIA',
@@ -105,11 +99,6 @@ class BillingService {
         try {
             $this->db->beginTransaction();
 
-            $sesionCaja = $this->cajaModel->obtenerSesionActiva();
-            if (!$sesionCaja) {
-                throw new Exception("Debe abrir caja para recibir abonos.");
-            }
-
             // Registrar abono en el modelo
             $res = $this->facturaModel->registrarAbono($ventaId, $monto, $metodo);
             
@@ -117,7 +106,7 @@ class BillingService {
 
             // Registrar en caja
             $this->cajaModel->registrarMovimiento([
-                'sesion_id' => $sesionCaja->id,
+                'sesion_id' => null,
                 'tipo' => 'INGRESO',
                 'monto' => $monto,
                 'metodo_pago' => $metodo,

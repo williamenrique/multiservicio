@@ -9,6 +9,9 @@
                         <!-- Tarjetas financieras generadas via JS (Ventas, Órdenes, Gastos) -->
                     </div>
 
+                    <!-- Contenedor para la Tarjeta de Rentabilidad (Utilidad Bruta) -->
+                    <div id="dashboard-profitability-container" class="mb-8"></div>
+
                     <!-- Nueva Sección Independiente para Deudores -->
                     <div id="dashboard-debtors-card-container" class="mb-8"></div>
 
