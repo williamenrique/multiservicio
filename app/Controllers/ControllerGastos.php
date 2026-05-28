@@ -24,20 +24,12 @@ class ControllerGastos extends Controller {
             try {
                 // Si el gasto es en EFECTIVO, debe haber una caja abierta
                 $metodo = $input['metodo_pago'] ?? 'EFECTIVO';
-                $sesionActiva = null;
-
-                if ($metodo === 'EFECTIVO') {
-                    $sesionActiva = $this->cajaModel->obtenerSesionActiva();
-                    if (!$sesionActiva) {
-                        throw new Exception('Debe abrir caja para registrar un gasto en efectivo.');
-                    }
-                }
 
                 $idGasto = $this->gastoModel->crear($input);
                 
                 if ($idGasto && $metodo === 'EFECTIVO') {
                     $this->cajaModel->registrarMovimiento([
-                        'sesion_id' => $sesionActiva->id,
+                        'sesion_id' => null,
                         'tipo' => 'EGRESO',
                         'monto' => $input['monto'],
                         'metodo_pago' => 'EFECTIVO',

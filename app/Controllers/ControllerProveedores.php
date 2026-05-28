@@ -61,17 +61,11 @@ class ControllerProveedores extends Controller {
         RoleGuard::isAdmin();
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = json_decode(file_get_contents('php://input'), true);
-
-            // Validar caja si el pago es en efectivo
-            $sesionActiva = $this->cajaModel->obtenerSesionActiva();
-            if (!$sesionActiva) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'Debe abrir caja para registrar pagos en efectivo.'], 400);
-            }
             
             if ($this->proveedorModel->registrarPagoCompra($data)) {
                 // Registrar el egreso en caja
                 $this->cajaModel->registrarMovimiento([
-                    'sesion_id' => $sesionActiva->id,
+                    'sesion_id' => null,
                     'tipo' => 'EGRESO',
                     'monto' => $data['monto'],
                     'metodo_pago' => 'EFECTIVO',

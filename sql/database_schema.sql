@@ -281,7 +281,7 @@ CREATE TABLE IF NOT EXISTS `table_sesiones_caja` (
 -- 16. Estructura para los movimientos detallados de dinero dentro de la sesión
 CREATE TABLE IF NOT EXISTS `table_caja_movimientos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `sesion_id` int(11) NOT NULL,
+  `sesion_id` int(11) DEFAULT NULL,
   `tipo` enum('INGRESO','EGRESO') NOT NULL,
   `monto` decimal(12,2) NOT NULL,
   `metodo_pago` enum('EFECTIVO','TRANSFERENCIA') NOT NULL,
@@ -290,7 +290,7 @@ CREATE TABLE IF NOT EXISTS `table_caja_movimientos` (
   `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `sesion_id` (`sesion_id`),
-  CONSTRAINT `fk_movimiento_sesion` FOREIGN KEY (`sesion_id`) REFERENCES `table_sesiones_caja` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_movimiento_sesion` FOREIGN KEY (`sesion_id`) REFERENCES `table_sesiones_caja` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 15. Tabla de Gastos (Egresos Operativos del Taller)
