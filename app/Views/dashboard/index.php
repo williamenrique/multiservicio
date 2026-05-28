@@ -15,8 +15,8 @@
 
                     <!-- Sección de Rentabilidad y Cartera en la misma fila -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                        <div id="dashboard-profitability-container"></div>
-                        <div id="dashboard-debtors-card-container"></div>
+                        <div id="dashboard-profitability-container" class="h-full"></div>
+                        <div id="dashboard-debtors-card-container" class="h-full"></div>
                     </div>
 
                     <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2"><i

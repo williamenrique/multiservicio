@@ -34,9 +34,11 @@ function redirect($page) {
 
 /**
  * Sanitiza cadenas de texto para evitar ataques XSS al imprimir en HTML
+ * @param string $html String a sanear.
+ * @return string String saneado.
  */
-function s($string) {
-    return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
+function s(?string $html): string {
+    return htmlspecialchars($html ?? '');
 }
 
 /**

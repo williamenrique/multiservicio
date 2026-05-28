@@ -33,7 +33,9 @@
         <div class="lg:col-span-2 glass-card p-6 rounded-xl border border-slate-100 shadow-sm">
             <h3 class="text-lg font-semibold text-slate-600 mb-4">Historial de Costos (Gráfico)</h3>
             <?php if (!empty($costHistory)): ?>
-                <canvas id="costHistoryChart"></canvas>
+                <div class="relative h-64 md:h-80 w-full">
+                    <canvas id="costHistoryChart"></canvas>
+                </div>
             <?php else: ?>
                 <div class="text-center py-10 text-slate-400 italic font-bold uppercase tracking-widest">
                     No hay datos de compras para mostrar el historial de costos.
