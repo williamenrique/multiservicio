@@ -45,13 +45,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const result = await response.json();
-            if (result.success) {
-                AppUtils.showAlert('¡Éxito!', result.mensaje, 'success');
-            } else {
-                AppUtils.showAlert('Error', result.mensaje, 'error');
-            }
         } catch (error) {
             AppUtils.showAlert('Error', 'No se pudo conectar con el servidor', 'error');
+        } finally {
+            AppUtils.hideLoading();
+            if (typeof result !== 'undefined') {
+                if (result.success) AppUtils.showAlert('¡Éxito!', result.mensaje, 'success');
+                else AppUtils.showAlert('Error', result.mensaje, 'error');
+            }
         }
     });
 });

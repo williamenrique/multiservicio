@@ -57,9 +57,6 @@
                         <i data-lucide="wallet"></i> <span>Gastos del Taller</span>
                     </a>
                     <?php if($_SESSION['user_role'] === 'ADMINISTRADOR'): ?>
-                    <a href="javascript:void(0);" onclick="event.preventDefault(); CajaUI.init()" class="nav-link" data-section="caja">
-                        <i data-lucide="calculator"></i> <span>Arqueo de Caja</span>
-                    </a>
                     <a href="<?php echo URLROOT; ?>/reportes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'reportes') !== false) ? 'active' : ''; ?>" data-section="reportes">
                         <i data-lucide="bar-chart-big"></i> <span>Reportes Contables</span>
                     </a>
@@ -100,8 +97,6 @@
                     </div>
                     <!-- Contenedor dinámico para la campana de recuperación -->
                     <div id="recovery-bell-container"></div>
-                    <!-- Indicador de estado de caja -->
-                    <div id="caja-status-container"></div>
                     <div id="low-stock-notifications-container"></div>
                     <div id="credit-notifications-container"></div>
                     <div id="notifications-area"></div>

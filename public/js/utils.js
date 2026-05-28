@@ -108,12 +108,16 @@ const AppUtils = {
         Swal.fire({
             title: msg,
             allowOutsideClick: false,
+            showConfirmButton: false,
             didOpen: () => { Swal.showLoading(); }
         });
+        setTimeout(() => { if (Swal.isVisible() && Swal.isLoading()) Swal.close(); }, 20000);
     },
 
     /**
      * Oculta la pantalla de carga
      */
-    hideLoading: () => { Swal.close(); }
+    hideLoading: () => {
+        if (Swal.isVisible()) Swal.close();
+    }
 };

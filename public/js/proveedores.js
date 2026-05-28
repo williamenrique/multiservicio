@@ -337,19 +337,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (formValues) {
-            AppUtils.showLoading('Procesando ingreso...');
-            const res = await fetch(`${URLROOT}/proveedores/registrarCompra`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formValues)
-            });
-            const result = await res.json();
-            AppUtils.hideLoading();
-            if (result.success) {
-                AppUtils.showToast(result.mensaje);
-                loadProveedores();
-            } else {
-                AppUtils.showAlert('Error', result.mensaje, 'error');
+            try {
+                AppUtils.showLoading('Procesando ingreso...');
+                const res = await fetch(`${URLROOT}/proveedores/registrarCompra`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formValues)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    AppUtils.showToast(result.mensaje);
+                    loadProveedores();
+                } else {
+                    AppUtils.showAlert('Error', result.mensaje, 'error');
+                }
+            } catch (error) {
+                AppUtils.showAlert('Error', 'No se pudo conectar con el servidor o hubo un problema.', 'error');
+            } finally {
+                AppUtils.hideLoading(); // Asegurar que el cargador se oculte en todos los casos
             }
         }
     };
