@@ -9,13 +9,13 @@ class ControllerProveedores extends Controller {
 
     public function __construct() {
         AuthGuard::handle();
+        RoleGuard::isAdmin(); // Solo el administrador gestiona proveedores
         $this->proveedorModel = $this->model('Proveedor');
         $this->inventarioModel = $this->model('Inventario');
         $this->cajaModel = $this->model('Caja');
     }
 
     public function index() {
-        RoleGuard::hasAccess(['ADMINISTRADOR']);
         $empresaModel = $this->model('Empresa');
         $config = $empresaModel->obtenerConfiguracion();
         
@@ -58,7 +58,6 @@ class ControllerProveedores extends Controller {
     }
 
     public function registrarPago() {
-        RoleGuard::isAdmin();
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = json_decode(file_get_contents('php://input'), true);
             
@@ -85,7 +84,6 @@ class ControllerProveedores extends Controller {
      * Maneja: Creación/Actualización de producto + Registro de deuda
      */
     public function registrarCompra() {
-        RoleGuard::isAdmin();
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = json_decode(file_get_contents('php://input'), true);
 
@@ -104,18 +102,35 @@ class ControllerProveedores extends Controller {
     }
 
     public function guardar() {
-        RoleGuard::isAdmin();
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $data = json_decode(file_get_contents('php://input'), true);
-            $res = $this->proveedorModel->guardar($data);
-            return $this->jsonResponse(['success' => $res]);
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            // Validación de campos requeridos usando el Helper Validator
+            $v = new Validator($input);
+            $v->required(['id', 'nombre', 'telefono']);
+
+            if (!$v->success()) {
+                return $this->jsonResponse([
+                    'success' => false, 
+                    'mensaje' => 'Faltan campos obligatorios', 
+                    'errors' => $v->getErrors()
+                ], 400);
+            }
+
+            $res = $this->proveedorModel->guardar($input);
+            
+            return $this->jsonResponse([
+                'success' => $res,
+                'mensaje' => $res ? 'Proveedor guardado correctamente' : 'Error al procesar la solicitud'
+            ]);
         }
     }
 
     public function eliminar($id = null) {
-        RoleGuard::isAdmin();
-        $res = $this->proveedorModel->eliminar($id);
-        return $this->jsonResponse(['success' => $res]);
+        if ($_SERVER['REQUEST_METHOD'] == 'DELETE' || $_SERVER['REQUEST_METHOD'] == 'POST') {
+            $res = $this->proveedorModel->eliminar($id);
+            return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Eliminado' : 'Error']);
+        }
     }
 
     public function obtenerDetalleCompra($id) {
@@ -126,7 +141,6 @@ class ControllerProveedores extends Controller {
      * Endpoint para obtener los datos de un proveedor específico (AJAX)
      */
     public function obtener($id) {
-        RoleGuard::isAdmin();
         return $this->jsonResponse($this->proveedorModel->obtenerPorId($id));
     }
 }

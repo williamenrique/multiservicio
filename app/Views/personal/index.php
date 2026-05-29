@@ -127,10 +127,63 @@
             </div>
             <div class="pt-4 flex gap-3">
                 <button type="button" id="btnCancel" class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 uppercase text-xs">Cancelar</button>
-                <button type="submit" class="flex-1 bg-neon-green text-black font-black py-3 rounded-xl hover:scale-[1.02] uppercase text-xs">Guardar Empleado</button>
+                <button type="submit" id="btnSaveStaff" class="flex-1 bg-neon-green text-black font-black py-3 rounded-xl hover:scale-[1.02] uppercase text-xs flex items-center justify-center gap-2">Guardar Empleado</button>
             </div>
         </form>
     </div>
 </div>
 
 <script src="<?php echo URLROOT; ?>/js/personal.js"></script>
+
+<script>
+    /**
+     * Manejo del envío del formulario de personal
+     * Se integra aquí para corregir la posición del spinner y manejar el token CSRF
+     */
+    document.getElementById('formStaff')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation(); // Evita conflictos si hay otros listeners en personal.js
+
+        const btnSave = document.getElementById('btnSaveStaff');
+        if (btnSave.disabled) return;
+
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        
+        // Capturar explícitamente el estado del acceso al sistema
+        data.has_system_access = document.getElementById('hasSystemAccess').checked;
+
+        try {
+            btnSave.disabled = true;
+            // Las clases flex items-center justify-center en el botón aseguran el centrado
+            btnSave.innerHTML = '<i class="animate-spin w-4 h-4" data-lucide="loader-2"></i> PROCESANDO...';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            const response = await fetch(`${URLROOT}/personal/guardar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                AppUtils.showToast(result.mensaje || 'Empleado guardado correctamente');
+                const modal = document.getElementById('staffModal');
+                if (modal) modal.classList.add('hidden');
+                if (typeof window.loadStaff === 'function') window.loadStaff();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al procesar la solicitud', 'error');
+            }
+        } catch (error) {
+            AppUtils.showToast('Error de conexión con el servidor', 'error');
+        } finally {
+            btnSave.disabled = false;
+            btnSave.textContent = 'Guardar Empleado';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    });
+</script>

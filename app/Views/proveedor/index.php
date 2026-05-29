@@ -113,7 +113,7 @@
 
             <div class="flex gap-3 pt-4 border-t border-slate-100">
                 <button type="button" id="btnCancel" class="flex-1 px-4 py-2.5 border border-slate-200 text-slate-500 font-bold rounded-lg hover:bg-slate-50 transition-all uppercase text-xs">Cancelar</button>
-                <button type="submit" class="flex-1 px-4 py-2.5 bg-navy-blue text-white font-bold rounded-lg hover:opacity-90 transition-all uppercase text-xs shadow-lg shadow-navy-blue/20">Guardar Proveedor</button>
+                <button type="submit" class="flex-1 px-4 py-2.5 bg-navy-blue text-white font-bold rounded-lg hover:opacity-90 transition-all uppercase text-xs shadow-lg shadow-navy-blue/20 flex items-center justify-center gap-2">Guardar Proveedor</button>
             </div>
         </form>
     </div>
@@ -181,7 +181,7 @@
 
             <div class="flex gap-3 pt-4 border-t border-slate-100">
                 <button type="button" id="btnCancelCompra" class="flex-1 px-4 py-2.5 border border-slate-200 text-slate-500 font-bold rounded-lg hover:bg-slate-50 transition-all uppercase text-xs">Cancelar</button>
-                <button type="submit" class="flex-1 px-4 py-2.5 bg-navy-blue text-white font-bold rounded-lg hover:opacity-90 transition-all uppercase text-xs shadow-lg shadow-navy-blue/20">Registrar Ingreso</button>
+                <button type="submit" class="flex-1 px-4 py-2.5 bg-navy-blue text-white font-bold rounded-lg hover:opacity-90 transition-all uppercase text-xs shadow-lg shadow-navy-blue/20 flex items-center justify-center gap-2">Registrar Ingreso</button>
             </div>
         </form>
     </div>
@@ -245,16 +245,25 @@
      * Previene la recarga de la página y envía los datos como JSON
      */
     document.getElementById('formProveedor')?.addEventListener('submit', async (e) => {
-        e.preventDefault(); // Detener la recarga de la página
+        e.preventDefault();
+        e.stopImmediatePropagation(); // Evita que otros listeners (ej. en proveedores.js) se ejecuten
+
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        if (btnSubmit.disabled) return; // Si ya se está enviando, no hacer nada
 
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
 
         try {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<i class="animate-spin w-4 h-4" data-lucide="loader-2"></i> PROCESANDO...';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
             const response = await fetch(`${URLROOT}/proveedores/guardar`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
                 },
                 body: JSON.stringify(data)
             });
@@ -264,16 +273,23 @@
             if (result.success) {
                 AppUtils.showToast('Proveedor guardado correctamente');
                 closeModal();
-                // Recargar la tabla si la función existe en proveedores.js
                 if (typeof window.loadProveedores === 'function') {
                     window.loadProveedores();
                 }
             } else {
-                AppUtils.showToast(result.mensaje || 'Error al guardar el proveedor', 'error');
+                // Si el error contiene "Duplicate entry", mostrar un mensaje amigable
+                const errorMsg = (result.error && result.error.includes('Duplicate entry')) 
+                    ? 'El ID/NIT ingresado ya existe en el sistema' 
+                    : (result.mensaje || 'Error al procesar la solicitud');
+                AppUtils.showToast(errorMsg, 'error');
             }
         } catch (error) {
             console.error("Error en la petición:", error);
-            AppUtils.showToast('Error de conexión con el servidor', 'error');
+            AppUtils.showToast('Error de red o servidor', 'error');
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Guardar Proveedor';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     });
 </script>

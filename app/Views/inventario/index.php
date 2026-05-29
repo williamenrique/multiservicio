@@ -114,7 +114,7 @@
 
             <div class="pt-4 flex gap-3">
                 <button type="button" id="btnCancel" class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 uppercase text-xs">Cancelar</button>
-                <button type="submit" class="flex-1 bg-neon-green text-black font-black py-3 rounded-xl hover:scale-[1.02] uppercase text-xs">Guardar Item</button>
+                <button type="submit" class="flex-1 bg-neon-green text-black font-black py-3 rounded-xl hover:scale-[1.02] uppercase text-xs flex items-center justify-center gap-2">Guardar Item</button>
             </div>
         </form>
     </div>
@@ -128,6 +128,57 @@
     if (typeof window.URLROOT === 'undefined') {
         window.URLROOT = "<?php echo URLROOT; ?>";
     }
+
+    const closeInventoryModal = () => {
+        const modal = document.getElementById('inventoryModal');
+        if (modal) modal.classList.add('hidden');
+        document.getElementById('formInventory').reset();
+        document.getElementById('imagePreview').innerHTML = '<i data-lucide="image" class="w-8 h-8 text-slate-300"></i>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+
+    document.getElementById('formInventory')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        if (btnSubmit.disabled) return;
+
+        // Usamos FormData directamente porque este formulario incluye archivos (imagen)
+        const formData = new FormData(e.target);
+
+        try {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<i class="animate-spin w-4 h-4" data-lucide="loader-2"></i> PROCESANDO...';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            const response = await fetch(`${URLROOT}/inventario/guardar`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                AppUtils.showToast(result.mensaje || 'Producto guardado');
+                closeInventoryModal();
+                if (typeof window.loadInventory === 'function') {
+                    window.loadInventory();
+                }
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al guardar', 'error');
+            }
+        } catch (error) {
+            AppUtils.showToast('Error de red o servidor', 'error');
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Guardar Item';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    });
 </script>
 <script src="<?php echo URLROOT; ?>/js/inventario.js"></script>
 <script>

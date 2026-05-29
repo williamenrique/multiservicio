@@ -95,7 +95,7 @@
                 <button type="button" id="btnCancel" class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-all uppercase text-xs tracking-widest">
                     Cancelar
                 </button>
-                <button type="submit" id="btnSave" class="flex-1 bg-neon-green text-black font-black py-3 rounded-xl hover:scale-[1.02] active:scale-95 transition-all uppercase text-xs tracking-widest">
+                <button type="submit" id="btnSave" class="flex-1 bg-neon-green text-black font-black py-3 rounded-xl hover:scale-[1.02] active:scale-95 transition-all uppercase text-xs tracking-widest flex items-center justify-center gap-2">
                     Guardar Cambios
                 </button>
             </div>
@@ -106,6 +106,56 @@
 <script>
     // Pasar el rol del usuario a JavaScript para controlar la visibilidad de los botones
     const USER_ROLE = "<?php echo s($data['user_role']); ?>";
+
+    const closeClientModal = () => {
+        const modal = document.getElementById('clientModal');
+        if (modal) modal.classList.add('hidden');
+        document.getElementById('formCliente').reset();
+    };
+
+    document.getElementById('formCliente')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const btnSave = document.getElementById('btnSave');
+        if (btnSave.disabled) return;
+
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+
+        try {
+            btnSave.disabled = true;
+            btnSave.innerHTML = '<i class="animate-spin w-4 h-4" data-lucide="loader-2"></i> PROCESANDO...';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            const response = await fetch(`${URLROOT}/clientes/guardar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                AppUtils.showToast(result.mensaje || 'Cliente guardado correctamente');
+                closeClientModal();
+                if (typeof window.loadClientes === 'function') {
+                    window.loadClientes();
+                }
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al procesar la solicitud', 'error');
+            }
+        } catch (error) {
+            AppUtils.showToast('Error de conexión con el servidor', 'error');
+        } finally {
+            btnSave.disabled = false;
+            btnSave.textContent = 'Guardar Cambios';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    });
 </script>
 <!-- Inyección de Scripts -->
 <script src="<?php echo URLROOT; ?>/js/clientes.js"></script>
