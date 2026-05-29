@@ -231,4 +231,50 @@ class ModelReportes {
         $this->db->bind(':hasta', $hasta);
         return $this->db->resultSet();
     }
+
+    /**
+     * Obtiene el listado de empleados para el selector de reportes.
+     */
+    public function obtenerStaffSimple() {
+        $this->db->query("SELECT id, nombre, cargo FROM table_staff ORDER BY nombre ASC");
+        return $this->db->resultSet();
+    }
+
+    /**
+     * Obtiene los trabajos (servicios) y pagos de un empleado en un periodo.
+     */
+    public function obtenerNominaEmpleado($staff_id, $desde, $hasta) {
+        // 1. Trabajos realizados (Servicios facturados vinculados al staff)
+        $this->db->query("SELECT v.id as venta_id, v.fecha, v.placa, vd.descripcion, (vd.cantidad * vd.precio_unitario) as monto_trabajo
+                          FROM table_ventas v
+                          JOIN table_ventas_detalle vd ON v.id = vd.venta_id
+                          JOIN table_usuarios u ON v.usuario_id = u.id
+                          WHERE u.staff_id = :staff_id 
+                          AND vd.producto_id IS NULL 
+                          AND v.status IN ('COMPLETADO', 'CREDITO')
+                          AND DATE(v.fecha) BETWEEN :desde AND :hasta
+                          ORDER BY v.fecha DESC");
+        $this->db->bind(':staff_id', $staff_id);
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $trabajos = $this->db->resultSet() ?: [];
+
+        // 2. Pagos y Adelantos
+        $this->db->query("SELECT p.*, u.username as registrado_por 
+                          FROM table_pagos_empleados p
+                          JOIN table_usuarios u ON p.usuario_id = u.id
+                          WHERE p.staff_id = :staff_id 
+                          AND DATE(p.fecha) BETWEEN :desde AND :hasta
+                          ORDER BY p.fecha DESC");
+        $this->db->bind(':staff_id', $staff_id);
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $pagos = $this->db->resultSet() ?: [];
+
+        return ['trabajos' => $trabajos, 'pagos' => $pagos];
+    }
+
+    public function registrarPagoEmpleado($data) {
+        return $this->db->insert('table_pagos_empleados', $data);
+    }
 }

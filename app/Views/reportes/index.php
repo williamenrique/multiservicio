@@ -53,6 +53,9 @@
         <button onclick="switchReportTab('rentabilidad')" id="tab-rentabilidad" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
             <i data-lucide="trending-up" class="w-4 h-4"></i> Análisis Rentabilidad
         </button>
+        <button onclick="switchReportTab('nomina')" id="tab-nomina" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
+            <i data-lucide="users" class="w-4 h-4"></i> Nómina y Pagos
+        </button>
         <button onclick="switchReportTab('devoluciones')" id="tab-devoluciones" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
             <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Devoluciones
         </button>
@@ -164,6 +167,81 @@
                         <!-- Dinámico JS -->
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 5: NÓMINA Y PAGOS DE EMPLEADOS -->
+    <div id="sec-nomina" class="hidden space-y-6">
+        <div class="flex flex-wrap items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Seleccionar Empleado</label>
+                <select id="staff-selector" onchange="cargarNomina()" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm font-bold text-navy-blue outline-none focus:ring-2 focus:ring-neon-green">
+                    <option value="">-- SELECCIONE UN EMPLEADO --</option>
+                </select>
+            </div>
+            <button onclick="openModalPago()" class="bg-navy-blue text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-neon-green hover:text-black transition-all shadow-lg shadow-navy-blue/20 flex items-center gap-2">
+                <i data-lucide="hand-coins" class="w-4 h-4"></i> Registrar Adelanto / Pago
+            </button>
+        </div>
+
+        <!-- Resumen de Nómina -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass-card p-6 rounded-2xl border-l-4 border-emerald-500 shadow-sm">
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total Trabajos (Mano de Obra)</p>
+                <h2 id="nomina-total-trabajos" class="text-2xl font-black text-emerald-600">$0.00</h2>
+            </div>
+            <div class="glass-card p-6 rounded-2xl border-l-4 border-amber-500 shadow-sm">
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total Adelantos Semanales</p>
+                <h2 id="nomina-total-adelantos" class="text-2xl font-black text-amber-600">$0.00</h2>
+            </div>
+            <div class="glass-card p-6 rounded-2xl border-l-4 border-navy-blue shadow-sm">
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Saldo a Liquidar (Pendiente)</p>
+                <h2 id="nomina-total-pendiente" class="text-2xl font-black text-navy-blue">$0.00</h2>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Tabla de Trabajos -->
+            <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-100">
+                <div class="p-6 border-b border-slate-50 bg-slate-50/50">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Trabajos Realizados (Servicios)</h3>
+                </div>
+                <div class="max-h-[400px] overflow-y-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="sticky top-0 bg-white z-10">
+                            <tr class="bg-slate-50/80 border-b border-slate-100">
+                                <th class="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Fecha</th>
+                                <th class="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Servicio / Placa</th>
+                                <th class="px-4 py-3 text-[10px] font-black text-slate-400 uppercase text-right">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody id="nomina-trabajos-body" class="divide-y divide-slate-50 bg-white text-xs">
+                            <tr><td colspan="3" class="p-8 text-center text-slate-400 italic">Seleccione un empleado</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tabla de Pagos -->
+            <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-100">
+                <div class="p-6 border-b border-slate-50 bg-slate-50/50">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Historial de Adelantos y Pagos</h3>
+                </div>
+                <div class="max-h-[400px] overflow-y-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="sticky top-0 bg-white z-10">
+                            <tr class="bg-slate-50/80 border-b border-slate-100">
+                                <th class="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Fecha</th>
+                                <th class="px-4 py-3 text-[10px] font-black text-slate-400 uppercase">Tipo</th>
+                                <th class="px-4 py-3 text-[10px] font-black text-slate-400 uppercase text-right">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody id="nomina-pagos-body" class="divide-y divide-slate-50 bg-white text-xs">
+                            <tr><td colspan="3" class="p-8 text-center text-slate-400 italic">Seleccione un empleado</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

@@ -17,12 +17,14 @@ window.switchReportTab = (tab) => {
     const secDevoluciones = document.getElementById('sec-devoluciones');
     const secCartera = document.getElementById('sec-cartera');
     const secRentabilidad = document.getElementById('sec-rentabilidad');
+    const secNomina = document.getElementById('sec-nomina');
 
     const tabResumen = document.getElementById('tab-resumen');
     const tabDetallado = document.getElementById('tab-detallado');
     const tabDevoluciones = document.getElementById('tab-devoluciones');
     const tabCartera = document.getElementById('tab-cartera');
     const tabRentabilidad = document.getElementById('tab-rentabilidad');
+    const tabNomina = document.getElementById('tab-nomina');
 
     // Ocultar todas las secciones
     if (secResumen) secResumen.classList.add('hidden');
@@ -30,9 +32,10 @@ window.switchReportTab = (tab) => {
     if (secDevoluciones) secDevoluciones.classList.add('hidden');
     if (secCartera) secCartera.classList.add('hidden');
     if (secRentabilidad) secRentabilidad.classList.add('hidden');
+    if (secNomina) secNomina.classList.add('hidden');
 
     // Resetear estilos de pestañas
-    [tabResumen, tabDetallado, tabDevoluciones, tabCartera, tabRentabilidad].forEach(t => {
+    [tabResumen, tabDetallado, tabDevoluciones, tabCartera, tabRentabilidad, tabNomina].forEach(t => {
         if (t) {
             t.classList.remove('border-neon-green', 'text-navy-blue');
             t.classList.add('border-transparent', 'text-slate-400');
@@ -59,6 +62,10 @@ window.switchReportTab = (tab) => {
         if (secRentabilidad) secRentabilidad.classList.remove('hidden');
         if (tabRentabilidad) tabRentabilidad.classList.add('border-neon-green', 'text-navy-blue');
         cargarRentabilidad();
+    } else if (tab === 'nomina') {
+        if (secNomina) secNomina.classList.remove('hidden');
+        if (tabNomina) tabNomina.classList.add('border-neon-green', 'text-navy-blue');
+        cargarNomina();
     }
 
     lucide.createIcons();
@@ -858,5 +865,113 @@ window.cargarRentabilidad = async function () {
     } catch (e) {
         console.error(e);
         AppUtils.showToast("Error al cargar rentabilidad", "error");
+    }
+};
+
+/**
+ * Nómina y Pagos de Empleados
+ */
+window.cargarNomina = async function () {
+    const staffId = document.getElementById('staff-selector').value;
+    const desde = document.getElementById('rep-desde').value;
+    const hasta = document.getElementById('rep-hasta').value;
+
+    if (!staffId) {
+        // Cargar lista de empleados si el selector está vacío
+        const res = await fetch(`${URLROOT}/reportes/nomina?staff_id=0&desde=${desde}&hasta=${hasta}`);
+        const result = await res.json();
+        if (result.staff) {
+            const selector = document.getElementById('staff-selector');
+            selector.innerHTML = '<option value="">-- SELECCIONE UN EMPLEADO --</option>' + 
+                result.staff.map(s => `<option value="${s.id}">${s.nombre} (${s.cargo})</option>`).join('');
+        }
+        return;
+    }
+
+    try {
+        const res = await fetch(`${URLROOT}/reportes/nomina?staff_id=${staffId}&desde=${desde}&hasta=${hasta}`);
+        const result = await res.json();
+
+        if (result.success) {
+            const { trabajos, pagos } = result.data;
+            
+            const tBody = document.getElementById('nomina-trabajos-body');
+            let totalTrabajos = 0;
+            tBody.innerHTML = trabajos.length ? trabajos.map(t => {
+                totalTrabajos += parseFloat(t.monto_trabajo);
+                return `<tr>
+                    <td class="px-4 py-3 font-mono">${new Date(t.fecha).toLocaleDateString()}</td>
+                    <td class="px-4 py-3 uppercase font-bold text-navy-blue">${t.descripcion}<br><span class="text-[9px] text-slate-400">Placa: ${t.placa}</span></td>
+                    <td class="px-4 py-3 text-right font-black text-emerald-600">${AppUtils.formatCurrency(t.monto_trabajo)}</td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="3" class="p-8 text-center text-slate-400 italic">Sin trabajos</td></tr>';
+
+            const pBody = document.getElementById('nomina-pagos-body');
+            let totalPagos = 0;
+            pBody.innerHTML = pagos.length ? pagos.map(p => {
+                totalPagos += parseFloat(p.monto);
+                return `<tr>
+                    <td class="px-4 py-3 font-mono">${new Date(p.fecha).toLocaleDateString()}</td>
+                    <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[9px] font-black ${p.tipo === 'ADELANTO' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}">${p.tipo}</span></td>
+                    <td class="px-4 py-3 text-right font-black text-rose-600">${AppUtils.formatCurrency(p.monto)}</td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="3" class="p-8 text-center text-slate-400 italic">Sin pagos registrados</td></tr>';
+
+            document.getElementById('nomina-total-trabajos').textContent = AppUtils.formatCurrency(totalTrabajos);
+            document.getElementById('nomina-total-adelantos').textContent = AppUtils.formatCurrency(totalPagos);
+            document.getElementById('nomina-total-pendiente').textContent = AppUtils.formatCurrency(totalTrabajos - totalPagos);
+        }
+    } catch (e) { console.error(e); }
+};
+
+window.openModalPago = async function () {
+    const staffId = document.getElementById('staff-selector').value;
+    if (!staffId) return AppUtils.showToast("Seleccione un empleado primero", "warning");
+
+    const { value: formValues } = await Swal.fire({
+        title: 'Registrar Pago / Adelanto',
+        html: `
+            <div class="text-left space-y-4 pt-4">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Monto del Pago</label>
+                    <input id="pago-monto" type="number" class="w-full p-3 bg-slate-50 border rounded-xl font-black text-navy-blue" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tipo de Pago</label>
+                    <select id="pago-tipo" class="w-full p-3 bg-slate-50 border rounded-xl font-bold text-sm">
+                        <option value="ADELANTO">ADELANTO SEMANAL</option>
+                        <option value="PAGO_NOMINA">PAGO DE NÓMINA</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Método</label>
+                    <select id="pago-metodo" class="w-full p-3 bg-slate-50 border rounded-xl font-bold text-sm">
+                        <option value="EFECTIVO">EFECTIVO</option>
+                        <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+                    </select>
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'REGISTRAR',
+        preConfirm: () => {
+            const monto = parseFloat(document.getElementById('pago-monto').value);
+            if (isNaN(monto) || monto <= 0) return Swal.showValidationMessage('Ingrese un monto válido');
+            return { staff_id: staffId, monto, tipo: document.getElementById('pago-tipo').value, metodo_pago: document.getElementById('pago-metodo').value };
+        }
+    });
+
+    if (formValues) {
+        try {
+            const res = await fetch(`${URLROOT}/reportes/registrarPagoNomina`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify(formValues)
+            });
+            const result = await res.json();
+            if (result.success) {
+                AppUtils.showToast("Operación exitosa");
+                cargarNomina();
+            }
+        } catch (e) { console.error(e); }
     }
 };
