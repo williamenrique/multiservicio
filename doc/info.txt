@@ -3,10 +3,10 @@ LISTO A. Estabilidad y Seguridad (Cimientos)
     Manejador Global de Excepciones: Crear un "Exception Handler" centralizado para que cualquier error (BD, Stock, Permisos) devuelva siempre un JSON estandarizado al frontend, evitando que el sistema "muera" en silencio.
     Refactorización de Servicios: Mover el 100% de la lógica de negocio que aún queda en los modelos (como el cálculo de utilidad o stock) hacia clases de Servicio, dejando los modelos solo para consultas SQL puras.
 
-B. Inteligencia de Negocio (Reportes y Finanzas)
-Reporte de Cartera por Edades: Una vista que clasifique las deudas de clientes en: 0-15 días, 16-30 días y +30 días, facilitando la gestión de cobranza.
-Análisis de Rentabilidad por Servicio: Calcular cuánto se gana realmente en mano de obra vs. repuestos, permitiendo saber qué servicios son los más rentables del taller.
-Cierre de Caja Ciego: Implementar un proceso donde el cajero debe ingresar cuánto dinero físico tiene antes de que el sistema le muestre cuánto "debería" haber (evitando ajustes manuales malintencionados).
+LIST B. Inteligencia de Negocio (Reportes y Finanzas)
+    Reporte de Cartera por Edades: Una vista que clasifique las deudas de clientes en: 0-15 días, 16-30 días y +30 días, facilitando la gestión de cobranza.
+    Análisis de Rentabilidad por Servicio: Calcular cuánto se gana realmente en mano de obra vs. repuestos, permitiendo saber qué servicios son los más rentables del taller.
+    Cierre de Caja Ciego: Implementar un proceso donde el cajero debe ingresar cuánto dinero físico tiene antes de que el sistema le muestre cuánto "debería" haber (evitando ajustes manuales malintencionados).
 
 C. Experiencia del Cliente (Fidelización)
 Notificaciones Automáticas vía WhatsApp/Email: Integrar una API para notificar al cliente automáticamente cuando su vehículo pase de "En Reparación" a "Listo para Entrega".

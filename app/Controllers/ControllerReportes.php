@@ -34,4 +34,23 @@ class ControllerReportes extends Controller {
         header('Content-Type: application/json');
         echo json_encode($data);
     }
+
+    /**
+     * Endpoint para el reporte de Cartera por Edades
+     */
+    public function cartera() {
+        $data = $this->reporteModel->obtenerCarteraPorEdades();
+        return $this->jsonResponse(['success' => true, 'data' => $data ?: []]);
+    }
+
+    /**
+     * Endpoint para el análisis de rentabilidad Detallado
+     */
+    public function rentabilidad() {
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+
+        $data = $this->reporteModel->obtenerAnalisisRentabilidad($desde, $hasta);
+        return $this->jsonResponse(['success' => true, 'data' => $data ?: []]);
+    }
 }

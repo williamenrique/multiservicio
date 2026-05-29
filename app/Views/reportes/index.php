@@ -47,10 +47,15 @@
         <button onclick="switchReportTab('detallado')" id="tab-detallado" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
             <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Auditoría de Trabajos
         </button>
-        <button onclick="switchReportTab('devoluciones')" id="tab-devoluciones" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
-            Historial de Devoluciones
+        <button onclick="switchReportTab('cartera')" id="tab-cartera" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
+            <i data-lucide="calendar-clock" class="w-4 h-4"></i> Cartera por Edades
         </button>
-
+        <button onclick="switchReportTab('rentabilidad')" id="tab-rentabilidad" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
+            <i data-lucide="trending-up" class="w-4 h-4"></i> Análisis Rentabilidad
+        </button>
+        <button onclick="switchReportTab('devoluciones')" id="tab-devoluciones" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Devoluciones
+        </button>
     </div>
 
     <!-- SECCIÓN 1: RESUMEN CONSOLIDADO -->
@@ -107,6 +112,62 @@
         </div>
     </div>
 
+    <!-- SECCIÓN 3: CARTERA POR EDADES -->
+    <div id="sec-cartera" class="hidden space-y-6">
+        <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-100">
+            <div class="p-6 border-b border-slate-50 bg-amber-50/20">
+                <h3 class="text-xs font-black text-amber-600 uppercase tracking-widest">Distribución de Deuda Pendiente</h3>
+            </div>
+            <div class="p-6 overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/80 border-b border-slate-100">
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Cliente</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">0 - 15 Días</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">16 - 30 Días</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right text-rose-500">+30 Días</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Total Deuda</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cartera-body" class="divide-y divide-slate-50 bg-white">
+                        <!-- Dinámico JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 4: ANÁLISIS DE RENTABILIDAD -->
+    <div id="sec-rentabilidad" class="hidden space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div id="rentabilidad-cards" class="contents">
+                <!-- Aquí se cargarán las tarjetas de resumen de Rentabilidad -->
+            </div>
+        </div>
+        <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-100">
+            <div class="p-6 border-b border-slate-50 bg-emerald-50/20">
+                <h3 class="text-xs font-black text-emerald-600 uppercase tracking-widest">Detalle de Margen por Operación</h3>
+            </div>
+            <div class="p-6 overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/80 border-b border-slate-100">
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Tipo de Item</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Operaciones</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Ingresos</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Costos</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Utilidad</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Margen %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rentabilidad-body" class="divide-y divide-slate-50 bg-white">
+                        <!-- Dinámico JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- SECCIÓN 3: HISTORIAL DE DEVOLUCIONES -->
     <div id="sec-devoluciones" class="hidden animate-in fade-in duration-500">
         <div class="glass-card rounded-2xl border border-slate-100 overflow-hidden" id="devoluciones-list-container">
@@ -134,6 +195,91 @@
      */
     window.editItem = (id) => {
         window.location.href = `${window.URLROOT}/proveedores`;
+    };
+
+    /**
+     * Renderiza la tabla de Rentabilidad con manejo de estado vacío.
+     */
+    window.renderRentabilidad = (data) => {
+        const body = document.getElementById('rentabilidad-body');
+        const cardsContainer = document.getElementById('rentabilidad-cards');
+        if (!body) return;
+
+        if (!data || data.length === 0) {
+            body.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
+                        <div class="flex flex-col items-center gap-2">
+                            <i data-lucide="info" class="w-8 h-8 text-slate-300"></i>
+                            <span>No hay registros de rentabilidad en este periodo</span>
+                        </div>
+                    </td>
+                </tr>`;
+            if (cardsContainer) {
+                cardsContainer.innerHTML = `
+                    <div class="col-span-full bg-slate-50 border border-dashed border-slate-200 p-8 rounded-2xl text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                        Sin operaciones registradas para el resumen
+                    </div>`;
+            }
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        let html = '';
+        data.forEach(item => {
+            const utility = parseFloat(item.utilidad_bruta) || 0;
+            const income = parseFloat(item.ingreso_total) || 0;
+            const cost = parseFloat(item.costo_total) || 0;
+            const margin = income > 0 ? ((utility / income) * 100).toFixed(1) : 0;
+            
+            html += `
+                <tr class="hover:bg-slate-50/50 transition-colors">
+                    <td class="px-4 py-4 font-black text-navy-blue text-xs uppercase">${item.tipo}</td>
+                    <td class="px-4 py-4 text-center font-bold text-slate-500">${item.cantidad_operaciones}</td>
+                    <td class="px-4 py-4 text-right font-bold text-slate-600">$${income.toLocaleString('es-CO')}</td>
+                    <td class="px-4 py-4 text-right font-bold text-slate-400">$${cost.toLocaleString('es-CO')}</td>
+                    <td class="px-4 py-4 text-right font-black text-emerald-600">$${utility.toLocaleString('es-CO')}</td>
+                    <td class="px-4 py-4 text-right">
+                        <span class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black border border-emerald-100">${margin}%</span>
+                    </td>
+                </tr>`;
+        });
+
+        body.innerHTML = html;
+        if (window.lucide) lucide.createIcons();
+    };
+
+    /**
+     * Renderiza la tabla de Cartera por Edades con manejo de estado vacío.
+     */
+    window.renderCartera = (data) => {
+        const body = document.getElementById('cartera-body');
+        if (!body) return;
+
+        if (!data || data.length === 0) {
+            body.innerHTML = `
+                <tr>
+                    <td colspan="5" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
+                        <div class="flex flex-col items-center gap-2">
+                            <i data-lucide="smile" class="w-8 h-8 text-emerald-300"></i>
+                            <span>No se encontraron clientes con deudas pendientes actualmente</span>
+                        </div>
+                    </td>
+                </tr>`;
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        body.innerHTML = data.map(item => `
+            <tr class="hover:bg-slate-50/50 transition-colors">
+                <td class="px-4 py-4 font-black text-navy-blue text-xs uppercase">${item.cliente_nombre}</td>
+                <td class="px-4 py-4 text-right font-bold text-slate-500">$${parseFloat(item.rango_0_15).toLocaleString('es-CO')}</td>
+                <td class="px-4 py-4 text-right font-bold text-slate-500">$${parseFloat(item.rango_16_30).toLocaleString('es-CO')}</td>
+                <td class="px-4 py-4 text-right font-black text-rose-500">$${parseFloat(item.rango_30_mas).toLocaleString('es-CO')}</td>
+                <td class="px-4 py-4 text-right font-black text-navy-blue">$${parseFloat(item.total_deuda).toLocaleString('es-CO')}</td>
+            </tr>
+        `).join('');
+        if (window.lucide) lucide.createIcons();
     };
 </script>
 <script src="<?php echo URLROOT; ?>/public/js/reportes.js"></script>

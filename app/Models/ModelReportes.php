@@ -192,4 +192,43 @@ class ModelReportes {
         $this->db->bind(':hasta', $hasta);
         return $this->db->resultSet();
     }
+
+    /**
+     * Obtiene el reporte de cartera clasificado por antigüedad de deuda.
+     */
+    public function obtenerCarteraPorEdades() {
+        $this->db->query("SELECT 
+                            c.nombre as cliente_nombre,
+                            c.telefono as cliente_telefono,
+                            SUM(CASE WHEN DATEDIFF(NOW(), v.fecha) <= 15 THEN v.saldo_pendiente ELSE 0 END) as rango_0_15,
+                            SUM(CASE WHEN DATEDIFF(NOW(), v.fecha) > 15 AND DATEDIFF(NOW(), v.fecha) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
+                            SUM(CASE WHEN DATEDIFF(NOW(), v.fecha) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
+                            SUM(v.saldo_pendiente) as total_deuda
+                          FROM table_ventas v
+                          JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.status = 'CREDITO' AND v.saldo_pendiente > 0
+                          GROUP BY c.id
+                          ORDER BY total_deuda DESC");
+        return $this->db->resultSet();
+    }
+
+    /**
+     * Calcula la rentabilidad comparando Repuestos vs Servicios en un periodo.
+     */
+    public function obtenerAnalisisRentabilidad($desde, $hasta) {
+        $this->db->query("SELECT 
+                            CASE WHEN vd.producto_id IS NULL THEN 'SERVICIO' ELSE 'REPUESTO' END as tipo,
+                            SUM(vd.cantidad * vd.precio_unitario) as ingreso_total,
+                            SUM(vd.cantidad * vd.costo_unitario) as costo_total,
+                            SUM(vd.cantidad * (vd.precio_unitario - vd.costo_unitario)) as utilidad_bruta,
+                            COUNT(DISTINCT v.id) as cantidad_operaciones
+                          FROM table_ventas_detalle vd
+                          JOIN table_ventas v ON vd.venta_id = v.id
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO') 
+                          AND DATE(v.fecha) BETWEEN :desde AND :hasta
+                          GROUP BY tipo");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        return $this->db->resultSet();
+    }
 }
