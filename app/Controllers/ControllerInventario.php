@@ -20,8 +20,6 @@ class ControllerInventario extends Controller {
     }
 
     public function listar() {
-        header('Content-Type: application/json');
-        
         $limit = isset($_GET['length']) ? (int)$_GET['length'] : null;
         $offset = isset($_GET['start']) ? (int)$_GET['start'] : null;
         
@@ -36,7 +34,7 @@ class ControllerInventario extends Controller {
         if ($limit !== null && $offset !== null) {
             $items = $this->inventarioModel->listar($limit, $offset, $search);
             
-            echo json_encode([
+            return $this->jsonResponse([
                 'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
                 'recordsTotal' => $total,
                 'recordsFiltered' => $filtered,
@@ -45,7 +43,7 @@ class ControllerInventario extends Controller {
         } else {
             // Carga manual sin DataTables
             $items = $this->inventarioModel->listar(null, null, $search);
-            echo json_encode([
+            return $this->jsonResponse([
                 'success' => true,
                 'recordsTotal' => $total,
                 'recordsFiltered' => $filtered,
@@ -126,8 +124,7 @@ class ControllerInventario extends Controller {
 
     public function eliminar($id) {
         RoleGuard::isAdmin();
-        header('Content-Type: application/json');
         $res = $this->inventarioModel->eliminar($id);
-        echo json_encode(['success' => $res]);
+        return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Producto eliminado' : 'Error al eliminar']);
     }
 }

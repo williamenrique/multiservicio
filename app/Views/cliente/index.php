@@ -142,8 +142,12 @@
             if (result.success) {
                 AppUtils.showToast(result.mensaje || 'Cliente guardado correctamente');
                 closeClientModal();
+                
+                // Intentar recargar la tabla (buscando posibles nombres de funciones en clientes.js)
                 if (typeof window.loadClientes === 'function') {
                     window.loadClientes();
+                } else if (typeof window.fetchClientes === 'function') {
+                    window.fetchClientes();
                 }
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al procesar la solicitud', 'error');
@@ -159,3 +163,32 @@
 </script>
 <!-- Inyección de Scripts -->
 <script src="<?php echo URLROOT; ?>/js/clientes.js"></script>
+
+<script>
+    /** 
+     * SINCRONIZADOR DINÁMICO DE CONTADOR DE CLIENTES
+     * Observa cambios en el tableBody para actualizar el número total de clientes en la UI.
+     */
+    const syncClientsCounter = () => {
+        const tableBody = document.getElementById('tableBody');
+        const totalDisplay = document.getElementById('totalCount');
+        
+        if (!tableBody || !totalDisplay) return;
+
+        const updateCount = () => {
+            // Contamos las filas que no sean el mensaje de carga
+            const rows = tableBody.querySelectorAll('tr:not(#loadingRow)');
+            if (rows.length === 1 && rows[0].cells.length === 1) {
+                totalDisplay.textContent = '0';
+            } else {
+                totalDisplay.textContent = rows.length;
+            }
+        };
+
+        const observer = new MutationObserver(updateCount);
+        observer.observe(tableBody, { childList: true });
+        updateCount();
+    };
+
+    document.addEventListener('DOMContentLoaded', syncClientsCounter);
+</script>

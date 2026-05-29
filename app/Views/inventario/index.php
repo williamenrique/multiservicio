@@ -167,6 +167,8 @@
                 closeInventoryModal();
                 if (typeof window.loadInventory === 'function') {
                     window.loadInventory();
+                } else if (typeof window.fetchInventory === 'function') {
+                    window.fetchInventory();
                 }
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al guardar', 'error');

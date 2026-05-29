@@ -240,9 +240,65 @@
     document.getElementById('btnCloseModal')?.addEventListener('click', closeModal);
     document.getElementById('btnCancel')?.addEventListener('click', closeModal);
 
+    // Manejador para cerrar el modal de Compras
+    const closeCompraModal = () => {
+        const modal = document.getElementById('compraModal');
+        if (modal) modal.classList.add('hidden');
+        document.getElementById('formCompra').reset();
+    };
+
+    document.getElementById('btnCloseCompraModal')?.addEventListener('click', closeCompraModal);
+    document.getElementById('btnCancelCompra')?.addEventListener('click', closeCompraModal);
+
     /**
-     * Manejo del envío del formulario vía AJAX
-     * Previene la recarga de la página y envía los datos como JSON
+     * Manejo del envío del formulario de Compra (Ingreso de Mercancía)
+     */
+    document.getElementById('formCompra')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        if (btnSubmit.disabled) return;
+
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+
+        try {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<i class="animate-spin w-4 h-4" data-lucide="loader-2"></i> PROCESANDO...';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            const response = await fetch(`${URLROOT}/proveedores/registrarCompra`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                AppUtils.showToast(result.mensaje || 'Mercancía registrada correctamente');
+                closeCompraModal();
+                // Recargar tablas si las funciones existen en proveedores.js
+                if (typeof window.loadProveedores === 'function') window.loadProveedores();
+                if (typeof window.loadDeudas === 'function') window.loadDeudas();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al procesar la compra', 'error');
+            }
+        } catch (error) {
+            AppUtils.showToast('Error de conexión con el servidor', 'error');
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Registrar Ingreso';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    });
+
+    /**
+     * Manejo del envío del formulario de Proveedor
      */
     document.getElementById('formProveedor')?.addEventListener('submit', async (e) => {
         e.preventDefault();

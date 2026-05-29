@@ -29,8 +29,6 @@ class ControllerClientes extends Controller {
      * Endpoint API para obtener la lista de clientes (AJAX)
      */
     public function listar() {
-        header('Content-Type: application/json');
-        
         $limit = isset($_GET['length']) ? (int)$_GET['length'] : null;
         $offset = isset($_GET['start']) ? (int)$_GET['start'] : null;
         $search = isset($_GET['search']['value']) ? $_GET['search']['value'] : null;
@@ -40,14 +38,14 @@ class ControllerClientes extends Controller {
             $total = $this->clienteModel->contarTotal();
             $filtered = $search ? $this->clienteModel->contarFiltrados($search) : $total;
             
-            echo json_encode([
+            return $this->jsonResponse([
                 'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
                 'recordsTotal' => $total,
                 'recordsFiltered' => $filtered,
                 'data' => $items
             ]);
         } else {
-            echo json_encode($this->clienteModel->listar());
+            return $this->jsonResponse($this->clienteModel->listar());
         }
     }
 
@@ -68,10 +66,9 @@ class ControllerClientes extends Controller {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'MECANICO']); 
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
-            
-            if (empty($input['id'])) {
-                echo json_encode(['success' => false, 'mensaje' => 'La identificación es obligatoria']);
-                return;
+
+            if (empty($input['id']) || empty($input['nombre'])) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Identificación y nombre son requeridos'], 400);
             }
 
             $existe = $this->clienteModel->obtenerPorId($input['id']);
@@ -82,14 +79,16 @@ class ControllerClientes extends Controller {
                 $res = $this->clienteModel->crear($input);
             }
 
-            return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Cliente guardado' : 'Error al guardar']);
+            return $this->jsonResponse([
+                'success' => $res, 
+                'mensaje' => $res ? 'Cliente guardado correctamente' : 'Error al procesar la solicitud'
+            ]);
         }
     }
 
     public function eliminar($id) {
         RoleGuard::isAdmin();
-        header('Content-Type: application/json');
         $res = $this->clienteModel->eliminar($id);
-        echo json_encode(['success' => $res]);
+        return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Cliente eliminado' : 'Error al eliminar']);
     }
 }
