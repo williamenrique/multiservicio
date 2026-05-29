@@ -882,7 +882,7 @@ window.cargarNomina = async function () {
         const result = await res.json();
         if (result.staff) {
             const selector = document.getElementById('staff-selector');
-            selector.innerHTML = '<option value="">-- SELECCIONE UN EMPLEADO --</option>' + 
+            selector.innerHTML = '<option value="">-- SELECCIONE UN EMPLEADO --</option>' +
                 result.staff.map(s => `<option value="${s.id}">${s.nombre} (${s.cargo})</option>`).join('');
         }
         return;
@@ -894,7 +894,7 @@ window.cargarNomina = async function () {
 
         if (result.success) {
             const { trabajos, pagos } = result.data;
-            
+
             const tBody = document.getElementById('nomina-trabajos-body');
             let totalTrabajos = 0;
             tBody.innerHTML = trabajos.length ? trabajos.map(t => {
