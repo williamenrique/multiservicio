@@ -14,7 +14,10 @@ class ControllerGastos extends Controller {
     }
 
     public function listar() {
-        $this->jsonResponse($this->gastoModel->listar());
+        return $this->jsonResponse([
+            'success' => true,
+            'data' => $this->gastoModel->listar()
+        ]);
     }
 
     public function guardar() {

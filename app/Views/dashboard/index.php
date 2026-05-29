@@ -76,19 +76,19 @@
                         </div>
                     </div>
                     <div class="glass-card p-6 rounded-xl w-full">
-                        <table id="inventoryTable" class="display w-full">
+                        <table id="inventoryTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>Imagen</th>
-                                    <th>Producto</th>
-                                    <th>Categoría</th>
-                                    <th>Stock</th>
-                                    <th>Precio</th>
-                                    <th>Estado</th>
-                                    <th>Acciones</th>
+                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                    <th class="px-4 py-4">Imagen</th>
+                                    <th class="px-4 py-4">Producto</th>
+                                    <th class="px-4 py-4">Categoría</th>
+                                    <th class="px-4 py-4">Stock</th>
+                                    <th class="px-4 py-4">Precio</th>
+                                    <th class="px-4 py-4">Estado</th>
+                                    <th class="px-4 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="inventoryBody"></tbody>
+                            <tbody id="inventoryBody" class="divide-y divide-slate-100 text-sm"></tbody>
                         </table>
                     </div>
                 </section>
@@ -102,18 +102,18 @@
                 <section id="sec-historial" class="content-section hidden">
                     <h2 class="text-2xl font-bold mb-6">Historial de Transacciones</h2>
                     <div class="glass-card p-6 rounded-xl w-full">
-                        <table id="salesTable" class="display w-full">
+                        <table id="salesTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>ID Factura</th>
-                                    <th>Fecha</th>
-                                    <th>Vehículo</th>
-                                    <th>Items</th>
-                                    <th>Total (con IVA)</th>
-                                    <th>Acciones</th>
+                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                    <th class="px-4 py-4">ID Factura</th>
+                                    <th class="px-4 py-4">Fecha</th>
+                                    <th class="px-4 py-4">Vehículo</th>
+                                    <th class="px-4 py-4">Items</th>
+                                    <th class="px-4 py-4">Total</th>
+                                    <th class="px-4 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="salesBody"></tbody>
+                            <tbody id="salesBody" class="divide-y divide-slate-100 text-sm"></tbody>
                         </table>
                     </div>
                 </section>
@@ -145,31 +145,30 @@
                     </div>
 
                     <div id="prov-lista-content" class="glass-card p-6 rounded-xl w-full">
-                        <table id="suppliersTable" class="display w-full">
+                        <table id="suppliersTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Nombre</th>
-                                    <th>Teléfono</th>
-                                    <th>Acciones</th>
+                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                    <th class="px-4 py-4">ID / NIT</th>
+                                    <th class="px-4 py-4">Nombre</th>
+                                    <th class="px-4 py-4">Teléfono</th>
+                                    <th class="px-4 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody></tbody>
+                            <tbody class="divide-y divide-slate-100 text-sm"></tbody>
                         </table>
                     </div>
 
                     <div id="prov-deudas-content" class="glass-card p-6 rounded-xl w-full hidden">
-                        <table id="purchasesTable" class="display w-full">
+                        <table id="purchasesTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>Proveedor</th>
-                                    <th>Facturas</th>
-                                    <th>Saldo</th>
-                                    <th>Vencimiento</th>
-                                    <th>Acciones</th>
+                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                    <th class="px-4 py-4">Proveedor</th>
+                                    <th class="px-4 py-4">Facturas</th>
+                                    <th class="px-4 py-4">Saldo</th>
+                                    <th class="px-4 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody></tbody>
+                            <tbody class="divide-y divide-slate-100 text-sm"></tbody>
                         </table>
                     </div>
                 </section>
@@ -184,17 +183,17 @@
                         </button>
                     </div>
                     <div class="glass-card p-6 rounded-xl w-full">
-                        <table id="expensesTable" class="display w-full">
+                        <table id="expensesTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Descripción</th>
-                                    <th>Categoría</th>
-                                    <th>Monto</th>
-                                    <th>Acciones</th>
+                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                    <th class="px-4 py-4">Fecha</th>
+                                    <th class="px-4 py-4">Descripción</th>
+                                    <th class="px-4 py-4">Categoría</th>
+                                    <th class="px-4 py-4">Monto</th>
+                                    <th class="px-4 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="expensesBody"></tbody>
+                            <tbody id="expensesBody" class="divide-y divide-slate-100 text-sm"></tbody>
                         </table>
                     </div>
                 </section>
@@ -209,17 +208,17 @@
                         </button>
                     </div>
                     <div class="glass-card p-6 rounded-xl w-full">
-                        <table id="clientsTable" class="display w-full">
+                        <table id="clientsTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>Documento</th>
-                                    <th>Nombre</th>
-                                    <th>Teléfono</th>
-                                    <th>Correo</th>
-                                    <th>Acciones</th>
+                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                    <th class="px-4 py-4">Identificación</th>
+                                    <th class="px-4 py-4">Nombre</th>
+                                    <th class="px-4 py-4">Teléfono</th>
+                                    <th class="px-4 py-4">Correo</th>
+                                    <th class="px-4 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="clientsBody"></tbody>
+                            <tbody id="clientsBody" class="divide-y divide-slate-100 text-sm"></tbody>
                         </table>
                     </div>
                 </section>
@@ -234,19 +233,18 @@
                         </button>
                     </div>
                     <div class="glass-card p-6 rounded-xl w-full">
-                        <table id="staffTable" class="display w-full">
+                        <table id="staffTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>ID/Foto</th>
-                                    <th>Cédula</th>
-                                    <th>Nombre</th>
-                                    <th>Cargo</th>
-                                    <th>Acceso</th>
-                                    <th>Contacto</th>
-                                    <th>Acciones</th>
+                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                    <th class="px-4 py-4">Empleado</th>
+                                    <th class="px-4 py-4">Cédula</th>
+                                    <th class="px-4 py-4">Cargo</th>
+                                    <th class="px-4 py-4">Acceso</th>
+                                    <th class="px-4 py-4">Contacto</th>
+                                    <th class="px-4 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="staffBody"></tbody>
+                            <tbody id="staffBody" class="divide-y divide-slate-100 text-sm"></tbody>
                         </table>
                     </div>
                 </section>

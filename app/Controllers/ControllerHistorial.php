@@ -26,8 +26,10 @@ class ControllerHistorial extends Controller {
      */
     public function listar() {
         RoleGuard::hasAccess(['ADMINISTRADOR']);
-        header('Content-Type: application/json');
-        echo json_encode($this->historialModel->listarVentas());
+        return $this->jsonResponse([
+            'success' => true,
+            'data' => $this->historialModel->listarVentas()
+        ]);
     }
 
     /**
@@ -35,7 +37,9 @@ class ControllerHistorial extends Controller {
      */
     public function detalle($id) {
         RoleGuard::hasAccess(['ADMINISTRADOR']);
-        header('Content-Type: application/json');
-        echo json_encode($this->historialModel->obtenerDetalleVenta($id));
+        return $this->jsonResponse([
+            'success' => true,
+            'data' => $this->historialModel->obtenerDetalleVenta($id)
+        ]);
     }
 }

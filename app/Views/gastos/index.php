@@ -33,7 +33,7 @@
                     </tr>
                 </thead>
                 <tbody class="text-sm text-slate-600 divide-y divide-slate-50">
-                    <!-- Cargado mediante DataTables en app.js -->
+                    <!-- Cargado dinámicamente mediante gastos.js -->
                 </tbody>
             </table>
         </div>

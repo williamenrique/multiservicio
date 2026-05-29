@@ -20,36 +20,24 @@ class ControllerInventario extends Controller {
     }
 
     public function listar() {
-        $limit = isset($_GET['length']) ? (int)$_GET['length'] : null;
-        $offset = isset($_GET['start']) ? (int)$_GET['start'] : null;
-        
-        // Detectar búsqueda compatible con DataTables y peticiones manuales vía URL
-        $searchValue = $_GET['search']['value'] ?? $_GET['search'] ?? null;
+        // Detectar búsqueda manual o de DataTables (por compatibilidad)
+        $searchValue = $_GET['search']['value'] ?? $_GET['search'] ?? $_GET['q'] ?? null;
         $search = ($searchValue !== '' && $searchValue !== null) ? $searchValue : null;
 
-        // Aseguramos que los conteos siempre devuelvan enteros
-        $total = (int)$this->inventarioModel->contarTotal();
-        $filtered = ($search !== null) ? (int)$this->inventarioModel->contarFiltrados($search) : $total;
+        // Soporte para paginación manual
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 
-        if ($limit !== null && $offset !== null) {
-            $items = $this->inventarioModel->listar($limit, $offset, $search);
-            
-            return $this->jsonResponse([
-                'draw' => isset($_GET['draw']) ? (int)$_GET['draw'] : 1,
-                'recordsTotal' => $total,
-                'recordsFiltered' => $filtered,
-                'data' => $items
-            ]);
-        } else {
-            // Carga manual sin DataTables
-            $items = $this->inventarioModel->listar(null, null, $search);
-            return $this->jsonResponse([
-                'success' => true,
-                'recordsTotal' => $total,
-                'recordsFiltered' => $filtered,
-                'data' => $items
-            ]);
-        }
+        $items = $this->inventarioModel->listar($limit, $offset, $search);
+        $total = $this->inventarioModel->contarTotal();
+        $totalFiltrados = $search ? $this->inventarioModel->contarFiltrados($search) : $total;
+
+        return $this->jsonResponse([
+            'success' => true,
+            'data' => $items,
+            'total' => $total,
+            'totalFiltrados' => $totalFiltrados
+        ]);
     }
 
     /**

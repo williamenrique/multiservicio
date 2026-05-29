@@ -18,8 +18,10 @@ class ControllerPersonal extends Controller {
     }
 
     public function listar() {
-        header('Content-Type: application/json');
-        echo json_encode($this->staffModel->listar());
+        return $this->jsonResponse([
+            'success' => true,
+            'data' => $this->staffModel->listar()
+        ]);
     }
 
     public function guardar() {
@@ -27,8 +29,7 @@ class ControllerPersonal extends Controller {
             $input = json_decode(file_get_contents('php://input'), true);
 
             if (empty($input['id'])) {
-                echo json_encode(['success' => false, 'mensaje' => 'El ID de empleado es requerido']);
-                return;
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'El ID de empleado es requerido'], 400);
             }
             
             $existe = $this->staffModel->obtenerPorId($input['id']);
@@ -52,9 +53,9 @@ class ControllerPersonal extends Controller {
                     $this->staffModel->eliminarUsuario($input['id']);
                 }
 
-                echo json_encode(['success' => true, 'mensaje' => 'Registro guardado correctamente']);
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Registro guardado correctamente']);
             } else {
-                echo json_encode(['success' => false, 'mensaje' => 'Error en la base de datos']);
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Error en la base de datos'], 500);
             }
         }
     }
@@ -62,9 +63,9 @@ class ControllerPersonal extends Controller {
     public function eliminar($id = null) {
         if ($_SERVER['REQUEST_METHOD'] == 'DELETE' && $id) {
             if ($this->staffModel->eliminar($id)) {
-                echo json_encode(['success' => true]);
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Empleado eliminado']);
             } else {
-                echo json_encode(['success' => false]);
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'No se pudo eliminar'], 500);
             }
         }
     }

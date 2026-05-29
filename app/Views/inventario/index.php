@@ -18,7 +18,7 @@
             <input type="text" id="searchInventory" placeholder="Buscar producto o categoría..." 
                 class="w-full bg-white border border-slate-200 rounded-xl py-4 pl-12 pr-4 text-slate-700 outline-none focus:border-neon-green transition-all shadow-sm">
         </div>
-        <div class="flex items-center justify-between text-slate-500 text-sm bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+        <div class="hidden md:flex items-center justify-between text-slate-500 text-sm bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
             <div class="flex items-center gap-2">
                 <i data-lucide="box" class="w-4 h-4 text-slate-400"></i>
                 <span>Items en Catálogo:</span>
@@ -47,6 +47,15 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+        <!-- Paginación Manual (Acomodado tras eliminar DataTables) -->
+        <div class="px-8 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Mostrando <span id="startIndex">0</span> - <span id="endIndex">0</span> de <span id="totalItemsDisplay">0</span> productos
+            </div>
+            <div class="flex items-center gap-2" id="paginationControls">
+                <!-- Los botones de navegación se generan dinámicamente -->
+            </div>
         </div>
     </div>
 </div>
@@ -165,11 +174,9 @@
             if (result.success) {
                 AppUtils.showToast(result.mensaje || 'Producto guardado');
                 closeInventoryModal();
-                if (typeof window.loadInventory === 'function') {
-                    window.loadInventory();
-                } else if (typeof window.fetchInventory === 'function') {
-                    window.fetchInventory();
-                }
+
+                // Forzar actualización inmediata de la tabla
+                if (typeof window.fetchInventory === 'function') window.fetchInventory();
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al guardar', 'error');
             }
@@ -183,6 +190,127 @@
     });
 </script>
 <script src="<?php echo URLROOT; ?>/js/inventario.js"></script>
+
+<script>
+    /**
+     * SISTEMA DE CARGA Y PAGINACIÓN MANUAL
+     * Reemplaza la lógica que fallaba tras eliminar DataTables.
+     */
+    let inventoryState = {
+        page: 1,
+        limit: 10,
+        search: ''
+    };
+
+    window.fetchInventory = async () => {
+        const tableBody = document.getElementById('tableBody');
+        const offset = (inventoryState.page - 1) * inventoryState.limit;
+        
+        try {
+            const response = await fetch(`${window.URLROOT}/inventario/listar?q=${inventoryState.search}&limit=${inventoryState.limit}&offset=${offset}`);
+            const result = await response.json();
+
+            if (result.success) {
+                renderInventoryTable(result.data);
+                updatePaginationUI(result.total, result.totalFiltrados);
+            }
+        } catch (error) {
+            console.error("Error al sincronizar inventario:", error);
+        }
+    };
+
+    const renderInventoryTable = (items) => {
+        const tableBody = document.getElementById('tableBody');
+        if (!items || items.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="7" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">No se encontraron productos</td></tr>';
+            return;
+        }
+
+        tableBody.innerHTML = items.map(item => {
+            const isCritical = item.stock <= item.stock_minimo;
+            const statusClass = isCritical ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100';
+            
+            return `
+                <tr class="hover:bg-slate-50 transition-colors group">
+                    <td class="px-8 py-4">
+                        <img src="${window.URLROOT}/${item.imagen || 'img/default.png'}" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-sm" onerror="this.src='${window.URLROOT}/img/default.png'">
+                    </td>
+                    <td class="px-8 py-4">
+                        <span class="block font-black text-navy-blue uppercase text-xs">${item.nombre}</span>
+                        <span class="text-[9px] text-slate-400 font-mono font-bold">#SKU-${String(item.id).padStart(4, '0')}</span>
+                    </td>
+                    <td class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">${item.categoria}</td>
+                    <td class="px-8 py-4 font-black ${isCritical ? 'text-red-500' : 'text-slate-600'} text-sm">${item.stock}</td>
+                    <td class="px-8 py-4 font-black text-navy-blue text-sm">$${parseFloat(item.precio).toLocaleString('es-CO')}</td>
+                    <td class="px-8 py-4">
+                        <span class="px-3 py-1 rounded-full text-[9px] font-black border ${statusClass}">${isCritical ? 'CRÍTICO' : 'DISPONIBLE'}</span>
+                    </td>
+                    <td class="px-8 py-4 text-right">
+                        <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <a href="${window.URLROOT}/inventario/kardex/${item.id}" class="p-2 text-slate-400 hover:text-navy-blue hover:bg-slate-100 rounded-lg transition-all"><i data-lucide="activity" class="w-4 h-4"></i></a>
+                            <button onclick="window.editItem(${item.id})" class="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-all"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            ${window.USER_ROLE === 'ADMINISTRADOR' ? `<button onclick="window.deleteItem(${item.id})" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+
+    const updatePaginationUI = (total, totalFiltrados) => {
+        const start = (inventoryState.page - 1) * inventoryState.limit + 1;
+        const end = Math.min(inventoryState.page * inventoryState.limit, totalFiltrados);
+        
+        // Actualizar textos informativos
+        document.getElementById('startIndex').textContent = totalFiltrados === 0 ? 0 : start;
+        document.getElementById('endIndex').textContent = end;
+        document.getElementById('totalItemsDisplay').textContent = totalFiltrados;
+        
+        const countDisplay = document.getElementById('totalCount');
+        if (countDisplay) countDisplay.textContent = total;
+
+        const totalPages = Math.ceil(totalFiltrados / inventoryState.limit);
+        const controls = document.getElementById('paginationControls');
+        
+        let html = '';
+        if (totalPages > 1) {
+            html += `
+                <button onclick="changePage(${inventoryState.page - 1})" ${inventoryState.page === 1 ? 'disabled' : ''} class="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm">
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                </button>
+                <div class="px-4 py-2 text-[10px] font-black text-navy-blue bg-white border border-slate-200 rounded-lg uppercase tracking-tighter shadow-sm">
+                    PÁGINA ${inventoryState.page} DE ${totalPages}
+                </div>
+                <button onclick="changePage(${inventoryState.page + 1})" ${inventoryState.page === totalPages ? 'disabled' : ''} class="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm">
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+            `;
+        }
+        controls.innerHTML = html;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+
+    window.changePage = (newPage) => {
+        inventoryState.page = newPage;
+        window.fetchInventory();
+    };
+
+    // Buscador en tiempo real con debounce
+    document.getElementById('searchInventory')?.addEventListener('input', (e) => {
+        inventoryState.search = e.target.value.trim();
+        inventoryState.page = 1;
+        clearTimeout(window.searchTimer);
+        window.searchTimer = setTimeout(window.fetchInventory, 300);
+    });
+
+    // Carga inicial al cargar el DOM
+    document.addEventListener('DOMContentLoaded', () => {
+        window.fetchInventory();
+    });
+</script>
+
 <script>
     /** 
      * SINCRONIZADOR DINÁMICO DE CONTADOR
