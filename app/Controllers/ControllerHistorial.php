@@ -26,9 +26,19 @@ class ControllerHistorial extends Controller {
      */
     public function listar() {
         RoleGuard::hasAccess(['ADMINISTRADOR']);
+        $search = $_GET['q'] ?? null;
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+
+        $items = $this->historialModel->listarVentas($limit, $offset, $search);
+        $total = $this->historialModel->contarVentas();
+        $totalFiltrados = $search ? $this->historialModel->contarVentas($search) : $total;
+
         return $this->jsonResponse([
             'success' => true,
-            'data' => $this->historialModel->listarVentas()
+            'data' => $items ?: [],
+            'total' => $total,
+            'totalFiltrados' => $totalFiltrados
         ]);
     }
 

@@ -14,9 +14,19 @@ class ControllerGastos extends Controller {
     }
 
     public function listar() {
+        $search = $_GET['q'] ?? null;
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+
+        $items = $this->gastoModel->listar($limit, $offset, $search);
+        $total = $this->gastoModel->contarTotal();
+        $totalFiltrados = $search ? $this->gastoModel->contarFiltrados($search) : $total;
+
         return $this->jsonResponse([
             'success' => true,
-            'data' => $this->gastoModel->listar()
+            'data' => $items ?: [],
+            'total' => $total,
+            'totalFiltrados' => $totalFiltrados
         ]);
     }
 
@@ -32,7 +42,6 @@ class ControllerGastos extends Controller {
                 
                 if ($idGasto && $metodo === 'EFECTIVO') {
                     $this->cajaModel->registrarMovimiento([
-                        'sesion_id' => null,
                         'tipo' => 'EGRESO',
                         'monto' => $input['monto'],
                         'metodo_pago' => 'EFECTIVO',

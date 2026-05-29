@@ -14,8 +14,12 @@ class ControllerReportes extends Controller {
     public function generar() {
         $desde = $_GET['desde'] ?? date('Y-m-01');
         $hasta = $_GET['hasta'] ?? date('Y-m-d');
+        $search = $_GET['q'] ?? null;
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 
-        $data = $this->reporteModel->obtenerFlujoCaja($desde, $hasta);
+        $data = $this->reporteModel->obtenerFlujoCaja($desde, $hasta, $limit, $offset, $search);
+        $data['success'] = true;
         
         // Limpiar cualquier salida previa (avisos/warnings) para asegurar JSON puro
         if (ob_get_length()) ob_clean();

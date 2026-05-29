@@ -6,7 +6,7 @@ class ModelReportes {
         $this->db = new Database();
     }
 
-    public function obtenerFlujoCaja($desde, $hasta) {
+    public function obtenerFlujoCaja($desde, $hasta, $limit = null, $offset = null, $search = null) {
         // 1. Obtener Ventas (Pagos iniciales de facturas creadas en el periodo)
         // Restamos la suma de abonos del total pagado para obtener solo el pago inicial realizado en la fecha de la venta
         $this->db->query("SELECT v.id, v.fecha, v.total as monto, 
@@ -66,9 +66,21 @@ class ModelReportes {
         // 4. Unificar movimientos para el listado
         $movimientos = array_merge($ingresos, $abonos, $egresos);
         
+        if ($search) {
+            $movimientos = array_filter($movimientos, function($m) use ($search) {
+                $s = strtolower($search);
+                return strpos(strtolower($m->id ?? ''), $s) !== false || 
+                       strpos(strtolower($m->placa ?? ''), $s) !== false ||
+                       strpos(strtolower($m->cliente_nombre ?? ''), $s) !== false ||
+                       strpos(strtolower($m->descripcion ?? ''), $s) !== false;
+            });
+        }
+
         usort($movimientos, function($a, $b) {
             return strtotime($b->fecha) - strtotime($a->fecha);
         });
+
+        $totalMovimientos = count($movimientos);
 
         // 5. Calcular División de Ingresos (Repuestos vs Servicios)
         $ingresoRepuestos = 0;
@@ -123,8 +135,15 @@ class ModelReportes {
         $resDeuda = $this->db->single();
         $totalDeuda = (float)($resDeuda->deuda ?? 0);
 
+        // Paginación en PHP para el set de datos unificado
+        if ($limit !== null && $offset !== null) {
+            $movimientos = array_slice($movimientos, $offset, $limit);
+        }
+
         return [
-            'movimientos' => $movimientos,
+            'data' => $movimientos,
+            'total' => $totalMovimientos,
+            'totalFiltrados' => $totalMovimientos,
             'totales' => [
                 'ingresos' => $totalIngresosNetos,
                 'ingreso_repuestos' => $ingresoRepuestos,
@@ -179,18 +198,44 @@ class ModelReportes {
         ];
     }
 
-    public function obtenerReporteDevoluciones($desde, $hasta) {
-        $this->db->query("SELECT d.*, s.nombre as usuario_nombre, v.placa, c.nombre as cliente_nombre
-                          FROM table_devoluciones d
-                          JOIN table_ventas v ON d.venta_id = v.id
-                          JOIN table_usuarios u ON d.usuario_id = u.id
-                          JOIN table_staff s ON u.staff_id = s.id
-                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE DATE(d.fecha) BETWEEN :desde AND :hasta
-                          ORDER BY d.fecha DESC");
+    public function obtenerReporteDevoluciones($desde, $hasta, $limit = null, $offset = null, $search = null) {
+        $sql = "SELECT d.*, s.nombre as usuario_nombre, v.placa, c.nombre as cliente_nombre
+                FROM table_devoluciones d
+                JOIN table_ventas v ON d.venta_id = v.id
+                JOIN table_usuarios u ON d.usuario_id = u.id
+                JOIN table_staff s ON u.staff_id = s.id
+                LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
+
+        if ($search) {
+            $sql .= " AND (v.placa LIKE :search OR c.nombre LIKE :search OR d.descripcion LIKE :search)";
+        }
+
+        $sql .= " ORDER BY d.fecha DESC";
+
+        if ($limit !== null && $offset !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+        }
+
+        $this->db->query($sql);
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
+        if ($search) $this->db->bind(':search', "%$search%");
+        if ($limit !== null && $offset !== null) {
+            $this->db->bind(':limit', (int)$limit);
+            $this->db->bind(':offset', (int)$offset);
+        }
         return $this->db->resultSet();
+    }
+
+    public function contarDevoluciones($desde, $hasta, $search = null) {
+        $sql = "SELECT COUNT(*) as total FROM table_devoluciones d JOIN table_ventas v ON d.venta_id = v.id WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
+        if ($search) $sql .= " AND (v.placa LIKE :search OR d.descripcion LIKE :search)";
+        $this->db->query($sql);
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        if ($search) $this->db->bind(':search', "%$search%");
+        return (int)$this->db->single()->total;
     }
 
     /**

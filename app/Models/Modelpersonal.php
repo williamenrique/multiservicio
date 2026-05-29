@@ -10,13 +10,40 @@ class ModelPersonal {
         $this->db = new Database();
     }
 
-    public function listar() {
-        $this->db->query("SELECT s.*, u.username, u.role_id, r.nombre_rol as system_role 
-                          FROM table_staff s 
-                          LEFT JOIN table_usuarios u ON s.id = u.staff_id 
-                          LEFT JOIN table_roles r ON u.role_id = r.id 
-                          ORDER BY s.nombre ASC");
+    public function listar($limit = null, $offset = null, $search = null) {
+        $sql = "SELECT s.*, u.username, u.role_id, r.nombre_rol as system_role 
+                FROM table_staff s 
+                LEFT JOIN table_usuarios u ON s.id = u.staff_id 
+                LEFT JOIN table_roles r ON u.role_id = r.id";
+        
+        if ($search) {
+            $sql .= " WHERE s.nombre LIKE :search OR s.id LIKE :search OR s.cedula LIKE :search";
+        }
+
+        $sql .= " ORDER BY s.nombre ASC";
+        
+        if ($limit !== null && $offset !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+        }
+
+        $this->db->query($sql);
+        if ($search) $this->db->bind(':search', "%$search%");
+        if ($limit !== null && $offset !== null) {
+            $this->db->bind(':limit', (int)$limit);
+            $this->db->bind(':offset', (int)$offset);
+        }
         return $this->db->resultSet();
+    }
+
+    public function contarTotal() {
+        $this->db->query("SELECT COUNT(*) as total FROM table_staff");
+        return (int)$this->db->single()->total;
+    }
+
+    public function contarFiltrados($search) {
+        $this->db->query("SELECT COUNT(*) as total FROM table_staff WHERE nombre LIKE :search OR id LIKE :search OR cedula LIKE :search");
+        $this->db->bind(':search', "%$search%");
+        return (int)$this->db->single()->total;
     }
 
     public function obtenerPorId($id) {
