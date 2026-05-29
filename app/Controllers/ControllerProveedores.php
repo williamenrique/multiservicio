@@ -27,15 +27,21 @@ class ControllerProveedores extends Controller {
     }
 
     public function listar() {
-        $search = isset($_GET['search']['value']) ? $_GET['search']['value'] : null;
+        $searchValue = $_GET['q'] ?? $_GET['search']['value'] ?? null;
+        $search = ($searchValue !== '' && $searchValue !== null) ? $searchValue : null;
 
-        $items = $this->proveedorModel->listar(null, null, $search);
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+
+        $items = $this->proveedorModel->listar($limit, $offset, $search);
         $total = $this->proveedorModel->contarTotal();
+        $totalFiltrados = $search ? $this->proveedorModel->contarFiltrados($search) : $total;
         
         return $this->jsonResponse([
             'success' => true,
-            'data' => $items,
-            'total' => $total
+            'data' => $items ?: [],
+            'total' => $total,
+            'totalFiltrados' => $totalFiltrados
         ]);
     }
 

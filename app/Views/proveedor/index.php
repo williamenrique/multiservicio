@@ -26,8 +26,15 @@
             <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-5 h-5"></i>
             <input type="text" id="searchProveedor" placeholder="Buscar por nombre o NIT..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-neon-green outline-none transition-all">
         </div>
-        <div class="px-4 py-2 bg-navy-blue text-white rounded-lg font-bold text-sm">
-            Total: <span id="totalCount">0</span>
+        <div class="flex items-center gap-4">
+            <div class="px-4 py-2 bg-navy-blue text-white rounded-lg font-bold text-sm h-full flex items-center">
+                Total: <span id="totalCount" class="ml-2">0</span>
+            </div>
+            <select id="limitSelector" class="bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs font-bold text-navy-blue outline-none focus:ring-2 focus:ring-neon-green shadow-sm cursor-pointer">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+            </select>
         </div>
     </div>
 
@@ -48,6 +55,13 @@
                     <tr><td colspan="4" class="px-8 py-16 text-center text-slate-400 italic tracking-widest animate-pulse font-medium">CARGANDO DIRECTORIO...</td></tr>
                 </tbody>
             </table>
+        </div>
+        <!-- Pie de Tabla Unificado -->
+        <div class="px-8 py-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Mostrando <span id="startIndex">0</span> - <span id="endIndex">0</span> de <span id="totalItemsDisplay">0</span> proveedores
+            </div>
+            <div class="flex items-center gap-2" id="paginationControls"></div>
         </div>
     </div>
 </div>

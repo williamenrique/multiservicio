@@ -17,12 +17,19 @@
             <input type="text" id="searchClient" placeholder="Buscar por nombre, identificación o teléfono..." 
                 class="w-full bg-white border border-slate-200 rounded-xl py-4 pl-12 pr-4 text-slate-700 placeholder-slate-400 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all shadow-sm">
         </div>
-        <div class="flex items-center justify-between text-slate-500 text-sm bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
-            <div class="flex items-center gap-2">
-                <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
-                <span>Clientes:</span>
+        <div class="flex items-center gap-4">
+            <div class="flex-1 flex items-center justify-between text-slate-500 text-sm bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm h-full">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
+                    <span>Total:</span>
+                </div>
+                <strong id="totalCount" class="text-navy-blue text-lg">0</strong>
             </div>
-            <strong id="totalCount" class="text-navy-blue text-lg">0</strong>
+            <select id="limitSelector" class="bg-white border border-slate-200 rounded-xl py-3 px-4 text-xs font-bold text-navy-blue outline-none focus:border-neon-green shadow-sm">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+            </select>
         </div>
     </div>
 

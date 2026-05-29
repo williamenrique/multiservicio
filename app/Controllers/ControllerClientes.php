@@ -29,15 +29,21 @@ class ControllerClientes extends Controller {
      * Endpoint API para obtener la lista de clientes (AJAX)
      */
     public function listar() {
-        $search = isset($_GET['search']['value']) ? $_GET['search']['value'] : null;
+        $searchValue = $_GET['q'] ?? $_GET['search']['value'] ?? null;
+        $search = ($searchValue !== '' && $searchValue !== null) ? $searchValue : null;
 
-        $items = $this->clienteModel->listar(null, null, $search);
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+
+        $items = $this->clienteModel->listar($limit, $offset, $search);
         $total = $this->clienteModel->contarTotal();
+        $totalFiltrados = $search ? $this->clienteModel->contarFiltrados($search) : $total;
         
         return $this->jsonResponse([
             'success' => true,
-            'data' => $items,
-            'total' => $total
+            'data' => $items ?: [],
+            'total' => $total,
+            'totalFiltrados' => $totalFiltrados
         ]);
     }
 

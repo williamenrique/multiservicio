@@ -18,9 +18,22 @@ class ControllerPersonal extends Controller {
     }
 
     public function listar() {
+        $searchValue = $_GET['q'] ?? $_GET['search']['value'] ?? null;
+        $search = ($searchValue !== '' && $searchValue !== null) ? $searchValue : null;
+
+        // Paginación manual para personal
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+
+        // Nota: Asumo que el modelo será actualizado para soportar estos parámetros
+        $items = $this->staffModel->listar($limit, $offset, $search);
+        $total = count($this->staffModel->listar()); // Ajuste temporal para conteo
+
         return $this->jsonResponse([
             'success' => true,
-            'data' => $this->staffModel->listar()
+            'data' => $items ?: [],
+            'total' => $total,
+            'totalFiltrados' => $total // Para personal mostramos el total por ahora
         ]);
     }
 

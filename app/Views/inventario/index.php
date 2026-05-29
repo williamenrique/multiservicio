@@ -15,15 +15,26 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="md:col-span-2 relative">
             <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"></i>
-            <input type="text" id="searchInventory" placeholder="Buscar producto o categoría..." 
+            <input type="text" id="searchInventory" placeholder="Filtrar por nombre, categoría o SKU..." 
                 class="w-full bg-white border border-slate-200 rounded-xl py-4 pl-12 pr-4 text-slate-700 outline-none focus:border-neon-green transition-all shadow-sm">
         </div>
-        <div class="hidden md:flex items-center justify-between text-slate-500 text-sm bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
-            <div class="flex items-center gap-2">
-                <i data-lucide="box" class="w-4 h-4 text-slate-400"></i>
-                <span>Items en Catálogo:</span>
+        <div class="flex items-center gap-4">
+            <div class="flex-1 hidden md:flex items-center justify-between text-slate-500 text-sm bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm h-full">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="box" class="w-4 h-4 text-slate-400"></i>
+                    <span>Total:</span>
+                </div>
+                <strong id="totalCount" class="text-navy-blue text-lg"><?php echo $data['total_items'] ?? 0; ?></strong>
             </div>
-            <strong id="totalCount" class="text-navy-blue text-lg"><?php echo $data['total_items'] ?? 0; ?></strong>
+            <div class="relative">
+                <select id="limitSelector" class="appearance-none bg-white border border-slate-200 rounded-xl py-4 px-6 text-sm font-bold text-navy-blue outline-none focus:border-neon-green shadow-sm cursor-pointer">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+            </div>
         </div>
     </div>
 
@@ -49,7 +60,7 @@
             </table>
         </div>
         <!-- Paginación Manual (Acomodado tras eliminar DataTables) -->
-        <div class="px-8 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="px-8 py-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 Mostrando <span id="startIndex">0</span> - <span id="endIndex">0</span> de <span id="totalItemsDisplay">0</span> productos
             </div>
@@ -130,125 +141,98 @@
 </div>
 
 <script>
-    // Usamos el objeto window para asegurar alcance global y evitar SyntaxError por re-declaración de constantes
+    // --- CONFIGURACIÓN Y ESTADO GLOBAL ---
     window.USER_ROLE = "<?php echo $_SESSION['user_role'] ?? 'MECANICO'; ?>";
-    
-    // Solo definimos URLROOT si no ha sido definido previamente por el sistema (ej. en el header)
-    if (typeof window.URLROOT === 'undefined') {
-        window.URLROOT = "<?php echo URLROOT; ?>";
-    }
+    window.URLROOT = "<?php echo URLROOT; ?>";
 
+    let inventoryState = {
+        page: 1,
+        limit: parseInt(document.getElementById('limitSelector')?.value || 10),
+        search: ''
+    };
+
+    // --- FUNCIONES DE INTERFAZ ---
     const closeInventoryModal = () => {
         const modal = document.getElementById('inventoryModal');
         if (modal) modal.classList.add('hidden');
         document.getElementById('formInventory').reset();
         document.getElementById('imagePreview').innerHTML = '<i data-lucide="image" class="w-8 h-8 text-slate-300"></i>';
-        if (typeof lucide !== 'undefined') lucide.createIcons();
+        if (window.lucide) window.lucide.createIcons();
     };
 
-    document.getElementById('formInventory')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-
-        const btnSubmit = e.target.querySelector('button[type="submit"]');
-        if (btnSubmit.disabled) return;
-
-        // Usamos FormData directamente porque este formulario incluye archivos (imagen)
-        const formData = new FormData(e.target);
-
-        try {
-            btnSubmit.disabled = true;
-            btnSubmit.innerHTML = '<i class="animate-spin w-4 h-4" data-lucide="loader-2"></i> PROCESANDO...';
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-
-            const response = await fetch(`${URLROOT}/inventario/guardar`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
-                },
-                body: formData
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                AppUtils.showToast(result.mensaje || 'Producto guardado');
-                closeInventoryModal();
-
-                // Forzar actualización inmediata de la tabla
-                if (typeof window.fetchInventory === 'function') window.fetchInventory();
-            } else {
-                AppUtils.showToast(result.mensaje || 'Error al guardar', 'error');
-            }
-        } catch (error) {
-            AppUtils.showToast('Error de red o servidor', 'error');
-        } finally {
-            btnSubmit.disabled = false;
-            btnSubmit.textContent = 'Guardar Item';
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        }
-    });
-</script>
-<script src="<?php echo URLROOT; ?>/js/inventario.js"></script>
-
-<script>
-    /**
-     * SISTEMA DE CARGA Y PAGINACIÓN MANUAL
-     * Reemplaza la lógica que fallaba tras eliminar DataTables.
-     */
-    let inventoryState = {
-        page: 1,
-        limit: 10,
-        search: ''
+    window.openInventoryModal = () => {
+        document.getElementById('modalTitle').textContent = 'Registrar Producto';
+        document.getElementById('prodId').value = '';
+        document.getElementById('formInventory').reset();
+        document.getElementById('inventoryModal').classList.remove('hidden');
+        if (window.lucide) window.lucide.createIcons();
     };
 
+    // --- LÓGICA DE DATOS ---
     window.fetchInventory = async () => {
-        const tableBody = document.getElementById('tableBody');
-        const offset = (inventoryState.page - 1) * inventoryState.limit;
-        
         try {
+            const tableBody = document.getElementById('tableBody');
+            if (!tableBody) return;
+
+            const offset = (parseInt(inventoryState.page) - 1) * parseInt(inventoryState.limit);
             const response = await fetch(`${window.URLROOT}/inventario/listar?q=${inventoryState.search}&limit=${inventoryState.limit}&offset=${offset}`);
             const result = await response.json();
 
             if (result.success) {
-                renderInventoryTable(result.data);
-                updatePaginationUI(result.total, result.totalFiltrados);
+                renderInventoryTable(result.data || []);
+                updatePaginationUI(result.total || 0, result.totalFiltrados || 0);
+            } else {
+                tableBody.innerHTML = '<tr><td colspan="7" class="px-8 py-16 text-center text-red-400 font-bold uppercase">Error al obtener datos</td></tr>';
             }
-        } catch (error) {
-            console.error("Error al sincronizar inventario:", error);
+        } catch (err) {
+            console.error("Error cargando inventario:", err);
         }
     };
 
     const renderInventoryTable = (items) => {
         const tableBody = document.getElementById('tableBody');
-        if (!items || items.length === 0) {
+        if (!tableBody) return;
+
+        if (items.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="7" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">No se encontraron productos</td></tr>';
             return;
         }
 
         tableBody.innerHTML = items.map(item => {
-            const isCritical = item.stock <= item.stock_minimo;
+            const stock = parseInt(item.stock ?? 0);
+            const min = parseInt(item.stock_minimo ?? 0);
+            const isCritical = stock <= min;
             const statusClass = isCritical ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100';
+            const precio = parseFloat(item.precio ?? 0);
+            
+            // Imagen alusiva: Si no hay foto, mostramos un contenedor con un icono de caja
+            const imageContent = item.imagen 
+                ? `<img src="${window.URLROOT}/${item.imagen}" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-sm" onerror="this.parentElement.innerHTML='<div class=\'w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400\'><i data-lucide=\'package\' class=\'w-5 h-5\'></i></div>'">`
+                : `<div class="w-10 h-10 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center text-slate-300">
+                    <i data-lucide="package" class="w-5 h-5"></i>
+                   </div>`;
             
             return `
                 <tr class="hover:bg-slate-50 transition-colors group">
                     <td class="px-8 py-4">
-                        <img src="${window.URLROOT}/${item.imagen || 'img/default.png'}" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-sm" onerror="this.src='${window.URLROOT}/img/default.png'">
+                        <div class="w-10 h-10">
+                            ${imageContent}
+                        </div>
                     </td>
                     <td class="px-8 py-4">
                         <span class="block font-black text-navy-blue uppercase text-xs">${item.nombre}</span>
                         <span class="text-[9px] text-slate-400 font-mono font-bold">#SKU-${String(item.id).padStart(4, '0')}</span>
                     </td>
                     <td class="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">${item.categoria}</td>
-                    <td class="px-8 py-4 font-black ${isCritical ? 'text-red-500' : 'text-slate-600'} text-sm">${item.stock}</td>
-                    <td class="px-8 py-4 font-black text-navy-blue text-sm">$${parseFloat(item.precio).toLocaleString('es-CO')}</td>
+                    <td class="px-8 py-4 font-black ${isCritical ? 'text-red-500' : 'text-slate-600'} text-sm">${stock}</td>
+                    <td class="px-8 py-4 font-black text-navy-blue text-sm">$${precio.toLocaleString('es-CO')}</td>
                     <td class="px-8 py-4">
                         <span class="px-3 py-1 rounded-full text-[9px] font-black border ${statusClass}">${isCritical ? 'CRÍTICO' : 'DISPONIBLE'}</span>
                     </td>
                     <td class="px-8 py-4 text-right">
-                        <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <a href="${window.URLROOT}/inventario/kardex/${item.id}" class="p-2 text-slate-400 hover:text-navy-blue hover:bg-slate-100 rounded-lg transition-all"><i data-lucide="activity" class="w-4 h-4"></i></a>
-                            <button onclick="window.editItem(${item.id})" class="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-all"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                        <div class="flex justify-end gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <a href="${window.URLROOT}/inventario/kardex/${item.id}" class="p-2 text-slate-400 hover:text-navy-blue hover:bg-slate-100 rounded-lg transition-all" title="Kardex"><i data-lucide="activity" class="w-4 h-4"></i></a>
+                            <button onclick="window.editItem(${item.id})" class="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-all" title="Editar"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
                             ${window.USER_ROLE === 'ADMINISTRADOR' ? `<button onclick="window.deleteItem(${item.id})" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                         </div>
                     </td>
@@ -260,30 +244,35 @@
     };
 
     const updatePaginationUI = (total, totalFiltrados) => {
-        const start = (inventoryState.page - 1) * inventoryState.limit + 1;
-        const end = Math.min(inventoryState.page * inventoryState.limit, totalFiltrados);
+        const t = Math.max(0, parseInt(total) || 0);
+        const tf = Math.max(0, parseInt(totalFiltrados) || 0);
+        const p = Math.max(1, parseInt(inventoryState.page) || 1);
+        const l = Math.max(1, parseInt(inventoryState.limit) || 10);
+
+        const start = tf === 0 ? 0 : ((p - 1) * l) + 1;
+        const end = Math.min(p * l, tf);
         
-        // Actualizar textos informativos
-        document.getElementById('startIndex').textContent = totalFiltrados === 0 ? 0 : start;
-        document.getElementById('endIndex').textContent = end;
-        document.getElementById('totalItemsDisplay').textContent = totalFiltrados;
+        if (document.getElementById('startIndex')) document.getElementById('startIndex').textContent = start;
+        if (document.getElementById('endIndex')) document.getElementById('endIndex').textContent = end;
+        if (document.getElementById('totalItemsDisplay')) document.getElementById('totalItemsDisplay').textContent = tf;
         
         const countDisplay = document.getElementById('totalCount');
-        if (countDisplay) countDisplay.textContent = total;
+        if (countDisplay) countDisplay.textContent = t;
 
-        const totalPages = Math.ceil(totalFiltrados / inventoryState.limit);
+        const totalPages = Math.ceil(tf / l) || 1;
         const controls = document.getElementById('paginationControls');
+        if (!controls) return;
         
         let html = '';
         if (totalPages > 1) {
             html += `
-                <button onclick="changePage(${inventoryState.page - 1})" ${inventoryState.page === 1 ? 'disabled' : ''} class="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm">
+                <button onclick="changePage(${p - 1})" ${p === 1 ? 'disabled' : ''} class="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm">
                     <i data-lucide="chevron-left" class="w-4 h-4"></i>
                 </button>
                 <div class="px-4 py-2 text-[10px] font-black text-navy-blue bg-white border border-slate-200 rounded-lg uppercase tracking-tighter shadow-sm">
-                    PÁGINA ${inventoryState.page} DE ${totalPages}
+                    PÁGINA ${p} DE ${totalPages}
                 </div>
-                <button onclick="changePage(${inventoryState.page + 1})" ${inventoryState.page === totalPages ? 'disabled' : ''} class="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm">
+                <button onclick="changePage(${p + 1})" ${p === totalPages ? 'disabled' : ''} class="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm">
                     <i data-lucide="chevron-right" class="w-4 h-4"></i>
                 </button>
             `;
@@ -293,11 +282,19 @@
     };
 
     window.changePage = (newPage) => {
+        if (newPage < 1) return;
         inventoryState.page = newPage;
         window.fetchInventory();
     };
 
-    // Buscador en tiempo real con debounce
+    // Selector de registros por página
+    document.getElementById('limitSelector')?.addEventListener('change', (e) => {
+        inventoryState.limit = parseInt(e.target.value);
+        inventoryState.page = 1;
+        window.fetchInventory();
+    });
+
+    // --- EVENTOS ---
     document.getElementById('searchInventory')?.addEventListener('input', (e) => {
         inventoryState.search = e.target.value.trim();
         inventoryState.page = 1;
@@ -305,43 +302,45 @@
         window.searchTimer = setTimeout(window.fetchInventory, 300);
     });
 
-    // Carga inicial al cargar el DOM
+    document.getElementById('formInventory')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation(); // Evita que otros scripts guarden el producto de nuevo
+
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        if (btnSubmit.disabled) return;
+
+        const formData = new FormData(e.target);
+        try {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<i class="w-4 h-4 animate-spin" data-lucide="loader-2"></i>';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            const response = await fetch(`${window.URLROOT}/inventario/guardar`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token'] ?? ''; ?>' },
+                body: formData
+            });
+            const result = await response.json();
+            if (result.success) {
+                AppUtils.showToast(result.mensaje || 'Operación exitosa');
+                closeInventoryModal();
+                window.fetchInventory();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error', 'error');
+            }
+        } catch (err) {
+            AppUtils.showToast('Error de conexión', 'error');
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Guardar Item';
+        }
+    });
+
     document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('btnOpenModal')?.addEventListener('click', window.openInventoryModal);
+        document.getElementById('btnCloseModal')?.addEventListener('click', closeInventoryModal);
+        document.getElementById('btnCancel')?.addEventListener('click', closeInventoryModal);
         window.fetchInventory();
     });
 </script>
-
-<script>
-    /** 
-     * SINCRONIZADOR DINÁMICO DE CONTADOR
-     * En lugar de hacer fetch adicionales, observamos los cambios en el cuerpo de la tabla.
-     * Esto garantiza que el contador refleje EXACTAMENTE lo que el usuario ve en pantalla,
-     * sin importar qué script (inventario.js) modifique la tabla.
-     */
-    const syncCatalogCounter = () => {
-        const tableBody = document.getElementById('tableBody');
-        const totalDisplay = document.getElementById('totalCount');
-        
-        if (!tableBody || !totalDisplay) return;
-
-        const updateCount = () => {
-            // Contamos las filas que no sean mensajes de error o de carga
-            const rows = tableBody.querySelectorAll('tr:not(.status-row)');
-            // Si hay una sola fila y tiene un colspan grande, es un mensaje de "No hay resultados"
-            if (rows.length === 1 && rows[0].cells.length === 1) {
-                totalDisplay.textContent = '0';
-            } else {
-                totalDisplay.textContent = rows.length;
-            }
-        };
-
-        // Observamos cambios en los hijos de tableBody (filas agregadas/eliminadas)
-        const observer = new MutationObserver(updateCount);
-        observer.observe(tableBody, { childList: true });
-        
-        // Ejecución inicial
-        updateCount();
-    };
-
-    document.addEventListener('DOMContentLoaded', syncCatalogCounter);
-</script>
+<script src="<?php echo URLROOT; ?>/js/inventario.js"></script>
