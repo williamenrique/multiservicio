@@ -1,177 +1,114 @@
 <?php
 /**
- * BillingService
- * Centraliza la lógica de negocio de facturación, inventario y caja.
+ * Servicio de Facturación
+ * Centraliza la lógica de negocio, cálculos financieros y transacciones.
  */
 class BillingService {
     private $db;
     private $facturaModel;
-    private $inventarioModel;
-    private $cajaModel;
+    private $invModel;
+    private $empresaModel;
 
     public function __construct() {
         $this->db = new Database();
         $this->facturaModel = new ModelFacturacion();
-        $this->inventarioModel = new ModelInventario();
-        $this->cajaModel = new ModelCaja();
+        $this->invModel = new ModelInventario();
+        $this->empresaModel = new ModelEmpresa();
     }
 
-    /**
-     * Procesa una venta completa de forma atómica.
-     */
     public function procesarVentaCompleta($datos) {
         try {
             $this->db->beginTransaction();
 
-            // 2. Validar Stock Disponible (Físico - Comprometido por otros)
-            $ventaIdActual = !empty($datos['id_db']) ? $datos['id_db'] : 0;
+            // 1. Cálculos de Totales
+            $totales = $this->calcularTotales($datos);
+            
+            // 2. Determinar estado (COMPLETADO o CREDITO)
+            $status = ($totales['saldo'] > 0.05) ? 'CREDITO' : 'COMPLETADO';
 
-            foreach ($datos['items'] as $item) {
-                if (!empty($item['id']) && $item['tipo'] === 'PRODUCTO') {
-                    // Consultamos el stock disponible real (Físico - Reservas de otros borradores)
-                    $this->db->query("SELECT (i.stock - COALESCE((
-                                        SELECT SUM(vd.cantidad) 
-                                        FROM table_ventas_detalle vd 
-                                        JOIN table_ventas v ON vd.venta_id = v.id 
-                                        WHERE vd.producto_id = i.id 
-                                        AND v.status = 'PENDIENTE' 
-                                        AND v.id != :vid_actual
-                                      ), 0)) as disponible
-                                      FROM table_inventario i WHERE i.id = :pid");
-                    $this->db->bind(':pid', $item['id']);
-                    $this->db->bind(':vid_actual', $ventaIdActual);
-                    $stock = $this->db->single();
+            // 3. Guardar Cabecera
+            $ventaId = $this->facturaModel->guardarCabeceraVenta($datos, $status, $totales);
 
-                    if (!$stock || $stock->disponible < $item['cantidad']) {
-                        throw new Exception("El producto '" . $item['nombre'] . "' ya está apartado en otra orden o no hay stock. Disponible real: " . ($stock->disponible ?? 0));
-                    }
-                }
-            }
-
-            // 3. Guardar la Factura (Status COMPLETADO o CREDITO)
-            // El modelo ya maneja la lógica de inserción de cabecera y detalles
-            $ventaId = $this->facturaModel->guardarFactura($datos, 'COMPLETADO');
-
-            if (!$ventaId) {
-                throw new Exception("Error al generar el registro de venta.");
-            }
-
-            // 4. Registrar Movimientos de Caja
-            if ((float)$datos['pago_efectivo'] > 0) {
-                $this->cajaModel->registrarMovimiento([
-                    'sesion_id' => null,
-                    'tipo' => 'INGRESO',
-                    'monto' => $datos['pago_efectivo'],
-                    'metodo_pago' => 'EFECTIVO',
-                    'referencia_id' => $ventaId,
-                    'concepto' => "Venta #$ventaId"
-                ]);
-            }
-
-            if ((float)$datos['pago_transferencia'] > 0) {
-                $this->cajaModel->registrarMovimiento([
-                    'sesion_id' => null,
-                    'tipo' => 'INGRESO',
-                    'monto' => $datos['pago_transferencia'],
-                    'metodo_pago' => 'TRANSFERENCIA',
-                    'referencia_id' => $ventaId,
-                    'concepto' => "Venta #$ventaId"
-                ]);
-            }
-
-            // 5. Auditoría
-            logAction('VENTA', 'FINALIZAR', "Venta #$ventaId procesada exitosamente.");
+            // 4. Procesar Detalles y Stock
+            $this->procesarDetallesYStock($ventaId, $datos['items'], $status);
 
             $this->db->commit();
             return $ventaId;
-
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            error_log("FALLO EN BillingService::procesarVentaCompleta -> " . $e->getMessage());
-            throw $e;
-        }
-    }
-
-    /**
-     * Registra un abono y asegura la entrada en caja en una sola operación.
-     */
-    public function registrarAbonoSeguro($ventaId, $monto, $metodo) {
-        try {
-            $this->db->beginTransaction();
-
-            // Registrar abono en el modelo
-            $res = $this->facturaModel->registrarAbono($ventaId, $monto, $metodo);
-            
-            if (!$res) throw new Exception("Error al registrar abono en la base de datos.");
-
-            // Registrar en caja
-            $this->cajaModel->registrarMovimiento([
-                'sesion_id' => null,
-                'tipo' => 'INGRESO',
-                'monto' => $monto,
-                'metodo_pago' => $metodo,
-                'referencia_id' => $ventaId,
-                'concepto' => "Abono a Factura #$ventaId"
-            ]);
-
-            $this->db->commit();
-            return true;
         } catch (Exception $e) {
             $this->db->rollBack();
             throw $e;
         }
     }
 
-    /**
-     * Sincroniza un borrador validando que no se reserve más de lo disponible.
-     */
-    public function sincronizarBorradorSeguro($datos) {
-        try {
-            $ventaIdActual = !empty($datos['id_db']) ? $datos['id_db'] : 0;
+    private function calcularTotales($datos) {
+        $config = $this->empresaModel->obtenerConfiguracion();
+        $ivaPorcentaje = ($config->iva ?? 0) / 100;
+        
+        $subtotal = 0;
+        foreach ($datos['items'] as $item) {
+            $subtotal += ($item['precio'] * $item['cantidad']);
+        }
 
-            // Validar stock disponible para cada item antes de actualizar el borrador
-            foreach ($datos['items'] as $item) {
-                if (!empty($item['id']) && $item['tipo'] === 'PRODUCTO') {
-                    $this->db->query("SELECT (i.stock - COALESCE((
-                        SELECT SUM(vd.cantidad) FROM table_ventas_detalle vd 
-                        JOIN table_ventas v ON vd.venta_id = v.id 
-                        WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE' AND v.id != :vid
-                    ), 0)) as disponible FROM table_inventario i WHERE i.id = :pid");
-                    $this->db->bind(':pid', $item['id']);
-                    $this->db->bind(':vid', $ventaIdActual);
-                    $stock = $this->db->single();
+        $ivaMonto = ($datos['iva_activo'] ?? false) ? ($subtotal * $ivaPorcentaje) : 0;
+        $total = $subtotal + $ivaMonto;
+        $pagado = (float)($datos['pago_efectivo'] ?? 0) + (float)($datos['pago_transferencia'] ?? 0);
 
-                    if (!$stock || $stock->disponible < $item['cantidad']) {
-                        throw new Exception("No puedes reservar {$item['cantidad']} unidades de '{$item['nombre']}'. Disponible: " . ($stock->disponible ?? 0));
-                    }
-                }
+        return [
+            'subtotal' => $subtotal,
+            'iva' => $ivaMonto,
+            'total' => $total,
+            'saldo' => max(0, $total - $pagado)
+        ];
+    }
+
+    private function procesarDetallesYStock($ventaId, $items, $status) {
+        // Si es actualización, el modelo debería limpiar detalles previos
+        // Por ahora, el modelo se encarga de la persistencia pura.
+        
+        foreach ($items as $item) {
+            // Obtener costo para Kardex
+            $prodInfo = !empty($item['id']) ? $this->invModel->obtenerPorId($item['id']) : null;
+            $costo = $prodInfo ? (float)$prodInfo->costo_promedio : 0;
+
+            // Inserción de detalle vía el DB directamente
+            $this->db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                              VALUES (:vid, :pid, :desc, :cant, :precio, :costo)");
+            $this->db->bind(':vid', $ventaId);
+            $this->db->bind(':pid', $item['id'] ?? null);
+            $this->db->bind(':desc', $item['nombre']);
+            $this->db->bind(':cant', $item['cantidad']);
+            $this->db->bind(':precio', $item['precio']);
+            $this->db->bind(':costo', $costo);
+            $this->db->execute();
+
+            // Manejo de Inventario Físico
+            if ($status !== 'PENDIENTE' && !empty($item['id']) && ($item['tipo'] ?? '') === 'PRODUCTO') {
+                $this->actualizarInventarioSeguro($item, $ventaId, $status);
             }
-
-            return $this->facturaModel->guardarFactura($datos, 'PENDIENTE');
-        } catch (Exception $e) {
-            throw $e;
         }
     }
 
-    /**
-     * Procesa una devolución garantizando que el stock reingrese y la caja se ajuste.
-     */
-    public function procesarDevolucionSegura($datos) {
-        try {
-            $this->db->beginTransaction();
+    private function actualizarInventarioSeguro($item, $ventaId, $status) {
+        $this->db->query("SELECT stock FROM table_inventario WHERE id = :id FOR UPDATE");
+        $this->db->bind(':id', $item['id']);
+        $actual = $this->db->single();
 
-            $res = $this->facturaModel->procesarDevolucion($datos['venta_id'], $datos['detalle_id'], $datos['destino']);
-            
-            if (!$res) throw new Exception("La devolución no pudo ser procesada.");
-
-            // Si el destino es reingreso, el ModelFacturacion ya lo hace, 
-            logAction('VENTA', 'DEVOLUCION', "Devolución procesada para Venta #{$datos['venta_id']}");
-
-            $this->db->commit();
-            return true;
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            throw $e;
+        if (!$actual || $actual->stock < $item['cantidad']) {
+            throw new StockException("No hay suficiente stock de '{$item['nombre']}'.");
         }
+
+        // Registrar Kardex
+        $this->invModel->registrarMovimiento(
+            $item['id'], 
+            'SALIDA_VENTA', 
+            $item['cantidad'], 
+            $ventaId, 
+            "Venta Finalizada ($status)"
+        );
+
+        $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
+        $this->db->bind(':cant', $item['cantidad']);
+        $this->db->bind(':pid', $item['id']);
+        $this->db->execute();
     }
 }

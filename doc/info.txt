@@ -1,28 +1,24 @@
-1. Experiencia del Cliente (Plus de Valor)
-    Notificaciones Automáticas: Enviar un correo o mensaje (vía API de WhatsApp) cuando la orden de servicio cambie a estado "Terminado".
-    Portal de Consulta: Una página simple donde el cliente, con su placa y cédula, vea el progreso actual de su vehículo.
+LISTO A. Estabilidad y Seguridad (Cimientos)
+    Middleware CSRF Global: Actualmente, el token se valida en el Login, pero no en todas las peticiones POST/PUT/DELETE. Implementar una verificación automática protegería todo el sistema de ataques de falsificación.
+    Manejador Global de Excepciones: Crear un "Exception Handler" centralizado para que cualquier error (BD, Stock, Permisos) devuelva siempre un JSON estandarizado al frontend, evitando que el sistema "muera" en silencio.
+    Refactorización de Servicios: Mover el 100% de la lógica de negocio que aún queda en los modelos (como el cálculo de utilidad o stock) hacia clases de Servicio, dejando los modelos solo para consultas SQL puras.
 
+B. Inteligencia de Negocio (Reportes y Finanzas)
+Reporte de Cartera por Edades: Una vista que clasifique las deudas de clientes en: 0-15 días, 16-30 días y +30 días, facilitando la gestión de cobranza.
+Análisis de Rentabilidad por Servicio: Calcular cuánto se gana realmente en mano de obra vs. repuestos, permitiendo saber qué servicios son los más rentables del taller.
+Cierre de Caja Ciego: Implementar un proceso donde el cajero debe ingresar cuánto dinero físico tiene antes de que el sistema le muestre cuánto "debería" haber (evitando ajustes manuales malintencionados).
 
-
-A- Lista de Mejoramiento (Calidad y Estabilidad)
-LISTO    1 Validación Centralizada: Actualmente, la validación ocurre dentro de los controladores (como en ControllerAuth). Sería mejor implementar un sistema de validación de esquemas para los JSON de entrada en la facturación, evitando que datos malformados lleguen al modelo.
-LISTO    2 Manejo de Excepciones: Muchos métodos retornan false en caso de error. Implementar Excepciones Personalizadas permitiría que el controlador capture el motivo exacto del fallo (ej: "Stock Insuficiente" vs "Error de Conexión") y lo muestre al usuario.
-LISTO    3 Estandarización de Nomenclatura: Se observa una mezcla de camelCase y snake_case en variables y llaves de arreglos. Unificar esto facilitaría el mantenimiento.
-
-    4 Seguridad CSRF Global: El token CSRF se verifica en el login, pero debería implementarse un middleware o verificación automática en todos los métodos POST, PUT y DELETE para proteger las acciones de facturación y personal.
-
-    5 Gestión de Sesiones: El sistema de sesión única en base de datos es muy bueno, pero le vendría bien un proceso de "limpieza" automática para sesiones que no cerraron correctamente pero ya expiraron por tiempo.
-
-LISTO B- Funcionalidades Sugeridas (Nuevas Capacidades)
-    1 Análisis de Rentabilidad: Actualmente, el flujo de caja mide dinero que entra y sale. Se podría agregar una tarjeta de Utilidad Bruta, comparando el precio_unitario de venta contra el ultimo_costo registrado en el inventario para saber cuánto se ganó realmente, más allá del movimiento de caja.
-    
-LISTO    2 Sistema de Notificaciones (Alertas):
-    Alertas automáticas cuando un producto llega al stock mínimo.
-    Notificación visual en el dashboard para créditos que superen los 15 días (usando la lógica que ya tienes en alertasCredito).
-    
-    3 Módulo de "Órdenes de Trabajo": Antes de facturar, permitir crear una "Orden de Trabajo" (estado preventivo) donde se carguen servicios y repuestos sin afectar stock ni caja hasta que el cliente autorice y se convierta en factura.
-    
-LISTO    4 Historial de Precios (Kardex Visual): Aunque el sistema registra movimientos en el Kardex, una vista para el administrador donde pueda ver la fluctuación del costo de un repuesto en el tiempo ayudaría a ajustar precios de venta.
+C. Experiencia del Cliente (Fidelización)
+Notificaciones Automáticas vía WhatsApp/Email: Integrar una API para notificar al cliente automáticamente cuando su vehículo pase de "En Reparación" a "Listo para Entrega".
+Portal de Consulta Externa: Una página pública (sin login) donde el cliente, solo con su placa y un código, pueda ver el estado actual de su orden de servicio y fotos del progreso.
+D. Optimización Operativa (Taller e Inventario)
+Asignación de Mecánicos y Tiempos: Poder asignar mecánicos específicos a cada ítem de una orden de servicio para medir la productividad del personal.
+Escaneo de Código de Barras: Adaptar el buscador de facturación e inventario para que acepte entradas de escáner, acelerando la venta de repuestos en mostrador.
+Gestión de Archivos de Vehículos: Permitir subir fotos del estado en que llega el vehículo (evidencia visual) directamente en la Orden de Servicio.
+3. Diagnóstico Técnico Actual
+Punto Fuerte: El uso de transacciones SQL (beginTransaction, commit) en los modelos de proveedores y facturación garantiza que la base de datos nunca quede en un estado inconsistente si algo falla a mitad de proceso.
+Punto a Mejorar: Hay una mezcla de lógica de presentación (generación de HTML vía JS) que se está volviendo extensa. Podríamos considerar una pequeña refactorización de componentes JS para que sean más reutilizables.
+¿Sobre cuál de estos puntos te gustaría profundizar o empezar a trabajar primero? Quedo a la espera de tus instrucciones para proceder con el código cuando lo indiques.
     
     5 Estado de Cuenta de Cliente: Una funcionalidad para generar un PDF o vista rápida de todos los abonos y saldos pendientes de un cliente específico, facilitando la cobranza.
     

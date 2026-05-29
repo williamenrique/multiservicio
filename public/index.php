@@ -60,10 +60,39 @@ spl_autoload_register(function($nombreClase) {
 });
 
 /**
- * 6. Inicializar la Aplicación (El Enrutador)
- * Esta línea lee la URL y carga el controlador correspondiente.
+ * 6. Seguridad y Manejo Global
  */
 try {
+    // 6.1 Validación CSRF Global para peticiones de modificación
+    if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE'])) {
+        $token = $_POST['csrf_token'] ?? null;
+        
+        // Si no está en POST, buscar en los encabezados de forma robusta
+        if (!$token) {
+            $headers = array_change_key_case(getallheaders(), CASE_LOWER);
+            if (isset($headers['x-csrf-token'])) {
+                $token = $headers['x-csrf-token'];
+            } elseif (isset($_SERVER['HTTP_X_CSRF_TOKEN'])) {
+                $token = $_SERVER['HTTP_X_CSRF_TOKEN'];
+            }
+        }
+
+        // Excepción para el login (donde se genera/valida por primera vez) 
+        // o validación estricta
+        $url = $_GET['url'] ?? '';
+        $isLoginAction = (strpos($url, 'auth/login') !== false);
+
+        if (!$isLoginAction && (!$token || $token !== ($_SESSION['csrf_token'] ?? ''))) {
+            header('Content-Type: application/json');
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Error de seguridad: Token CSRF no válido o sesión expirada.'
+            ]);
+            exit;
+        }
+    }
+
     $init = new App();
 } catch (Throwable $e) {
     // Capturamos Throwable para atrapar tanto Errors como Exceptions (PHP 7+)

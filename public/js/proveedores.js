@@ -180,6 +180,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 500);
     });
 
+    // --- Lógica del Modal de Proveedores ---
+
+    const toggleModal = (show) => {
+        if (!proveedorModal) return;
+        proveedorModal.classList.toggle('hidden', !show);
+        if (!show) {
+            formProveedor.reset();
+            document.getElementById('provId').readOnly = false;
+            document.getElementById('provIdExistente').value = "";
+            document.getElementById('modalTitle').textContent = "Registrar Proveedor";
+        }
+    };
+
+    document.getElementById('btnOpenModal')?.addEventListener('click', () => toggleModal(true));
+    document.getElementById('btnCloseModal')?.addEventListener('click', () => toggleModal(false));
+    document.getElementById('btnCancel')?.addEventListener('click', () => toggleModal(false));
+
+    window.editItem = async (id) => {
+        try {
+            const res = await fetch(`${URLROOT}/proveedores/obtener/${id}`);
+            const item = await res.json();
+
+            document.getElementById('provId').value = item.id;
+            document.getElementById('provId').readOnly = true;
+            document.getElementById('provIdExistente').value = item.id;
+            document.getElementById('provNombre').value = item.nombre;
+            document.getElementById('provEmail').value = item.email;
+            document.getElementById('provTelefono').value = item.telefono;
+            document.getElementById('provDireccion').value = item.direccion;
+
+            document.getElementById('modalTitle').textContent = "Editar Proveedor";
+            toggleModal(true);
+        } catch (error) {
+            AppUtils.showToast('Error al obtener datos del proveedor', 'error');
+        }
+    };
+
+    formProveedor?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const btnSave = formProveedor.querySelector('button[type="submit"]');
+        const originalText = btnSave.innerHTML;
+
+        // Evitar doble envío y aplicar mayúsculas
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
+        if (window.lucide) lucide.createIcons();
+
+        const formData = {
+            id: document.getElementById('provId').value.trim().toUpperCase(),
+            id_existente: document.getElementById('provIdExistente').value,
+            nombre: document.getElementById('provNombre').value.trim().toUpperCase(),
+            email: document.getElementById('provEmail').value.trim().toLowerCase(),
+            telefono: document.getElementById('provTelefono').value.trim(),
+            direccion: document.getElementById('provDireccion').value.trim().toUpperCase()
+        };
+
+        try {
+            const res = await fetch(`${URLROOT}/proveedores/guardar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
+                body: JSON.stringify(formData)
+            });
+            const result = await res.json();
+            if (result.success) {
+                toggleModal(false);
+                loadProveedores();
+                AppUtils.showToast('Proveedor guardado correctamente');
+            } else {
+                AppUtils.showToast(result.error || 'Error al guardar', 'error');
+            }
+        } catch (error) {
+            AppUtils.showToast('Error de conexión', 'error');
+        } finally {
+            btnSave.disabled = false;
+            btnSave.innerHTML = originalText;
+            if (window.lucide) lucide.createIcons();
+        }
+    });
+
     window.switchProveedorTab = window.switchTab = (tab) => {
         const secLista = document.getElementById('sec-lista');
         const secDeudas = document.getElementById('sec-deudas');
@@ -309,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                  onclick="window.setProductoCompra('${i.id}', '${i.nombre.replace(/'/g, "\\'")}', '${i.categoria}', ${i.ultimo_costo}, ${i.precio})">
                                 <span>${i.nombre}</span>
                                 <span class="font-bold text-navy-blue">${AppUtils.formatCurrency(i.precio)}</span>
-                            </div>`).join('');
+                            </div>`).join('').toUpperCase();
                         results.classList.remove('hidden');
                     }
                 });
@@ -326,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     proveedor_id: proveedorId,
                     producto_id: document.getElementById('compra-producto-id').value,
                     nombre: nombre.toUpperCase(),
-                    categoria: document.getElementById('compra-categoria').value.toUpperCase(),
+                    categoria: (document.getElementById('compra-categoria').value || 'REPUESTOS').trim().toUpperCase(),
                     cantidad,
                     costo,
                     precio_venta: parseFloat(document.getElementById('compra-precio-venta').value) || 0,
@@ -341,7 +425,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 AppUtils.showLoading('Procesando ingreso...');
                 const res = await fetch(`${URLROOT}/proveedores/registrarCompra`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': CSRF_TOKEN
+                    },
                     body: JSON.stringify(formValues)
                 });
                 const result = await res.json();
@@ -390,6 +477,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (formValues && formValues.monto > 0) {
             const resPago = await fetch(`${URLROOT}/proveedores/registrarPago`, {
                 method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
                 body: JSON.stringify(formValues)
             });
             const result = await resPago.json();
@@ -398,6 +489,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.switchTab('deudas');
             }
         }
+    };
+
+    window.deleteItem = (id) => {
+        AppUtils.confirmAction('¿Eliminar proveedor?', 'Esta acción no se puede deshacer.', async () => {
+            const res = await fetch(`${URLROOT}/proveedores/eliminar/${id}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
+            });
+            if ((await res.json()).success) {
+                AppUtils.showToast('Proveedor eliminado');
+                loadProveedores();
+            }
+        });
     };
 
     // Manejo de pestaña inicial por URL (Ej: proveedores?tab=deudas)

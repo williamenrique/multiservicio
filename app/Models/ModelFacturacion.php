@@ -82,128 +82,43 @@ class ModelFacturacion {
     }
 
     /**
-     * Procesa una venta completa usando una transacción SQL
+     * Registra o actualiza la cabecera de una venta.
+     * Los cálculos deben venir ya procesados desde el BillingService.
      */
-    public function guardarFactura($datos, $status = 'PENDIENTE') {
+    public function guardarCabeceraVenta($datos, $status, $totales) {
         try {
             $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
-
-            // Obtener IVA dinámico desde la configuración de la empresa
-            $this->db->query("SELECT iva FROM table_company_settings WHERE id = 1 LIMIT 1");
-            $config = $this->db->single();
-            $ivaPorcentaje = ($config->iva ?? 0) / 100;
-
-            // Asegurar que items sea un array
-            $items = isset($datos['items']) && is_array($datos['items']) ? $datos['items'] : [];
-
-            $subtotal = 0;
-            foreach ($items as $item) $subtotal += ($item['precio'] * $item['cantidad']);
-
-            // Respetar el estado del interruptor de IVA enviado desde el frontend
-            $ivaActivo = isset($datos['iva_activo']) ? (bool)$datos['iva_activo'] : false;
-            $ivaMonto = $ivaActivo ? ($subtotal * $ivaPorcentaje) : 0;
-            $total = $subtotal + $ivaMonto;
-
-            // Nuevos campos de pago
-            $pagoEfectivo = (float)($datos['pago_efectivo'] ?? 0);
-            $pagoTransferencia = (float)($datos['pago_transferencia'] ?? 0);
-            $pagoTotal = $pagoEfectivo + $pagoTransferencia;
-            $saldoPendiente = $total - $pagoTotal;
-
-            // Lógica de Estado Automática:
-            // Si se intenta completar pero hay saldo pendiente > 0, se marca como CREDITO
-            if ($status === 'COMPLETADO' && $saldoPendiente > 0.05) {
-                $status = 'CREDITO';
-            }
-
             if ($ventaId) {
-                // Actualizar factura existente (Borrador)
-                $this->db->query("UPDATE table_ventas SET 
+                $this->db->query("UPDATE table_ventas SET
                                   cliente_id = :cid, placa = :placa, modelo_vehiculo = :modelo, 
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
                                   pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
-                                  status = :status" . 
+                                  status = :status" .
                                   (in_array($status, ['COMPLETADO', 'CREDITO']) ? ", fecha_cierre = NOW()" : "") . " 
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
             } else {
-                // Insertar nueva factura
                 $this->db->query("INSERT INTO table_ventas (cliente_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
                                   pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status) 
                                   VALUES (:cid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status)");
                 $this->db->bind(':uid', $_SESSION['user_id']);
             }
-
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
             $this->db->bind(':placa', !empty($datos['placa']) ? mb_strtoupper($datos['placa'], 'UTF-8') : '');
             $this->db->bind(':modelo', !empty($datos['modelo']) ? mb_strtoupper($datos['modelo'], 'UTF-8') : '');
-            $this->db->bind(':sub', $subtotal);
-            $this->db->bind(':iva', $ivaMonto);
-            $this->db->bind(':total', $total);
-            $this->db->bind(':pef', $pagoEfectivo);
-            $this->db->bind(':ptra', $pagoTransferencia);
-            $this->db->bind(':spend', ($saldoPendiente > 0) ? $saldoPendiente : 0);
+            $this->db->bind(':sub', $totales['subtotal']);
+            $this->db->bind(':iva', $totales['iva']);
+            $this->db->bind(':total', $totales['total']);
+            $this->db->bind(':pef', $datos['pago_efectivo']);
+            $this->db->bind(':ptra', $datos['pago_transferencia']);
+            $this->db->bind(':spend', $totales['saldo']);
             $this->db->bind(':status', $status);
-
             $this->db->execute();
-            if (!$ventaId) $ventaId = $this->db->lastInsertId();
-
-            // Si estamos actualizando, borramos los detalles anteriores para re-insertar
-            if (!empty($datos['id_db'])) {
-                $this->db->query("DELETE FROM table_ventas_detalle WHERE venta_id = :vid");
-                $this->db->bind(':vid', $ventaId);
-                $this->db->execute();
-            }
-
-            // Instanciamos el modelo de inventario fuera del bucle para mejor rendimiento
-            $invModel = new ModelInventario();
-
-            foreach ($items as $item) {
-                // Obtener costo actual para persistirlo en el detalle
-                $prodInfo = !empty($item['id']) ? $invModel->obtenerPorId($item['id']) : null;
-                $costoActual = $prodInfo ? (float)$prodInfo->costo_promedio : 0;
-
-                $this->db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
-                                  VALUES (:vid, :pid, :desc, :cant, :precio, :costo)");
-                $this->db->bind(':vid', $ventaId);
-                $this->db->bind(':pid', !empty($item['id']) ? $item['id'] : null);
-                $this->db->bind(':desc', $item['nombre']);
-                $this->db->bind(':cant', $item['cantidad']);
-                $this->db->bind(':precio', $item['precio']);
-                $this->db->bind(':costo', $costoActual);
-                $this->db->execute();
-
-                // SOLO descontar stock físico si la venta se FINALIZÓ (COMPLETADO o CREDITO)
-                if (in_array($status, ['COMPLETADO', 'CREDITO']) && $item['tipo'] === 'PRODUCTO' && !empty($item['id'])) {
-                    
-                    // Validación de Stock Preventiva
-                    $this->db->query("SELECT stock FROM table_inventario WHERE id = :id");
-                    $this->db->bind(':id', $item['id']);
-                    $stockActual = (int)($this->db->single()->stock ?? 0);
-
-                    if ($stockActual < $item['cantidad']) {
-                        throw new StockException("Stock insuficiente para '{$item['nombre']}'. Disponible: $stockActual");
-                    }
-
-                    // Registrar en Kardex antes de actualizar el stock
-                    $invModel->registrarMovimiento($item['id'], 'SALIDA_VENTA', $item['cantidad'], $ventaId, "Venta Finalizada ($status)");
-
-                    $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
-                    $this->db->bind(':cant', $item['cantidad']);
-                    $this->db->bind(':pid', $item['id']);
-                    $this->db->execute();
-                }
-            }
-
-            return $ventaId;
+            return $ventaId ?: $this->db->lastInsertId();
         } catch (Exception $e) {
-            error_log("Error en guardarFactura: " . $e->getMessage());
+            error_log("Error en guardarCabeceraVenta: " . $e->getMessage());
             throw $e;
         }
-    }
-
-    public function procesarVenta($datos) {
-        return $this->guardarFactura($datos, 'COMPLETADO');
     }
 
     /**

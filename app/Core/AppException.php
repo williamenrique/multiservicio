@@ -1,11 +1,5 @@
 <?php
 /**
- * Clases de excepciones personalizadas para el sistema.
+ * Excepción genérica para errores controlados de la aplicación.
  */
 class AppException extends Exception {}
-
-/** Lanzada cuando el stock en inventario no cubre el pedido */
-class StockException extends AppException {}
-
-/** Lanzada para errores críticos de base de datos */
-class DatabaseException extends AppException {}

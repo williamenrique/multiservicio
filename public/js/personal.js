@@ -158,10 +158,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <i data-lucide="chevron-left" class="w-5 h-5"></i>
                 </button>
                 ${pageNumbers.map(p => {
-                    if (p === '...') return `<span class="px-3 text-slate-300 font-black">...</span>`;
-                    return `<button onclick="window.changePage(${p})" 
+            if (p === '...') return `<span class="px-3 text-slate-300 font-black">...</span>`;
+            return `<button onclick="window.changePage(${p})" 
                         class="w-10 h-10 rounded-2xl text-[11px] font-black transition-all ${p === state.page ? 'bg-navy-blue text-neon-green shadow-lg shadow-navy-blue/20 border border-navy-blue' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-navy-blue shadow-sm cursor-pointer'}">${p}</button>`;
-                }).join('')}
+        }).join('')}
                 <button onclick="window.changePage(${state.page + 1})" ${state.page >= totalPages ? 'disabled' : ''} 
                     class="flex items-center justify-center w-10 h-10 rounded-2xl transition-all ${state.page >= totalPages ? 'text-slate-300 bg-slate-50 cursor-not-allowed' : 'bg-white border border-slate-200 text-slate-500 hover:bg-navy-blue hover:text-neon-green hover:border-navy-blue shadow-sm cursor-pointer'}">
                     <i data-lucide="chevron-right" class="w-5 h-5"></i>
@@ -190,24 +190,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     formStaff.addEventListener('submit', async (e) => {
         e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const btnSave = formStaff.querySelector('button[type="submit"]');
+        const originalText = btnSave.innerHTML;
+
+        // Prevenir doble envío y mostrar carga
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
+        if (window.lucide) lucide.createIcons();
+
         const formData = new FormData(formStaff);
         const data = Object.fromEntries(formData.entries());
         data.has_system_access = document.getElementById('hasSystemAccess').checked;
+
+        // Normalización de datos a MAYÚSCULAS y limpieza
+        data.nombre = (data.nombre || '').trim().toUpperCase();
+        data.cargo = (data.cargo || '').trim().toUpperCase();
+        data.direccion = (data.direccion || '').trim().toUpperCase();
+        data.email = (data.email || '').trim().toLowerCase();
 
         // Los campos deshabilitados no se incluyen en FormData, los recuperamos manualmente si es edición
         if (document.getElementById('staffId').disabled) {
             data.id = document.getElementById('staffId').value;
         }
 
-        const res = await fetch(`${URLROOT}/personal/guardar`, {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-        const result = await res.json();
-        if (result.success) {
-            toggleModal(false);
-            loadData();
-            AppUtils.showToast(result.mensaje, 'success');
+        try {
+            const res = await fetch(`${URLROOT}/personal/guardar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) {
+                toggleModal(false);
+                loadData();
+                AppUtils.showToast(result.mensaje || 'Personal guardado correctamente', 'success');
+            } else {
+                AppUtils.showToast(result.error || result.mensaje, 'error');
+            }
+        } catch (error) {
+            AppUtils.showToast('Error de conexión con el servidor', 'error');
+        } finally {
+            btnSave.disabled = false;
+            btnSave.innerHTML = originalText;
+            if (window.lucide) lucide.createIcons();
         }
     });
 
@@ -252,7 +282,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.deleteStaff = (id) => {
         AppUtils.confirmAction('¿Eliminar empleado?', 'Esta acción borrará al empleado permanentemente.', async () => {
-            await fetch(`${URLROOT}/personal/eliminar/${id}`, { method: 'DELETE' });
+            await fetch(`${URLROOT}/personal/eliminar/${id}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
+            });
             loadData();
         });
     };

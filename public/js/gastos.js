@@ -190,12 +190,17 @@ window.openExpenseModal = async function () { // Hacer la función asíncrona
         }
     }).then(async result => {
         if (result.isConfirmed) {
+            AppUtils.showLoading('Procesando registro...');
             const response = await fetch(`${URLROOT}/gastos/guardar`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
                 body: JSON.stringify(result.value)
             });
             const data = await response.json();
+            AppUtils.hideLoading();
             if (data.success) {
                 AppUtils.showToast('Gasto registrado');
                 loadExpenses();
@@ -208,7 +213,10 @@ window.openExpenseModal = async function () { // Hacer la función asíncrona
 
 window.eliminarGasto = (id) => {
     AppUtils.confirmAction('¿Eliminar gasto?', 'Esta acción no se puede deshacer.', async () => {
-        const response = await fetch(`${URLROOT}/gastos/eliminar/${id}`, { method: 'DELETE' });
+        const response = await fetch(`${URLROOT}/gastos/eliminar/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
+        });
         const data = await response.json();
         if (data.success) {
             AppUtils.showToast('Gasto eliminado');

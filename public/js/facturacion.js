@@ -389,7 +389,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Si la factura ya existe en el servidor, pedir confirmación y borrar en DB
         if (inv.id_db) {
             AppUtils.confirmAction('¿Eliminar borrador?', 'Esta acción cancelará la orden y liberará el stock.', async () => {
-                const res = await fetch(`${URLROOT}/facturacion/eliminarBorrador/${inv.id_db}`, { method: 'POST' });
+                const res = await fetch(`${URLROOT}/facturacion/eliminarBorrador/${inv.id_db}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
+                });
                 const data = await res.json();
                 if (data.success) {
                     proceedWithClosing();
@@ -454,7 +457,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(`${URLROOT}/facturacion/sincronizarBorrador`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
                 body: JSON.stringify(inv)
             });
 
@@ -691,7 +697,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const res = await fetch(`${URLROOT}/facturacion/procesar`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
                 body: JSON.stringify(activeInvoice)
             });
             const data = await res.json();

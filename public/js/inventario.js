@@ -223,17 +223,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const btnSave = form.querySelector('button[type="submit"]');
+        const originalText = btnSave.innerHTML;
+
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
+        if (window.lucide) lucide.createIcons();
+
         const formData = new FormData(form);
 
-        const res = await fetch(`${URLROOT}/inventario/guardar`, {
-            method: 'POST',
-            body: formData // Enviamos FormData directamente
-        });
-        const result = await res.json();
-        if (result.success) {
-            toggleModal(false);
-            loadInventory();
-            AppUtils.showToast(result.mensaje);
+        // Normalizar textos a MAYÚSCULAS en el FormData
+        formData.set('nombre', document.getElementById('prodNombre').value.trim().toUpperCase());
+        formData.set('categoria', document.getElementById('prodCategoria').value.trim().toUpperCase());
+
+        // Adjuntar token CSRF
+        formData.append('csrf_token', CSRF_TOKEN);
+
+        try {
+            const res = await fetch(`${URLROOT}/inventario/guardar`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
+                body: formData
+            });
+            const result = await res.json();
+            if (result.success) {
+                toggleModal(false);
+                loadInventory();
+                AppUtils.showToast(result.mensaje);
+            } else {
+                AppUtils.showToast(result.error || 'Error al guardar', 'error');
+            }
+        } catch (error) {
+            AppUtils.showToast('Error de conexión', 'error');
+        } finally {
+            btnSave.disabled = false;
+            btnSave.innerHTML = originalText;
+            if (window.lucide) lucide.createIcons();
         }
     });
 
@@ -279,7 +308,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.deleteItem = (id) => {
         AppUtils.confirmAction('¿Eliminar producto?', 'Esta acción no se puede deshacer.', async () => {
 
-            const res = await fetch(`${URLROOT}/inventario/eliminar/${id}`, { method: 'DELETE' });
+            const res = await fetch(`${URLROOT}/inventario/eliminar/${id}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
+            });
             const result = await res.json();
             if (result.success) {
                 AppUtils.showToast('Producto eliminado');

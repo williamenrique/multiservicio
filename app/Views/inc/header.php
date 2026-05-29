@@ -18,6 +18,7 @@
         const URLROOT = "<?php echo URLROOT; ?>";
         const URL_IMG = "<?php echo URL_IMG; ?>";
         const IVA_RATE = <?php echo (float)($company->iva ?? 0) / 100; ?>;
+        const CSRF_TOKEN = "<?php echo $_SESSION['csrf_token'] ?? ''; ?>";
     </script>
 </head>
 <body class="bg-main-dark text-slate-800 font-sans">

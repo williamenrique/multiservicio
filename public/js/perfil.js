@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
             AppUtils.showLoading('Actualizando perfil...');
             const response = await fetch(`${URLROOT}/perfil/actualizar`, {
                 method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
                 body: formData
             });
 

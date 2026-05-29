@@ -168,24 +168,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const btnSave = form.querySelector('button[type="submit"]');
+        const originalText = btnSave.innerHTML;
+
+        // Prevenir doble envío
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
+        if (window.lucide) lucide.createIcons();
+
         const formData = {
-            id: document.getElementById('clientId').value,
-            nombre: document.getElementById('clientName').value,
-            email: document.getElementById('clientEmail').value,
-            telefono: document.getElementById('clientPhone').value,
-            direccion: document.getElementById('clientAddress').value
+            id: document.getElementById('clientId').value.trim().toUpperCase(),
+            nombre: document.getElementById('clientName').value.trim().toUpperCase(),
+            email: document.getElementById('clientEmail').value.trim().toLowerCase(),
+            telefono: document.getElementById('clientPhone').value.trim(),
+            direccion: document.getElementById('clientAddress').value.trim().toUpperCase()
         };
 
-        const res = await fetch(`${URLROOT}/clientes/guardar`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
-        });
-        const result = await res.json();
-        if (result.success) {
-            toggleModal(false);
-            loadClients();
-            AppUtils.showToast(result.mensaje);
+        try {
+            const res = await fetch(`${URLROOT}/clientes/guardar`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
+                body: JSON.stringify(formData)
+            });
+            const result = await res.json();
+            if (result.success) {
+                toggleModal(false);
+                loadClients();
+                AppUtils.showToast(result.mensaje || 'Cliente guardado');
+            } else {
+                AppUtils.showToast(result.error || result.mensaje, 'error');
+            }
+        } catch (error) {
+            AppUtils.showToast('Error de conexión', 'error');
+        } finally {
+            btnSave.disabled = false;
+            btnSave.innerHTML = originalText;
+            if (window.lucide) lucide.createIcons();
         }
     });
 
@@ -219,7 +242,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.deleteItem = (id) => {
         AppUtils.confirmAction('¿Eliminar cliente?', 'Esta acción no se puede deshacer.', async () => {
-            const res = await fetch(`${URLROOT}/clientes/eliminar/${id}`, { method: 'DELETE' });
+            const res = await fetch(`${URLROOT}/clientes/eliminar/${id}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
+            });
             const result = await res.json();
             if (result.success) {
                 AppUtils.showToast('Cliente eliminado');

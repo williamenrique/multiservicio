@@ -33,12 +33,7 @@ class ControllerAuth extends Controller {
             
             $input = json_decode(file_get_contents('php://input'), true);
 
-            // 1. Validación de Seguridad CSRF
-            if (!isset($input['csrf_token']) || $input['csrf_token'] !== ($_SESSION['csrf_token'] ?? '')) {
-                return $this->jsonResponse(['success' => false, 'error' => 'Error de seguridad: Token inválido o expirado.'], 403);
-            }
-
-            // Aplicamos la nueva Clase Validator
+            // 1. Validación de Campos (CSRF ahora se maneja en index.php)
             $v = new Validator($input);
             $v->required(['usuario', 'password']);
 
