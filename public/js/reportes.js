@@ -8,21 +8,31 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('search-report')?.addEventListener('input', (e) => filtrarReporte(e.target.value));
 });
 
+let activeReportTab = 'resumen';
+
 window.switchReportTab = (tab) => {
+    activeReportTab = tab;
     const secResumen = document.getElementById('sec-resumen');
     const secDetallado = document.getElementById('sec-detallado');
     const secDevoluciones = document.getElementById('sec-devoluciones');
+    const secCartera = document.getElementById('sec-cartera');
+    const secRentabilidad = document.getElementById('sec-rentabilidad');
+
     const tabResumen = document.getElementById('tab-resumen');
     const tabDetallado = document.getElementById('tab-detallado');
     const tabDevoluciones = document.getElementById('tab-devoluciones');
+    const tabCartera = document.getElementById('tab-cartera');
+    const tabRentabilidad = document.getElementById('tab-rentabilidad');
 
     // Ocultar todas las secciones
     if (secResumen) secResumen.classList.add('hidden');
     if (secDetallado) secDetallado.classList.add('hidden');
     if (secDevoluciones) secDevoluciones.classList.add('hidden');
+    if (secCartera) secCartera.classList.add('hidden');
+    if (secRentabilidad) secRentabilidad.classList.add('hidden');
 
     // Resetear estilos de pestañas
-    [tabResumen, tabDetallado, tabDevoluciones].forEach(t => {
+    [tabResumen, tabDetallado, tabDevoluciones, tabCartera, tabRentabilidad].forEach(t => {
         if (t) {
             t.classList.remove('border-neon-green', 'text-navy-blue');
             t.classList.add('border-transparent', 'text-slate-400');
@@ -41,6 +51,14 @@ window.switchReportTab = (tab) => {
         if (secDevoluciones) secDevoluciones.classList.remove('hidden');
         if (tabDevoluciones) tabDevoluciones.classList.add('border-neon-green', 'text-navy-blue');
         cargarHistorialDevoluciones();
+    } else if (tab === 'cartera') {
+        if (secCartera) secCartera.classList.remove('hidden');
+        if (tabCartera) tabCartera.classList.add('border-neon-green', 'text-navy-blue');
+        cargarCartera();
+    } else if (tab === 'rentabilidad') {
+        if (secRentabilidad) secRentabilidad.classList.remove('hidden');
+        if (tabRentabilidad) tabRentabilidad.classList.add('border-neon-green', 'text-navy-blue');
+        cargarRentabilidad();
     }
 
     lucide.createIcons();
@@ -80,7 +98,13 @@ window.cargarReporte = async function () {
         state.filtered = filteredReportData.length;
         state.page = 1; // Reiniciar página al cargar nuevas fechas
 
-        renderReportTable();
+        // Recargar la tabla activa para que los filtros de fecha surtan efecto de inmediato
+        if (activeReportTab === 'resumen') renderReportTable();
+        else if (activeReportTab === 'detallado') cargarReporteDetallado();
+        else if (activeReportTab === 'devoluciones') cargarHistorialDevoluciones();
+        else if (activeReportTab === 'cartera') cargarCartera();
+        else if (activeReportTab === 'rentabilidad') cargarRentabilidad();
+
     } catch (e) {
         console.error("Error cargando reporte:", e);
         AppUtils.showToast("Error al generar el reporte", "error");
@@ -103,6 +127,21 @@ function renderReportTable() {
 
     const start = (state.page - 1) * state.limit;
     const paginatedItems = filteredReportData.slice(start, start + state.limit);
+
+    if (filteredReportData.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
+                    <div class="flex flex-col items-center gap-2">
+                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i>
+                        <span>No hay registros de movimientos en este periodo</span>
+                    </div>
+                </td>
+            </tr>`;
+        renderReportControls();
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
 
     tbody.innerHTML = paginatedItems.map(m => {
         const isVenta = (m.tipo === 'VENTA');
@@ -185,7 +224,7 @@ function renderReportControls() {
         wrapper.parentNode.insertBefore(bottom, wrapper.nextSibling);
     }
 
-    const start = (state.page - 1) * state.limit + 1;
+    const start = state.filtered === 0 ? 0 : (state.page - 1) * state.limit + 1;
     const end = Math.min(state.page * state.limit, state.filtered);
     const totalPages = Math.ceil(state.filtered / state.limit) || 1;
 
@@ -252,7 +291,12 @@ function renderAuditoriaLista(items) {
     }, {});
 
     if (Object.keys(groupedByMonth).length === 0) {
-        container.innerHTML = '<div class="text-center py-20 text-slate-400 italic font-bold uppercase tracking-widest">No hay registros en este periodo</div>';
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-20 text-slate-400 italic font-medium uppercase tracking-widest gap-2">
+                <i data-lucide="info" class="w-10 h-10 text-slate-200"></i>
+                <span>No hay registros de trabajos en este periodo</span>
+            </div>`;
+        if (window.lucide) lucide.createIcons();
         return;
     }
 
@@ -737,8 +781,13 @@ async function cargarHistorialDevoluciones() {
         const res = await fetch(`${URLROOT}/facturacion/listarDevoluciones?desde=${desde}&hasta=${hasta}`);
         const result = await res.json();
 
-        if (result.data.length === 0) {
-            container.innerHTML = '<p class="p-8 text-center text-slate-400 italic">No hay devoluciones registradas en este periodo.</p>';
+        if (!result.data || result.data.length === 0) {
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-16 text-slate-400 italic font-medium uppercase tracking-widest gap-2">
+                    <i data-lucide="rotate-ccw" class="w-8 h-8 text-slate-300"></i>
+                    <span>No hay devoluciones registradas en este periodo</span>
+                </div>`;
+            if (window.lucide) lucide.createIcons();
             return;
         }
 
@@ -771,3 +820,43 @@ async function cargarHistorialDevoluciones() {
             </table>`;
     } catch (e) { console.error(e); }
 }
+
+/**
+ * Lógica para cargar Cartera por Edades
+ */
+window.cargarCartera = async function () {
+    const tbody = document.getElementById('cartera-body');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-16 text-slate-400 italic animate-pulse">GENERANDO REPORTE DE CARTERA...</td></tr>';
+
+    try {
+        const res = await fetch(`${URLROOT}/reportes/cartera`);
+        const result = await res.json();
+        if (result.success) {
+            window.renderCartera(result.data);
+        }
+    } catch (e) {
+        console.error(e);
+        AppUtils.showToast("Error al cargar cartera", "error");
+    }
+};
+
+/**
+ * Lógica para cargar Análisis de Rentabilidad
+ */
+window.cargarRentabilidad = async function () {
+    const desde = document.getElementById('rep-desde').value;
+    const hasta = document.getElementById('rep-hasta').value;
+    const tbody = document.getElementById('rentabilidad-body');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-16 text-slate-400 italic animate-pulse">ANALIZANDO RENTABILIDAD...</td></tr>';
+
+    try {
+        const res = await fetch(`${URLROOT}/reportes/rentabilidad?desde=${desde}&hasta=${hasta}`);
+        const result = await res.json();
+        if (result.success) {
+            window.renderRentabilidad(result.data);
+        }
+    } catch (e) {
+        console.error(e);
+        AppUtils.showToast("Error al cargar rentabilidad", "error");
+    }
+};
