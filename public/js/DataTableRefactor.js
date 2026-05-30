@@ -8,13 +8,13 @@ class DataTableRefactor {
         this.tableBody = document.getElementById(config.tableBodyId);
         this.endpoint = config.endpoint;
         this.renderRow = config.renderRow;
-        this.limitSelector = document.getElementById(config.limitSelectorId || 'limitSelector');
-        this.searchInput = document.getElementById(config.searchInputId || 'searchTable');
-        this.paginationContainer = document.getElementById(config.paginationId || 'paginationControls');
+        this.limitSelector = document.getElementById(config.limitSelectorId) || document.getElementById('limitSelector');
+        this.searchInput = document.getElementById(config.searchInputId) || document.getElementById('searchTable');
+        this.paginationContainer = document.getElementById(config.paginationId) || document.getElementById('paginationControls');
 
-        this.displayTotal = document.getElementById(config.totalId || 'totalItemsDisplay');
-        this.displayStart = document.getElementById(config.startId || 'startIndex');
-        this.displayEnd = document.getElementById(config.endId || 'endIndex');
+        this.displayTotal = document.getElementById(config.totalId) || document.getElementById('totalItemsDisplay');
+        this.displayStart = document.getElementById(config.startId) || document.getElementById('startIndex');
+        this.displayEnd = document.getElementById(config.endId) || document.getElementById('endIndex');
 
         this.state = {
             page: 1,
@@ -22,7 +22,12 @@ class DataTableRefactor {
             search: '',
             extraParams: config.extraParams || {}
         };
-        
+
+        if (!this.tableBody) {
+            console.warn(`DataTableRefactor: No se encontró el cuerpo de tabla #${config.tableBodyId}`);
+            return;
+        }
+
         this.onDataLoaded = config.onDataLoaded || null;
 
         this.searchTimer = null;

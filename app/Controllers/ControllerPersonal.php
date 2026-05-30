@@ -28,12 +28,16 @@ class ControllerPersonal extends Controller {
         // Nota: Asumo que el modelo será actualizado para soportar estos parámetros
         $items = $this->staffModel->listar($limit, $offset, $search);
         $total = count($this->staffModel->listar()); // Ajuste temporal para conteo
+        $total = $this->staffModel->contarTotal();
+        $totalFiltrados = $search ? $this->staffModel->contarFiltrados($search) : $total;
 
         return $this->jsonResponse([
             'success' => true,
             'data' => $items ?: [],
             'total' => $total,
             'totalFiltrados' => $total // Para personal mostramos el total por ahora
+            'total' => (int)$total,
+            'totalFiltrados' => (int)$totalFiltrados
         ]);
     }
 

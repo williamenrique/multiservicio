@@ -34,6 +34,14 @@ class Controller {
      * @param array $data Arreglo de datos dinámicos para la vista
      */
     public function view($view, $data = []) {
+        // Inyectar automáticamente datos globales de sesión para evitar inconsistencias en las vistas.
+        // Esto garantiza que $data['user_role'] esté disponible siempre sin esfuerzo extra en los controladores.
+        if (session_status() !== PHP_SESSION_NONE && isset($_SESSION['user_id'])) {
+            $data['user_role'] = $data['user_role'] ?? ($_SESSION['user_role'] ?? 'INVITADO');
+            $data['user_role_id'] = $data['user_role_id'] ?? ($_SESSION['user_role_id'] ?? 0);
+            $data['csrf_token'] = $_SESSION['csrf_token'] ?? '';
+        }
+
         // Usamos la función renderView definida en app/Helpers/helpers.php
         // Esto asegura que todas las páginas tengan la misma estructura (Layout)
         if (function_exists('renderView')) {

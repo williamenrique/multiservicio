@@ -57,4 +57,31 @@ class ControllerReportes extends Controller {
         $data = $this->reporteModel->obtenerAnalisisRentabilidad($desde, $hasta);
         return $this->jsonResponse(['success' => true, 'data' => $data ?: []]);
     }
+
+    /**
+     * Endpoint para el reporte de nómina de empleados
+     */
+    public function nomina() {
+        $staff_id = $_GET['staff_id'] ?? 0;
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+
+        $data = $this->reporteModel->obtenerNominaEmpleado($staff_id, $desde, $hasta);
+        return $this->jsonResponse(['success' => true, 'data' => $data]);
+    }
+
+    /**
+     * Historial de devoluciones para la tabla de reportes
+     */
+    public function devoluciones() {
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+        
+        $rows = $this->reporteModel->obtenerReporteDevoluciones($desde, $hasta);
+        return $this->jsonResponse([
+            'success' => true,
+            'data' => $rows,
+            'total' => count($rows)
+        ]);
+    }
 }

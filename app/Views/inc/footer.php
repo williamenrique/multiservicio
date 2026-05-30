@@ -14,6 +14,8 @@
     
     <!-- Librería de Iconos Lucide (Cargada con versión específica para estabilidad) -->
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+    <!-- Motor de Tablas Dinámicas (Debe cargar antes que los módulos) -->
+    <script src="<?php echo URLROOT; ?>/js/DataTableRefactor.js"></script>
     <!-- Carga de script optimizado y unificado -->
     <script src="<?php echo URL_JS; ?>app.min.js"></script>
 

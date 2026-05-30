@@ -225,7 +225,8 @@ class ModelReportes {
             $this->db->bind(':limit', (int)$limit);
             $this->db->bind(':offset', (int)$offset);
         }
-        return $this->db->resultSet();
+        $results = $this->db->resultSet() ?: [];
+        return $results;
     }
 
     public function contarDevoluciones($desde, $hasta, $search = null) {
@@ -254,7 +255,13 @@ class ModelReportes {
                           WHERE v.status = 'CREDITO' AND v.saldo_pendiente > 0
                           GROUP BY c.id
                           ORDER BY total_deuda DESC");
-        return $this->db->resultSet();
+        
+        $results = $this->db->resultSet() ?: [];
+        return [
+            'data' => $results,
+            'total' => count($results),
+            'totalFiltrados' => count($results)
+        ];
     }
 
     /**

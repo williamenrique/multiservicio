@@ -53,6 +53,14 @@
                 </tbody>
             </table>
         </div>
+        
+        <!-- Pie de Tabla Armonizado -->
+        <div class="px-8 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Mostrando <span id="startIndex">0</span> - <span id="endIndex">0</span> de <span id="totalItemsDisplay">0</span> clientes registrados
+            </div>
+            <div class="flex items-center gap-2" id="paginationControls"></div>
+        </div>
     </div>
 </div>
 
@@ -110,92 +118,4 @@
     </div>
 </div>
 
-<script>
-    // Pasar el rol del usuario a JavaScript para controlar la visibilidad de los botones
-    const USER_ROLE = "<?php echo s($data['user_role']); ?>";
-
-    const closeClientModal = () => {
-        const modal = document.getElementById('clientModal');
-        if (modal) modal.classList.add('hidden');
-        document.getElementById('formCliente').reset();
-    };
-
-    document.getElementById('formCliente')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-
-        const btnSave = document.getElementById('btnSave');
-        if (btnSave.disabled) return;
-
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData.entries());
-
-        try {
-            btnSave.disabled = true;
-            btnSave.innerHTML = '<i class="animate-spin w-4 h-4" data-lucide="loader-2"></i> PROCESANDO...';
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-
-            const response = await fetch(`${URLROOT}/clientes/guardar`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
-                },
-                body: JSON.stringify(data)
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                AppUtils.showToast(result.mensaje || 'Cliente guardado correctamente');
-                closeClientModal();
-                
-                // Intentar recargar la tabla (buscando posibles nombres de funciones en clientes.js)
-                if (typeof window.loadClientes === 'function') {
-                    window.loadClientes();
-                } else if (typeof window.fetchClientes === 'function') {
-                    window.fetchClientes();
-                }
-            } else {
-                AppUtils.showToast(result.mensaje || 'Error al procesar la solicitud', 'error');
-            }
-        } catch (error) {
-            AppUtils.showToast('Error de conexión con el servidor', 'error');
-        } finally {
-            btnSave.disabled = false;
-            btnSave.textContent = 'Guardar Cambios';
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        }
-    });
-</script>
-<!-- Inyección de Scripts -->
 <script src="<?php echo URLROOT; ?>/js/clientes.js"></script>
-
-<script>
-    /** 
-     * SINCRONIZADOR DINÁMICO DE CONTADOR DE CLIENTES
-     * Observa cambios en el tableBody para actualizar el número total de clientes en la UI.
-     */
-    const syncClientsCounter = () => {
-        const tableBody = document.getElementById('tableBody');
-        const totalDisplay = document.getElementById('totalCount');
-        
-        if (!tableBody || !totalDisplay) return;
-
-        const updateCount = () => {
-            // Contamos las filas que no sean el mensaje de carga
-            const rows = tableBody.querySelectorAll('tr:not(#loadingRow)');
-            if (rows.length === 1 && rows[0].cells.length === 1) {
-                totalDisplay.textContent = '0';
-            } else {
-                totalDisplay.textContent = rows.length;
-            }
-        };
-
-        const observer = new MutationObserver(updateCount);
-        observer.observe(tableBody, { childList: true });
-        updateCount();
-    };
-
-    document.addEventListener('DOMContentLoaded', syncClientsCounter);
-</script>

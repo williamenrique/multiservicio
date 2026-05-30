@@ -30,16 +30,14 @@ class ControllerFacturacion extends Controller {
     public function buscarItems() {
         $term = $_GET['term'] ?? '';
         $items = $this->facturaModel->buscarItems($term);
-        header('Content-Type: application/json');
-        echo json_encode($items);
+        return $this->jsonResponse($items);
     }
 
     /**
      * Lista todos los borradores activos en el sistema (Global)
      */
     public function listarBorradores() {
-        header('Content-Type: application/json');
-        echo json_encode($this->facturaModel->obtenerBorradoresCompleto());
+        return $this->jsonResponse($this->facturaModel->obtenerBorradoresCompleto());
     }
 
     /**
@@ -237,11 +235,12 @@ class ControllerFacturacion extends Controller {
      */
     public function getItemsDevolucion($id) {
         $venta = $this->facturaModel->obtenerVentaCompleta($id);
-        // Filtrar solo los que tienen producto_id (no servicios)
-        $items = array_filter($venta->items, function($it) {
+        if (!$venta) return $this->jsonResponse(['success' => false, 'mensaje' => 'Venta no encontrada'], 404);
+
+        $items = array_filter($venta->items ?? [], function($it) {
             return !empty($it->producto_id);
         });
-        echo json_encode(['success' => true, 'items' => array_values($items)]);
+        return $this->jsonResponse(['success' => true, 'items' => array_values($items)]);
     }
 
     /**
@@ -253,9 +252,14 @@ class ControllerFacturacion extends Controller {
         $hasta = $_GET['hasta'] ?? date('Y-m-d');
 
         $reporteModel = $this->model('Reportes');
-        $data = $reporteModel->obtenerReporteDevoluciones($desde, $hasta);
-        
-        return $this->jsonResponse(['success' => true, 'data' => $data]);
+        $rows = $reporteModel->obtenerReporteDevoluciones($desde, $hasta);
+        $total = $reporteModel->contarDevoluciones($desde, $hasta);
+
+        return $this->jsonResponse([
+            'success' => true, 
+            'data' => $rows, 
+            'total' => $total
+        ]);
     }
 
     public function procesarDevolucion() {

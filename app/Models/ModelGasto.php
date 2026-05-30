@@ -7,7 +7,7 @@ class ModelGasto {
     }
 
     public function listar($limit = null, $offset = null, $search = null) {
-        $sql = "SELECT g.*, u.username FROM table_gastos g JOIN table_usuarios u ON g.usuario_id = u.id";
+        $sql = "SELECT g.* FROM table_gastos g";
         
         if ($search) {
             $sql .= " WHERE g.descripcion LIKE :search OR g.categoria LIKE :search";
@@ -40,14 +40,13 @@ class ModelGasto {
     }
 
     public function crear($data) {
-        $this->db->query("INSERT INTO table_gastos (fecha, descripcion, categoria, monto, metodo_pago, usuario_id) 
-                         VALUES (:fecha, :descripcion, :categoria, :monto, :metodo, :usuario_id)");
+        $this->db->query("INSERT INTO table_gastos (fecha, descripcion, categoria, monto, metodo_pago) 
+                         VALUES (:fecha, :descripcion, :categoria, :monto, :metodo)");
         $this->db->bind(':fecha', $data['fecha']);
         $this->db->bind(':descripcion', $data['descripcion']);
         $this->db->bind(':categoria', $data['categoria']);
         $this->db->bind(':monto', $data['monto']);
         $this->db->bind(':metodo', $data['metodo_pago'] ?? 'EFECTIVO');
-        $this->db->bind(':usuario_id', $_SESSION['user_id']);
         return $this->db->execute();
     }
 

@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const statusBadge = venta.status === 'CREDITO' 
+            const statusBadge = venta.status === 'CREDITO'
                 ? '<span class="px-3 py-1 rounded-full bg-red-100 text-red-600 text-[10px] font-black uppercase border border-red-200">Crédito Pendiente</span>'
                 : '<span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-black uppercase border border-emerald-200">Pago Completado</span>';
 
@@ -151,21 +151,4 @@ document.addEventListener('DOMContentLoaded', () => {
             AppUtils.showToast('Error al cargar el detalle de la venta.', 'error');
         }
     };
-
-    /**
-     * Maneja la búsqueda en tiempo real en la tabla de ventas.
-     */
-    searchInput.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
-        const filtered = ventas.filter(v =>
-            String(v.id).includes(term) ||
-            (v.placa && v.placa.toLowerCase().includes(term)) ||
-            (v.modelo_vehiculo && v.modelo_vehiculo.toLowerCase().includes(term)) ||
-            (v.cliente_nombre && v.cliente_nombre.toLowerCase().includes(term))
-        );
-        renderTable(filtered);
-    });
-
-    // Cargar datos al iniciar la página
-    loadData();
 });

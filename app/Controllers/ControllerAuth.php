@@ -113,7 +113,7 @@ class ControllerAuth extends Controller {
      */
     public function getLoggedInUser() {
         if (isset($_SESSION['user_id'])) {
-            echo json_encode([
+            return $this->jsonResponse([
                 'success' => true,
                 'user' => [
                     'id' => $_SESSION['user_id'],
@@ -126,7 +126,7 @@ class ControllerAuth extends Controller {
                 ]
             ]);
         } else {
-            echo json_encode(['success' => false]);
+            return $this->jsonResponse(['success' => false]);
         }
     }
 

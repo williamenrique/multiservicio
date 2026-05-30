@@ -19,6 +19,16 @@
                 <i data-lucide="list" class="w-4 h-4 text-red-500"></i>
                 Historial de Movimientos
             </h2>
+            <div class="flex items-center gap-4">
+                <div class="px-4 py-2 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-500 shadow-sm">
+                    Total: <span id="totalCount" class="text-navy-blue">0</span>
+                </div>
+                <select id="limitSelector" class="bg-white border border-slate-200 rounded-xl py-2 px-4 text-xs font-bold text-navy-blue outline-none focus:border-neon-green shadow-sm cursor-pointer">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
         </div>
 
         <div class="p-6 overflow-x-auto">
@@ -36,6 +46,14 @@
                     <!-- Cargado dinámicamente mediante gastos.js -->
                 </tbody>
             </table>
+        </div>
+        
+        <!-- Pie de Tabla Armonizado -->
+        <div class="px-8 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Mostrando <span id="startIndex">0</span> - <span id="endIndex">0</span> de <span id="totalItemsDisplay">0</span> gastos registrados
+            </div>
+            <div class="flex items-center gap-2" id="paginationControls"></div>
         </div>
     </div>
 </div>
