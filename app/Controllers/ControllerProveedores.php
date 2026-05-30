@@ -60,16 +60,6 @@ class ControllerProveedores extends Controller {
             $data = json_decode(file_get_contents('php://input'), true);
             
             if ($this->proveedorModel->registrarPagoCompra($data)) {
-                // Registrar el egreso en caja
-                $this->cajaModel->registrarMovimiento([
-                    'sesion_id' => null,
-                    'tipo' => 'EGRESO',
-                    'monto' => $data['monto'],
-                    'metodo_pago' => 'EFECTIVO',
-                    'referencia_id' => $data['compra_id'],
-                    'concepto' => "PAGO PROVEEDOR: Compra #" . $data['compra_id']
-                ]);
-
                 return $this->jsonResponse(['success' => true, 'mensaje' => 'Abono registrado correctamente']);
             } else {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al registrar el pago'], 500);

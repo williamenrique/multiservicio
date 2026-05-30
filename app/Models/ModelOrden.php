@@ -13,7 +13,7 @@ class ModelOrden {
         $this->db->bind(':uid', $_SESSION['user_id']);
         $this->db->bind(':km', $data['kilometraje']);
         $this->db->bind(':comb', $data['nivel_combustible']);
-        $this->db->bind(':obs', $data['observaciones_entrada']);
+        $this->db->bind(':obs', mb_strtoupper($data['observaciones_entrada'], 'UTF-8'));
         $this->db->bind(':fecha_e', $data['fecha_entrega']);
         
         if($this->db->execute()) {

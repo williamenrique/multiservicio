@@ -1,3 +1,19 @@
+/**
+ * Función Global para asignar un producto seleccionado al modal de compra
+ */
+window.setProductoCompra = (id, nombre, cat, costo, precio) => {
+    const modal = document.querySelector('.swal2-container');
+    if (!modal) return;
+
+    modal.querySelector('#compra-producto-id').value = id;
+    modal.querySelector('#compra-producto-nombre').value = nombre;
+    modal.querySelector('#compra-categoria').value = cat;
+    modal.querySelector('#compra-costo').value = costo;
+    modal.querySelector('#compra-precio-venta').value = precio;
+    modal.querySelector('#compra-search-results').classList.add('hidden');
+    AppUtils.showToast('Artículo vinculado del inventario');
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     const tableBody = document.getElementById('tableBody');
     const tableDeudasBody = document.getElementById('tableDeudasBody');
@@ -251,12 +267,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     const items = await res.json();
                     if (items.length > 0) {
                         results.innerHTML = items.map(i => `
-                            <div class="p-3 hover:bg-slate-50 cursor-pointer text-[11px] uppercase border-b border-slate-50 last:border-0 flex justify-between" 
-                                 onclick="window.setProductoCompra('${i.id}', '${i.nombre.replace(/'/g, "\\'")}', '${i.categoria}', ${i.ultimo_costo}, ${i.precio})">
-                                <span>${i.nombre}</span>
+                            <div class="p-3 hover:bg-slate-50 cursor-pointer text-[11px] uppercase border-b border-slate-50 last:border-0 flex justify-between item-selection" 
+                                 data-id='${i.id}' 
+                                 data-nombre='${i.nombre.replace(/'/g, "&apos;")}' 
+                                 data-cat='${i.categoria}' 
+                                 data-costo="${i.ultimo_costo}" 
+                                 data-precio="${i.precio}">
+                                <span class="uppercase">${i.nombre}</span>
                                 <span class="font-bold text-navy-blue">${AppUtils.formatCurrency(i.precio)}</span>
-                            </div>`).join('').toUpperCase();
+                            </div>`).join('');
                         results.classList.remove('hidden');
+                    }
+                });
+
+                // Delegación de eventos para la selección
+                results.addEventListener('click', (e) => {
+                    const target = e.target.closest('.item-selection');
+                    if (target) {
+                        const d = target.dataset;
+                        window.setProductoCompra(d.id, d.nombre, d.cat, d.costo, d.precio);
                     }
                 });
             },
@@ -284,72 +313,89 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (formValues) {
             try {
-                AppUtils.showLoading('Procesando ingreso...');
+                AppUtils.showLoading('Registrando ingreso...');
                 const res = await fetch(`${URLROOT}/proveedores/registrarCompra`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': CSRF_TOKEN
-                    },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
                     body: JSON.stringify(formValues)
                 });
                 const result = await res.json();
                 if (result.success) {
-                    AppUtils.showToast(result.mensaje);
-                if (window.handler_proveedores) window.handler_proveedores.reload();
+                    AppUtils.showToast(result.mensaje || 'Mercancía ingresada');
+                    if (window.handler_proveedores) window.handler_proveedores.reload();
                 } else {
-                    AppUtils.showAlert('Error', result.mensaje, 'error');
+                    AppUtils.showAlert('Error', result.mensaje || 'No se pudo registrar', 'error');
                 }
             } catch (error) {
-                AppUtils.showAlert('Error', 'No se pudo conectar con el servidor o hubo un problema.', 'error');
+                AppUtils.showToast('Error de conexión', 'error');
             } finally {
-                AppUtils.hideLoading(); // Asegurar que el cargador se oculte en todos los casos
+                AppUtils.hideLoading();
             }
         }
     };
 
-    window.setProductoCompra = (id, nombre, cat, costo, precio) => {
-        document.getElementById('compra-producto-id').value = id;
-        document.getElementById('compra-producto-nombre').value = nombre;
-        document.getElementById('compra-categoria').value = cat;
-        document.getElementById('compra-costo').value = costo;
-        document.getElementById('compra-precio-venta').value = precio;
-        document.getElementById('compra-search-results').classList.add('hidden');
-    };
-
+    /**
+     * Abre el modal para registrar un abono a una factura específica de un proveedor
+     */
     window.openPaymentModal = async (proveedorId) => {
-        const res = await fetch(`${URLROOT}/proveedores/listarComprasPendientes/${proveedorId}`);
-        const compras = await res.json();
+        try {
+            AppUtils.showLoading('Cargando facturas pendientes...');
+            const res = await fetch(`${URLROOT}/proveedores/listarComprasPendientes/${proveedorId}`);
+            const result = await res.json();
+            const compras = result.data || [];
+            AppUtils.hideLoading();
 
-        const { value: formValues } = await Swal.fire({
-            title: 'Registrar Abono a Proveedor',
-            html: `
-                <div class="text-left space-y-4 pt-4">
-                    <select id="pago-compra-id" class="w-full p-2 border rounded-lg text-sm">
-                        ${compras.data.map(c => `<option value="${c.id}">Factura #${c.id} - Saldo: ${AppUtils.formatCurrency(c.total - c.pagado)}</option>`).join('')}
-                    </select>
-                    <input id="pago-monto" type="number" class="w-full p-2 border rounded-lg text-sm" placeholder="Monto a abonar">
-                </div>`,
-            preConfirm: () => ({
-                compra_id: document.getElementById('pago-compra-id').value,
-                monto: document.getElementById('pago-monto').value
-            })
-        });
-
-        if (formValues && formValues.monto > 0) {
-            const resPago = await fetch(`${URLROOT}/proveedores/registrarPago`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': CSRF_TOKEN
-                },
-                body: JSON.stringify(formValues)
-            });
-            const result = await resPago.json();
-            if (result.success) {
-                AppUtils.showToast(result.mensaje);
-                window.switchTab('deudas');
+            if (compras.length === 0) {
+                return AppUtils.showToast('No hay facturas pendientes', 'info');
             }
+
+            const { value: paymentValues } = await Swal.fire({
+                title: 'Registrar Abono a Proveedor',
+                html: `
+                    <div class="text-left space-y-4 pt-4">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase">Seleccione Factura</label>
+                        <select id="pago-compra-id" class="w-full p-3 bg-slate-50 border rounded-xl text-sm font-bold">
+                            ${compras.map(c => `<option value="${c.id}">FACTURA #${c.id} - SALDO: ${AppUtils.formatCurrency(c.total - c.pagado)}</option>`).join('')}
+                        </select>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase">Monto a abonar ($)</label>
+                        <input id="pago-monto" type="number" step="0.01" class="w-full p-3 bg-slate-50 border rounded-xl font-black text-navy-blue" placeholder="0.00">
+                    </div>`,
+                showCancelButton: true,
+                confirmButtonText: 'CONFIRMAR ABONO',
+                confirmButtonColor: '#10b981',
+                preConfirm: () => {
+                    const monto = parseFloat(document.getElementById('pago-monto').value);
+                    if (isNaN(monto) || monto <= 0) {
+                        Swal.showValidationMessage('Ingrese un monto válido');
+                        return false;
+                    }
+                    return {
+                        compra_id: document.getElementById('pago-compra-id').value,
+                        monto: monto
+                    };
+                }
+            });
+
+            if (paymentValues) {
+                AppUtils.showLoading('Procesando pago...');
+                const resPago = await fetch(`${URLROOT}/proveedores/registrarPago`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                    body: JSON.stringify(paymentValues)
+                });
+                const result = await resPago.json();
+                AppUtils.hideLoading();
+
+                if (result.success) {
+                    AppUtils.showToast('Pago registrado correctamente');
+                    window.switchTab('deudas');
+                } else {
+                    AppUtils.showAlert('Error', result.mensaje, 'error');
+                }
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error al procesar el pago', 'error');
         }
     };
 

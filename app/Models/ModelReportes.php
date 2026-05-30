@@ -10,10 +10,10 @@ class ModelReportes {
         // 1. Obtener Ventas (Pagos iniciales de facturas creadas en el periodo)
         // Restamos la suma de abonos del total pagado para obtener solo el pago inicial realizado en la fecha de la venta
         $this->db->query("SELECT v.id, v.fecha, v.total as monto, 
-                          (
-                            (v.pago_efectivo + v.pago_transferencia) - 
+                          COALESCE(
+                            (COALESCE(v.pago_efectivo, 0) + COALESCE(v.pago_transferencia, 0)) - 
                             COALESCE((SELECT SUM(monto) FROM table_abonos_clientes WHERE venta_id = v.id), 0)
-                          ) as monto_pagado, 
+                          , 0) as monto_pagado, 
                           'VENTA' as tipo, 'VENTA' as categoria,
                           v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
                           (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items,
@@ -27,7 +27,7 @@ class ModelReportes {
         $ingresos = $this->db->resultSet() ?: [];
 
         // 2. Obtener Abonos (Dinero que entró de deudas antiguas en este periodo)
-        $this->db->query("SELECT a.venta_id as id, a.fecha, a.monto as monto_pagado, 'ABONO' as tipo, 'ABONO CLIENTE' as categoria,
+        $this->db->query("SELECT a.venta_id as id, a.fecha, COALESCE(a.monto, 0) as monto_pagado, 'ABONO' as tipo, 'ABONO CLIENTE' as categoria,
                           v.placa, c.nombre as cliente_nombre
                           FROM table_abonos_clientes a
                           JOIN table_ventas v ON a.venta_id = v.id
@@ -39,7 +39,7 @@ class ModelReportes {
 
         // 3. Obtener Gastos, Compras y Devoluciones (Egresos Reales)
         // Unificamos gastos generales y compras a proveedores
-        $this->db->query("SELECT g.id, g.fecha, g.monto, g.monto as monto_pagado, 'GASTO' as tipo, g.categoria, 
+        $this->db->query("SELECT g.id, g.fecha, g.monto, COALESCE(g.monto, 0) as monto_pagado, 'GASTO' as tipo, g.categoria, 
                           g.descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre, 
                           0 as cantidad_items, NULL as proveedor_nombre, 0 as saldo_pendiente
                           FROM table_gastos g 
@@ -90,12 +90,7 @@ class ModelReportes {
         // Analizamos cada venta que tuvo movimiento de dinero
         $todasLasEntradas = array_merge($ingresos, $abonos);
         foreach ($todasLasEntradas as $mov) {
-            // Obtenemos el factor de IVA de la venta para equiparar precios base con montos de devolución
-            $this->db->query("SELECT subtotal, iva_monto FROM table_ventas WHERE id = :vid");
-            $this->db->bind(':vid', $mov->id);
-            $vData = $this->db->single();
-
-            // Calculamos la proporción basada en los valores base (el factor de IVA se cancela en la división, no es necesario aplicarlo aquí)
+            // Calculamos la proporción basada en los valores base
             $this->db->query("SELECT 
                 (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NOT NULL) as total_val_repuestos,
                 (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NULL) as total_val_servicios");
@@ -103,14 +98,16 @@ class ModelReportes {
             $this->db->bind(':vid', $mov->id);
             $pesos = $this->db->single();
             
-            $totalItems = (float)$pesos->total_val_repuestos + (float)$pesos->total_val_servicios;
+            $totalItems = (float)($pesos->total_val_repuestos ?? 0) + (float)($pesos->total_val_servicios ?? 0);
+            $montoRecibido = (float)($mov->monto_pagado ?? 0);
+
             if ($totalItems > 0) {
                 $porcentajeRepuestos = (float)$pesos->total_val_repuestos / $totalItems;
-                $ingresoRepuestos += ((float)($mov->monto_pagado ?? 0) * $porcentajeRepuestos);
-                $ingresoServicios += ((float)($mov->monto_pagado ?? 0) * (1 - $porcentajeRepuestos));
+                $ingresoRepuestos += ($montoRecibido * $porcentajeRepuestos);
+                $ingresoServicios += ($montoRecibido * (1 - $porcentajeRepuestos));
             } else {
                 // Si no hay detalles (raro), lo sumamos a servicios
-                $ingresoServicios += (float)$mov->monto_pagado;
+                $ingresoServicios += $montoRecibido;
             }
         }
 
@@ -201,9 +198,9 @@ class ModelReportes {
     public function obtenerReporteDevoluciones($desde, $hasta, $limit = null, $offset = null, $search = null) {
         $sql = "SELECT d.*, s.nombre as usuario_nombre, v.placa, c.nombre as cliente_nombre
                 FROM table_devoluciones d
-                JOIN table_ventas v ON d.venta_id = v.id
-                JOIN table_usuarios u ON d.usuario_id = u.id
-                JOIN table_staff s ON u.staff_id = s.id
+                LEFT JOIN table_ventas v ON d.venta_id = v.id
+                LEFT JOIN table_usuarios u ON d.usuario_id = u.id
+                LEFT JOIN table_staff s ON u.staff_id = s.id
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id
                 WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
 
@@ -230,7 +227,11 @@ class ModelReportes {
     }
 
     public function contarDevoluciones($desde, $hasta, $search = null) {
-        $sql = "SELECT COUNT(*) as total FROM table_devoluciones d JOIN table_ventas v ON d.venta_id = v.id WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
+        $sql = "SELECT COUNT(*) as total 
+                FROM table_devoluciones d 
+                LEFT JOIN table_ventas v ON d.venta_id = v.id 
+                WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
+
         if ($search) $sql .= " AND (v.placa LIKE :search OR d.descripcion LIKE :search)";
         $this->db->query($sql);
         $this->db->bind(':desde', $desde);
@@ -257,11 +258,7 @@ class ModelReportes {
                           ORDER BY total_deuda DESC");
         
         $results = $this->db->resultSet() ?: [];
-        return [
-            'data' => $results,
-            'total' => count($results),
-            'totalFiltrados' => count($results)
-        ];
+        return $results; // Devolvemos el array directo para evitar error .map() en JS
     }
 
     /**

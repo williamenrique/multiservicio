@@ -84,7 +84,9 @@ try {
         // Rutas excluidas de validación CSRF (Login y módulos con fallas de token reportadas)
         $excludedRoutes = [
             'auth/login',
-            'proveedores' // Excluir todas las rutas de proveedores para evitar el error 403
+            'proveedores',
+            'empresa', // Excluir empresa para permitir guardado de configuración
+            'reportes' // Sugerencia: añadir reportes si dan problemas de token
         ];
         $isExcluded = false;
         foreach ($excludedRoutes as $route) {

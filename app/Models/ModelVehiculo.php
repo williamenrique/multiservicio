@@ -19,10 +19,10 @@ class ModelVehiculo {
         $this->db->query("INSERT INTO table_vehiculos (placa, marca, modelo, anio, color, cliente_id) 
                           VALUES (:placa, :marca, :modelo, :anio, :color, :cliente_id)");
         $this->db->bind(':placa', strtoupper($data['placa']));
-        $this->db->bind(':marca', $data['marca']);
-        $this->db->bind(':modelo', $data['modelo']);
+        $this->db->bind(':marca', mb_strtoupper($data['marca'], 'UTF-8'));
+        $this->db->bind(':modelo', mb_strtoupper($data['modelo'], 'UTF-8'));
         $this->db->bind(':anio', $data['anio']);
-        $this->db->bind(':color', $data['color']);
+        $this->db->bind(':color', mb_strtoupper($data['color'], 'UTF-8'));
         $this->db->bind(':cliente_id', $data['cliente_id']);
         return $this->db->execute() ? $this->db->lastInsertId() : false;
     }

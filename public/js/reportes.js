@@ -1,3 +1,146 @@
+/**
+ * Funciones de Renderizado para Reportes
+ */
+window.renderFlujoRow = (m) => {
+    const isIngreso = m.tipo === 'VENTA' || m.tipo === 'ABONO';
+    return `
+        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+            <td class="p-4 text-[10px] font-bold text-slate-400 uppercase">${new Date(m.fecha).toLocaleDateString()}</td>
+            <td class="p-4">
+                <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 rounded text-[9px] font-black ${isIngreso ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">${m.tipo}</span>
+                    <span class="text-xs font-bold text-slate-700 uppercase">${m.descripcion || m.categoria || 'OPERACIÓN'}</span>
+                </div>
+                ${m.placa ? `<span class="text-[9px] text-slate-400 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
+            </td>
+            <td class="p-4 text-right">
+                <span class="text-sm font-black ${isIngreso ? 'text-emerald-600' : 'text-rose-600'}">
+                    ${isIngreso ? '+' : '-'}${AppUtils.formatCurrency(m.monto_pagado)}
+                </span>
+            </td>
+        </tr>`;
+};
+
+window.actualizarFiltrosFechas = () => {
+    const desde = document.getElementById('rep-desde').value;
+    const hasta = document.getElementById('rep-hasta').value;
+
+    if (window.handler_reporte_flujo) {
+        window.handler_reporte_flujo.state.extraParams.desde = desde;
+        window.handler_reporte_flujo.state.extraParams.hasta = hasta;
+        window.handler_reporte_flujo.reload();
+    }
+    if (window.handler_reporte_devoluciones) {
+        window.handler_reporte_devoluciones.state.extraParams.desde = desde;
+        window.handler_reporte_devoluciones.state.extraParams.hasta = hasta;
+        window.handler_reporte_devoluciones.reload();
+    }
+};
+
+window.cargarReporteDetallado = async () => {
+    const desde = document.getElementById('rep-desde').value;
+    const hasta = document.getElementById('rep-hasta').value;
+    const contVentas = document.getElementById('det-ventas-body');
+    const contCompras = document.getElementById('det-compras-body');
+    const contGastos = document.getElementById('det-gastos-body');
+
+    if (contVentas) contVentas.innerHTML = '<tr><td colspan="7" class="text-center py-10 italic">Cargando reporte detallado...</td></tr>';
+
+    try {
+        const res = await fetch(`${URLROOT}/reportes/detallado?desde=${desde}&hasta=${hasta}`);
+        const result = await res.json();
+
+        if (result.success && result.data) {
+            const data = result.data;
+
+            if (contVentas) {
+                contVentas.innerHTML = data.ventas.length ? data.ventas.map(v => `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-3 text-[10px] font-bold text-slate-400 uppercase">${new Date(v.fecha).toLocaleDateString()}</td>
+                        <td class="p-3 text-xs font-bold text-slate-700 uppercase">${v.cliente_nombre || 'VENTA RÁPIDA'}</td>
+                        <td class="p-3 text-xs font-mono font-bold text-slate-400 uppercase">${v.placa || '---'}</td>
+                        <td class="p-3 text-xs font-bold text-slate-600 uppercase">${v.descripcion}</td>
+                        <td class="p-3 text-center text-xs font-bold text-slate-500">${v.cantidad}</td>
+                        <td class="p-3 text-right text-xs font-bold text-slate-500">${AppUtils.formatCurrency(v.precio_unitario)}</td>
+                        <td class="p-3 text-right text-sm font-black text-navy-blue">${AppUtils.formatCurrency(v.subtotal_item)}</td>
+                    </tr>`).join('') : '<tr><td colspan="7" class="p-8 text-center text-slate-400 italic">No hay ventas registradas en este periodo</td></tr>';
+            }
+
+            if (contCompras) {
+                contCompras.innerHTML = data.compras.length ? data.compras.map(c => `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-3 text-[10px] font-bold text-slate-400 uppercase">${new Date(c.fecha).toLocaleDateString()}</td>
+                        <td class="p-3 text-xs font-bold text-slate-700 uppercase">${c.proveedor}</td>
+                        <td class="p-3 text-xs font-bold text-slate-600 uppercase">${c.descripcion}</td>
+                        <td class="p-3 text-center text-xs font-bold text-slate-500">${c.cantidad}</td>
+                        <td class="p-3 text-right text-xs font-bold text-slate-500">${AppUtils.formatCurrency(c.costo_unitario)}</td>
+                        <td class="p-3 text-right text-sm font-black text-rose-600">${AppUtils.formatCurrency(c.cantidad * c.costo_unitario)}</td>
+                    </tr>`).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">No hay compras registradas</td></tr>';
+            }
+
+            if (contGastos) {
+                contGastos.innerHTML = data.gastos.length ? data.gastos.map(g => `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-3 text-[10px] font-bold text-slate-400 uppercase">${new Date(g.fecha).toLocaleDateString()}</td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-500 uppercase">${g.categoria}</span></td>
+                        <td class="p-3 text-xs font-bold text-slate-700 uppercase">${g.descripcion}</td>
+                        <td class="p-3 text-xs font-bold text-slate-600 uppercase">${g.metodo_pago}</td>
+                        <td class="p-3 text-right text-sm font-black text-rose-600">${AppUtils.formatCurrency(g.monto)}</td>
+                    </tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400 italic">No hay gastos registrados</td></tr>';
+            }
+        }
+    } catch (e) { console.error(e); }
+};
+
+window.renderCartera = (data) => {
+    const tbody = document.getElementById('cartera-body');
+    if (!tbody || !Array.isArray(data)) return;
+    tbody.innerHTML = data.map(c => `
+        <tr class="hover:bg-slate-50 border-b border-slate-100">
+            <td class="p-4 text-sm font-bold text-slate-700 uppercase">${c.cliente_nombre}</td>
+            <td class="p-4 text-xs font-black text-slate-400">${AppUtils.formatCurrency(c.rango_0_15)}</td>
+            <td class="p-4 text-xs font-black text-amber-500">${AppUtils.formatCurrency(c.rango_16_30)}</td>
+            <td class="p-4 text-xs font-black text-rose-600">${AppUtils.formatCurrency(c.rango_30_mas)}</td>
+            <td class="p-4 text-right font-black text-navy-blue">${AppUtils.formatCurrency(c.total_deuda)}</td>
+        </tr>
+    `).join('');
+};
+
+window.cargarCartera = async function () {
+    const tbody = document.getElementById('cartera-body');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-16 text-slate-400 italic animate-pulse">GENERANDO REPORTE DE CARTERA...</td></tr>';
+
+    try {
+        const res = await fetch(`${URLROOT}/reportes/cartera`);
+        const result = await res.json();
+        if (result.success) {
+            window.renderCartera(result.data);
+        }
+    } catch (e) {
+        console.error(e);
+        AppUtils.showToast("Error al cargar cartera", "error");
+    }
+};
+
+window.renderRentabilidad = (data) => {
+    const tbody = document.getElementById('rentabilidad-body');
+    if (!tbody || !Array.isArray(data)) return;
+    tbody.innerHTML = data.map(r => {
+        const margen = r.ingreso_total > 0 ? ((r.utilidad_bruta / r.ingreso_total) * 100).toFixed(2) : 0;
+        return `
+            <tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="p-4 text-xs font-black text-slate-400 uppercase tracking-widest">${r.tipo}</td>
+                <td class="p-4 text-sm font-bold text-slate-700">${r.cantidad_operaciones}</td>
+                <td class="p-4 text-sm font-bold text-slate-600">${AppUtils.formatCurrency(r.ingreso_total)}</td>
+                <td class="p-4 text-sm font-bold text-slate-400">${AppUtils.formatCurrency(r.costo_total)}</td>
+                <td class="p-4 text-sm font-black text-emerald-600">${AppUtils.formatCurrency(r.utilidad_bruta)}</td>
+                <td class="p-4 text-right">
+                    <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-black text-xs">${margen}%</span>
+                </td>
+            </tr>`;
+    }).join('');
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     // Vincular buscador de auditoría
     document.getElementById('search-audit')?.addEventListener('input', (e) => filtrarAuditoria(e.target.value));
@@ -8,10 +151,12 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBodyId: 'report-body',
         endpoint: `${URLROOT}/reportes/generar`,
         searchInputId: 'search-report',
+        limitSelectorId: 'limitSelector',
         paginationId: 'custom-bottom-controls',
+        totalId: 'totalCount',
         extraParams: {
-            desde: document.getElementById('rep-desde').value,
-            hasta: document.getElementById('rep-hasta').value
+            desde: document.getElementById('rep-desde')?.value || '',
+            hasta: document.getElementById('rep-hasta')?.value || ''
         },
         onDataLoaded: (result) => {
             if (result.totales) {
@@ -23,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.history && typeof renderChart === 'function') renderChart(result.history);
             }
         },
-        renderRow: (m) => renderFlujoRow(m)
+        renderRow: (m) => window.renderFlujoRow(m)
     });
 
     // Instancia para Historial de Devoluciones
@@ -32,10 +177,12 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBodyId: 'devoluciones-body',
         endpoint: `${URLROOT}/facturacion/listarDevoluciones`,
         searchInputId: 'search-devoluciones',
+        limitSelectorId: 'limitSelector-devoluciones',
         paginationId: 'pagination-devoluciones',
+        totalId: 'totalCount-devoluciones',
         extraParams: {
-            desde: document.getElementById('rep-desde').value,
-            hasta: document.getElementById('rep-hasta').value
+            desde: document.getElementById('rep-desde')?.value || '',
+            hasta: document.getElementById('rep-hasta')?.value || ''
         },
         renderRow: (d) => {
             return `
@@ -56,8 +203,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Vincular filtros de fecha
-    document.getElementById('rep-desde')?.addEventListener('change', actualizarFiltrosFechas);
-    document.getElementById('rep-hasta')?.addEventListener('change', actualizarFiltrosFechas);
+    document.getElementById('rep-desde')?.addEventListener('change', window.actualizarFiltrosFechas);
+    document.getElementById('rep-hasta')?.addEventListener('change', window.actualizarFiltrosFechas);
 });
 
 let activeReportTab = 'resumen';
@@ -101,7 +248,7 @@ window.switchReportTab = (tab) => {
     } else if (tab === 'detallado') {
         if (secDetallado) secDetallado.classList.remove('hidden');
         if (tabDetallado) tabDetallado.classList.add('border-neon-green', 'text-navy-blue');
-        cargarReporteDetallado();
+        window.cargarReporteDetallado();
     } else if (tab === 'devoluciones') {
         if (secDevoluciones) secDevoluciones.classList.remove('hidden');
         if (tabDevoluciones) tabDevoluciones.classList.add('border-neon-green', 'text-navy-blue');
@@ -120,7 +267,7 @@ window.switchReportTab = (tab) => {
         cargarNomina();
     }
 
-    lucide.createIcons();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 };
 
 const formatDateLong = (dateStr) => {

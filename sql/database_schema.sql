@@ -287,10 +287,13 @@ CREATE TABLE IF NOT EXISTS `table_caja_movimientos` (
   `metodo_pago` enum('EFECTIVO','TRANSFERENCIA') NOT NULL,
   `referencia_id` int(11) DEFAULT NULL COMMENT 'ID de la venta o abono relacionado',
   `concepto` varchar(255) DEFAULT NULL,
+  `usuario_id` int(11) DEFAULT NULL,
   `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `sesion_id` (`sesion_id`),
-  CONSTRAINT `fk_movimiento_sesion` FOREIGN KEY (`sesion_id`) REFERENCES `table_sesiones_caja` (`id`) ON DELETE SET NULL
+  KEY `fk_movimiento_usuario` (`usuario_id`),
+  CONSTRAINT `fk_movimiento_sesion` FOREIGN KEY (`sesion_id`) REFERENCES `table_sesiones_caja` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_movimiento_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 15. Tabla de Gastos (Egresos Operativos del Taller)
@@ -333,9 +336,27 @@ CREATE TABLE IF NOT EXISTS `table_compras_pagos` (
   `compra_id` INT NOT NULL,
   `monto_pagado` DECIMAL(10,2) NOT NULL,
   `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL,
+  `usuario_id` INT NOT NULL,
   `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT `fk_pago_compra` FOREIGN KEY (`compra_id`) REFERENCES `table_compras` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_pago_compra` FOREIGN KEY (`compra_id`) REFERENCES `table_compras` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_pago_compra_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 16.2 Control de pagos y adelantos de empleados
+CREATE TABLE IF NOT EXISTS `table_pagos_empleados` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `staff_id` VARCHAR(50) NOT NULL,
+  `fecha` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `monto` DECIMAL(15,2) NOT NULL,
+  `tipo` ENUM('ADELANTO', 'PAGO_NOMINA') NOT NULL,
+  `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL DEFAULT 'EFECTIVO',
+  `notas` TEXT,
+  `usuario_id` INT NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`staff_id`) REFERENCES `table_staff`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 17. Detalle de Compras
 CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
@@ -417,6 +438,7 @@ TRUNCATE TABLE `table_orden_estados_log`;
 TRUNCATE TABLE `table_caja_movimientos`;
 TRUNCATE TABLE `table_sesiones_caja`;
 TRUNCATE TABLE `table_compras_pagos`;
+TRUNCATE TABLE `table_pagos_empleados`;
 TRUNCATE TABLE `table_abonos_clientes`;
 TRUNCATE TABLE `table_orden_checklist`;
 TRUNCATE TABLE `table_ordenes_servicio`;

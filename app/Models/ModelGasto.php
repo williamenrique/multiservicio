@@ -40,13 +40,14 @@ class ModelGasto {
     }
 
     public function crear($data) {
-        $this->db->query("INSERT INTO table_gastos (fecha, descripcion, categoria, monto, metodo_pago) 
-                         VALUES (:fecha, :descripcion, :categoria, :monto, :metodo)");
+        $this->db->query("INSERT INTO table_gastos (fecha, descripcion, categoria, monto, metodo_pago, usuario_id) 
+                         VALUES (:fecha, :descripcion, :categoria, :monto, :metodo, :uid)");
         $this->db->bind(':fecha', $data['fecha']);
-        $this->db->bind(':descripcion', $data['descripcion']);
-        $this->db->bind(':categoria', $data['categoria']);
+        $this->db->bind(':descripcion', mb_strtoupper($data['descripcion'], 'UTF-8'));
+        $this->db->bind(':categoria', mb_strtoupper($data['categoria'], 'UTF-8'));
         $this->db->bind(':monto', $data['monto']);
         $this->db->bind(':metodo', $data['metodo_pago'] ?? 'EFECTIVO');
+        $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
         return $this->db->execute();
     }
 

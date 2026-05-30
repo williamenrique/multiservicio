@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
         limitSelectorId: 'limitSelector',
         paginationId: 'paginationControls',
         totalId: 'totalCount',
+        onDataLoaded: (res) => {
+            window.currentData = res.data;
+        },
         renderRow: (p) => {
             const imgUrl = p.foto ? `${URLROOT}/${p.foto}` : `${URL_IMG}default.png`;
             return `
@@ -123,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCancel.addEventListener('click', () => toggleModal(false));
 
     window.editStaff = (id) => {
-        const p = currentData.find(x => x.id === id);
+        const p = window.currentData.find(x => x.id === id);
         document.getElementById('staffId').value = p.id;
         document.getElementById('staffId').disabled = true;
         document.getElementById('staffCedula').value = p.cedula;

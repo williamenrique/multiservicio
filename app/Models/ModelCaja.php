@@ -13,7 +13,7 @@ class ModelCaja {
         $this->db->bind(':monto', $data['monto']);
         $this->db->bind(':metodo', $data['metodo_pago']);
         $this->db->bind(':ref', $data['referencia_id'] ?? null);
-        $this->db->bind(':concepto', $data['concepto']);
+        $this->db->bind(':concepto', mb_strtoupper($data['concepto'], 'UTF-8'));
         $this->db->bind(':uid', $_SESSION['user_id']);
         return $this->db->execute();
     }

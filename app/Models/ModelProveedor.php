@@ -97,12 +97,23 @@ class ModelProveedor {
             $nuevoPagado = (float)$compra->pagado + (float)$datos['monto'];
             $nuevoStatus = ($nuevoPagado >= (float)$compra->total) ? 'PAGADO' : 'PENDIENTE';
 
-            // 3. Actualizar
-            $this->db->query("UPDATE table_compras SET pagado = :pag, status = :status WHERE id = :id");
+            // 3. Actualizar saldo y registrar qué usuario procesó el abono
+            $this->db->query("UPDATE table_compras SET pagado = :pag, status = :status, usuario_id = :uid WHERE id = :id");
             $this->db->bind(':pag', $nuevoPagado);
             $this->db->bind(':status', $nuevoStatus);
+            $this->db->bind(':uid', $_SESSION['user_id']);
             $this->db->bind(':id', $datos['compra_id']);
             $this->db->execute();
+
+            // 4. Registrar el Egreso en Caja para el balance financiero
+            $caja = new ModelCaja();
+            $caja->registrarMovimiento([
+                'tipo' => 'EGRESO',
+                'monto' => $datos['monto'],
+                'metodo_pago' => $datos['metodo_pago'] ?? 'EFECTIVO',
+                'referencia_id' => $datos['compra_id'],
+                'concepto' => "ABONO A FACTURA PROVEEDOR #" . $datos['compra_id']
+            ]);
 
             $this->db->commit();
             return true;
@@ -124,21 +135,14 @@ class ModelProveedor {
             if (empty($productoId)) {
                 $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, ultimo_costo, precio) 
                                   VALUES (:nom, :cat, :stock, :costo, :precio)");
-                $this->db->bind(':nom', $datos['nombre']);
-                $this->db->bind(':cat', $datos['categoria'] ?? 'REPUESTOS');
+                $this->db->bind(':nom', mb_strtoupper($datos['nombre'], 'UTF-8'));
+                $this->db->bind(':cat', mb_strtoupper($datos['categoria'] ?? 'REPUESTOS', 'UTF-8'));
                 $this->db->bind(':stock', $datos['cantidad']);
                 $this->db->bind(':costo', $costo);
                 $this->db->bind(':precio', $precioVenta);
                 $this->db->execute();
                 $productoId = $this->db->lastInsertId();
-                // Si es nuevo, el stock inicial es 0, registramos la entrada
-                $invModel = new ModelInventario();
-                $invModel->registrarMovimiento($productoId, 'ENTRADA_COMPRA', $datos['cantidad'], null, "Compra Inicial");
             } else {
-                // Registrar Kardex para producto existente
-                $invModel = new ModelInventario();
-                $invModel->registrarMovimiento($productoId, 'ENTRADA_COMPRA', $datos['cantidad'], null, "Reposición de Stock");
-
                 // 2. Si existe, sumamos el stock y actualizamos costos/precios (Estrategia Reposición)
                 $this->db->query("UPDATE table_inventario SET stock = stock + :cant, ultimo_costo = :costo, precio = :precio WHERE id = :id");
                 $this->db->bind(':cant', $datos['cantidad']);
@@ -150,22 +154,29 @@ class ModelProveedor {
 
             // 3. Registrar Cabecera de Compra (Deuda)
             $totalCompra = $datos['cantidad'] * $datos['costo'];
-            $this->db->query("INSERT INTO table_compras (proveedor_id, total, pagado, fecha_vencimiento, usuario_id) 
-                              VALUES (:prov, :total, :pagado, :vence, :uid)");
+            $statusCompra = ($datos['pagado'] >= $totalCompra) ? 'PAGADO' : 'PENDIENTE';
+            
+            $this->db->query("INSERT INTO table_compras (proveedor_id, total, pagado, status, fecha_vencimiento, usuario_id) 
+                              VALUES (:prov, :total, :pagado, :status, :vence, :uid)");
             $this->db->bind(':prov', $datos['proveedor_id']);
             $this->db->bind(':total', $totalCompra);
             $this->db->bind(':pagado', $datos['pagado']);
+            $this->db->bind(':status', $statusCompra);
             $this->db->bind(':vence', !empty($datos['fecha_cobro']) ? $datos['fecha_cobro'] : null);
             $this->db->bind(':uid', $_SESSION['user_id']);
             $this->db->execute();
             $compraId = $this->db->lastInsertId();
+
+            // 4. Registrar Movimiento en Kardex vinculado a la compra
+            $invModel = new ModelInventario();
+            $invModel->registrarMovimiento($productoId, 'ENTRADA_COMPRA', $datos['cantidad'], $compraId, "Compra a proveedor Factura #$compraId");
 
             // 4. Registrar Detalle de la Compra
             $this->db->query("INSERT INTO table_compras_detalle (compra_id, producto_id, descripcion, cantidad, costo_unitario) 
                               VALUES (:cid, :pid, :desc, :cant, :costo)");
             $this->db->bind(':cid', $compraId);
             $this->db->bind(':pid', $productoId);
-            $this->db->bind(':desc', $datos['nombre']);
+            $this->db->bind(':desc', mb_strtoupper($datos['nombre'], 'UTF-8'));
             $this->db->bind(':cant', $datos['cantidad']);
             $this->db->bind(':costo', $datos['costo']);
             $this->db->execute();
@@ -187,10 +198,10 @@ class ModelProveedor {
             $this->db->query("INSERT INTO table_proveedores (id, nombre, telefono, email, direccion) VALUES (:id, :nom, :tel, :em, :dir)");
             $this->db->bind(':id', $data['id']);
         }
-        $this->db->bind(':nom', $data['nombre']);
+        $this->db->bind(':nom', mb_strtoupper(trim($data['nombre']), 'UTF-8'));
         $this->db->bind(':tel', $data['telefono']);
-        $this->db->bind(':em', $data['email']);
-        $this->db->bind(':dir', $data['direccion']);
+        $this->db->bind(':em', mb_strtolower(trim($data['email']), 'UTF-8'));
+        $this->db->bind(':dir', mb_strtoupper(trim($data['direccion']), 'UTF-8'));
         return $this->db->execute();
     }
 

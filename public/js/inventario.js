@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
         limitSelectorId: 'limitSelector',
         paginationId: 'paginationControls',
         totalId: 'totalCount',
+        onDataLoaded: (res) => {
+            window.currentData = res.data;
+        },
         renderRow: (item) => {
             const isLow = item.stock <= (item.stock_minimo || 5);
             const cleanPath = item.imagen ? item.imagen.trim() : null;
@@ -146,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnCancel')?.addEventListener('click', () => toggleModal(false));
 
     window.editItem = (id) => {
-        const item = currentData.find(i => i.id == id);
+        const item = window.currentData.find(i => i.id == id);
 
         document.getElementById('prodId').value = item.id;
         document.getElementById('prodNombre').value = item.nombre;
