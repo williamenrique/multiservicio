@@ -1,6 +1,3 @@
-/**
- * Lógica del Módulo de Gastos
- */
 document.addEventListener('DOMContentLoaded', async () => {
     // Instancia unificada de la tabla de gastos
     new DataTableRefactor({
@@ -82,7 +79,7 @@ window.openExpenseModal = async function () { // Hacer la función asíncrona
             AppUtils.hideLoading();
             if (data.success) {
                 AppUtils.showToast('Gasto registrado');
-                loadExpenses();
+                if (window.handler_gastos) handler_gastos.reload();
             } else {
                 AppUtils.showToast(data.error || 'Error al registrar el gasto', 'error');
             }
@@ -99,7 +96,7 @@ window.eliminarGasto = (id) => {
         const data = await response.json();
         if (data.success) {
             AppUtils.showToast('Gasto eliminado');
-            loadExpenses();
+            if (window.handler_gastos) handler_gastos.reload();
         } else {
             AppUtils.showToast(data.error || 'Error al eliminar el gasto', 'error');
         }

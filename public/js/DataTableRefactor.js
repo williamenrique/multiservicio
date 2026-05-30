@@ -22,6 +22,8 @@ class DataTableRefactor {
             search: '',
             extraParams: config.extraParams || {}
         };
+        
+        this.onDataLoaded = config.onDataLoaded || null;
 
         this.searchTimer = null;
         window[`handler_${this.tableId}`] = this; // Referencia global para eventos HTML
@@ -64,6 +66,7 @@ class DataTableRefactor {
             if (result.success) {
                 this.render(result.data || []);
                 this.updatePaginationUI(result.total || 0, result.totalFiltrados || 0);
+                if (this.onDataLoaded) this.onDataLoaded(result);
             }
         } catch (error) {
             console.error(`Error en tabla ${this.tableId}:`, error);

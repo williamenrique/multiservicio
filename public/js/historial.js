@@ -1,78 +1,33 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const tableBody = document.getElementById('tableBody');
-    const searchInput = document.getElementById('searchVentas');
-    const totalCount = document.getElementById('totalCount');
-
-    let ventas = [];
-
-    /**
-     * Carga los datos del historial de ventas desde el servidor.
-     */
-    const loadData = async () => {
-        try {
-            // Llama al método listar() en ControllerHistorial
-            const res = await fetch(`${URLROOT}/historial/listar`);
-            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-            ventas = await res.json();
-            renderTable(ventas);
-        } catch (e) {
-            console.error("Error al cargar el historial de ventas:", e);
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-red-500">Error de conexión o al cargar datos.</td></tr>';
-        }
-    };
-
-    /**
-     * Renderiza la tabla de ventas con los datos proporcionados.
-     * @param {Array} data Array de objetos de venta.
-     */
-    const renderTable = (data) => {
-        if ($.fn.DataTable.isDataTable('#salesTable')) {
-            $('#salesTable').DataTable().destroy();
-        }
-
-        tableBody.innerHTML = '';
-        totalCount.textContent = data.length;
-
-        if (data.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-400 italic">No hay ventas registradas.</td></tr>';
-            return;
-        }
-
-        data.forEach(venta => {
-            const row = document.createElement('tr');
+    new DataTableRefactor({
+        tableId: 'historial',
+        tableBodyId: 'tableBody',
+        endpoint: `${URLROOT}/historial/listar`,
+        searchInputId: 'searchVentas',
+        limitSelectorId: 'limitSelector',
+        paginationId: 'paginationControls',
+        totalId: 'totalCount',
+        renderRow: (venta) => {
             const isCredit = venta.status === 'CREDITO';
-            row.className = `hover:bg-slate-50 transition-colors border-b border-slate-100 ${isCredit ? 'bg-red-50/50' : ''}`;
-            row.innerHTML = `
-                <td class="px-8 py-5 font-mono text-xs text-slate-500">#${venta.id}</td>
-                <td class="px-8 py-5">${new Date(venta.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                <td class="px-8 py-5">
-                    <div class="font-bold text-slate-700 uppercase flex items-center gap-2">
-                        ${venta.modelo_vehiculo || 'N/A'}
-                        ${isCredit ? '<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>' : ''}
-                    </div>
-                    <div class="text-[10px] text-slate-400">${venta.placa || 'Sin Placa'}</div>
-                </td>
-                <td class="px-8 py-5">${venta.cliente_nombre || 'Sin Cliente'}</td>
-                <td class="px-8 py-5 font-bold text-navy-blue">${AppUtils.formatCurrency(venta.total)}</td>
-                <td class="px-8 py-5 text-right">
-                    <button onclick="openSaleDetailModal(${venta.id})" class="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all" title="Ver Detalles"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                </td>
-            `;
-            tableBody.appendChild(row);
-        });
-
-        $('#salesTable').DataTable({
-            responsive: true,
-            pageLength: 10,
-            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
-            language: {
-                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json'
-            },
-            drawCallback: () => lucide.createIcons()
-        });
-
-        lucide.createIcons();
-    };
+            return `
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 ${isCredit ? 'bg-red-50/50' : ''}">
+                    <td class="px-8 py-5 font-mono text-xs text-slate-500">#${venta.id}</td>
+                    <td class="px-8 py-5">${new Date(venta.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td class="px-8 py-5">
+                        <div class="font-bold text-slate-700 uppercase flex items-center gap-2">
+                            ${venta.modelo_vehiculo || 'N/A'}
+                            ${isCredit ? '<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>' : ''}
+                        </div>
+                        <div class="text-[10px] text-slate-400">${venta.placa || 'Sin Placa'}</div>
+                    </td>
+                    <td class="px-8 py-5">${venta.cliente_nombre || 'Sin Cliente'}</td>
+                    <td class="px-8 py-5 font-bold text-navy-blue">${AppUtils.formatCurrency(venta.total)}</td>
+                    <td class="px-8 py-5 text-right">
+                        <button onclick="openSaleDetailModal(${venta.id})" class="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all" title="Ver Detalles"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                    </td>
+                </tr>`;
+        }
+    });
 
     /**
      * Abre un modal con los detalles de una venta específica.

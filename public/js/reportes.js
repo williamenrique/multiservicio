@@ -1,11 +1,63 @@
 document.addEventListener('DOMContentLoaded', () => {
-    cargarReporte(); // Carga el resumen por defecto
-
     // Vincular buscador de auditoría
     document.getElementById('search-audit')?.addEventListener('input', (e) => filtrarAuditoria(e.target.value));
 
-    // Vincular buscador de flujo de caja
-    document.getElementById('search-report')?.addEventListener('input', (e) => filtrarReporte(e.target.value));
+    // Instancia para el Flujo de Caja (Resumen)
+    new DataTableRefactor({
+        tableId: 'reporte_flujo',
+        tableBodyId: 'report-body',
+        endpoint: `${URLROOT}/reportes/generar`,
+        searchInputId: 'search-report',
+        paginationId: 'custom-bottom-controls',
+        extraParams: {
+            desde: document.getElementById('rep-desde').value,
+            hasta: document.getElementById('rep-hasta').value
+        },
+        onDataLoaded: (result) => {
+            if (result.totales) {
+                document.getElementById('total-repuestos').textContent = AppUtils.formatCurrency(result.totales.ingreso_repuestos || 0);
+                document.getElementById('total-servicios').textContent = AppUtils.formatCurrency(result.totales.ingreso_servicios || 0);
+                document.getElementById('total-egresos').textContent = AppUtils.formatCurrency(result.totales.egresos || 0);
+                document.getElementById('total-deuda').textContent = AppUtils.formatCurrency(result.totales.deuda || 0);
+                document.getElementById('total-balance').textContent = AppUtils.formatCurrency(result.totales.balance || 0);
+                if (result.history && typeof renderChart === 'function') renderChart(result.history);
+            }
+        },
+        renderRow: (m) => renderFlujoRow(m)
+    });
+
+    // Instancia para Historial de Devoluciones
+    new DataTableRefactor({
+        tableId: 'reporte_devoluciones',
+        tableBodyId: 'devoluciones-body',
+        endpoint: `${URLROOT}/facturacion/listarDevoluciones`,
+        searchInputId: 'search-devoluciones',
+        paginationId: 'pagination-devoluciones',
+        extraParams: {
+            desde: document.getElementById('rep-desde').value,
+            hasta: document.getElementById('rep-hasta').value
+        },
+        renderRow: (d) => {
+            return `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="p-4 text-xs font-bold text-slate-500">${new Date(d.fecha).toLocaleString()}</td>
+                    <td class="p-4">
+                        <p class="text-sm font-black text-navy-blue uppercase">${d.descripcion}</p>
+                        <p class="text-xs text-slate-400 font-bold uppercase">Factura #${d.venta_id} • Cliente: ${d.cliente_nombre || 'N/A'}</p>
+                    </td>
+                    <td class="p-4">
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
+                            ${d.destino === 'STOCK' ? 'Reingreso Stock (Bueno)' : 'Garantía/Dañado (Malo)'}
+                        </span>
+                    </td>
+                    <td class="p-4 text-right font-black text-rose-600 text-base">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
+                </tr>`;
+        }
+    });
+
+    // Vincular filtros de fecha
+    document.getElementById('rep-desde')?.addEventListener('change', actualizarFiltrosFechas);
+    document.getElementById('rep-hasta')?.addEventListener('change', actualizarFiltrosFechas);
 });
 
 let activeReportTab = 'resumen';
