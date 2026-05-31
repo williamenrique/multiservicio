@@ -246,15 +246,16 @@ class ModelReportes {
 
     /**
      * Obtiene el reporte de cartera clasificado por antigüedad de deuda.
-     * Divide la deuda en rangos de 0-15, 16-30 y más de 30 días.
+     * Divide la deuda en rangos de 0-15, 16-30 y más de 30 días. 
+     * Se usa DATE() para asegurar que deudas del mismo día (diff 0) sean incluidas.
      */
     public function obtenerCarteraPorEdades() {
         $this->db->query("SELECT 
                             c.nombre as cliente_nombre,
                             c.telefono as cliente_telefono,
-                            SUM(CASE WHEN DATEDIFF(CURDATE(), v.fecha) <= 15 THEN v.saldo_pendiente ELSE 0 END) as rango_0_15,
-                            SUM(CASE WHEN DATEDIFF(CURDATE(), v.fecha) > 15 AND DATEDIFF(CURDATE(), v.fecha) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
-                            SUM(CASE WHEN DATEDIFF(CURDATE(), v.fecha) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
+                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) <= 15 THEN v.saldo_pendiente ELSE 0 END) as rango_0_15,
+                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) > 15 AND DATEDIFF(CURDATE(), DATE(v.fecha)) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
+                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
                             SUM(v.saldo_pendiente) as total_deuda
                           FROM table_ventas v
                           JOIN table_clientes c ON v.cliente_id = c.id
@@ -298,16 +299,19 @@ class ModelReportes {
      * Obtiene los trabajos (servicios) y pagos de un empleado en un periodo.
      */
     public function obtenerNominaEmpleado($staff_id, $desde, $hasta) {
-        // 1. Trabajos realizados (Servicios facturados vinculados al staff)
-        $this->db->query("SELECT v.id as venta_id, v.fecha, v.placa, vd.descripcion, (vd.cantidad * vd.precio_unitario) as monto_trabajo
+ 
+        $this->db->query("SELECT v.id as venta_id, v.fecha, v.placa, v.modelo_vehiculo, 
+                                 vd.id as detalle_id, vd.descripcion, vd.cantidad, 
+                                 vd.precio_unitario as monto_trabajo, vd.pago_nomina_id
                           FROM table_ventas v
                           JOIN table_ventas_detalle vd ON v.id = vd.venta_id
-                          WHERE (v.mecanico_id = :staff_id OR :staff_id = '0')
+                          WHERE (v.mecanico_id = :staff_id OR :staff_id_alt = '0')
                           AND vd.producto_id IS NULL 
                           AND v.status IN ('COMPLETADO', 'CREDITO')
                           AND DATE(v.fecha) BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
         $this->db->bind(':staff_id', $staff_id);
+        $this->db->bind(':staff_id_alt', $staff_id);
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $trabajos = $this->db->resultSet() ?: [];
@@ -328,6 +332,43 @@ class ModelReportes {
     }
 
     public function registrarPagoEmpleado($data) {
-        return $this->db->insert('table_pagos_empleados', $data);
+        try {
+            $this->db->beginTransaction();
+
+            // 1. Extraer los IDs de los trabajos para marcar como pagados
+            $detallesIds = $data['detalles_ids'] ?? [];
+
+            // 2. Insertar el registro de nómina con los nuevos campos de cálculo
+            $this->db->query("INSERT INTO table_pagos_empleados (staff_id, monto, monto_base, modo_calculo, factor_calculo, tipo, metodo_pago, notas, usuario_id) 
+                              VALUES (:sid, :monto, :base, :modo, :factor, :tipo, :metodo, :notas, :uid)");
+            $this->db->bind(':sid', $data['staff_id']);
+            $this->db->bind(':monto', $data['monto']);
+            $this->db->bind(':base', $data['monto_base'] ?? 0);
+            $this->db->bind(':modo', $data['modo_calculo'] ?? 'FIJO');
+            $this->db->bind(':factor', $data['factor_calculo'] ?? 0);
+            $this->db->bind(':tipo', $data['tipo'] ?? 'ADELANTO');
+            $this->db->bind(':metodo', $data['metodo_pago'] ?? 'EFECTIVO');
+            $this->db->bind(':notas', $data['notas'] ?? '');
+            $this->db->bind(':uid', $data['usuario_id']);
+            $this->db->execute();
+            
+            $pagoId = $this->db->lastInsertId();
+
+            // 3. Vincular los ítems de mano de obra a este pago para el historial (cambian a Gris)
+            if ($pagoId && !empty($detallesIds)) {
+                foreach ($detallesIds as $detId) {
+                    $this->db->query("UPDATE table_ventas_detalle SET pago_nomina_id = :pid WHERE id = :did");
+                    $this->db->bind(':pid', $pagoId);
+                    $this->db->bind(':did', $detId);
+                    $this->db->execute();
+                }
+            }
+
+            $this->db->commit();
+            return $pagoId;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 }

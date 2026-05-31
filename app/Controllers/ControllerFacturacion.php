@@ -49,25 +49,82 @@ class ControllerFacturacion extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
             try {
+                $db = new Database();
+                $db->beginTransaction();
+                
                 $datos = json_decode(file_get_contents('php://input'), true);
                 
                 $v = new Validator($datos);
-                $v->required(['items', 'pago_efectivo', 'pago_transferencia'])
+                $v->required(['items', 'pago_efectivo', 'pago_transferencia', 'mecanico_id'])
                   ->array('items');
 
                 if (!$v->success()) {
-                    return $this->jsonResponse(['success' => false, 'mensaje' => implode(" ", $v->getErrors())], 400);
+                    throw new Exception(implode(" ", $v->getErrors()));
                 }
 
-                // Delegar la venta finalizada al servicio (transaccional)
-                $resultado = $this->billingService->procesarVentaCompleta($datos);
+                $facturaModel = new ModelFacturacion($db);
+                $invModel = new ModelInventario($db);
+                $cajaModel = new ModelCaja($db);
 
+                // 1. Cálculos de totales y determinación de Status
+                $subtotal = 0;
+                foreach($datos['items'] as $it) $subtotal += ($it['precio'] * $it['cantidad']);
+                $tasaIva = (float)($datos['tasa_iva'] ?? 0);
+                $iva = ($datos['aplicar_iva'] ?? false) ? ($subtotal * ($tasaIva / 100)) : 0;
+                $totalVenta = $subtotal + $iva;
+                $saldoPendiente = $totalVenta - ((float)$datos['pago_efectivo'] + (float)$datos['pago_transferencia']);
+                
+                // Asegurar que el mecánico venga del JSON del frontend
+                $mecanicoId = !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null;
+                $status = ($saldoPendiente > 0.05) ? 'CREDITO' : 'COMPLETADO';
+                $totales = ['subtotal' => $subtotal, 'iva' => $iva, 'total' => $totalVenta, 'saldo' => max(0, $saldoPendiente)];
+
+                // 2. Guardar Cabecera
+                $datos['mecanico_id'] = $mecanicoId; // Forzamos la reinyección por si se perdió
+                $ventaId = $facturaModel->guardarCabeceraVenta($datos, $status, $totales);
+
+                // 3. Limpiar y registrar detalles + actualizar STOCK y KARDEX
+                $db->query("DELETE FROM table_ventas_detalle WHERE venta_id = :vid");
+                $db->bind(':vid', $ventaId);
+                $db->execute();
+
+                foreach ($datos['items'] as $item) {
+                    $db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                                VALUES (:vid, :pid, :desc, :cant, :pre, :costo)");
+                    $db->bind(':vid', $ventaId);
+                    $db->bind(':pid', $item['tipo'] === 'PRODUCTO' ? $item['id'] : null);
+                    $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
+                    $db->bind(':cant', $item['cantidad']);
+                    $db->bind(':pre', $item['precio']);
+                    $db->bind(':costo', $item['ultimo_costo'] ?? 0);
+                    $db->execute();
+
+                    if ($item['tipo'] === 'PRODUCTO') {
+                        // Descontar Stock y registrar en Kardex
+                        $db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
+                        $db->bind(':cant', $item['cantidad']);
+                        $db->bind(':pid', $item['id']);
+                        $db->execute();
+                        $invModel->registrarMovimiento($item['id'], 'SALIDA_VENTA', $item['cantidad'], $ventaId, "Venta Factura #$ventaId");
+                    }
+                }
+
+                // 4. Registrar movimiento en caja si hay pago en efectivo
+                if ((float)$datos['pago_efectivo'] > 0) {
+                    $cajaModel->registrarMovimiento([
+                        'tipo' => 'INGRESO', 'monto' => $datos['pago_efectivo'], 'metodo_pago' => 'EFECTIVO',
+                        'referencia_id' => $ventaId, 'concepto' => "VENTA FACTURA #$ventaId"
+                    ]);
+                }
+
+                $db->commit();
                 return $this->jsonResponse([
-                    'success' => true, 
+                    'success' => true,
                     'mensaje' => 'Venta realizada con éxito',
-                    'venta_id' => $resultado
+                    'venta_id' => $ventaId
                 ]);
             } catch (Exception $e) {
+                if (isset($db)) $db->rollBack();
                 return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
             }
         }
@@ -80,50 +137,53 @@ class ControllerFacturacion extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
             try {
-                $datos = json_decode(file_get_contents('php://input'), true);
-                
-                $v = new Validator($datos);
-                $v->array('items', true); 
-
-                if (!$v->success()) {
-                    return $this->jsonResponse(['success' => false, 'mensaje' => 'Borrador inválido'], 400);
-                }
-
-                // Implementación directa para bypass del método ausente en BillingService
                 $db = new Database();
                 $db->beginTransaction();
                 
-                $tempModel = new ModelFacturacion($db);
+                $datos = json_decode(file_get_contents('php://input'), true);
                 
+                // Cálculos rápidos para el borrador
                 $subtotal = 0;
-                foreach($datos['items'] as $it) $subtotal += ($it['precio'] * $it['cantidad']);
+                foreach($datos['items'] as $it) {
+                    $subtotal += ($it['precio'] * $it['cantidad']);
+                }
                 $tasaIva = (float)($datos['tasa_iva'] ?? 0);
                 $iva = ($datos['aplicar_iva'] ?? false) ? ($subtotal * ($tasaIva / 100)) : 0;
+                $totales = [
+                    'subtotal' => $subtotal,
+                    'iva' => $iva,
+                    'total' => $subtotal + $iva,
+                    'saldo' => $subtotal + $iva
+                ];
                 
-                $totales = ['subtotal' => $subtotal, 'iva' => $iva, 'total' => $subtotal + $iva, 'saldo' => $subtotal + $iva];
+                // Inyectar el mecánico en los datos para el modelo
+                $datos['mecanico_id'] = !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null;
 
+                // Guardar cabecera usando el modelo inyectando la conexión actual
+                $tempModel = new ModelFacturacion($db);
                 $ventaId = $tempModel->guardarCabeceraVenta($datos, 'PENDIENTE', $totales);
 
-                // Limpiar y reinsertar detalles del borrador
+                // Limpiar y actualizar items del borrador
                 $db->query("DELETE FROM table_ventas_detalle WHERE venta_id = :vid");
                 $db->bind(':vid', $ventaId);
                 $db->execute();
 
                 foreach ($datos['items'] as $item) {
-                    $db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario) 
-                                VALUES (:vid, :pid, :desc, :cant, :pre)");
+                    $db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                                VALUES (:vid, :pid, :desc, :cant, :pre, :costo)");
                     $db->bind(':vid', $ventaId);
                     $db->bind(':pid', $item['tipo'] === 'PRODUCTO' ? $item['id'] : null);
                     $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
                     $db->bind(':cant', $item['cantidad']);
                     $db->bind(':pre', $item['precio']);
+                    $db->bind(':costo', $item['tipo'] === 'PRODUCTO' ? ($item['ultimo_costo'] ?? 0) : 0);
                     $db->execute();
                 }
 
                 $db->commit();
                 return $this->jsonResponse(['success' => true, 'venta_id' => $ventaId]);
             } catch (Exception $e) {
-                if (isset($db)) $db->rollBack();
+                if(isset($db)) $db->rollBack();
                 return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
             }
         }

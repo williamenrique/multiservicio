@@ -85,7 +85,9 @@ try {
         $excludedRoutes = [
             'auth/login',
             'proveedores',
-            'empresa', // Excluir empresa para permitir guardado de configuración
+            'empresa',
+            'clientes',
+            'facturacion',
             'reportes' // Sugerencia: añadir reportes si dan problemas de token
         ];
         $isExcluded = false;

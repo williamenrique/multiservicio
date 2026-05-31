@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS `table_vehiculos` (
   CONSTRAINT `fk_vehiculo_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 7. Tabla de ConfiguraciOn de la Empresa
+-- 7. Tabla de Configuración de la Empresa
 CREATE TABLE IF NOT EXISTS `table_company_settings` (
   `id` INT(11) NOT NULL DEFAULT 1, -- Siempre serA 1, para asegurar una única fila
   `name` VARCHAR(100) NOT NULL,
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS `table_company_settings` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 7. Tabla de Órdenes de Servicio (O.S.)
+-- 8. Tabla de Órdenes de Servicio (O.S.)
 CREATE TABLE IF NOT EXISTS `table_ordenes_servicio` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `vehiculo_id` int(11) NOT NULL,
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS `table_ordenes_servicio` (
   CONSTRAINT `fk_orden_vehiculo` FOREIGN KEY (`vehiculo_id`) REFERENCES `table_vehiculos` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 8. Checklist de Entrada (Accesorios y estado del vehículo)
+-- 9. Checklist de Entrada (Accesorios y estado del vehículo)
 CREATE TABLE IF NOT EXISTS `table_orden_checklist` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `orden_id` int(11) NOT NULL,
@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS `table_orden_checklist` (
   CONSTRAINT `fk_checklist_orden` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 9. Historial de Estados (Trazabilidad del ciclo de vida)
+-- 10. Historial de Estados (Trazabilidad del ciclo de vida)
 CREATE TABLE IF NOT EXISTS `table_orden_estados_log` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `orden_id` int(11) NOT NULL,
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS `table_orden_estados_log` (
   CONSTRAINT `fk_log_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 10. Tabla de Proveedores
+-- 11. Tabla de Proveedores
 CREATE TABLE IF NOT EXISTS `table_proveedores` (
   `id` varchar(50) NOT NULL,
   `nombre` varchar(100) NOT NULL,
@@ -251,11 +251,14 @@ CREATE TABLE IF NOT EXISTS `table_ventas_detalle` (
   `cantidad` int(11) NOT NULL,
   `precio_unitario` decimal(15,2) NOT NULL,
   `costo_unitario` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `pago_nomina_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_detalle_venta` (`venta_id`),
   KEY `fk_detalle_producto_venta` (`producto_id`),
+  KEY `fk_detalle_pago_nomina` (`pago_nomina_id`),
   CONSTRAINT `fk_detalle_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_detalle_producto_venta` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_detalle_producto_venta` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_detalle_pago_nomina` FOREIGN KEY (`pago_nomina_id`) REFERENCES `table_pagos_empleados` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 15. Estructura para el control de sesiones de caja (Arqueo Global)
@@ -290,8 +293,7 @@ CREATE TABLE IF NOT EXISTS `table_caja_movimientos` (
   CONSTRAINT `fk_movimiento_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 15. Tabla de Gastos (Egresos Operativos del Taller)
-DROP TABLE IF EXISTS `table_gastos`;
+-- 17. Tabla de Gastos (Egresos Operativos del Taller)
 CREATE TABLE IF NOT EXISTS `table_gastos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `fecha` date NOT NULL,
@@ -307,7 +309,7 @@ CREATE TABLE IF NOT EXISTS `table_gastos` (
   CONSTRAINT `fk_gasto_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 16. Tabla de Compras (Entrada de Mercancía y Deudas)
+-- 18. Tabla de Compras (Entrada de Mercancía y Deudas)
 CREATE TABLE IF NOT EXISTS `table_compras` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `proveedor_id` varchar(50) NOT NULL,
@@ -324,7 +326,7 @@ CREATE TABLE IF NOT EXISTS `table_compras` (
   CONSTRAINT `fk_compra_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 16.1 Pagos a Compras (Abonos a Proveedores)
+-- 18.1 Pagos a Compras (Abonos a Proveedores)
 CREATE TABLE IF NOT EXISTS `table_compras_pagos` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `compra_id` INT NOT NULL,
@@ -336,11 +338,14 @@ CREATE TABLE IF NOT EXISTS `table_compras_pagos` (
   CONSTRAINT `fk_pago_compra_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 16.2 Gestión de Nómina (Pagos y Adelantos de Empleados)
+-- 18.2 Gestión de Nómina (Pagos y Adelantos de Empleados)
 CREATE TABLE IF NOT EXISTS `table_pagos_empleados` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `staff_id` varchar(50) NOT NULL,
   `monto` decimal(15,2) NOT NULL,
+  `monto_base` decimal(15,2) DEFAULT 0.00,
+  `modo_calculo` enum('FIJO','PORCENTAJE') DEFAULT 'FIJO',
+  `factor_calculo` decimal(15,2) DEFAULT 0.00,
   `tipo` enum('ADELANTO','PAGO_NOMINA') NOT NULL DEFAULT 'ADELANTO',
   `metodo_pago` varchar(50) DEFAULT 'EFECTIVO',
   `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -355,7 +360,7 @@ CREATE TABLE IF NOT EXISTS `table_pagos_empleados` (
   CONSTRAINT `fk_pago_usuario_reg` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 17. Detalle de Compras
+-- 18.3 Detalle de Compras
 CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `compra_id` int(11) NOT NULL,
@@ -380,7 +385,7 @@ CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
   CONSTRAINT `fk_abono_venta` FOREIGN KEY (`venta_id`) REFERENCES `table_ventas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 18. Tabla de Solicitudes de Recuperación de Acceso
+-- 20. Tabla de Solicitudes de Recuperación de Acceso
 CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) NOT NULL,
@@ -390,7 +395,7 @@ CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
   CONSTRAINT `fk_recuperaciones_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 19. Tabla de Auditoría (Bitácora de movimientos y seguridad)
+-- 21. Tabla de Auditoría (Bitácora de movimientos y seguridad)
 CREATE TABLE IF NOT EXISTS `table_audit_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) DEFAULT NULL,
@@ -404,7 +409,7 @@ CREATE TABLE IF NOT EXISTS `table_audit_logs` (
   CONSTRAINT `fk_audit_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 20. Tabla de Devoluciones (Historial de repuestos devueltos)
+-- 22. Tabla de Devoluciones (Historial de repuestos devueltos)
 CREATE TABLE IF NOT EXISTS `table_devoluciones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `venta_id` int(11) NOT NULL,

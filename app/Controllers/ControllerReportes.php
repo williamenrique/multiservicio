@@ -84,8 +84,20 @@ class ControllerReportes extends Controller {
     public function registrarPagoNomina() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = json_decode(file_get_contents('php://input'), true);
+            
+            // Lógica de cálculo basada en el Switch
+            $montoBase = (float)($data['monto_base'] ?? 0);
+            $factor = (float)($data['factor_calculo'] ?? 0);
+
+            if (($data['modo_calculo'] ?? 'FIJO') === 'PORCENTAJE') {
+                // Si es porcentaje, calculamos el monto final a pagar
+                $data['monto'] = $montoBase * ($factor / 100);
+            } else {
+                // Si es monto fijo, el factor es el monto mismo
+                $data['monto'] = $factor;
+            }
+
             $data['usuario_id'] = $_SESSION['user_id'];
-            $data['fecha'] = date('Y-m-d H:i:s');
             $res = $this->reporteModel->registrarPagoEmpleado($data);
             return $this->jsonResponse(['success' => $res]);
         }

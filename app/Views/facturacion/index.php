@@ -28,10 +28,13 @@
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Mecánico Responsable</label>
-                    <select id="pos-mecanico-id" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm font-bold bg-white">
+                    <select id="pos-mecanico-id" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm font-bold bg-white" 
+                        <?php echo ($_SESSION['user_role_id'] != 1) ? 'disabled' : ''; ?>>
                         <option value="">-- SELECCIONAR MECÁNICO --</option>
                         <?php foreach ($data['staff'] as $m): ?>
-                            <option value="<?php echo $m->id; ?>"><?php echo $m->nombre; ?> (<?php echo $m->cargo; ?>)</option>
+                            <option value="<?php echo $m->id; ?>" <?php echo (isset($_SESSION['user_staff_id']) && $_SESSION['user_staff_id'] == $m->id) ? 'selected' : ''; ?>>
+                                <?php echo $m->nombre; ?> (<?php echo $m->cargo; ?>)
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -78,13 +81,13 @@
 
             <!-- Servicios Manuales -->
             <div class="glass-card p-5 rounded-xl border-l-4 border-l-blue-500 bg-blue-50/10">
-                <label class="block text-[10px] font-bold text-blue-600 mb-2 uppercase text-center font-black">Servicio Externo / Mano de Obra</label>
+                <label class="block text-[10px] font-bold text-blue-600 mb-2 uppercase text-center font-black">Agregar Mano de Obra / Servicios</label>
                 <div class="flex flex-col gap-3">
                     <div class="flex-1">
-                        <input type="text" id="pos-service-name" placeholder="Descripción..." class="w-full p-2 border border-blue-200 rounded-lg outline-none text-xs uppercase">
+                        <input type="text" id="pos-service-name" placeholder="Ej: CAMBIO DE ACEITE O LAVADO" class="w-full p-2 border border-blue-200 rounded-lg outline-none text-xs uppercase font-bold">
                     </div>
                     <div class="flex gap-2">
-                        <input type="number" id="pos-service-price" placeholder="Precio $" class="w-full p-2 border border-blue-200 rounded-lg outline-none text-xs font-bold">
+                        <input type="number" id="pos-service-price" placeholder="Monto $" class="w-full p-2 border border-blue-200 rounded-lg outline-none text-xs font-black text-navy-blue">
                         <button id="btn-add-service" class="bg-blue-500 text-white px-4 rounded-lg hover:bg-blue-600 flex items-center justify-center transition-transform active:scale-95">
                             <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
@@ -99,12 +102,12 @@
                 <!-- Cabecera de la Factura -->
                 <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-xl">
                     <div class="flex flex-col gap-1">
-                        <h3 class="text-xs font-black text-navy-blue uppercase flex items-center gap-2">
+                        <h3 class="text-sm font-black text-navy-blue uppercase flex items-center gap-2">
                             <i data-lucide="file-text"></i> Detalle de Factura
                         </h3>
-                        <span class="text-[9px] text-slate-400 font-bold uppercase">Responsable: <span id="pos-user-name" class="text-navy-blue">---</span></span>
+                        <span class="text-[11px] text-slate-400 font-bold uppercase">Responsable: <span id="pos-user-name" class="text-navy-blue">---</span></span>
                     </div>
-                    <span class="text-[10px] font-mono font-bold bg-navy-blue text-white px-2 py-1 rounded">
+                    <span class="text-xs font-mono font-bold bg-navy-blue text-white px-2 py-1 rounded">
                         ID: <span id="pos-factura-id">---</span>
                     </span>
                 </div>
@@ -179,3 +182,11 @@
 </section>
 
 <script src="<?php echo URLROOT; ?>/js/facturacion.js"></script>
+<script>
+    // Actualización dinámica del responsable al seleccionar mecánico
+    document.getElementById('pos-mecanico-id')?.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const name = selectedOption.value ? selectedOption.text.split('(')[0].trim() : '---';
+        document.getElementById('pos-user-name').innerText = name;
+    });
+</script>

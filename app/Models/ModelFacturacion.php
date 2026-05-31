@@ -183,10 +183,11 @@ class ModelFacturacion {
         $resumen = $this->db->single();
 
         // 2. Lista de trabajos (Ventas finalizadas y a crédito) con datos relacionados
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, u.username as vendedor_nombre 
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, u.username as vendedor_nombre, s.nombre as mecanico_nombre
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff s ON v.mecanico_id = s.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')
                           ORDER BY v.fecha DESC");
         $lista = $this->db->resultSet();

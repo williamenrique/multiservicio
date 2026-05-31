@@ -106,7 +106,7 @@ class ModelProveedor {
             $this->db->execute();
 
             // 4. Registrar el Egreso en Caja para el balance financiero
-            $caja = new ModelCaja();
+            $caja = new ModelCaja($this->db);
             $caja->registrarMovimiento([
                 'tipo' => 'EGRESO',
                 'monto' => $datos['monto'],
@@ -168,7 +168,7 @@ class ModelProveedor {
             $compraId = $this->db->lastInsertId();
 
             // 4. Registrar Movimiento en Kardex vinculado a la compra
-            $invModel = new ModelInventario();
+            $invModel = new ModelInventario($this->db);
             $invModel->registrarMovimiento($productoId, 'ENTRADA_COMPRA', $datos['cantidad'], $compraId, "Compra a proveedor Factura #$compraId");
 
             // 4. Registrar Detalle de la Compra

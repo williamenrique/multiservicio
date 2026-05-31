@@ -13,19 +13,19 @@ window.renderFlujoRow = (m) => {
     const isIngreso = m.tipo === 'VENTA' || m.tipo === 'ABONO';
     return `
         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 animate-in fade-in duration-300">
-            <td class="px-4 py-3 font-mono text-[10px] font-bold text-slate-400 text-center">#${m.id || '---'}</td>
-            <td class="px-4 py-3 text-[11px] font-bold text-slate-600 uppercase text-center">${new Date(m.fecha).toLocaleDateString()}</td>
+            <td class="px-4 py-3 font-mono text-xs font-bold text-slate-400 text-center">#${m.id || '---'}</td>
+            <td class="px-4 py-3 text-sm font-bold text-slate-600 uppercase text-center">${new Date(m.fecha).toLocaleDateString()}</td>
             <td class="px-4 py-3 text-center w-24">
-                <span class="px-2 py-0.5 rounded text-[9px] font-black ${isIngreso ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">${m.tipo}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-black ${isIngreso ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">${m.tipo}</span>
             </td>
             <td class="px-4 py-3">
                 <div class="flex flex-col gap-0.5">
-                    <span class="text-xs font-bold text-slate-700 uppercase">${m.descripcion || m.categoria || 'OPERACIÓN'}</span>
+                    <span class="text-sm font-bold text-slate-700 uppercase">${m.descripcion || m.categoria || 'OPERACIÓN'}</span>
                     ${m.placa ? `<span class="text-[9px] text-slate-400 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
                 </div>
             </td>
-            <td class="px-4 py-3 text-right w-32">
-                <span class="text-sm font-black ${isIngreso ? 'text-emerald-600' : 'text-rose-600'} tracking-tight">
+            <td class="px-4 py-3 text-right w-36">
+                <span class="text-base font-black ${isIngreso ? 'text-emerald-600' : 'text-rose-600'} tracking-tight">
                     ${isIngreso ? '+' : '-'}${AppUtils.formatCurrency(Math.abs(m.monto_pagado))}
                 </span>
             </td>
@@ -207,13 +207,13 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRow: (d) => {
             return `
                 <tr class="hover:bg-slate-50/50 transition-colors border-b border-slate-50">
-                    <td class="px-4 py-4 font-black text-navy-blue text-xs uppercase">#${d.id}</td>
-                    <td class="px-4 py-4 text-xs font-bold text-slate-500">${new Date(d.fecha).toLocaleDateString()}</td>
-                    <td class="px-4 py-4 text-xs font-black text-navy-blue uppercase">${d.cliente_nombre || 'N/A'}<br><span class="text-[10px] text-slate-400 font-bold">${d.placa || '---'}</span></td>
-                    <td class="px-4 py-4 text-xs text-slate-600 uppercase font-medium">${d.descripcion}</td>
+                    <td class="px-4 py-4 font-black text-navy-blue text-sm uppercase">#${d.id}</td>
+                    <td class="px-4 py-4 text-sm font-bold text-slate-500">${new Date(d.fecha).toLocaleDateString()}</td>
+                    <td class="px-4 py-4 text-sm font-black text-navy-blue uppercase">${d.cliente_nombre || 'N/A'}<br><span class="text-[10px] text-slate-400 font-bold">${d.placa || '---'}</span></td>
+                    <td class="px-4 py-4 text-sm text-slate-600 uppercase font-medium">${d.descripcion}</td>
                     <td class="px-4 py-4 text-right font-black text-rose-500">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
                     <td class="px-4 py-4 text-center">
-                        <span class="px-2 py-0.5 rounded-full text-[11px] font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
+                        <span class="px-2 py-0.5 rounded-full text-xs font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
                             ${d.destino}
                         </span>
                     </td>
@@ -421,7 +421,7 @@ function renderAuditoriaLista(items) {
                     vehiculo: current.modelo_vehiculo || 'GENERAL',
                     placa: current.placa || '---',
                     cliente: current.cliente_nombre || 'VENTA RÁPIDA',
-                    usuario: current.usuario_nombre || 'N/A',
+                    usuario: current.mecanico_nombre || current.usuario_nombre || 'SISTEMA',
                     iva: parseFloat(current.iva_monto || 0),
                     subtotal: parseFloat(current.subtotal || 0),
                     total: parseFloat(current.total || 0),
@@ -888,15 +888,33 @@ window.cargarNomina = async function () {
             const pagos = result.data.pagos || [];
 
             const tBody = document.getElementById('nomina-trabajos-body');
-            let totalTrabajos = 0;
+            let totalGeneral = 0;
+            let totalPendiente = 0;
+
             tBody.innerHTML = trabajos.length > 0 ? trabajos.map(t => {
-                totalTrabajos += parseFloat(t.monto_trabajo);
-                return `<tr>
-                    <td class="px-4 py-3 font-mono">${new Date(t.fecha).toLocaleDateString()}</td>
-                    <td class="px-4 py-3 uppercase font-bold text-navy-blue">${t.descripcion}<br><span class="text-[9px] text-slate-400">Placa: ${t.placa}</span></td>
-                    <td class="px-4 py-3 text-right font-black text-emerald-600">${AppUtils.formatCurrency(t.monto_trabajo)}</td>
+                const isPaid = t.pago_nomina_id !== null;
+                const monto = parseFloat(t.monto_trabajo);
+
+                if (!isPaid) totalPendiente += monto;
+                totalGeneral += monto;
+
+                return `
+                <tr class="${isPaid ? 'opacity-40 grayscale bg-slate-50' : 'hover:bg-slate-50'} transition-colors border-b border-slate-100">
+                    <td class="px-4 py-3 text-center w-10">
+                        ${!isPaid ? `<input type="checkbox" class="work-checkbox w-4 h-4 rounded border-slate-300 text-navy-blue focus:ring-neon-green" value="${t.detalle_id}" data-monto="${monto}" checked onchange="window.recalcularSeleccionNomina()">` : `<i data-lucide="check-circle-2" class="w-4 h-4 text-slate-400 mx-auto"></i>`}
+                    </td>
+                    <td class="px-4 py-3 font-mono text-[10px] text-slate-500 w-24 text-center">${new Date(t.fecha).toLocaleDateString()}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex flex-col">
+                            <span class="text-xs font-black ${isPaid ? 'text-slate-500' : 'text-navy-blue'} uppercase tracking-tight">${t.descripcion}</span>
+                            <span class="text-[9px] text-slate-400 font-bold uppercase">Vehículo: ${t.placa}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 text-right font-black ${isPaid ? 'text-slate-400' : 'text-emerald-600'} text-sm w-32">
+                        ${AppUtils.formatCurrency(monto)}
+                    </td>
                 </tr>`;
-            }).join('') : '<tr><td colspan="3" class="p-8 text-center text-slate-400 italic">Sin trabajos</td></tr>';
+            }).join('') : '<tr><td colspan="4" class="p-12 text-center text-slate-400 italic font-bold uppercase tracking-widest">Sin trabajos registrados</td></tr>';
 
             const pBody = document.getElementById('nomina-pagos-body');
             let totalPagos = 0;
@@ -909,12 +927,26 @@ window.cargarNomina = async function () {
                 </tr>`;
             }).join('') : '<tr><td colspan="3" class="p-8 text-center text-slate-400 italic">Sin pagos registrados</td></tr>';
 
-            document.getElementById('nomina-total-trabajos').textContent = AppUtils.formatCurrency(totalTrabajos);
+            document.getElementById('nomina-total-trabajos').textContent = AppUtils.formatCurrency(totalGeneral);
             document.getElementById('nomina-total-adelantos').textContent = AppUtils.formatCurrency(totalPagos);
-            document.getElementById('nomina-total-pendiente').textContent = AppUtils.formatCurrency(totalTrabajos - totalPagos);
+            document.getElementById('nomina-total-pendiente').textContent = AppUtils.formatCurrency(totalPendiente);
+
+            // Guardar total pendiente actual para cálculos del modal
+            window.currentNominaPendiente = totalPendiente;
         }
         if (window.lucide) lucide.createIcons();
     } catch (e) { console.error(e); }
+};
+
+/**
+ * Recalcula el monto pendiente según los trabajos marcados manualmente
+ */
+window.recalcularSeleccionNomina = function () {
+    const checkboxes = document.querySelectorAll('.work-checkbox:checked');
+    let total = 0;
+    checkboxes.forEach(cb => total += parseFloat(cb.dataset.monto));
+    document.getElementById('nomina-total-pendiente').textContent = AppUtils.formatCurrency(total);
+    window.currentNominaPendiente = total;
 };
 
 window.openModalPago = async function () {
@@ -922,34 +954,81 @@ window.openModalPago = async function () {
     if (!staffId) return AppUtils.showToast("Seleccione un empleado primero", "warning");
 
     const { value: formValues } = await Swal.fire({
-        title: 'Registrar Pago / Adelanto',
+        title: `<span class="text-xs uppercase text-slate-400 font-black">Liquidación de Nómina</span>`,
         html: `
             <div class="text-left space-y-4 pt-4">
+                <div class="p-4 bg-slate-900 rounded-2xl border-l-4 border-neon-green shadow-inner">
+                    <span class="text-[10px] font-black text-neon-green uppercase tracking-widest block mb-1">Base de Mano de Obra (Pendiente)</span>
+                    <span class="text-3xl font-black text-white">${AppUtils.formatCurrency(window.currentNominaPendiente)}</span>
+                </div>
+
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-black text-slate-400 uppercase">Modo de Cálculo</span>
+                        <span id="label-modo" class="text-xs font-bold text-navy-blue uppercase">Monto Fijo</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="pago-modo-switch" class="sr-only peer" onchange="window.toggleModoPago(this)">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neon-green"></div>
+                    </label>
+                </div>
+
                 <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Monto del Pago</label>
-                    <input id="pago-monto" type="number" class="w-full p-3 bg-slate-50 border rounded-xl font-black text-navy-blue" placeholder="0.00">
+                    <label id="label-factor" class="block text-[10px] font-black text-slate-400 uppercase mb-1">Valor a Ingresar</label>
+                    <input id="pago-factor" type="number" step="0.01" class="w-full p-3 bg-white border border-slate-300 rounded-xl font-black text-navy-blue text-lg focus:ring-2 focus:ring-neon-green outline-none" placeholder="0.00" oninput="window.recalcularVistaPreviaPago()">
+                </div>
+
+                <div class="p-3 bg-slate-100 rounded-xl border border-dashed border-slate-300 flex justify-between items-center">
+                    <span class="text-[10px] font-black text-slate-500 uppercase">Total a Entregar:</span>
+                    <span id="pago-total-preview" class="text-xl font-black text-navy-blue">$0.00</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tipo</label>
+                        <select id="pago-tipo" class="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs uppercase">
+                            <option value="PAGO_NOMINA">PAGO NÓMINA</option>
+                            <option value="ADELANTO">ADELANTO</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Método</label>
+                        <select id="pago-metodo" class="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs uppercase">
+                            <option value="EFECTIVO">EFECTIVO</option>
+                            <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+                        </select>
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Tipo de Pago</label>
-                    <select id="pago-tipo" class="w-full p-3 bg-slate-50 border rounded-xl font-bold text-sm">
-                        <option value="ADELANTO">ADELANTO SEMANAL</option>
-                        <option value="PAGO_NOMINA">PAGO DE NÓMINA</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Método</label>
-                    <select id="pago-metodo" class="w-full p-3 bg-slate-50 border rounded-xl font-bold text-sm">
-                        <option value="EFECTIVO">EFECTIVO</option>
-                        <option value="TRANSFERENCIA">TRANSFERENCIA</option>
-                    </select>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Notas / Observaciones</label>
+                    <textarea id="pago-notas" class="w-full p-2 bg-slate-50 border rounded-lg text-xs uppercase" rows="2" placeholder="Ej: Pago semana 4..."></textarea>
                 </div>
             </div>`,
         showCancelButton: true,
-        confirmButtonText: 'REGISTRAR',
+        confirmButtonText: 'PROCESAR LIQUIDACIÓN',
+        confirmButtonColor: '#0f172a',
+        didOpen: () => {
+            window.recalcularVistaPreviaPago();
+        },
         preConfirm: () => {
-            const monto = parseFloat(document.getElementById('pago-monto').value);
-            if (isNaN(monto) || monto <= 0) return Swal.showValidationMessage('Ingrese un monto válido');
-            return { staff_id: staffId, monto, tipo: document.getElementById('pago-tipo').value, metodo_pago: document.getElementById('pago-metodo').value };
+            const factor = parseFloat(document.getElementById('pago-factor').value);
+            const modo = document.getElementById('pago-modo-switch').checked ? 'PORCENTAJE' : 'FIJO';
+
+            if (isNaN(factor) || factor <= 0) return Swal.showValidationMessage('Ingrese un valor válido');
+
+            // Recopilar IDs de trabajos seleccionados
+            const detallesIds = Array.from(document.querySelectorAll('.work-checkbox:checked')).map(cb => cb.value);
+
+            return {
+                staff_id: staffId,
+                monto_base: window.currentNominaPendiente,
+                modo_calculo: modo,
+                factor_calculo: factor,
+                detalles_ids: detallesIds,
+                tipo: document.getElementById('pago-tipo').value,
+                metodo_pago: document.getElementById('pago-metodo').value,
+                notas: document.getElementById('pago-notas').value.trim().toUpperCase()
+            };
         }
     });
 
@@ -962,9 +1041,45 @@ window.openModalPago = async function () {
             });
             const result = await res.json();
             if (result.success) {
-                AppUtils.showToast("Operación exitosa");
+                AppUtils.showToast("Liquidación procesada correctamente", "success");
                 cargarNomina();
             }
         } catch (e) { console.error(e); }
     }
+};
+
+/**
+ * Realiza el cálculo en tiempo real dentro del modal
+ */
+window.recalcularVistaPreviaPago = function() {
+    const base = window.currentNominaPendiente || 0;
+    const factor = parseFloat(document.getElementById('pago-factor').value) || 0;
+    const isPorcentaje = document.getElementById('pago-modo-switch').checked;
+    const previewEl = document.getElementById('pago-total-preview');
+    
+    let total = isPorcentaje ? (base * (factor / 100)) : factor;
+    
+    if (previewEl) {
+        previewEl.innerText = AppUtils.formatCurrency(total);
+    }
+};
+
+/**
+ * Maneja el cambio de etiquetas en el modal según el switch
+ */
+window.toggleModoPago = function (el) {
+    const labelModo = document.getElementById('label-modo');
+    const labelFactor = document.getElementById('label-factor');
+    const inputFactor = document.getElementById('pago-factor');
+
+    if (el.checked) {
+        labelModo.innerText = "Porcentaje (%)";
+        labelFactor.innerText = "Porcentaje a aplicar (%)";
+        inputFactor.placeholder = "Ej: 30";
+    } else {
+        labelModo.innerText = "Monto Fijo";
+        labelFactor.innerText = "Monto a Cancelar ($)";
+        inputFactor.placeholder = "0.00";
+    }
+    window.recalcularVistaPreviaPago();
 };

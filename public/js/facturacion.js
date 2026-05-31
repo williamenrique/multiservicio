@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputPlaca = document.getElementById('pos-placa');
     const inputModelo = document.getElementById('pos-modelo');
     const inputCliente = document.getElementById('pos-cliente-id');
+    const inputMecanico = document.getElementById('pos-mecanico-id');
     const displayFacturaId = document.getElementById('pos-factura-id');
     const searchInput = document.getElementById('pos-search');
     const searchResults = document.getElementById('pos-search-results');
@@ -57,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 placa: d.placa || '',
                 modelo: d.modelo_vehiculo || '',
                 cliente_id: d.cliente_id || '',
+                mecanico_id: d.mecanico_id || '',
                 iva_activo: (parseFloat(d.iva_monto) > 0),
                 pago_efectivo: parseFloat(d.pago_efectivo || 0),
                 pago_transferencia: parseFloat(d.pago_transferencia || 0),
@@ -182,6 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
             placa: '',
             modelo: '',
             cliente_id: '',
+            mecanico_id: '',
             iva_activo: false,
             pago_efectivo: 0,
             pago_transferencia: 0,
@@ -240,6 +243,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     inputCliente.addEventListener('change', (e) => {
         updateActiveData('cliente_id', e.target.value);
+    });
+
+    inputMecanico.addEventListener('change', (e) => {
+        updateActiveData('mecanico_id', e.target.value);
+        renderQueue();
     });
 
     // Listeners para captura de pagos
@@ -429,6 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (force === false) {
             inv.placa = inputPlaca.value.trim();
             inv.modelo = inputModelo.value.trim();
+            inv.mecanico_id = inputMecanico.value;
             inv.cliente_id = inputCliente.value;
         }
 
@@ -449,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inv.saldo_pendiente = pendiente > 0 ? pendiente : 0;
 
         // Evitar sincronizar facturas que no tienen contenido relevante (evita filas vacías en DB)
-        const hasContent = inv.items.length > 0 || inv.placa !== '' || inv.modelo !== '' || inv.cliente_id !== '' || pef > 0 || ptra > 0;
+        const hasContent = inv.items.length > 0 || inv.placa !== '' || inv.modelo !== '' || inv.cliente_id !== '' || inv.mecanico_id !== '' || pef > 0 || ptra > 0;
         if (!hasContent && !inv.id_db && !force) {
             return;
         }
@@ -569,9 +578,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeInvoice) return;
 
         displayFacturaId.textContent = activeInvoice.id;
-        document.getElementById('pos-user-name').textContent = activeInvoice.usuario_nombre || '---';
         inputPlaca.value = activeInvoice.placa;
         inputModelo.value = activeInvoice.modelo;
+        inputMecanico.value = activeInvoice.mecanico_id || '';
+
+        // Priorizar el nombre del mecánico seleccionado en el encabezado
+        const selectedMecanicoText = inputMecanico.options[inputMecanico.selectedIndex]?.text;
+        const mecanicoName = (activeInvoice.mecanico_id && selectedMecanicoText) ? selectedMecanicoText.split('(')[0].trim() : null;
+        document.getElementById('pos-user-name').textContent = mecanicoName || activeInvoice.usuario_nombre || '---';
 
         // Si hay un cliente_id pero no está en el select, agregamos la opción temporalmente
         if (activeInvoice.cliente_id) {
@@ -680,6 +694,16 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.placa = inputPlaca.value;
             activeInvoice.modelo = inputModelo.value;
             activeInvoice.cliente_id = inputCliente.value;
+            activeInvoice.mecanico_id = inputMecanico.value;
+
+            if (!activeInvoice.mecanico_id || activeInvoice.mecanico_id === "") {
+                AppUtils.showToast('Debe seleccionar un mecánico responsable antes de cerrar la factura', 'warning');
+                btnProcessSale.disabled = false;
+                btnProcessSale.innerHTML = originalContent;
+                if (window.lucide) lucide.createIcons();
+                inputMecanico.focus();
+                return;
+            }
 
             // Asegurar que los montos de pago se capturen incluso si no hubo evento 'input'
             activeInvoice.pago_efectivo = parseFloat(inputPagoEfectivo.value.replace(',', '.')) || 0;
