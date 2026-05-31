@@ -6,10 +6,20 @@
 class ModelPersonal {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    /**
+     * Constructor del modelo
+     * @param Database|null $db Instancia de base de datos compartida
+     */
+    public function __construct($db = null) {
+        $this->db = $db ?: new Database();
     }
 
+    /**
+     * Lista el personal con filtros y paginación
+     * @param int|null $limit Límite de registros
+     * @param int|null $offset Desplazamiento
+     * @param string|null $search Término de búsqueda
+     */
     public function listar($limit = null, $offset = null, $search = null) {
         $sql = "SELECT s.*, u.username, u.role_id, r.nombre_rol as system_role 
                 FROM table_staff s 

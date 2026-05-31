@@ -6,12 +6,16 @@
 class ModelCliente {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    /**
+     * Constructor del modelo
+     * @param Database|null $db Instancia de base de datos compartida
+     */
+    public function __construct($db = null) {
+        $this->db = $db ?: new Database();
     }
 
     /**
-     * Obtener todos los clientes
+     * Lista clientes con soporte para búsqueda y paginación
      */
     public function listar($limit = null, $offset = null, $search = null) {
         $sql = "SELECT * FROM table_clientes";

@@ -16,6 +16,7 @@ class ModelFacturacion {
 
     /**
      * Busca facturas por ID, nombre de cliente o placa para el buscador global.
+     * @param string $term Término de búsqueda
      */
     public function searchInvoices($term) {
         $this->db->query("SELECT v.id, v.placa, c.nombre as cliente_nombre
@@ -29,6 +30,7 @@ class ModelFacturacion {
 
     /**
      * Busca productos o servicios disponibles en el inventario
+     * @param string $termino Nombre o categoría
      */
     public function buscarItems($termino) {
         // Traemos solo columnas necesarias para el POS (excluimos imagen por peso)
@@ -88,6 +90,10 @@ class ModelFacturacion {
     /**
      * Registra o actualiza la cabecera de una venta.
      * Los cálculos deben venir ya procesados desde el BillingService.
+     * @param array $datos Datos de la venta
+     * @param string $status Estado (COMPLETADO, CREDITO, PENDIENTE)
+     * @param array $totales Resumen de montos
+     * @return int ID de la venta
      */
     public function guardarCabeceraVenta($datos, $status, $totales) {
         try {
@@ -252,6 +258,10 @@ class ModelFacturacion {
 
     /**
      * Procesa la devolución de un ítem específico de una factura.
+     * @param int $ventaId ID de la factura
+     * @param int $detalleId ID de la línea de detalle
+     * @param string $destino Destino del ítem (STOCK o DANADO)
+     * @return bool
      */
     public function procesarDevolucion($ventaId, $detalleId, $destino) {
         try {

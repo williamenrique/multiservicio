@@ -212,15 +212,6 @@ CREATE TABLE IF NOT EXISTS `table_kardex` (
   CONSTRAINT `fk_kardex_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 12.2 Tabla de Compatibilidad (Repuestos vs Vehículos)
-CREATE TABLE IF NOT EXISTS `table_inventario_compatibilidad` (
-  `producto_id` int(11) NOT NULL,
-  `marca_vehiculo` varchar(50) NOT NULL,
-  `modelo_vehiculo` varchar(50) NOT NULL,
-  PRIMARY KEY (`producto_id`, `marca_vehiculo`, `modelo_vehiculo`),
-  CONSTRAINT `fk_compatibilidad_prod` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
 -- 13. Tabla de Ventas (Historial)
 CREATE TABLE IF NOT EXISTS `table_ventas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -452,7 +443,6 @@ TRUNCATE TABLE `table_compras_detalle`;
 TRUNCATE TABLE `table_compras`;
 TRUNCATE TABLE `table_gastos`;
 TRUNCATE TABLE `table_kardex`;
-TRUNCATE TABLE `table_inventario_compatibilidad`;
 TRUNCATE TABLE `table_inventario`;
 TRUNCATE TABLE `table_proveedores`;
 TRUNCATE TABLE `table_clientes`;
