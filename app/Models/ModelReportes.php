@@ -331,6 +331,30 @@ class ModelReportes {
         return ['trabajos' => $trabajos, 'pagos' => $pagos];
     }
 
+    /**
+     * Obtiene el detalle completo de un pago para generar el recibo PDF
+     */
+    public function obtenerDetallePago($id) {
+        $this->db->query("SELECT p.*, s.nombre as staff_nombre, s.cedula as staff_cedula, s.cargo as staff_cargo, u.username as registrado_por
+                          FROM table_pagos_empleados p
+                          JOIN table_staff s ON p.staff_id = s.id
+                          LEFT JOIN table_usuarios u ON p.usuario_id = u.id
+                          WHERE p.id = :id");
+        $this->db->bind(':id', $id);
+        $pago = $this->db->single();
+
+        if ($pago) {
+            // Obtener los trabajos que fueron liquidados en este pago específico
+            $this->db->query("SELECT vd.descripcion, vd.cantidad, vd.precio_unitario, v.fecha, v.placa
+                              FROM table_ventas_detalle vd
+                              JOIN table_ventas v ON vd.venta_id = v.id
+                              WHERE vd.pago_nomina_id = :pid");
+            $this->db->bind(':pid', $id);
+            $pago->trabajos = $this->db->resultSet();
+        }
+        return $pago;
+    }
+
     public function registrarPagoEmpleado($data) {
         try {
             $this->db->beginTransaction();

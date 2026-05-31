@@ -922,10 +922,13 @@ window.cargarNomina = async function () {
                 totalPagos += parseFloat(p.monto);
                 return `<tr>
                     <td class="px-4 py-3 font-mono">${new Date(p.fecha).toLocaleDateString()}</td>
-                    <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[9px] font-black ${p.tipo === 'ADELANTO' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}">${p.tipo}</span></td>
+                    <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[9px] font-black ${p.tipo === 'ADELANTO' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} uppercase">${p.tipo}</span></td>
                     <td class="px-4 py-3 text-right font-black text-rose-600">${AppUtils.formatCurrency(p.monto)}</td>
+                    <td class="px-4 py-3 text-right">
+                        <button onclick="window.imprimirReciboPago(${p.id})" class="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-navy-blue hover:text-white transition-colors" title="Ver Recibo"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                    </td>
                 </tr>`;
-            }).join('') : '<tr><td colspan="3" class="p-8 text-center text-slate-400 italic">Sin pagos registrados</td></tr>';
+            }).join('') : '<tr><td colspan="4" class="p-8 text-center text-slate-400 italic font-bold">Sin pagos registrados</td></tr>';
 
             document.getElementById('nomina-total-trabajos').textContent = AppUtils.formatCurrency(totalGeneral);
             document.getElementById('nomina-total-adelantos').textContent = AppUtils.formatCurrency(totalPagos);
@@ -1082,4 +1085,25 @@ window.toggleModoPago = function (el) {
         inputFactor.placeholder = "0.00";
     }
     window.recalcularVistaPreviaPago();
+};
+
+/**
+ * Genera el PDF del recibo de pago
+ */
+window.imprimirReciboPago = async function(pagoId) {
+    AppUtils.showToast("Generando comprobante...", "info");
+    try {
+        const res = await fetch(`${URLROOT}/reportes/generarReciboPagoPdf/${pagoId}`);
+        if (!res.ok) throw new Error("Error en servidor");
+        
+        const result = await res.json();
+        if (result.success) {
+            window.open(result.pdf_url, '_blank');
+        } else {
+            AppUtils.showToast(result.mensaje, "error");
+        }
+    } catch (e) {
+        console.error("Error al imprimir recibo:", e);
+        AppUtils.showToast("No se pudo generar el documento", "error");
+    }
 };

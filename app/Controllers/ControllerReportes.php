@@ -104,6 +104,34 @@ class ControllerReportes extends Controller {
     }
 
     /**
+     * Genera el comprobante de pago de nómina en PDF
+     */
+    public function generarReciboPagoPdf($id) {
+        RoleGuard::isAdmin();
+        $pago = $this->reporteModel->obtenerDetallePago($id);
+        if (!$pago) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Registro de pago no encontrado.'], 404);
+        }
+
+        $empresa = $this->model('Empresa')->obtenerConfiguracion();
+
+        try {
+            $pdfService = new PdfService();
+            $filename = 'Recibo_Nomina_' . $id . '_' . time() . '.pdf';
+            $filePath = $pdfService->generarDocumento('recibo_pago', [
+                'titulo_documento' => 'Comprobante de Pago',
+                'empresa' => $empresa,
+                'pago' => $pago,
+                'documento_id' => $pago->id
+            ], $filename, false);
+
+            return $this->jsonResponse(['success' => true, 'pdf_url' => URLROOT . '/' . $filePath]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Historial de devoluciones para la tabla de reportes
      */
     public function devoluciones() {

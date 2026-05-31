@@ -353,6 +353,7 @@ CREATE TABLE IF NOT EXISTS `table_pagos_empleados` (
   `usuario_id` int(11) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+
   PRIMARY KEY (`id`),
   KEY `fk_pago_staff` (`staff_id`),
   KEY `fk_pago_usuario_reg` (`usuario_id`),
