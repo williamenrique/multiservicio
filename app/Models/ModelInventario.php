@@ -5,8 +5,8 @@
 class ModelInventario {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    public function __construct($db = null) {
+        $this->db = $db ?: new Database();
     }
 
     /**

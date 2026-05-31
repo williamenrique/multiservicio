@@ -269,8 +269,11 @@ class ModelFacturacion {
             $this->db->bind(':vid', $ventaId);
             $item = $this->db->single();
 
-            if (!$item || DATEDIFF_PHP(date('Y-m-d'), $item->fecha) > 5) {
-                throw new Exception("Plazo de devolución vencido (máx 5 días).");
+            if (!$item) {
+                throw new Exception("El ítem de la factura no existe.");
+            }
+            if (DATEDIFF_PHP(date('Y-m-d'), $item->fecha) > 5) {
+                throw new Exception("Plazo de devolución vencido (máximo 5 días desde la compra).");
             }
 
             // 2. Calcular montos proporcionales (Base + IVA)
