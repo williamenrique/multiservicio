@@ -15,10 +15,12 @@ class ControllerFacturacion extends Controller {
 
     public function index() {
         $config = $this->empresaModel->obtenerConfiguracion();
+        $reportModel = $this->model('Reportes');
         $data = [
             'titulo' => 'Nueva Facturación',
             'iva_defecto' => $config->iva ?? 0,
-            'usuario_actual' => $_SESSION['user_nombre']
+            'usuario_actual' => $_SESSION['user_nombre'],
+            'staff' => $reportModel->obtenerStaffSimple()
         ];
 
         $this->view('facturacion/index', $data);
@@ -45,34 +47,28 @@ class ControllerFacturacion extends Controller {
      */
     public function procesar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            header('Content-Type: application/json');
             try {
-                header('Content-Type: application/json');
                 $datos = json_decode(file_get_contents('php://input'), true);
-
                 
-                // Validación de Esquema
                 $v = new Validator($datos);
                 $v->required(['items', 'pago_efectivo', 'pago_transferencia'])
-                  ->array('items')
-                  ->numeric(['pago_efectivo', 'pago_transferencia']);
+                  ->array('items');
 
                 if (!$v->success()) {
-                    $errorMsg = implode(" ", $v->getErrors());
-                    throw new AppException($errorMsg);
+                    return $this->jsonResponse(['success' => false, 'mensaje' => implode(" ", $v->getErrors())], 400);
                 }
 
-                // Delegar TODA la lógica pesada al Servicio
+                // Delegar la venta finalizada al servicio (transaccional)
                 $resultado = $this->billingService->procesarVentaCompleta($datos);
 
-                echo json_encode([
+                return $this->jsonResponse([
                     'success' => true, 
                     'mensaje' => 'Venta realizada con éxito',
                     'venta_id' => $resultado
                 ]);
-            } catch (StockException $e) {
-                echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
             } catch (Exception $e) {
-                echo json_encode(['success' => false, 'mensaje' => 'Error Crítico: ' . $e->getMessage()]);
+                return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
             }
         }
     }
@@ -83,21 +79,52 @@ class ControllerFacturacion extends Controller {
     public function sincronizarBorrador() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
-            $datos = json_decode(file_get_contents('php://input'), true);
-            
-            // Validación mínima para borradores
-            $v = new Validator($datos);
-            $v->array('items', true); // Permitir items vacíos en borradores
-
-            if (!$v->success()) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'Estructura de borrador inválida'], 400);
-            }
-
             try {
-                $resultado = $this->billingService->sincronizarBorradorSeguro($datos);
-                echo json_encode(['success' => true, 'venta_id' => $resultado]);
+                $datos = json_decode(file_get_contents('php://input'), true);
+                
+                $v = new Validator($datos);
+                $v->array('items', true); 
+
+                if (!$v->success()) {
+                    return $this->jsonResponse(['success' => false, 'mensaje' => 'Borrador inválido'], 400);
+                }
+
+                // Implementación directa para bypass del método ausente en BillingService
+                $db = new Database();
+                $db->beginTransaction();
+                
+                $tempModel = new ModelFacturacion($db);
+                
+                $subtotal = 0;
+                foreach($datos['items'] as $it) $subtotal += ($it['precio'] * $it['cantidad']);
+                $tasaIva = (float)($datos['tasa_iva'] ?? 0);
+                $iva = ($datos['aplicar_iva'] ?? false) ? ($subtotal * ($tasaIva / 100)) : 0;
+                
+                $totales = ['subtotal' => $subtotal, 'iva' => $iva, 'total' => $subtotal + $iva, 'saldo' => $subtotal + $iva];
+
+                $ventaId = $tempModel->guardarCabeceraVenta($datos, 'PENDIENTE', $totales);
+
+                // Limpiar y reinsertar detalles del borrador
+                $db->query("DELETE FROM table_ventas_detalle WHERE venta_id = :vid");
+                $db->bind(':vid', $ventaId);
+                $db->execute();
+
+                foreach ($datos['items'] as $item) {
+                    $db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario) 
+                                VALUES (:vid, :pid, :desc, :cant, :pre)");
+                    $db->bind(':vid', $ventaId);
+                    $db->bind(':pid', $item['tipo'] === 'PRODUCTO' ? $item['id'] : null);
+                    $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
+                    $db->bind(':cant', $item['cantidad']);
+                    $db->bind(':pre', $item['precio']);
+                    $db->execute();
+                }
+
+                $db->commit();
+                return $this->jsonResponse(['success' => true, 'venta_id' => $ventaId]);
             } catch (Exception $e) {
-                echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
+                if (isset($db)) $db->rollBack();
+                return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
             }
         }
     }

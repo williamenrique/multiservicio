@@ -302,8 +302,7 @@ class ModelReportes {
         $this->db->query("SELECT v.id as venta_id, v.fecha, v.placa, vd.descripcion, (vd.cantidad * vd.precio_unitario) as monto_trabajo
                           FROM table_ventas v
                           JOIN table_ventas_detalle vd ON v.id = vd.venta_id
-                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
-                          WHERE (u.staff_id = :staff_id OR :staff_id = '0')
+                          WHERE (v.mecanico_id = :staff_id OR :staff_id = '0')
                           AND vd.producto_id IS NULL 
                           AND v.status IN ('COMPLETADO', 'CREDITO')
                           AND DATE(v.fecha) BETWEEN :desde AND :hasta

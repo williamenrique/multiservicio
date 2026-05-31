@@ -103,14 +103,14 @@ class ModelFacturacion {
                                   cliente_id = :cid, placa = :placa, modelo_vehiculo = :modelo, 
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
                                   pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
-                                  status = :status" .
+                                  status = :status, mecanico_id = :mid" .
                                   (in_array($status, ['COMPLETADO', 'CREDITO']) ? ", fecha_cierre = NOW()" : "") . " 
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
             } else {
                 $this->db->query("INSERT INTO table_ventas (cliente_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
-                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status) 
-                                  VALUES (:cid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status)");
+                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, mecanico_id, status) 
+                                  VALUES (:cid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :mid, :status)");
                 $this->db->bind(':uid', $_SESSION['user_id']);
             }
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
@@ -122,6 +122,7 @@ class ModelFacturacion {
             $this->db->bind(':pef', $datos['pago_efectivo']);
             $this->db->bind(':ptra', $datos['pago_transferencia']);
             $this->db->bind(':spend', $totales['saldo']);
+            $this->db->bind(':mid', !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null);
             $this->db->bind(':status', $status);
             $this->db->execute();
             return $ventaId ?: $this->db->lastInsertId();
@@ -135,9 +136,10 @@ class ModelFacturacion {
      * Obtiene los detalles completos de una venta para su impresión
      */
     public function obtenerVentaCompleta($id) {
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, s.nombre as mecanico_nombre
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_staff s ON v.mecanico_id = s.id
                           WHERE v.id = :id");
         $this->db->bind(':id', $id);
         $venta = $this->db->single();
@@ -246,14 +248,22 @@ class ModelFacturacion {
      * @return array
      */
     public function obtenerCreditosVencidos($dias = 15) {
-        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, v.placa, v.modelo_vehiculo, c.nombre as cliente_nombre 
+        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, v.placa, v.modelo_vehiculo, COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre 
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'CREDITO' 
-                          AND DATEDIFF(NOW(), v.fecha) > :dias
+                          AND v.saldo_pendiente > 0
+                          AND DATEDIFF(CURDATE(), COALESCE(DATE(v.fecha), CURDATE())) >= :dias
                           ORDER BY v.fecha ASC");
         $this->db->bind(':dias', $dias);
         return $this->db->resultSet();
+    }
+
+    /**
+     * Helper interno para calcular diferencia de días entre fechas
+     */
+    private function calcularDiferenciaDias($d1, $d2) {
+        return round(abs(strtotime($d1) - strtotime($d2)) / 86400);
     }
 
     /**
@@ -282,7 +292,7 @@ class ModelFacturacion {
             if (!$item) {
                 throw new Exception("El ítem de la factura no existe.");
             }
-            if (DATEDIFF_PHP(date('Y-m-d'), $item->fecha) > 5) {
+            if ($this->calcularDiferenciaDias(date('Y-m-d'), $item->fecha) > 5) {
                 throw new Exception("Plazo de devolución vencido (máximo 5 días desde la compra).");
             }
 
@@ -388,8 +398,4 @@ class ModelFacturacion {
         $this->db->bind(':hasta', $hasta);
         return $this->db->single();
     }
-}
-
-function DATEDIFF_PHP($d1, $d2) {
-    return round(abs(strtotime($d1) - strtotime($d2)) / 86400);
 }

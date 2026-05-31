@@ -310,6 +310,36 @@ window.cargarCartera = async function () {
 };
 
 /**
+ * Exporta la cartera actual a Excel (CSV)
+ */
+window.exportarCarteraExcel = function () {
+    // Simplemente redirigimos a la URL que genera el CSV
+    window.location.href = `${URLROOT}/reportes/exportarCarteraExcel`;
+};
+
+/**
+ * Genera y descarga el PDF de la cartera
+ */
+window.exportarCarteraPdf = async function () {
+    AppUtils.showToast("Generando PDF de Cartera...", "info");
+    try {
+        const res = await fetch(`${URLROOT}/reportes/exportarCarteraPdf`);
+        if (!res.ok) throw new Error("Error en la respuesta del servidor");
+
+        const result = await res.json();
+        if (result.success) {
+            // Abrimos el PDF generado en una nueva pestaña
+            window.open(result.pdf_url, '_blank');
+        } else {
+            AppUtils.showToast(result.mensaje || "No se pudo generar el PDF", "error");
+        }
+    } catch (e) {
+        console.error("Error al exportar PDF:", e);
+        AppUtils.showToast("Error de conexión al generar PDF", "error");
+    }
+};
+
+/**
  * Lógica para cargar Análisis de Rentabilidad
  */
 window.cargarRentabilidad = async function () {

@@ -26,6 +26,15 @@
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Placa</label>
                     <input type="text" id="pos-placa" placeholder="EJ: ABC123" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-sm">
                 </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Mecánico Responsable</label>
+                    <select id="pos-mecanico-id" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm font-bold bg-white">
+                        <option value="">-- SELECCIONAR MECÁNICO --</option>
+                        <?php foreach ($data['staff'] as $m): ?>
+                            <option value="<?php echo $m->id; ?>"><?php echo $m->nombre; ?> (<?php echo $m->cargo; ?>)</option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <div class="relative w-full">
                     <div class="flex justify-between items-center mb-1">
                         <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">Buscar Cliente (Nombre o Cédula)</label>

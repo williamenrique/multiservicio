@@ -226,6 +226,7 @@ CREATE TABLE IF NOT EXISTS `table_ventas` (
   `pago_transferencia` decimal(10,2) DEFAULT 0.00,
   `saldo_pendiente` decimal(10,2) DEFAULT 0.00,
   `usuario_id` int(11) NOT NULL,
+  `mecanico_id` varchar(50) DEFAULT NULL,
   `status` enum('PENDIENTE','COMPLETADO','CREDITO','CANCELADO') DEFAULT 'PENDIENTE',
   `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
   `fecha_cierre` timestamp NULL DEFAULT NULL,
@@ -233,8 +234,10 @@ CREATE TABLE IF NOT EXISTS `table_ventas` (
   KEY `fk_venta_cliente` (`cliente_id`),
   KEY `fk_venta_usuario` (`usuario_id`),
   KEY `fk_venta_orden` (`orden_id`),
+  KEY `fk_venta_mecanico` (`mecanico_id`),
   CONSTRAINT `fk_venta_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_venta_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`),
+  CONSTRAINT `fk_venta_mecanico` FOREIGN KEY (`mecanico_id`) REFERENCES `table_staff` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_venta_orden` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
