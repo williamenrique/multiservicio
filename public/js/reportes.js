@@ -1054,14 +1054,14 @@ window.openModalPago = async function () {
 /**
  * Realiza el cálculo en tiempo real dentro del modal
  */
-window.recalcularVistaPreviaPago = function() {
+window.recalcularVistaPreviaPago = function () {
     const base = window.currentNominaPendiente || 0;
     const factor = parseFloat(document.getElementById('pago-factor').value) || 0;
     const isPorcentaje = document.getElementById('pago-modo-switch').checked;
     const previewEl = document.getElementById('pago-total-preview');
-    
+
     let total = isPorcentaje ? (base * (factor / 100)) : factor;
-    
+
     if (previewEl) {
         previewEl.innerText = AppUtils.formatCurrency(total);
     }
@@ -1090,12 +1090,12 @@ window.toggleModoPago = function (el) {
 /**
  * Genera el PDF del recibo de pago
  */
-window.imprimirReciboPago = async function(pagoId) {
+window.imprimirReciboPago = async function (pagoId) {
     AppUtils.showToast("Generando comprobante...", "info");
     try {
         const res = await fetch(`${URLROOT}/reportes/generarReciboPagoPdf/${pagoId}`);
         if (!res.ok) throw new Error("Error en servidor");
-        
+
         const result = await res.json();
         if (result.success) {
             window.open(result.pdf_url, '_blank');
