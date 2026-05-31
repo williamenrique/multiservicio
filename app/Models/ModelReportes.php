@@ -9,7 +9,7 @@ class ModelReportes {
     public function obtenerFlujoCaja($desde, $hasta, $limit = null, $offset = null, $search = null) {
         // 1. Obtener Ventas (Pagos iniciales de facturas creadas en el periodo)
         // Restamos la suma de abonos del total pagado para obtener solo el pago inicial realizado en la fecha de la venta
-        $this->db->query("SELECT v.id, v.fecha, v.total as monto, 
+        $this->db->query("SELECT v.id, v.fecha, 
                           COALESCE(
                             (COALESCE(v.pago_efectivo, 0) + COALESCE(v.pago_transferencia, 0)) - 
                             COALESCE((SELECT SUM(monto) FROM table_abonos_clientes WHERE venta_id = v.id), 0)
@@ -160,8 +160,8 @@ class ModelReportes {
                                  v.subtotal, v.iva_monto, v.total, v.pago_efectivo, v.pago_transferencia, v.saldo_pendiente, v.status
                           FROM table_ventas v
                           JOIN table_ventas_detalle vd ON v.id = vd.venta_id
-                          JOIN table_usuarios u ON v.usuario_id = u.id
-                          JOIN table_staff s ON u.staff_id = s.id
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO') AND DATE(v.fecha) BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
@@ -247,8 +247,8 @@ class ModelReportes {
         $this->db->query("SELECT 
                             c.nombre as cliente_nombre,
                             c.telefono as cliente_telefono,
-                            SUM(CASE WHEN DATEDIFF(NOW(), v.fecha) <= 15 THEN v.saldo_pendiente ELSE 0 END) as rango_0_15,
-                            SUM(CASE WHEN DATEDIFF(NOW(), v.fecha) > 15 AND DATEDIFF(NOW(), v.fecha) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
+                            SUM(CASE WHEN DATEDIFF(CURDATE(), v.fecha) <= 15 THEN v.saldo_pendiente ELSE 0 END) as rango_0_15,
+                            SUM(CASE WHEN DATEDIFF(CURDATE(), v.fecha) > 15 AND DATEDIFF(CURDATE(), v.fecha) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
                             SUM(CASE WHEN DATEDIFF(NOW(), v.fecha) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
                             SUM(v.saldo_pendiente) as total_deuda
                           FROM table_ventas v
@@ -297,8 +297,8 @@ class ModelReportes {
         $this->db->query("SELECT v.id as venta_id, v.fecha, v.placa, vd.descripcion, (vd.cantidad * vd.precio_unitario) as monto_trabajo
                           FROM table_ventas v
                           JOIN table_ventas_detalle vd ON v.id = vd.venta_id
-                          JOIN table_usuarios u ON v.usuario_id = u.id
-                          WHERE u.staff_id = :staff_id 
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          WHERE (u.staff_id = :staff_id OR :staff_id = '0')
                           AND vd.producto_id IS NULL 
                           AND v.status IN ('COMPLETADO', 'CREDITO')
                           AND DATE(v.fecha) BETWEEN :desde AND :hasta
@@ -311,8 +311,8 @@ class ModelReportes {
         // 2. Pagos y Adelantos
         $this->db->query("SELECT p.*, u.username as registrado_por 
                           FROM table_pagos_empleados p
-                          JOIN table_usuarios u ON p.usuario_id = u.id
-                          WHERE p.staff_id = :staff_id 
+                          LEFT JOIN table_usuarios u ON p.usuario_id = u.id
+                          WHERE (p.staff_id = :staff_id OR :staff_id = '0')
                           AND DATE(p.fecha) BETWEEN :desde AND :hasta
                           ORDER BY p.fecha DESC");
         $this->db->bind(':staff_id', $staff_id);

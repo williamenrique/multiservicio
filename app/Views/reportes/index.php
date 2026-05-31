@@ -63,11 +63,23 @@
 
     <!-- SECCIÓN 1: RESUMEN CONSOLIDADO -->
     <div id="sec-resumen" class="space-y-6">
-        <!-- Buscador de Flujo de Caja -->
-        <div class="relative max-w-md">
-            <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-5 h-5"></i>
-            <input type="text" id="search-report" placeholder="Buscar cliente, placa, proveedor o descripción..." 
-                   class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-neon-green outline-none transition-all shadow-sm">
+        <!-- Controles Superiores: Búsqueda y Límite -->
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="relative w-full md:w-96">
+                <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-5 h-5"></i>
+                <input type="text" id="search-report" placeholder="Buscar en flujo de caja..." 
+                       class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-neon-green outline-none transition-all shadow-sm text-sm">
+            </div>
+            <div class="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mostrar</span>
+                <select id="limitSelector" class="bg-transparent border-none text-xs font-black text-navy-blue focus:ring-0 cursor-pointer">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Registros</span>
+            </div>
         </div>
 
         <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-100">
@@ -87,9 +99,19 @@
                         </tr>
                     </thead>
                     <tbody id="report-body" class="divide-y divide-slate-50 bg-white">
-                        <!-- Contenido generado por JavaScript -->
+                        <tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest animate-pulse">Cargando movimientos de caja...</td></tr>
                     </tbody>
                 </table>
+            </div>
+            <!-- Footer de Tabla: Información y Paginación -->
+            <div class="p-4 bg-slate-50/50 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Mostrando <span id="startIndex" class="text-navy-blue">0</span> - <span id="endIndex" class="text-navy-blue">0</span> 
+                    de <span id="totalCount" class="text-navy-blue">0</span> movimientos
+                </div>
+                <div id="custom-bottom-controls" class="flex items-center gap-2">
+                    <!-- Botones generados por JS -->
+                </div>
             </div>
         </div>
     </div>
@@ -248,8 +270,51 @@
 
     <!-- SECCIÓN 3: HISTORIAL DE DEVOLUCIONES -->
     <div id="sec-devoluciones" class="hidden animate-in fade-in duration-500">
-        <div class="glass-card rounded-2xl border border-slate-100 overflow-hidden" id="devoluciones-list-container">
-            <!-- La tabla se genera vía JS -->
+        <!-- Controles Superiores para Devoluciones -->
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+            <div class="relative w-full md:w-96">
+                <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-5 h-5"></i>
+                <input type="text" id="search-devoluciones" placeholder="Buscar devoluciones..." 
+                       class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-neon-green outline-none transition-all shadow-sm text-sm">
+            </div>
+            <div class="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
+                <select id="limitSelector-devoluciones" class="bg-transparent border-none text-xs font-black text-navy-blue focus:ring-0 cursor-pointer">
+                    <option value="10">10 Registros</option>
+                    <option value="25">25 Registros</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="glass-card rounded-2xl border border-slate-100 overflow-hidden">
+            <div class="p-6 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Historial de Devoluciones de Clientes</h3>
+            </div>
+            <div class="p-6 overflow-x-auto">
+                <table id="devolucionesTable" class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/80 border-b border-slate-100">
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-left">ID</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-left">FECHA</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-left">CLIENTE / PLACA</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-left">DESCRIPCIÓN</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">MONTO</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">DESTINO</th>
+                        </tr>
+                    </thead>
+                    <tbody id="devoluciones-body" class="divide-y divide-slate-50 bg-white">
+                        <tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest animate-pulse">Cargando historial de devoluciones...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <!-- Footer de Tabla para Devoluciones -->
+            <div class="p-4 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
+                <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Total: <span id="totalCount-devoluciones" class="text-navy-blue">0</span> registros encontrados
+                </div>
+                <div id="pagination-devoluciones" class="flex items-center gap-2">
+                    <!-- Botones generados por JS -->
+                </div>
+            </div>
         </div>
     </div>
 
@@ -266,6 +331,47 @@
     if (typeof window.URLROOT === 'undefined') {
         window.URLROOT = "<?php echo URLROOT; ?>";
     }
+
+    /**
+     * Renderiza la tabla de Devoluciones con manejo de estado vacío.
+     */
+    window.renderDevoluciones = (data) => {
+        const body = document.getElementById('devoluciones-body');
+        if (!body) return;
+
+        if (!data || data.length === 0) {
+            body.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
+                        <div class="flex flex-col items-center gap-2">
+                            <i data-lucide="info" class="w-8 h-8 text-slate-300"></i>
+                            <span>No hay registros de devoluciones para este periodo</span>
+                        </div>
+                    </td>
+                </tr>`;
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        body.innerHTML = data.map(item => `
+            <tr class="hover:bg-slate-50/50 transition-colors">
+                <td class="px-4 py-4 font-black text-navy-blue text-xs uppercase">#${item.id}</td>
+                <td class="px-4 py-4 text-xs font-bold text-slate-500">${item.fecha}</td>
+                <td class="px-4 py-4">
+                    <div class="text-xs font-black text-navy-blue uppercase">${item.cliente_nombre || 'N/A'}</div>
+                    <div class="text-[10px] text-slate-400 font-bold">${item.placa || 'SIN PLACA'}</div>
+                </td>
+                <td class="px-4 py-4 text-xs text-slate-600 uppercase font-medium">${item.descripcion}</td>
+                <td class="px-4 py-4 text-right font-black text-rose-500">$${parseFloat(item.monto_devuelto).toLocaleString('es-CO')}</td>
+                <td class="px-4 py-4 text-center">
+                    <span class="px-2 py-1 ${item.destino === 'STOCK' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'} rounded text-[9px] font-black border border-current opacity-80">
+                        ${item.destino}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+        if (window.lucide) lucide.createIcons();
+    };
 
     /**
      * Definimos editItem de forma global para evitar el error de referencia.

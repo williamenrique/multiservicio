@@ -1,29 +1,49 @@
 /**
- * Funciones de Renderizado para Reportes
+ * GESTIÓN DE REPORTES - UNIFICADO
+ */
+
+// Variables de estado global para filtros y auditoría
+let rawAuditData = { ventas: [], compras: [], gastos: [] };
+let activeReportTab = 'resumen';
+
+/**
+ * Renderiza una fila del Flujo de Caja (6 columnas)
  */
 window.renderFlujoRow = (m) => {
     const isIngreso = m.tipo === 'VENTA' || m.tipo === 'ABONO';
     return `
-        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-            <td class="p-4 text-[10px] font-bold text-slate-400 uppercase">${new Date(m.fecha).toLocaleDateString()}</td>
-            <td class="p-4">
-                <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 rounded text-[9px] font-black ${isIngreso ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">${m.tipo}</span>
-                    <span class="text-xs font-bold text-slate-700 uppercase">${m.descripcion || m.categoria || 'OPERACIÓN'}</span>
-                </div>
-                ${m.placa ? `<span class="text-[9px] text-slate-400 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
+        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 animate-in fade-in duration-300">
+            <td class="px-4 py-3 font-mono text-[10px] font-bold text-slate-400 text-center">#${m.id || '---'}</td>
+            <td class="px-4 py-3 text-[11px] font-bold text-slate-600 uppercase text-center">${new Date(m.fecha).toLocaleDateString()}</td>
+            <td class="px-4 py-3 text-center w-24">
+                <span class="px-2 py-0.5 rounded text-[9px] font-black ${isIngreso ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">${m.tipo}</span>
             </td>
-            <td class="p-4 text-right">
-                <span class="text-sm font-black ${isIngreso ? 'text-emerald-600' : 'text-rose-600'}">
-                    ${isIngreso ? '+' : '-'}${AppUtils.formatCurrency(m.monto_pagado)}
+            <td class="px-4 py-3">
+                <div class="flex flex-col gap-0.5">
+                    <span class="text-xs font-bold text-slate-700 uppercase">${m.descripcion || m.categoria || 'OPERACIÓN'}</span>
+                    ${m.placa ? `<span class="text-[9px] text-slate-400 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
+                </div>
+            </td>
+            <td class="px-4 py-3 text-right w-32">
+                <span class="text-sm font-black ${isIngreso ? 'text-emerald-600' : 'text-rose-600'} tracking-tight">
+                    ${isIngreso ? '+' : '-'}${AppUtils.formatCurrency(Math.abs(m.monto_pagado))}
                 </span>
+            </td>
+            <td class="px-4 py-3 text-right w-20">
+                ${m.tipo === 'VENTA' || m.tipo === 'ABONO' ?
+            `<button onclick="verDetalleVenta(${m.id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` :
+            (m.tipo === 'COMPRA' ? `<button onclick="verDetalleCompra(${m.id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : '---')
+        }
             </td>
         </tr>`;
 };
 
+/**
+ * Actualiza filtros de fecha para todos los manejadores activos
+ */
 window.actualizarFiltrosFechas = () => {
-    const desde = document.getElementById('rep-desde').value;
-    const hasta = document.getElementById('rep-hasta').value;
+    const desde = document.getElementById('rep-desde')?.value;
+    const hasta = document.getElementById('rep-hasta')?.value;
 
     if (window.handler_reporte_flujo) {
         window.handler_reporte_flujo.state.extraParams.desde = desde;
@@ -35,42 +55,45 @@ window.actualizarFiltrosFechas = () => {
         window.handler_reporte_devoluciones.state.extraParams.hasta = hasta;
         window.handler_reporte_devoluciones.reload();
     }
+
+    // Si estamos en la pestaña de nómina o detallado, recargarlos manualmente
+    if (activeReportTab === 'detallado') window.cargarReporteDetallado();
+    if (activeReportTab === 'rentabilidad') window.cargarRentabilidad();
+    if (activeReportTab === 'nomina') window.cargarNomina();
 };
 
+/**
+ * Carga Auditoría de Trabajos (Reporte Detallado)
+ */
 window.cargarReporteDetallado = async () => {
-    const desde = document.getElementById('rep-desde').value;
-    const hasta = document.getElementById('rep-hasta').value;
-    const contVentas = document.getElementById('det-ventas-body');
+    const desde = document.getElementById('rep-desde')?.value || '1970-01-01';
+    const hasta = document.getElementById('rep-hasta')?.value || '2099-12-31';
+    const auditContainer = document.getElementById('audit-list-container');
     const contCompras = document.getElementById('det-compras-body');
     const contGastos = document.getElementById('det-gastos-body');
 
-    if (contVentas) contVentas.innerHTML = '<tr><td colspan="7" class="text-center py-10 italic">Cargando reporte detallado...</td></tr>';
+    if (auditContainer) auditContainer.innerHTML = '<div class="py-20 text-center animate-pulse text-slate-400 font-bold uppercase tracking-widest">Generando Auditoría de Trabajos...</div>';
+    if (contCompras) contCompras.innerHTML = '<tr><td colspan="6" class="p-8 text-center animate-pulse">Cargando compras...</td></tr>';
+    if (contGastos) contGastos.innerHTML = '<tr><td colspan="5" class="p-8 text-center animate-pulse">Cargando gastos...</td></tr>';
 
     try {
         const res = await fetch(`${URLROOT}/reportes/detallado?desde=${desde}&hasta=${hasta}`);
+        if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
         const result = await res.json();
 
-        if (result.success && result.data) {
-            const data = result.data;
+        // Normalizar respuesta: Acepta tanto {success:true, data:{...}} como el objeto directo
+        const responseData = result.success ? result.data : result;
 
-            if (contVentas) {
-                contVentas.innerHTML = data.ventas.length ? data.ventas.map(v => `
-                    <tr class="hover:bg-slate-50 border-b border-slate-100">
-                        <td class="p-3 text-[10px] font-bold text-slate-400 uppercase">${new Date(v.fecha).toLocaleDateString()}</td>
-                        <td class="p-3 text-xs font-bold text-slate-700 uppercase">${v.cliente_nombre || 'VENTA RÁPIDA'}</td>
-                        <td class="p-3 text-xs font-mono font-bold text-slate-400 uppercase">${v.placa || '---'}</td>
-                        <td class="p-3 text-xs font-bold text-slate-600 uppercase">${v.descripcion}</td>
-                        <td class="p-3 text-center text-xs font-bold text-slate-500">${v.cantidad}</td>
-                        <td class="p-3 text-right text-xs font-bold text-slate-500">${AppUtils.formatCurrency(v.precio_unitario)}</td>
-                        <td class="p-3 text-right text-sm font-black text-navy-blue">${AppUtils.formatCurrency(v.subtotal_item)}</td>
-                    </tr>`).join('') : '<tr><td colspan="7" class="p-8 text-center text-slate-400 italic">No hay ventas registradas en este periodo</td></tr>';
-            }
+        if (responseData && responseData.ventas) {
+            rawAuditData = responseData; // Guardar para búsqueda local
+            renderAuditoriaLista(rawAuditData.ventas);
 
-            if (contCompras) {
-                contCompras.innerHTML = data.compras.length ? data.compras.map(c => `
+            // Renderizar Compras
+            if (contCompras && rawAuditData.compras) {
+                contCompras.innerHTML = (rawAuditData.compras || []).length ? rawAuditData.compras.map(c => `
                     <tr class="hover:bg-slate-50 border-b border-slate-100">
                         <td class="p-3 text-[10px] font-bold text-slate-400 uppercase">${new Date(c.fecha).toLocaleDateString()}</td>
-                        <td class="p-3 text-xs font-bold text-slate-700 uppercase">${c.proveedor}</td>
+                        <td class="p-3 text-xs font-black text-rose-600 uppercase">${c.proveedor}</td>
                         <td class="p-3 text-xs font-bold text-slate-600 uppercase">${c.descripcion}</td>
                         <td class="p-3 text-center text-xs font-bold text-slate-500">${c.cantidad}</td>
                         <td class="p-3 text-right text-xs font-bold text-slate-500">${AppUtils.formatCurrency(c.costo_unitario)}</td>
@@ -78,67 +101,42 @@ window.cargarReporteDetallado = async () => {
                     </tr>`).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">No hay compras registradas</td></tr>';
             }
 
-            if (contGastos) {
-                contGastos.innerHTML = data.gastos.length ? data.gastos.map(g => `
+            // Renderizar Gastos
+            if (contGastos && rawAuditData.gastos) {
+                contGastos.innerHTML = (rawAuditData.gastos || []).length ? rawAuditData.gastos.map(g => `
                     <tr class="hover:bg-slate-50 border-b border-slate-100">
                         <td class="p-3 text-[10px] font-bold text-slate-400 uppercase">${new Date(g.fecha).toLocaleDateString()}</td>
                         <td class="p-3"><span class="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-500 uppercase">${g.categoria}</span></td>
                         <td class="p-3 text-xs font-bold text-slate-700 uppercase">${g.descripcion}</td>
-                        <td class="p-3 text-xs font-bold text-slate-600 uppercase">${g.metodo_pago}</td>
+                        <td class="p-3 text-xs font-bold text-slate-600 uppercase">${g.metodo_pago || 'EFECTIVO'}</td>
                         <td class="p-3 text-right text-sm font-black text-rose-600">${AppUtils.formatCurrency(g.monto)}</td>
                     </tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400 italic">No hay gastos registrados</td></tr>';
             }
+        } else {
+            if (auditContainer) auditContainer.innerHTML = '<div class="py-20 text-center text-slate-400 font-bold uppercase tracking-widest">Error al procesar los datos del servidor</div>';
         }
-    } catch (e) { console.error(e); }
+
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        console.error(e);
+        if (auditContainer) auditContainer.innerHTML = '<div class="py-20 text-center text-rose-500 font-bold uppercase tracking-widest">Error de conexión con el servidor</div>';
+    }
 };
 
 window.renderCartera = (data) => {
     const tbody = document.getElementById('cartera-body');
-    if (!tbody || !Array.isArray(data)) return;
-    tbody.innerHTML = data.map(c => `
+    if (!tbody) return;
+
+    tbody.innerHTML = (Array.isArray(data) && data.length > 0) ? data.map(c => `
         <tr class="hover:bg-slate-50 border-b border-slate-100">
-            <td class="p-4 text-sm font-bold text-slate-700 uppercase">${c.cliente_nombre}</td>
-            <td class="p-4 text-xs font-black text-slate-400">${AppUtils.formatCurrency(c.rango_0_15)}</td>
-            <td class="p-4 text-xs font-black text-amber-500">${AppUtils.formatCurrency(c.rango_16_30)}</td>
-            <td class="p-4 text-xs font-black text-rose-600">${AppUtils.formatCurrency(c.rango_30_mas)}</td>
-            <td class="p-4 text-right font-black text-navy-blue">${AppUtils.formatCurrency(c.total_deuda)}</td>
+            <td class="px-6 py-4 text-sm font-bold text-slate-700 uppercase">${c.cliente_nombre}</td>
+            <td class="px-6 py-4 text-xs font-black text-slate-400 text-center">${AppUtils.formatCurrency(c.rango_0_15)}</td>
+            <td class="px-6 py-4 text-xs font-black text-amber-500 text-center">${AppUtils.formatCurrency(c.rango_16_30)}</td>
+            <td class="px-6 py-4 text-xs font-black text-rose-600 text-center">${AppUtils.formatCurrency(c.rango_30_mas)}</td>
+            <td class="px-6 py-4 text-right font-black text-navy-blue text-sm">${AppUtils.formatCurrency(c.total_deuda)}</td>
         </tr>
-    `).join('');
-};
-
-window.cargarCartera = async function () {
-    const tbody = document.getElementById('cartera-body');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-16 text-slate-400 italic animate-pulse">GENERANDO REPORTE DE CARTERA...</td></tr>';
-
-    try {
-        const res = await fetch(`${URLROOT}/reportes/cartera`);
-        const result = await res.json();
-        if (result.success) {
-            window.renderCartera(result.data);
-        }
-    } catch (e) {
-        console.error(e);
-        AppUtils.showToast("Error al cargar cartera", "error");
-    }
-};
-
-window.renderRentabilidad = (data) => {
-    const tbody = document.getElementById('rentabilidad-body');
-    if (!tbody || !Array.isArray(data)) return;
-    tbody.innerHTML = data.map(r => {
-        const margen = r.ingreso_total > 0 ? ((r.utilidad_bruta / r.ingreso_total) * 100).toFixed(2) : 0;
-        return `
-            <tr class="hover:bg-slate-50 border-b border-slate-100">
-                <td class="p-4 text-xs font-black text-slate-400 uppercase tracking-widest">${r.tipo}</td>
-                <td class="p-4 text-sm font-bold text-slate-700">${r.cantidad_operaciones}</td>
-                <td class="p-4 text-sm font-bold text-slate-600">${AppUtils.formatCurrency(r.ingreso_total)}</td>
-                <td class="p-4 text-sm font-bold text-slate-400">${AppUtils.formatCurrency(r.costo_total)}</td>
-                <td class="p-4 text-sm font-black text-emerald-600">${AppUtils.formatCurrency(r.utilidad_bruta)}</td>
-                <td class="p-4 text-right">
-                    <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-black text-xs">${margen}%</span>
-                </td>
-            </tr>`;
-    }).join('');
+    `).join('') : '<tr><td colspan="5" class="text-center py-20 text-slate-400 italic font-bold uppercase tracking-widest">Sin deudas de cartera</td></tr>';
+    if (window.lucide) lucide.createIcons();
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -147,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Instancia para el Flujo de Caja (Resumen)
     new DataTableRefactor({
-        tableId: 'reporte_flujo',
+        tableId: 'reportTable', // Corregido para sincronizar con el HTML
         tableBodyId: 'report-body',
         endpoint: `${URLROOT}/reportes/generar`,
         searchInputId: 'search-report',
@@ -165,39 +163,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('total-egresos').textContent = AppUtils.formatCurrency(result.totales.egresos || 0);
                 document.getElementById('total-deuda').textContent = AppUtils.formatCurrency(result.totales.deuda || 0);
                 document.getElementById('total-balance').textContent = AppUtils.formatCurrency(result.totales.balance || 0);
-                if (result.history && typeof renderChart === 'function') renderChart(result.history);
+            }
+            // Manejo de estado vacío
+            const body = document.getElementById('report-body');
+            if (result.data && result.data.length === 0) {
+                body.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
+                    <div class="flex flex-col items-center gap-2">
+                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i>
+                        <span>No se encontraron movimientos en este periodo</span>
+                    </div>
+                </td></tr>`;
+                if (window.lucide) lucide.createIcons();
             }
         },
         renderRow: (m) => window.renderFlujoRow(m)
     });
 
     // Instancia para Historial de Devoluciones
-    new DataTableRefactor({
-        tableId: 'reporte_devoluciones',
+    window.handler_reporte_devoluciones = new DataTableRefactor({
+        tableId: 'devolucionesTable',
         tableBodyId: 'devoluciones-body',
-        endpoint: `${URLROOT}/facturacion/listarDevoluciones`,
+        endpoint: `${URLROOT}/reportes/devoluciones`,
         searchInputId: 'search-devoluciones',
         limitSelectorId: 'limitSelector-devoluciones',
         paginationId: 'pagination-devoluciones',
         totalId: 'totalCount-devoluciones',
         extraParams: {
-            desde: document.getElementById('rep-desde')?.value || '',
-            hasta: document.getElementById('rep-hasta')?.value || ''
+            desde: document.getElementById('rep-desde')?.value || new Date().toISOString().split('T')[0].substring(0, 8) + '01',
+            hasta: document.getElementById('rep-hasta')?.value || new Date().toISOString().split('T')[0]
+        },
+        onDataLoaded: (result) => {
+            const body = document.getElementById('devoluciones-body');
+            if (result.data && result.data.length === 0) {
+                body.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
+                    <div class="flex flex-col items-center gap-2">
+                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i>
+                        <span>No hay registros de devoluciones para mostrar</span>
+                    </div>
+                </td></tr>`;
+                if (window.lucide) lucide.createIcons();
+            }
         },
         renderRow: (d) => {
             return `
-                <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="p-4 text-xs font-bold text-slate-500">${new Date(d.fecha).toLocaleString()}</td>
-                    <td class="p-4">
-                        <p class="text-sm font-black text-navy-blue uppercase">${d.descripcion}</p>
-                        <p class="text-xs text-slate-400 font-bold uppercase">Factura #${d.venta_id} • Cliente: ${d.cliente_nombre || 'N/A'}</p>
-                    </td>
-                    <td class="p-4">
+                <tr class="hover:bg-slate-50/50 transition-colors border-b border-slate-50">
+                    <td class="px-4 py-4 font-black text-navy-blue text-xs uppercase">#${d.id}</td>
+                    <td class="px-4 py-4 text-xs font-bold text-slate-500">${new Date(d.fecha).toLocaleDateString()}</td>
+                    <td class="px-4 py-4 text-xs font-black text-navy-blue uppercase">${d.cliente_nombre || 'N/A'}<br><span class="text-[10px] text-slate-400 font-bold">${d.placa || '---'}</span></td>
+                    <td class="px-4 py-4 text-xs text-slate-600 uppercase font-medium">${d.descripcion}</td>
+                    <td class="px-4 py-4 text-right font-black text-rose-500">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
+                    <td class="px-4 py-4 text-center">
                         <span class="px-2 py-0.5 rounded-full text-[11px] font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
-                            ${d.destino === 'STOCK' ? 'Reingreso Stock (Bueno)' : 'Garantía/Dañado (Malo)'}
+                            ${d.destino}
                         </span>
                     </td>
-                    <td class="p-4 text-right font-black text-rose-600 text-base">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
                 </tr>`;
         }
     });
@@ -207,15 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('rep-hasta')?.addEventListener('change', window.actualizarFiltrosFechas);
 });
 
-let activeReportTab = 'resumen';
+// Alias para el botón de refrescar en la cabecera del reporte
+window.cargarReporte = window.actualizarFiltrosFechas;
 
 window.switchReportTab = (tab) => {
     activeReportTab = tab;
     const secResumen = document.getElementById('sec-resumen');
     const secDetallado = document.getElementById('sec-detallado');
     const secDevoluciones = document.getElementById('sec-devoluciones');
-    const secCartera = document.getElementById('sec-cartera');
-    const secRentabilidad = document.getElementById('sec-rentabilidad');
     const secNomina = document.getElementById('sec-nomina');
 
     const tabResumen = document.getElementById('tab-resumen');
@@ -229,8 +247,8 @@ window.switchReportTab = (tab) => {
     if (secResumen) secResumen.classList.add('hidden');
     if (secDetallado) secDetallado.classList.add('hidden');
     if (secDevoluciones) secDevoluciones.classList.add('hidden');
-    if (secCartera) secCartera.classList.add('hidden');
-    if (secRentabilidad) secRentabilidad.classList.add('hidden');
+    if (document.getElementById('sec-cartera')) document.getElementById('sec-cartera').classList.add('hidden');
+    if (document.getElementById('sec-rentabilidad')) document.getElementById('sec-rentabilidad').classList.add('hidden');
     if (secNomina) secNomina.classList.add('hidden');
 
     // Resetear estilos de pestañas
@@ -254,13 +272,13 @@ window.switchReportTab = (tab) => {
         if (tabDevoluciones) tabDevoluciones.classList.add('border-neon-green', 'text-navy-blue');
         if (window.handler_reporte_devoluciones) window.handler_reporte_devoluciones.reload();
     } else if (tab === 'cartera') {
-        if (secCartera) secCartera.classList.remove('hidden');
+        if (document.getElementById('sec-cartera')) document.getElementById('sec-cartera').classList.remove('hidden');
         if (tabCartera) tabCartera.classList.add('border-neon-green', 'text-navy-blue');
-        cargarCartera();
+        window.cargarCartera();
     } else if (tab === 'rentabilidad') {
-        if (secRentabilidad) secRentabilidad.classList.remove('hidden');
+        if (document.getElementById('sec-rentabilidad')) document.getElementById('sec-rentabilidad').classList.remove('hidden');
         if (tabRentabilidad) tabRentabilidad.classList.add('border-neon-green', 'text-navy-blue');
-        cargarRentabilidad();
+        window.cargarRentabilidad();
     } else if (tab === 'nomina') {
         if (secNomina) secNomina.classList.remove('hidden');
         if (tabNomina) tabNomina.classList.add('border-neon-green', 'text-navy-blue');
@@ -270,25 +288,74 @@ window.switchReportTab = (tab) => {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 };
 
-const formatDateLong = (dateStr) => {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return 'Fecha inválida';
-    const day = d.getDate();
-    const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-    const month = meses[d.getMonth()];
-    const year = d.getFullYear();
-    return `${day} de ${month} de ${year}.`;
+/**
+ * Carga Reporte de Cartera
+ */
+window.cargarCartera = async function () {
+    const tbody = document.getElementById('cartera-body');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-16 text-slate-400 italic animate-pulse">GENERANDO REPORTE DE CARTERA...</td></tr>';
+    try {
+        const res = await fetch(`${URLROOT}/reportes/cartera`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const result = await res.json();
+        if (result.success) window.renderCartera(result.data);
+    } catch (e) {
+        AppUtils.showToast("Error al cargar cartera", "error");
+    }
+};
+
+/**
+ * Lógica para cargar Análisis de Rentabilidad
+ */
+window.cargarRentabilidad = async function () {
+    const desde = document.getElementById('rep-desde')?.value || '';
+    const hasta = document.getElementById('rep-hasta')?.value || '';
+    const tbody = document.getElementById('rentabilidad-body');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-slate-400 italic animate-pulse uppercase font-black">Analizando Rentabilidad...</td></tr>';
+
+    try {
+        const res = await fetch(`${URLROOT}/reportes/rentabilidad?desde=${desde}&hasta=${hasta}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const result = await res.json();
+        if (result.success && result.data) {
+            window.renderRentabilidad(result.data);
+        }
+    } catch (e) { console.error(e); }
+};
+
+window.renderRentabilidad = (data) => {
+    const tbody = document.getElementById('rentabilidad-body');
+    if (!tbody) return;
+    tbody.innerHTML = (Array.isArray(data) && data.length > 0) ? data.map(r => {
+        const margen = r.ingreso_total > 0 ? ((r.utilidad_bruta / r.ingreso_total) * 100).toFixed(2) : 0;
+        return `
+            <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+                <td class="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">${r.tipo}</td>
+                <td class="px-6 py-4 text-sm font-bold text-slate-700 text-center">${r.cantidad_operaciones}</td>
+                <td class="px-6 py-4 text-sm font-bold text-slate-600 text-right">${AppUtils.formatCurrency(r.ingreso_total)}</td>
+                <td class="px-6 py-4 text-sm font-bold text-slate-400 text-right">${AppUtils.formatCurrency(r.costo_total)}</td>
+                <td class="px-6 py-4 text-sm font-black text-emerald-600 text-right">${AppUtils.formatCurrency(r.utilidad_bruta)}</td>
+                <td class="px-6 py-4 text-right">
+                    <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-black text-xs">${margen}%</span>
+                </td>
+            </tr>`;
+    }).join('') : '<tr><td colspan="6" class="text-center py-20 text-slate-400 italic font-bold uppercase">Sin datos de rentabilidad</td></tr>';
+    if (window.lucide) lucide.createIcons();
 };
 
 function renderAuditoriaLista(items) {
     const container = document.getElementById('audit-list-container');
-    if (!container) return;
+    if (!container || !Array.isArray(items)) {
+        container.innerHTML = '<div class="py-20 text-center text-slate-400 italic">Datos de trabajos inválidos</div>';
+        return;
+    }
 
     // 1. Agrupar por Mes y Año para los encabezados sticky
     const meses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
 
     const groupedByMonth = items.reduce((acc, current) => {
-        const d = new Date(current.fecha);
+        if (!current.fecha) return acc;
+        const d = new Date(current.fecha.replace(' ', 'T'));
         const monthKey = `${meses[d.getMonth()]} ${d.getFullYear()}`;
         if (!acc[monthKey]) acc[monthKey] = [];
         acc[monthKey].push(current);
@@ -297,8 +364,8 @@ function renderAuditoriaLista(items) {
 
     if (Object.keys(groupedByMonth).length === 0) {
         container.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-20 text-slate-400 italic font-medium uppercase tracking-widest gap-2">
-                <i data-lucide="info" class="w-10 h-10 text-slate-200"></i>
+            <div class="text-center py-20 text-slate-400 italic font-medium uppercase tracking-widest flex flex-col items-center gap-2">
+                <i data-lucide="info" class="w-10 h-10 text-slate-200 mb-4"></i>
                 <span>No hay registros de trabajos en este periodo</span>
             </div>`;
         if (window.lucide) lucide.createIcons();
@@ -495,15 +562,15 @@ window.verDetalleVenta = async (ventaId) => {
                             <p class="text-xs font-bold text-slate-700">${new Date(venta.fecha).toLocaleString('es-CO')}</p>
                         </div>
                         <div class="space-y-1">
-                            <p class="text-[9px] font-black text-slate-400 uppercase">Atendido Por</p>
-                            <p class="text-xs font-bold text-slate-700">${venta.usuario_nombre || 'SISTEMA'} <span class="text-[9px] text-slate-400">(${venta.usuario_cargo || 'N/A'})</span></p>
+                            <p class="text-[9px] font-black text-slate-400 uppercase">Responsable</p>
+                            <p class="text-xs font-bold text-slate-700">${venta.usuario_nombre || 'SISTEMA'}</p>
                         </div>
                         <div class="space-y-1">
                             <p class="text-[9px] font-black text-slate-400 uppercase">Propietario</p>
-                            <p class="text-xs font-bold text-slate-700">${venta.cliente_nombre || 'VENTA RÁPIDA'} ${venta.cliente_telefono ? `<br><span class="text-[9px] text-slate-400">TEL: ${venta.cliente_telefono}</span>` : ''}</p>
+                            <p class="text-xs font-bold text-slate-700">${venta.cliente_nombre || 'VENTA RÁPIDA'}</p>
                         </div>
                         <div class="space-y-1">
-                            <p class="text-[9px] font-black text-slate-400 uppercase">Vehículo Identificado</p>
+                            <p class="text-[9px] font-black text-slate-400 uppercase">Vehículo</p>
                             <p class="text-xs font-bold text-slate-700 uppercase">${venta.modelo_vehiculo || 'N/A'} <span class="text-blue-500 font-mono">[${venta.placa || '---'}]</span></p>
                         </div>
                     </div>
@@ -519,7 +586,7 @@ window.verDetalleVenta = async (ventaId) => {
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                ${venta.items.map(i => `
+                                ${(venta.items || []).map(i => `
                                     <tr class="hover:bg-slate-50/50">
                                         <td class="p-2 text-slate-700 font-medium uppercase">${i.descripcion}</td>
                                         <td class="p-2 text-center font-bold text-slate-500">${i.cantidad}</td>
@@ -624,7 +691,7 @@ window.verDetalleCompra = async (id) => {
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                ${data.items.map(i => `
+                                ${(data.items || []).map(i => `
                                     <tr class="hover:bg-slate-50/50">
                                         <td class="p-2 text-slate-700 font-medium uppercase">${i.descripcion || i.producto_nombre}</td>
                                         <td class="p-2 text-center font-bold text-slate-500">${i.cantidad}</td>
@@ -731,6 +798,7 @@ window.registrarAbonoCliente = async (ventaId, saldoPendiente) => {
             } else {
                 AppUtils.showToast(data.mensaje, 'error');
             }
+            if (window.lucide) lucide.createIcons();
         } catch (e) { AppUtils.showToast('Error de conexión', 'error'); }
     }
 };
@@ -751,151 +819,42 @@ function filtrarAuditoria(term) {
     renderAuditoriaLista(filtrados);
 }
 
-/**
- * Filtra los datos del Flujo de Caja (Resumen) en tiempo real
- */
-function filtrarReporte(term) {
-    const t = term.toLowerCase();
-
-    filteredReportData = rawReportData.filter(m =>
-        (m.descripcion && m.descripcion.toLowerCase().includes(t)) ||
-        (m.entidad && m.entidad.toLowerCase().includes(t)) ||
-        (m.proveedor_nombre && m.proveedor_nombre.toLowerCase().includes(t)) ||
-        (m.cliente_nombre && m.cliente_nombre.toLowerCase().includes(t)) ||
-        (m.placa && m.placa.toLowerCase().includes(t)) ||
-        (m.modelo_vehiculo && m.modelo_vehiculo.toLowerCase().includes(t)) ||
-        (m.categoria && m.categoria.toLowerCase().includes(t)) ||
-        (String(m.id_db || m.id).includes(t))
-    );
-
-    state.filtered = filteredReportData.length;
-    state.page = 1;
-    renderReportTable();
-}
-
-/**
- * Carga y renderiza el historial de devoluciones
- */
-async function cargarHistorialDevoluciones() {
-    const desde = document.getElementById('rep-desde').value;
-    const hasta = document.getElementById('rep-hasta').value;
-    const container = document.getElementById('devoluciones-list-container'); // Asumimos que existe este contenedor
-    if (!container) return;
-
-    try {
-        const res = await fetch(`${URLROOT}/facturacion/listarDevoluciones?desde=${desde}&hasta=${hasta}`);
-        const result = await res.json();
-
-        if (!result.data || result.data.length === 0) {
-            container.innerHTML = `
-                <div class="flex flex-col items-center justify-center py-16 text-slate-400 italic font-medium uppercase tracking-widest gap-2">
-                    <i data-lucide="rotate-ccw" class="w-8 h-8 text-slate-300"></i>
-                    <span>No hay devoluciones registradas en este periodo</span>
-                </div>`;
-            if (window.lucide) lucide.createIcons();
-            return;
-        }
-
-        container.innerHTML = `
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="text-xs font-black text-slate-400 uppercase border-b border-slate-100">
-                        <th class="p-4">Fecha</th>
-                        <th class="p-4">Artículo / Factura</th>
-                        <th class="p-4">Estado/Destino</th>
-                        <th class="p-4 text-right">Monto</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-50">
-                    ${result.data.map(d => `
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="p-4 text-xs font-bold text-slate-500">${new Date(d.fecha).toLocaleString()}</td>
-                            <td class="p-4">
-                                <p class="text-sm font-black text-navy-blue uppercase">${d.descripcion}</p>
-                                <p class="text-xs text-slate-400 font-bold uppercase">Factura #${d.venta_id} • Cliente: ${d.cliente_nombre || 'N/A'}</p>
-                            </td>
-                            <td class="p-4">
-                                <span class="px-2 py-0.5 rounded-full text-[11px] font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
-                                    ${d.destino === 'STOCK' ? 'Reingreso Stock (Bueno)' : 'Garantía/Dañado (Malo)'}
-                                </span>
-                            </td>
-                            <td class="p-4 text-right font-black text-rose-600 text-base">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
-                        </tr>`).join('')}
-                </tbody>
-            </table>`;
-    } catch (e) { console.error(e); }
-}
-
-/**
- * Lógica para cargar Cartera por Edades
- */
-window.cargarCartera = async function () {
-    const tbody = document.getElementById('cartera-body');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-16 text-slate-400 italic animate-pulse">GENERANDO REPORTE DE CARTERA...</td></tr>';
-
-    try {
-        const res = await fetch(`${URLROOT}/reportes/cartera`);
-        const result = await res.json();
-        if (result.success) {
-            window.renderCartera(result.data);
-        }
-    } catch (e) {
-        console.error(e);
-        AppUtils.showToast("Error al cargar cartera", "error");
-    }
-};
-
-/**
- * Lógica para cargar Análisis de Rentabilidad
- */
-window.cargarRentabilidad = async function () {
-    const desde = document.getElementById('rep-desde').value;
-    const hasta = document.getElementById('rep-hasta').value;
-    const tbody = document.getElementById('rentabilidad-body');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-16 text-slate-400 italic animate-pulse">ANALIZANDO RENTABILIDAD...</td></tr>';
-
-    try {
-        const res = await fetch(`${URLROOT}/reportes/rentabilidad?desde=${desde}&hasta=${hasta}`);
-        const result = await res.json();
-        if (result.success) {
-            window.renderRentabilidad(result.data);
-        }
-    } catch (e) {
-        console.error(e);
-        AppUtils.showToast("Error al cargar rentabilidad", "error");
-    }
-};
-
-/**
- * Nómina y Pagos de Empleados
- */
 window.cargarNomina = async function () {
-    const staffId = document.getElementById('staff-selector').value;
-    const desde = document.getElementById('rep-desde').value;
-    const hasta = document.getElementById('rep-hasta').value;
+    const staffId = document.getElementById('staff-selector')?.value;
+    const desde = document.getElementById('rep-desde')?.value;
+    const hasta = document.getElementById('rep-hasta')?.value;
 
-    if (!staffId) {
+    if (!staffId || staffId === "") {
         // Cargar lista de empleados si el selector está vacío
-        const res = await fetch(`${URLROOT}/reportes/nomina?staff_id=0&desde=${desde}&hasta=${hasta}`);
-        const result = await res.json();
-        if (result.staff) {
-            const selector = document.getElementById('staff-selector');
-            selector.innerHTML = '<option value="">-- SELECCIONE UN EMPLEADO --</option>' +
-                result.staff.map(s => `<option value="${s.id}">${s.nombre} (${s.cargo})</option>`).join('');
+        const selector = document.getElementById('staff-selector');
+        if (!selector) return;
+        try {
+            const res = await fetch(`${URLROOT}/reportes/simple_staff`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const result = await res.json();
+            if (result && result.data) {
+                selector.innerHTML = '<option value="">-- SELECCIONE UN EMPLEADO --</option>' +
+                    result.data.map(s => `<option value="${s.id}">${s.nombre} (${s.cargo})</option>`).join('');
+            }
+        } catch (e) {
+            console.error("Error al cargar lista de personal:", e);
+            selector.innerHTML = '<option value="">-- ERROR AL CARGAR PERSONAL --</option>';
         }
         return;
     }
 
     try {
         const res = await fetch(`${URLROOT}/reportes/nomina?staff_id=${staffId}&desde=${desde}&hasta=${hasta}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const result = await res.json();
 
-        if (result.success) {
-            const { trabajos, pagos } = result.data;
+        if (result.success && result.data) {
+            const trabajos = result.data.trabajos || [];
+            const pagos = result.data.pagos || [];
 
             const tBody = document.getElementById('nomina-trabajos-body');
             let totalTrabajos = 0;
-            tBody.innerHTML = trabajos.length ? trabajos.map(t => {
+            tBody.innerHTML = trabajos.length > 0 ? trabajos.map(t => {
                 totalTrabajos += parseFloat(t.monto_trabajo);
                 return `<tr>
                     <td class="px-4 py-3 font-mono">${new Date(t.fecha).toLocaleDateString()}</td>
@@ -906,7 +865,7 @@ window.cargarNomina = async function () {
 
             const pBody = document.getElementById('nomina-pagos-body');
             let totalPagos = 0;
-            pBody.innerHTML = pagos.length ? pagos.map(p => {
+            pBody.innerHTML = pagos.length > 0 ? pagos.map(p => {
                 totalPagos += parseFloat(p.monto);
                 return `<tr>
                     <td class="px-4 py-3 font-mono">${new Date(p.fecha).toLocaleDateString()}</td>
@@ -919,6 +878,7 @@ window.cargarNomina = async function () {
             document.getElementById('nomina-total-adelantos').textContent = AppUtils.formatCurrency(totalPagos);
             document.getElementById('nomina-total-pendiente').textContent = AppUtils.formatCurrency(totalTrabajos - totalPagos);
         }
+        if (window.lucide) lucide.createIcons();
     } catch (e) { console.error(e); }
 };
 

@@ -6,8 +6,12 @@
 class ModelFacturacion {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    /**
+     * Constructor: Permite inyectar una instancia de base de datos
+     * para compartir transacciones con el BillingService.
+     */
+    public function __construct($db = null) {
+        $this->db = $db ?: new Database();
     }
 
     /**
@@ -283,7 +287,8 @@ class ModelFacturacion {
                     $this->db->bind(':pid', $item->producto_id);
                     $this->db->execute();
                     
-                    $invModel = new ModelInventario();
+                    // Sugerencia: Pasa la conexión de DB actual al modelo de inventario
+                    $invModel = new ModelInventario($this->db);
                     $invModel->registrarMovimiento($item->producto_id, 'ENTRADA_DEVOLUCION', $item->cantidad, $ventaId, "Devolución Factura #$ventaId");
                 }
             }

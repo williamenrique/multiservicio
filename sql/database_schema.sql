@@ -342,21 +342,24 @@ CREATE TABLE IF NOT EXISTS `table_compras_pagos` (
   CONSTRAINT `fk_pago_compra_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 16.2 Control de pagos y adelantos de empleados
+-- 16.2 Gestión de Nómina (Pagos y Adelantos de Empleados)
 CREATE TABLE IF NOT EXISTS `table_pagos_empleados` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `staff_id` VARCHAR(50) NOT NULL,
-  `fecha` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `monto` DECIMAL(15,2) NOT NULL,
-  `tipo` ENUM('ADELANTO', 'PAGO_NOMINA') NOT NULL,
-  `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL DEFAULT 'EFECTIVO',
-  `notas` TEXT,
-  `usuario_id` INT NOT NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`staff_id`) REFERENCES `table_staff`(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `staff_id` varchar(50) NOT NULL,
+  `monto` decimal(15,2) NOT NULL,
+  `tipo` enum('ADELANTO','PAGO_NOMINA') NOT NULL DEFAULT 'ADELANTO',
+  `metodo_pago` varchar(50) DEFAULT 'EFECTIVO',
+  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
+  `notas` text DEFAULT NULL,
+  `usuario_id` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_pago_staff` (`staff_id`),
+  KEY `fk_pago_usuario_reg` (`usuario_id`),
+  CONSTRAINT `fk_pago_staff` FOREIGN KEY (`staff_id`) REFERENCES `table_staff` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_pago_usuario_reg` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 17. Detalle de Compras
 CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
