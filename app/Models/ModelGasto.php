@@ -2,8 +2,8 @@
 class ModelGasto {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    public function __construct($db = null) {
+        $this->db = $db ?: new Database();
     }
 
     public function listar($limit = null, $offset = null, $search = null) {

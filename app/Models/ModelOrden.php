@@ -2,8 +2,8 @@
 class ModelOrden {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    public function __construct($db = null) {
+        $this->db = $db ?: new Database();
     }
 
     public function crear($data) {

@@ -2,8 +2,12 @@
 class ModelReportes {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    /**
+     * Constructor del modelo
+     * @param Database|null $db Instancia de base de datos compartida
+     */
+    public function __construct($db = null) {
+        $this->db = $db ?: new Database();
     }
 
     public function obtenerFlujoCaja($desde, $hasta, $limit = null, $offset = null, $search = null) {
@@ -242,6 +246,7 @@ class ModelReportes {
 
     /**
      * Obtiene el reporte de cartera clasificado por antigüedad de deuda.
+     * Divide la deuda en rangos de 0-15, 16-30 y más de 30 días.
      */
     public function obtenerCarteraPorEdades() {
         $this->db->query("SELECT 
@@ -249,7 +254,7 @@ class ModelReportes {
                             c.telefono as cliente_telefono,
                             SUM(CASE WHEN DATEDIFF(CURDATE(), v.fecha) <= 15 THEN v.saldo_pendiente ELSE 0 END) as rango_0_15,
                             SUM(CASE WHEN DATEDIFF(CURDATE(), v.fecha) > 15 AND DATEDIFF(CURDATE(), v.fecha) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
-                            SUM(CASE WHEN DATEDIFF(NOW(), v.fecha) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
+                            SUM(CASE WHEN DATEDIFF(CURDATE(), v.fecha) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
                             SUM(v.saldo_pendiente) as total_deuda
                           FROM table_ventas v
                           JOIN table_clientes c ON v.cliente_id = c.id

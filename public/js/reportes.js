@@ -293,13 +293,18 @@ window.switchReportTab = (tab) => {
  */
 window.cargarCartera = async function () {
     const tbody = document.getElementById('cartera-body');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-16 text-slate-400 italic animate-pulse">GENERANDO REPORTE DE CARTERA...</td></tr>';
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-16 text-slate-400 italic animate-pulse font-bold uppercase tracking-widest">GENERANDO REPORTE DE CARTERA...</td></tr>';
+
     try {
         const res = await fetch(`${URLROOT}/reportes/cartera`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
         const result = await res.json();
         if (result.success) window.renderCartera(result.data);
     } catch (e) {
+        console.error("Error al cargar cartera:", e);
         AppUtils.showToast("Error al cargar cartera", "error");
     }
 };
