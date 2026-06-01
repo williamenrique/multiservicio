@@ -149,6 +149,66 @@ class ControllerReportes extends Controller {
     }
 
     /**
+     * Genera el reporte PDF de la Auditoría de Trabajos (Listado completo)
+     */
+    public function imprimirAuditoria() {
+        RoleGuard::isAdmin();
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+        $search = $_GET['q'] ?? null;
+
+        $res = $this->reporteModel->obtenerReporteDetallado($desde, $hasta);
+        $ventas = $res['ventas'] ?? [];
+        
+        if ($search && !empty($search)) {
+            $s = strtolower($search);
+            $ventas = array_filter($ventas, function($v) use ($s) {
+                return strpos(strtolower($v->placa ?? ''), $s) !== false ||
+                       strpos(strtolower($v->modelo_vehiculo ?? ''), $s) !== false ||
+                       strpos(strtolower($v->cliente_nombre ?? ''), $s) !== false ||
+                       strpos(strtolower($v->id ?? ''), $s) !== false;
+            });
+        }
+
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('reporte_auditoria', [
+            'titulo_documento' => 'Auditoría de Trabajos Realizados',
+            'ventas' => array_values($ventas),
+            'desde' => $desde,
+            'hasta' => $hasta
+        ], 'Reporte_Auditoria_' . date('Ymd_His') . '.pdf');
+        exit;
+    }
+
+    /**
+     * Genera el reporte PDF de Gastos (Listado filtrado)
+     */
+    public function imprimirGastos() {
+        RoleGuard::isAdmin();
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+        $search = $_GET['q'] ?? null;
+
+        $res = $this->reporteModel->obtenerFlujoCaja($desde, $hasta, null, null, $search);
+        $movimientos = $res['data'] ?? [];
+        
+        // Filtrar solo los egresos (Gastos y Compras)
+        $gastos = array_filter($movimientos, function($m) {
+            return $m->tipo === 'GASTO' || $m->tipo === 'COMPRA';
+        });
+
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('reporte_gastos', [
+            'titulo_documento' => 'Reporte Detallado de Egresos',
+            'gastos' => array_values($gastos),
+            'desde' => $desde,
+            'hasta' => $hasta,
+            'totales' => $res['totales'] ?? []
+        ], 'Reporte_Gastos_' . date('Ymd_His') . '.pdf');
+        exit;
+    }
+
+    /**
      * Endpoint API para obtener el detalle de un pago de nómina para el modal de historial
      */
     public function detallePagoNomina($id) {

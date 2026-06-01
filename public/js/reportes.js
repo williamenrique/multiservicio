@@ -138,6 +138,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // Vincular buscador de auditoría
     document.getElementById('search-audit')?.addEventListener('input', (e) => filtrarAuditoria(e.target.value));
 
+    // Inyectar botón de impresión al lado del buscador de flujo de caja (Gastos)
+    const searchReport = document.getElementById('search-report');
+    if (searchReport) {
+        const wrapper = searchReport.parentElement;
+        if (wrapper && !document.getElementById('btn-print-expenses-bulk')) {
+            const btn = document.createElement('button');
+            btn.id = 'btn-print-expenses-bulk';
+            btn.type = 'button';
+            btn.onclick = window.imprimirGastosCompleto;
+            btn.className = "p-2.5 bg-navy-blue text-neon-green rounded-xl hover:bg-slate-800 transition-all shadow-sm flex items-center justify-center group flex-shrink-0";
+            btn.title = "Imprimir Reporte de Gastos";
+            btn.innerHTML = '<i data-lucide="printer" class="w-5 h-5"></i>';
+            wrapper.classList.add('flex', 'items-center', 'gap-2');
+            wrapper.appendChild(btn);
+        }
+    }
+
+    // Inyectar botón de impresión al lado del buscador de auditoría
+    const searchAudit = document.getElementById('search-audit');
+    if (searchAudit) {
+        const wrapper = searchAudit.parentElement;
+        if (wrapper && !document.getElementById('btn-print-audit-bulk')) {
+            const btn = document.createElement('button');
+            btn.id = 'btn-print-audit-bulk';
+            btn.type = 'button';
+            btn.onclick = window.imprimirAuditoriaCompleta;
+            btn.className = "p-2.5 bg-navy-blue text-neon-green rounded-xl hover:bg-slate-800 transition-all shadow-sm flex items-center justify-center group flex-shrink-0";
+            btn.title = "Imprimir Reporte de Auditoría";
+            btn.innerHTML = '<i data-lucide="printer" class="w-5 h-5"></i>';
+            wrapper.classList.add('flex', 'items-center', 'gap-2');
+            wrapper.appendChild(btn);
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+
     // Instancia para el Flujo de Caja (Resumen)
     window.handler_reporte_flujo = new DataTableRefactor({
         tableId: 'reportTable', // Corregido para sincronizar con el HTML
@@ -587,7 +622,7 @@ function renderAuditoriaLista(items) {
 window.verDetalleVenta = async (ventaId) => {
     // Limpiar el ID si viene con prefijo (ej: TKT-123 -> 123)
     const idLimpio = String(ventaId).replace(/\D/g, '');
-    
+
     try {
         const res = await fetch(`${URLROOT}/historial/detalle/${idLimpio}`);
         const result = await res.json();
@@ -596,7 +631,7 @@ window.verDetalleVenta = async (ventaId) => {
         const venta = (result.success && result.data) ? result.data : result;
 
         if (!venta || (!venta.id && !venta.venta_id)) {
-             return AppUtils.showToast('No se encontró el detalle de la venta #' + idLimpio, 'error');
+            return AppUtils.showToast('No se encontró el detalle de la venta #' + idLimpio, 'error');
         }
 
         Swal.fire({
@@ -696,6 +731,31 @@ window.verDetalleVenta = async (ventaId) => {
         console.error(e);
         AppUtils.showToast('Error al conectar con el servidor', 'error');
     }
+};
+
+/**
+ * Genera el reporte PDF de la Auditoría de Trabajos (Listado completo)
+ */
+window.imprimirAuditoriaCompleta = () => {
+    const desde = document.getElementById('rep-desde')?.value || '';
+    const hasta = document.getElementById('rep-hasta')?.value || '';
+    const search = document.getElementById('search-audit')?.value || '';
+
+    AppUtils.showToast("Generando reporte de auditoría...", "info");
+    window.open(`${URLROOT}/reportes/imprimirAuditoria?desde=${desde}&hasta=${hasta}&q=${search}`, '_blank');
+};
+
+/**
+/**
+ * Genera el reporte PDF de Gastos (Listado filtrado)
+ */
+window.imprimirGastosCompleto = () => {
+    const desde = document.getElementById('rep-desde')?.value || '';
+    const hasta = document.getElementById('rep-hasta')?.value || '';
+    const search = document.getElementById('search-report')?.value || '';
+
+    AppUtils.showToast("Generando reporte de gastos...", "info");
+    window.open(`${URLROOT}/reportes/imprimirGastos?desde=${desde}&hasta=${hasta}&q=${search}`, '_blank');
 };
 
 /**
