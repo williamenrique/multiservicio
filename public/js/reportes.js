@@ -60,6 +60,7 @@ window.actualizarFiltrosFechas = () => {
     if (activeReportTab === 'detallado') window.cargarReporteDetallado();
     if (activeReportTab === 'rentabilidad') window.cargarRentabilidad();
     if (activeReportTab === 'nomina') window.cargarNomina();
+    if (activeReportTab === 'historial_nomina') window.cargarHistorialNomina();
 };
 
 /**
@@ -235,6 +236,7 @@ window.switchReportTab = (tab) => {
     const secDetallado = document.getElementById('sec-detallado');
     const secDevoluciones = document.getElementById('sec-devoluciones');
     const secNomina = document.getElementById('sec-nomina');
+    const secHistorialNomina = document.getElementById('sec-historial-nomina');
 
     const tabResumen = document.getElementById('tab-resumen');
     const tabDetallado = document.getElementById('tab-detallado');
@@ -242,6 +244,7 @@ window.switchReportTab = (tab) => {
     const tabCartera = document.getElementById('tab-cartera');
     const tabRentabilidad = document.getElementById('tab-rentabilidad');
     const tabNomina = document.getElementById('tab-nomina');
+    const tabHistorialNomina = document.getElementById('tab-historial-nomina');
 
     // Ocultar todas las secciones
     if (secResumen) secResumen.classList.add('hidden');
@@ -250,9 +253,10 @@ window.switchReportTab = (tab) => {
     if (document.getElementById('sec-cartera')) document.getElementById('sec-cartera').classList.add('hidden');
     if (document.getElementById('sec-rentabilidad')) document.getElementById('sec-rentabilidad').classList.add('hidden');
     if (secNomina) secNomina.classList.add('hidden');
+    if (secHistorialNomina) secHistorialNomina.classList.add('hidden');
 
     // Resetear estilos de pestañas
-    [tabResumen, tabDetallado, tabDevoluciones, tabCartera, tabRentabilidad, tabNomina].forEach(t => {
+    [tabResumen, tabDetallado, tabDevoluciones, tabCartera, tabRentabilidad, tabNomina, tabHistorialNomina].forEach(t => {
         if (t) {
             t.classList.remove('border-neon-green', 'text-navy-blue');
             t.classList.add('border-transparent', 'text-slate-400');
@@ -283,6 +287,10 @@ window.switchReportTab = (tab) => {
         if (secNomina) secNomina.classList.remove('hidden');
         if (tabNomina) tabNomina.classList.add('border-neon-green', 'text-navy-blue');
         cargarNomina();
+    } else if (tab === 'historial_nomina') {
+        if (secHistorialNomina) secHistorialNomina.classList.remove('hidden');
+        if (tabHistorialNomina) tabHistorialNomina.classList.add('border-neon-green', 'text-navy-blue');
+        window.cargarHistorialNomina();
     }
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -1106,4 +1114,99 @@ window.imprimirReciboPago = async function (pagoId) {
         console.error("Error al imprimir recibo:", e);
         AppUtils.showToast("No se pudo generar el documento", "error");
     }
+};
+
+/**
+ * Carga el historial de pagos de nómina realizados
+ */
+window.cargarHistorialNomina = async () => {
+    const desde = document.getElementById('rep-desde')?.value || '';
+    const hasta = document.getElementById('rep-hasta')?.value || '';
+    const tbody = document.getElementById('historial-nomina-body');
+
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center animate-pulse">Cargando historial de pagos...</td></tr>';
+
+    try {
+        const res = await fetch(`${URLROOT}/reportes/historialPagosNomina?desde=${desde}&hasta=${hasta}`);
+        const result = await res.json();
+
+        if (result.success && result.data) {
+            tbody.innerHTML = result.data.length > 0 ? result.data.map(p => `
+                <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+                    <td class="px-4 py-4 font-mono text-xs text-slate-500">#${p.id}</td>
+                    <td class="px-4 py-4 text-sm font-bold text-slate-600">${new Date(p.fecha).toLocaleDateString()}</td>
+                    <td class="px-4 py-4">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-black text-navy-blue uppercase">${p.staff_nombre}</span>
+                            <span class="text-[10px] text-slate-400 font-bold uppercase">${p.staff_cargo}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4">
+                        <span class="px-2 py-0.5 rounded text-[9px] font-black ${p.tipo === 'ADELANTO' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} uppercase">${p.tipo}</span>
+                    </td>
+                    <td class="px-4 py-4 text-right font-black text-navy-blue">${AppUtils.formatCurrency(p.monto)}</td>
+                    <td class="px-4 py-4 text-right">
+                        <div class="flex justify-end gap-2">
+                            <button onclick="verDetallePagoHistorial(${p.id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Resumen"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                            <button onclick="reimprimirPagoNomina(${p.id})" class="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Reimprimir Copia"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('') : '<tr><td colspan="6" class="p-12 text-center text-slate-400 italic font-bold uppercase tracking-widest">No hay pagos registrados en este periodo</td></tr>';
+
+            if (window.lucide) lucide.createIcons();
+        }
+    } catch (e) {
+        console.error("Error al cargar historial nómina:", e);
+    }
+};
+
+window.verDetallePagoHistorial = async (id) => {
+    try {
+        const res = await fetch(`${URLROOT}/reportes/detallePagoNomina/${id}`);
+        const result = await res.json();
+
+        if (result.success && result.data) {
+            const p = result.data;
+            Swal.fire({
+                title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Resumen de Pago</span><br><span class="text-navy-blue">RECIBO #${p.id}</span>`,
+                html: `
+                    <div class="text-left space-y-4 pt-4">
+                        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl text-xs">
+                            <div><p class="text-slate-400 font-bold uppercase">Empleado:</p><p class="font-black text-navy-blue">${p.staff_nombre}</p></div>
+                            <div><p class="text-slate-400 font-bold uppercase">Fecha:</p><p class="font-black text-slate-700">${new Date(p.fecha).toLocaleString()}</p></div>
+                            <div><p class="text-slate-400 font-bold uppercase">Tipo:</p><p class="font-black text-slate-700">${p.tipo}</p></div>
+                            <div><p class="text-slate-400 font-bold uppercase">Método:</p><p class="font-black text-slate-700">${p.metodo_pago}</p></div>
+                        </div>
+                        ${p.trabajos && p.trabajos.length > 0 ? `
+                        <div class="border rounded-lg overflow-hidden">
+                            <table class="w-full text-[10px]">
+                                <thead class="bg-slate-50"><tr><th class="p-2 text-left">Trabajo</th><th class="p-2 text-right">Monto</th></tr></thead>
+                                <tbody class="divide-y">
+                                    ${p.trabajos.map(t => `<tr><td class="p-2">${t.descripcion} (${t.placa})</td><td class="p-2 text-right font-bold">${AppUtils.formatCurrency(t.precio_unitario)}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>` : ''}
+                        <div class="bg-navy-blue p-4 rounded-xl text-white flex justify-between items-center">
+                            <span class="text-xs font-bold uppercase">Total Cancelado:</span>
+                            <span class="text-2xl font-black text-neon-green">${AppUtils.formatCurrency(p.monto)}</span>
+                        </div>
+                        ${p.notas ? `<p class="text-[10px] italic text-slate-500">Nota: ${p.notas}</p>` : ''}
+                    </div>`,
+                showCloseButton: true,
+                showConfirmButton: false
+            });
+        }
+    } catch (e) { console.error(e); }
+};
+
+window.reimprimirPagoNomina = async (id) => {
+    AppUtils.showToast("Generando copia del recibo...", "info");
+    try {
+        const res = await fetch(`${URLROOT}/reportes/generarReciboPagoPdf/${id}?copia=true`);
+        const result = await res.json();
+        if (result.success) {
+            window.open(result.pdf_url, '_blank');
+        }
+    } catch (e) { console.error(e); }
 };

@@ -59,6 +59,9 @@
         <button onclick="switchReportTab('devoluciones')" id="tab-devoluciones" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
             <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Devoluciones
         </button>
+        <button onclick="switchReportTab('historial_nomina')" id="tab-historial-nomina" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all text-sm uppercase tracking-widest flex items-center gap-2">
+            <i data-lucide="history" class="w-4 h-4"></i> Historial Nómina
+        </button>
     </div>
 
     <!-- SECCIÓN 1: RESUMEN CONSOLIDADO -->
@@ -314,6 +317,46 @@
                 <div id="pagination-devoluciones" class="flex items-center gap-2">
                     <!-- Botones generados por JS -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN: HISTORIAL DE NÓMINA (CANCELADOS) -->
+    <div id="sec-historial-nomina" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            
+            <!-- Encabezado con Títulos Claros -->
+            <div class="p-8 border-b border-slate-50 flex flex-wrap justify-between items-center bg-slate-50/50 gap-4">
+                <div>
+                    <h3 class="text-2xl font-black text-navy-blue uppercase tracking-tight leading-none mb-2">Pagos de Nómina Procesados</h3>
+                    <p class="text-sm text-slate-400 font-bold uppercase tracking-wider">Registro histórico de liquidaciones y adelantos</p>
+                </div>
+            </div>
+
+            <!-- Tabla con Fuentes Legibles -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/80 border-b border-slate-100">
+                            <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center w-24">Recibo</th>
+                            <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Fecha de Pago</th>
+                            <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Empleado</th>
+                            <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Tipo</th>
+                            <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Monto Total</th>
+                            <th class="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historial-nomina-body" class="divide-y divide-slate-100 bg-white">
+                        <tr>
+                            <td colspan="6" class="px-8 py-24 text-center text-slate-400 italic font-bold uppercase tracking-widest animate-pulse">
+                                <div class="flex flex-col items-center gap-4">
+                                    <i data-lucide="loader" class="w-10 h-10 animate-spin text-slate-200"></i>
+                                    <span>Cargando historial de pagos...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

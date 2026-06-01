@@ -140,6 +140,8 @@
                             <div class="relative">
                                 <span class="absolute left-2 top-2 text-slate-500 text-xs">$</span>
                                 <input type="number" id="pos-pago-efectivo" value="0" step="0.01" 
+                                       onfocus="if(this.value == '0') this.value = ''" 
+                                       onblur="if(this.value == '') this.value = '0'"
                                        class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 pl-5 pr-2 text-white font-bold text-sm focus:border-neon-green outline-none transition-all">
                             </div>
                         </div>
@@ -148,6 +150,8 @@
                             <div class="relative">
                                 <span class="absolute left-2 top-2 text-slate-500 text-xs">$</span>
                                 <input type="number" id="pos-pago-transferencia" value="0" step="0.01" 
+                                       onfocus="if(this.value == '0') this.value = ''" 
+                                       onblur="if(this.value == '') this.value = '0'"
                                        class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 pl-5 pr-2 text-white font-bold text-sm focus:border-neon-green outline-none transition-all">
                             </div>
                         </div>

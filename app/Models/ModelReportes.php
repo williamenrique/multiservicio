@@ -395,4 +395,19 @@ class ModelReportes {
             throw $e;
         }
     }
+
+    /**
+     * Obtiene el listado de pagos de nómina realizados en un periodo.
+     */
+    public function obtenerHistorialPagosNomina($desde, $hasta) {
+        $this->db->query("SELECT p.*, s.nombre as staff_nombre, s.cargo as staff_cargo, u.username as registrado_por 
+                          FROM table_pagos_empleados p
+                          JOIN table_staff s ON p.staff_id = s.id
+                          LEFT JOIN table_usuarios u ON p.usuario_id = u.id
+                          WHERE DATE(p.fecha) BETWEEN :desde AND :hasta
+                          ORDER BY p.fecha DESC");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        return $this->db->resultSet() ?: [];
+    }
 }

@@ -53,6 +53,12 @@ class ControllerInventario extends Controller {
         if (!$producto) {
             redirect('inventario?error=producto_no_encontrado');
         }
+
+        // Verificar si existe la imagen, de lo contrario usar la de por defecto
+        if (empty($producto->imagen) || !file_exists(APPROOT . '/../public/' . $producto->imagen)) {
+            $producto->imagen = 'img/default.png';
+        }
+
         $kardexMovimientos = $this->inventarioModel->obtenerKardexPorProducto($producto_id);
         $costHistory = $this->inventarioModel->getCostHistory($producto_id);
 
