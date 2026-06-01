@@ -46,6 +46,10 @@ window.openExpenseModal = async function () { // Hacer la función asíncrona
         html: `
             <div class="text-left space-y-4">
                 <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
+                    <input id="ex-date" type="date" class="w-full p-2 border rounded-lg" value="${new Date().toISOString().split('T')[0]}">
+                </div>
+                <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción del Gasto</label>
                     <input id="ex-desc" class="w-full p-2 border rounded-lg uppercase" placeholder="EJ: PAGO SERVICIO LUZ">
                 </div>
@@ -63,6 +67,13 @@ window.openExpenseModal = async function () { // Hacer la función asíncrona
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto (COP)</label>
                     <input id="ex-amount" type="number" class="w-full p-2 border rounded-lg" placeholder="0">
                 </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Método de Pago</label>
+                    <select id="ex-method" class="w-full p-2 border rounded-lg">
+                        <option value="EFECTIVO">EFECTIVO (AFECTA CAJA)</option>
+                        <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+                    </select>
+                </div>
             </div>`,
         confirmButtonColor: '#ff4444',
         confirmButtonText: '<span class="font-bold">Registrar Gasto</span>',
@@ -73,7 +84,13 @@ window.openExpenseModal = async function () { // Hacer la función asíncrona
             if (!descripcion || isNaN(monto) || monto <= 0) {
                 return Swal.showValidationMessage('Complete todos los campos correctamente');
             }
-            return { descripcion, monto, categoria: document.getElementById('ex-cat').value, fecha: new Date().toISOString().split('T')[0] };
+            return {
+                descripcion,
+                monto,
+                categoria: document.getElementById('ex-cat').value,
+                metodo_pago: document.getElementById('ex-method').value,
+                fecha: document.getElementById('ex-date').value
+            };
         }
     }).then(async result => {
         if (result.isConfirmed) {
@@ -90,7 +107,7 @@ window.openExpenseModal = async function () { // Hacer la función asíncrona
             AppUtils.hideLoading();
             if (data.success) {
                 AppUtils.showToast('Gasto registrado');
-                if (window.handler_gastos) handler_gastos.reload();
+                if (window.handler_gastos) window.handler_gastos.reload();
             } else {
                 AppUtils.showToast(data.error || 'Error al registrar el gasto', 'error');
             }

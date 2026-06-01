@@ -26,13 +26,13 @@
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Placa</label>
                     <input type="text" id="pos-placa" placeholder="EJ: ABC123" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-sm">
                 </div>
-                <div>
+                <div class="<?php echo ($data['user_role'] === 'MECANICO') ? 'hidden' : ''; ?>">
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Mecánico Responsable</label>
                     <select id="pos-mecanico-id" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none text-sm font-bold bg-white" 
-                        <?php echo ($_SESSION['user_role_id'] != 1) ? 'disabled' : ''; ?>>
-                        <option value="">-- SELECCIONAR MECÁNICO --</option>
+                        <?php echo ($data['user_role'] !== 'ADMINISTRADOR') ? 'disabled' : ''; ?>>
+                        <option value="" disabled selected>-- SELECCIONAR MECÁNICO --</option>
                         <?php foreach ($data['staff'] as $m): ?>
-                            <option value="<?php echo $m->id; ?>" <?php echo (isset($_SESSION['user_staff_id']) && $_SESSION['user_staff_id'] == $m->id) ? 'selected' : ''; ?>>
+                            <option value="<?php echo $m->id; ?>" <?php echo ($data['user_staff_id'] == $m->id) ? 'selected' : ''; ?>>
                                 <?php echo $m->nombre; ?> (<?php echo $m->cargo; ?>)
                             </option>
                         <?php endforeach; ?>
@@ -185,12 +185,15 @@
     </div>
 </section>
 
-<script src="<?php echo URLROOT; ?>/js/facturacion.js"></script>
+<script src="<?php echo URLROOT; ?>/public/js/facturacion.js"></script>
+
 <script>
-    // Actualización dinámica del responsable al seleccionar mecánico
-    document.getElementById('pos-mecanico-id')?.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        const name = selectedOption.value ? selectedOption.text.split('(')[0].trim() : '---';
-        document.getElementById('pos-user-name').innerText = name;
-    });
+    // Sincronizar nombre en la UI cuando cambia el mecánico (Solo para Administradores)
+    const selectMecanico = document.getElementById('pos-mecanico-id');
+    if (selectMecanico) {
+        selectMecanico.addEventListener('change', function() {
+            const name = this.options[this.selectedIndex].text.split('(')[0].trim();
+            document.getElementById('pos-user-name').innerText = name;
+        });
+    }
 </script>

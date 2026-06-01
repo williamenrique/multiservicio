@@ -61,8 +61,6 @@ class DataTableRefactor {
         const offset = (this.state.page - 1) * this.state.limit;
         const dynamicParams = typeof this.getExtraParams === 'function' ? this.getExtraParams() : {};
 
-        console.log(`[DataTable] Disparando recarga para ${this.tableId}:`, { q: this.state.search, ...dynamicParams });
-
         const params = new URLSearchParams({
             q: this.state.search,
             limit: this.state.limit,
@@ -86,7 +84,6 @@ class DataTableRefactor {
     }
 
     render(data) {
-        console.log(`[DataTable] Renderizando ${data.length} registros para ${this.tableId}`);
         this.tableBody.innerHTML = data.length === 0
             ? `<tr><td colspan="100%" class="px-8 py-24 text-center text-slate-400 italic font-bold uppercase tracking-widest bg-slate-50/30 border-none">${this.noDataMessage}</td></tr>`
             : data.map(item => this.renderRow(item)).join('');

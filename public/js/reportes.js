@@ -42,22 +42,16 @@ window.renderFlujoRow = (m) => {
  * Actualiza filtros de fecha para todos los manejadores activos
  */
 window.actualizarFiltrosFechas = () => {
-    const desde = document.getElementById('rep-desde')?.value;
-    const hasta = document.getElementById('rep-hasta')?.value;
-
     if (window.handler_reporte_flujo) {
-        window.handler_reporte_flujo.state.extraParams.desde = desde;
-        window.handler_reporte_flujo.state.extraParams.hasta = hasta;
         window.handler_reporte_flujo.reload();
     }
     if (window.handler_reporte_devoluciones) {
-        window.handler_reporte_devoluciones.state.extraParams.desde = desde;
-        window.handler_reporte_devoluciones.state.extraParams.hasta = hasta;
         window.handler_reporte_devoluciones.reload();
     }
 
     // Si estamos en la pestaña de nómina o detallado, recargarlos manualmente
     if (activeReportTab === 'detallado') window.cargarReporteDetallado();
+    if (activeReportTab === 'cartera') window.cargarCartera();
     if (activeReportTab === 'rentabilidad') window.cargarRentabilidad();
     if (activeReportTab === 'nomina') window.cargarNomina();
     if (activeReportTab === 'historial_nomina') window.cargarHistorialNomina();
@@ -145,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('search-audit')?.addEventListener('input', (e) => filtrarAuditoria(e.target.value));
 
     // Instancia para el Flujo de Caja (Resumen)
-    new DataTableRefactor({
+    window.handler_reporte_flujo = new DataTableRefactor({
         tableId: 'reportTable', // Corregido para sincronizar con el HTML
         tableBodyId: 'report-body',
         endpoint: `${URLROOT}/reportes/generar`,
@@ -153,10 +147,10 @@ document.addEventListener('DOMContentLoaded', () => {
         limitSelectorId: 'limitSelector',
         paginationId: 'custom-bottom-controls',
         totalId: 'totalCount',
-        extraParams: {
+        getExtraParams: () => ({
             desde: document.getElementById('rep-desde')?.value || '',
             hasta: document.getElementById('rep-hasta')?.value || ''
-        },
+        }),
         onDataLoaded: (result) => {
             if (result.totales) {
                 document.getElementById('total-repuestos').textContent = AppUtils.formatCurrency(result.totales.ingreso_repuestos || 0);
@@ -189,10 +183,10 @@ document.addEventListener('DOMContentLoaded', () => {
         limitSelectorId: 'limitSelector-devoluciones',
         paginationId: 'pagination-devoluciones',
         totalId: 'totalCount-devoluciones',
-        extraParams: {
+        getExtraParams: () => ({
             desde: document.getElementById('rep-desde')?.value || new Date().toISOString().split('T')[0].substring(0, 8) + '01',
             hasta: document.getElementById('rep-hasta')?.value || new Date().toISOString().split('T')[0]
-        },
+        }),
         onDataLoaded: (result) => {
             const body = document.getElementById('devoluciones-body');
             if (result.data && result.data.length === 0) {
@@ -300,13 +294,15 @@ window.switchReportTab = (tab) => {
  * Carga Reporte de Cartera
  */
 window.cargarCartera = async function () {
+    const desde = document.getElementById('rep-desde')?.value || '';
+    const hasta = document.getElementById('rep-hasta')?.value || '';
     const tbody = document.getElementById('cartera-body');
     if (!tbody) return;
 
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-16 text-slate-400 italic animate-pulse font-bold uppercase tracking-widest">GENERANDO REPORTE DE CARTERA...</td></tr>';
 
     try {
-        const res = await fetch(`${URLROOT}/reportes/cartera`);
+        const res = await fetch(`${URLROOT}/reportes/cartera?desde=${desde}&hasta=${hasta}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const result = await res.json();
@@ -589,20 +585,28 @@ function renderAuditoriaLista(items) {
  * Muestra el modal detallado de una venta (Vista previa similar a historial)
  */
 window.verDetalleVenta = async (ventaId) => {
+    // Limpiar el ID si viene con prefijo (ej: TKT-123 -> 123)
+    const idLimpio = String(ventaId).replace(/\D/g, '');
+    
     try {
-        const res = await fetch(`${URLROOT}/historial/detalle/${ventaId}`);
-        const venta = await res.json();
+        const res = await fetch(`${URLROOT}/historial/detalle/${idLimpio}`);
+        const result = await res.json();
 
-        if (!venta) return AppUtils.showToast('No se encontró el detalle', 'error');
+        // Extraer la venta: manejamos si viene envuelta en data o directa
+        const venta = (result.success && result.data) ? result.data : result;
+
+        if (!venta || (!venta.id && !venta.venta_id)) {
+             return AppUtils.showToast('No se encontró el detalle de la venta #' + idLimpio, 'error');
+        }
 
         Swal.fire({
-            title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Vista Previa Operación</span><br><span class="text-navy-blue">FACTURA #${venta.id}</span>`,
+            title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Vista Previa Operación</span><br><span class="text-navy-blue">FACTURA #${venta.id || idLimpio}</span>`,
             html: `
                 <div class="text-left space-y-6 pt-4">
                     <div class="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <div class="space-y-1">
                             <p class="text-[9px] font-black text-slate-400 uppercase">Fecha Realizada</p>
-                            <p class="text-xs font-bold text-slate-700">${new Date(venta.fecha).toLocaleString('es-CO')}</p>
+                            <p class="text-xs font-bold text-slate-700">${venta.fecha ? new Date(venta.fecha).toLocaleString('es-CO') : 'N/A'}</p>
                         </div>
                         <div class="space-y-1">
                             <p class="text-[9px] font-black text-slate-400 uppercase">Responsable</p>
@@ -644,34 +648,34 @@ window.verDetalleVenta = async (ventaId) => {
                     <div class="grid grid-cols-3 gap-2 text-[10px]">
                         <div class="p-2 bg-slate-50 rounded-xl border border-slate-100">
                             <p class="text-slate-400 font-bold uppercase mb-1">Efectivo</p>
-                            <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_efectivo)}</p>
+                            <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_efectivo || 0)}</p>
                         </div>
                         <div class="p-2 bg-slate-50 rounded-xl border border-slate-100">
                             <p class="text-slate-400 font-bold uppercase mb-1">Transf.</p>
-                            <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_transferencia)}</p>
+                            <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_transferencia || 0)}</p>
                         </div>
-                        <div class="p-2 ${venta.saldo_pendiente > 0 ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'} rounded-xl border">
-                            <p class="${venta.saldo_pendiente > 0 ? 'text-rose-400' : 'text-slate-400'} font-bold uppercase mb-1">Deuda</p>
-                            <p class="font-black ${venta.saldo_pendiente > 0 ? 'text-rose-600' : 'text-slate-700'} text-sm">${AppUtils.formatCurrency(venta.saldo_pendiente)}</p>
+                        <div class="p-2 ${(parseFloat(venta.saldo_pendiente) > 0) ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'} rounded-xl border">
+                            <p class="${(parseFloat(venta.saldo_pendiente) > 0) ? 'text-rose-400' : 'text-slate-400'} font-bold uppercase mb-1">Deuda</p>
+                            <p class="font-black ${(parseFloat(venta.saldo_pendiente) > 0) ? 'text-rose-600' : 'text-slate-700'} text-sm">${AppUtils.formatCurrency(venta.saldo_pendiente || 0)}</p>
                         </div>
                     </div>
 
                     <div class="bg-navy-blue p-5 rounded-2xl space-y-3 text-white">
                         <div class="flex justify-between items-center text-xs opacity-70">
                             <span class="font-bold uppercase">Subtotal Neto</span>
-                            <span class="font-bold">${AppUtils.formatCurrency(venta.subtotal)}</span>
+                            <span class="font-bold">${AppUtils.formatCurrency(venta.subtotal || 0)}</span>
                         </div>
                         <div class="flex justify-between items-center text-xs opacity-70">
                             <span class="font-bold uppercase">Impuestos (IVA)</span>
-                            <span class="font-bold">${AppUtils.formatCurrency(venta.iva_monto)}</span>
+                            <span class="font-bold">${AppUtils.formatCurrency(venta.iva_monto || 0)}</span>
                         </div>
                         <div class="flex justify-between items-center text-xs text-emerald-400 pt-1 border-t border-white/5">
                             <span class="font-bold uppercase">Total Abonado</span>
-                            <span class="font-bold">${AppUtils.formatCurrency(parseFloat(venta.pago_efectivo) + parseFloat(venta.pago_transferencia))}</span>
+                            <span class="font-bold">${AppUtils.formatCurrency(parseFloat(venta.pago_efectivo || 0) + parseFloat(venta.pago_transferencia || 0))}</span>
                         </div>
                         <div class="flex justify-between items-center pt-3 border-t border-white/10">
                             <span class="font-black uppercase text-xs tracking-widest text-neon-green">Total de la Venta</span>
-                            <span class="text-2xl font-black">${AppUtils.formatCurrency(venta.total)}</span>
+                            <span class="text-2xl font-black">${AppUtils.formatCurrency(venta.total || 0)}</span>
                         </div>
                     </div>
                     
@@ -907,18 +911,18 @@ window.cargarNomina = async function () {
                 totalGeneral += monto;
 
                 return `
-                <tr class="${isPaid ? 'opacity-40 grayscale bg-slate-50' : 'hover:bg-slate-50'} transition-colors border-b border-slate-100">
+                <tr class="${isPaid ? 'opacity-40 grayscale bg-slate-50' : 'hover:bg-slate-50'} transition-all border-b border-slate-100">
                     <td class="px-4 py-3 text-center w-10">
                         ${!isPaid ? `<input type="checkbox" class="work-checkbox w-4 h-4 rounded border-slate-300 text-navy-blue focus:ring-neon-green" value="${t.detalle_id}" data-monto="${monto}" checked onchange="window.recalcularSeleccionNomina()">` : `<i data-lucide="check-circle-2" class="w-4 h-4 text-slate-400 mx-auto"></i>`}
                     </td>
                     <td class="px-4 py-3 font-mono text-[10px] text-slate-500 w-24 text-center">${new Date(t.fecha).toLocaleDateString()}</td>
                     <td class="px-4 py-3">
                         <div class="flex flex-col">
-                            <span class="text-xs font-black ${isPaid ? 'text-slate-500' : 'text-navy-blue'} uppercase tracking-tight">${t.descripcion}</span>
+                            <span class="text-sm md:text-lg font-black ${isPaid ? 'text-slate-500' : 'text-navy-blue'} uppercase tracking-tight">${t.descripcion}</span>
                             <span class="text-[9px] text-slate-400 font-bold uppercase">Vehículo: ${t.placa}</span>
                         </div>
                     </td>
-                    <td class="px-4 py-3 text-right font-black ${isPaid ? 'text-slate-400' : 'text-emerald-600'} text-sm w-32">
+                    <td class="px-4 py-3 text-right font-black ${isPaid ? 'text-slate-400' : 'text-emerald-600'} text-lg md:text-2xl w-32">
                         ${AppUtils.formatCurrency(monto)}
                     </td>
                 </tr>`;
@@ -931,16 +935,20 @@ window.cargarNomina = async function () {
                 return `<tr>
                     <td class="px-4 py-3 font-mono">${new Date(p.fecha).toLocaleDateString()}</td>
                     <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[9px] font-black ${p.tipo === 'ADELANTO' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} uppercase">${p.tipo}</span></td>
-                    <td class="px-4 py-3 text-right font-black text-rose-600">${AppUtils.formatCurrency(p.monto)}</td>
+                    <td class="px-4 py-3 text-right font-black text-rose-600 text-lg md:text-2xl">${AppUtils.formatCurrency(p.monto)}</td>
                     <td class="px-4 py-3 text-right">
                         <button onclick="window.imprimirReciboPago(${p.id})" class="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-navy-blue hover:text-white transition-colors" title="Ver Recibo"><i data-lucide="printer" class="w-4 h-4"></i></button>
                     </td>
                 </tr>`;
             }).join('') : '<tr><td colspan="4" class="p-8 text-center text-slate-400 italic font-bold">Sin pagos registrados</td></tr>';
 
-            document.getElementById('nomina-total-trabajos').textContent = AppUtils.formatCurrency(totalGeneral);
-            document.getElementById('nomina-total-adelantos').textContent = AppUtils.formatCurrency(totalPagos);
-            document.getElementById('nomina-total-pendiente').textContent = AppUtils.formatCurrency(totalPendiente);
+            const elTrabajos = document.getElementById('nomina-total-trabajos');
+            const elAdelantos = document.getElementById('nomina-total-adelantos');
+            const elPendiente = document.getElementById('nomina-total-pendiente');
+
+            if (elTrabajos) { elTrabajos.textContent = AppUtils.formatCurrency(totalGeneral); elTrabajos.classList.add('text-3xl', 'md:text-5xl', 'font-black', 'text-navy-blue', 'tracking-tighter'); }
+            if (elAdelantos) { elAdelantos.textContent = AppUtils.formatCurrency(totalPagos); elAdelantos.classList.add('text-3xl', 'md:text-5xl', 'font-black', 'text-rose-600', 'tracking-tighter'); }
+            if (elPendiente) { elPendiente.textContent = AppUtils.formatCurrency(totalPendiente); elPendiente.classList.add('text-4xl', 'md:text-6xl', 'font-black', 'text-neon-green', 'tracking-tighter'); }
 
             // Guardar total pendiente actual para cálculos del modal
             window.currentNominaPendiente = totalPendiente;
@@ -956,7 +964,13 @@ window.recalcularSeleccionNomina = function () {
     const checkboxes = document.querySelectorAll('.work-checkbox:checked');
     let total = 0;
     checkboxes.forEach(cb => total += parseFloat(cb.dataset.monto));
-    document.getElementById('nomina-total-pendiente').textContent = AppUtils.formatCurrency(total);
+
+    const elPendiente = document.getElementById('nomina-total-pendiente');
+    if (elPendiente) elPendiente.textContent = AppUtils.formatCurrency(total);
+
+    const elTrabajos = document.getElementById('nomina-total-trabajos');
+    if (elTrabajos) elTrabajos.textContent = AppUtils.formatCurrency(total);
+
     window.currentNominaPendiente = total;
 };
 
@@ -1098,22 +1112,10 @@ window.toggleModoPago = function (el) {
 /**
  * Genera el PDF del recibo de pago
  */
-window.imprimirReciboPago = async function (pagoId) {
-    AppUtils.showToast("Generando comprobante...", "info");
-    try {
-        const res = await fetch(`${URLROOT}/reportes/generarReciboPagoPdf/${pagoId}`);
-        if (!res.ok) throw new Error("Error en servidor");
-
-        const result = await res.json();
-        if (result.success) {
-            window.open(result.pdf_url, '_blank');
-        } else {
-            AppUtils.showToast(result.mensaje, "error");
-        }
-    } catch (e) {
-        console.error("Error al imprimir recibo:", e);
-        AppUtils.showToast("No se pudo generar el documento", "error");
-    }
+window.imprimirReciboPago = function (pagoId) {
+    // Uniformidad: Abrimos el endpoint de impresión directa
+    AppUtils.showToast("Abriendo comprobante...", "info");
+    window.open(`${URLROOT}/reportes/imprimirRecibo/${pagoId}`, '_blank');
 };
 
 /**
@@ -1200,13 +1202,8 @@ window.verDetallePagoHistorial = async (id) => {
     } catch (e) { console.error(e); }
 };
 
-window.reimprimirPagoNomina = async (id) => {
-    AppUtils.showToast("Generando copia del recibo...", "info");
-    try {
-        const res = await fetch(`${URLROOT}/reportes/generarReciboPagoPdf/${id}?copia=true`);
-        const result = await res.json();
-        if (result.success) {
-            window.open(result.pdf_url, '_blank');
-        }
-    } catch (e) { console.error(e); }
+window.reimprimirPagoNomina = function (id) {
+    // Uniformidad: Abrimos el endpoint de impresión directa para copias históricas
+    AppUtils.showToast("Abriendo copia del recibo...", "info");
+    window.open(`${URLROOT}/reportes/imprimirRecibo/${id}`, '_blank');
 };

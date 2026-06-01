@@ -42,7 +42,7 @@ class ControllerGastos extends Controller {
 
                 $idGasto = $this->gastoModel->crear($input);
                 
-                if ($idGasto && $metodo === 'EFECTIVO') {
+                if ($idGasto !== false && $metodo === 'EFECTIVO') {
                     $this->cajaModel->registrarMovimiento([
                         'tipo' => 'EGRESO',
                         'monto' => $input['monto'],

@@ -17,7 +17,7 @@ class ModelGasto {
             $sql .= " AND g.fecha BETWEEN :desde AND :hasta";
         }
 
-        $sql .= " ORDER BY g.fecha DESC";
+        $sql .= " ORDER BY g.fecha DESC, g.id DESC";
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
@@ -64,7 +64,10 @@ class ModelGasto {
         $this->db->bind(':monto', $data['monto']);
         $this->db->bind(':metodo', $data['metodo_pago'] ?? 'EFECTIVO');
         $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
-        return $this->db->execute();
+        if ($this->db->execute()) {
+            return $this->db->lastInsertId();
+        }
+        return false;
     }
 
     public function eliminar($id) {

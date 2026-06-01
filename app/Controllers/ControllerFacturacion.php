@@ -20,6 +20,8 @@ class ControllerFacturacion extends Controller {
             'titulo' => 'Nueva Facturación',
             'iva_defecto' => $config->iva ?? 0,
             'usuario_actual' => $_SESSION['user_nombre'],
+            'user_role' => $_SESSION['user_role'],
+            'user_staff_id' => $_SESSION['user_staff_id'] ?? null,
             'staff' => $reportModel->obtenerStaffSimple()
         ];
 
@@ -54,6 +56,21 @@ class ControllerFacturacion extends Controller {
                 
                 $datos = json_decode(file_get_contents('php://input'), true);
                 
+                // Si el usuario es un MECANICO, forzamos que el mecanico_id sea el suyo automáticamente
+                if ($_SESSION['user_role'] === 'MECANICO') {
+                    $datos['mecanico_id'] = $_SESSION['user_staff_id'];
+                }
+
+                // Si el mecánico no viene en el JSON (posiblemente porque el select está oculto o no seleccionado),
+                // pero es una factura existente (borrador), intentamos rescatarlo de la base de datos.
+                $idReal = $datos['id_db'] ?? null;
+                if (empty($datos['mecanico_id']) && $idReal) {
+                    $borradorExistente = $this->facturaModel->obtenerBorradorPorId($idReal);
+                    if ($borradorExistente && !empty($borradorExistente->mecanico_id)) {
+                        $datos['mecanico_id'] = $borradorExistente->mecanico_id;
+                    }
+                }
+
                 $v = new Validator($datos);
                 $v->required(['items', 'pago_efectivo', 'pago_transferencia', 'mecanico_id'])
                   ->array('items');
@@ -142,6 +159,20 @@ class ControllerFacturacion extends Controller {
                 
                 $datos = json_decode(file_get_contents('php://input'), true);
                 
+                // Si el usuario es un MECANICO, forzamos que el mecanico_id sea el suyo en el borrador
+                if ($_SESSION['user_role'] === 'MECANICO') {
+                    $datos['mecanico_id'] = $_SESSION['user_staff_id'];
+                }
+
+                // Misma lógica para sincronizar borradores: mantener el mecánico si ya existe
+                $idReal = $datos['id_db'] ?? null;
+                if (empty($datos['mecanico_id']) && $idReal) {
+                    $borradorExistente = $this->facturaModel->obtenerBorradorPorId($idReal);
+                    if ($borradorExistente && !empty($borradorExistente->mecanico_id)) {
+                        $datos['mecanico_id'] = $borradorExistente->mecanico_id;
+                    }
+                }
+
                 // Cálculos rápidos para el borrador
                 $subtotal = 0;
                 foreach($datos['items'] as $it) {
@@ -236,25 +267,37 @@ class ControllerFacturacion extends Controller {
     }
 
     /**
-     * Sirve el PDF generado (URL: /facturacion/imprimir/archivo.pdf)
+     * Genera o sirve el PDF de la Factura (URL: /facturacion/imprimir/ID)
      */
-    public function imprimir($filename = null) {
-        if (!$filename) {
-            die("Documento no especificado.");
+    public function imprimir($id = null) {
+        if (!$id) {
+            die("ID de factura o archivo no proporcionado.");
         }
 
-        $filePath = APPROOT . '/../public/temp_pdfs/' . $filename;
-
-        if (file_exists($filePath)) {
-            header('Content-Type: application/pdf');
-            header('Content-Disposition: inline; filename="' . $filename . '"');
-            readfile($filePath);
-            // Optionally delete the file after serving
-            // unlink($filePath); // Consider a cron job for cleanup instead
-            exit;
-        } else {
-            die("El documento solicitado no se encontró.");
+        // 1. Si el parámetro es un nombre de archivo (contiene .pdf), intentamos servirlo directamente
+        if (strpos($id, '.pdf') !== false) {
+            $filePath = APPROOT . '/../public/temp_pdfs/' . $id;
+            if (file_exists($filePath)) {
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: inline; filename="' . $id . '"');
+                readfile($filePath);
+                exit;
+            }
         }
+
+        // 2. Si es un ID numérico o el archivo anterior no existe, generamos el PDF en tiempo real
+        $venta = $this->facturaModel->obtenerVentaCompleta($id);
+        if (!$venta) {
+            die("La factura #$id no existe o el documento solicitado no se encontró.");
+        }
+
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('factura', [
+            'titulo_documento' => 'Factura de Venta',
+            'documento_id' => $venta->id,
+            'venta' => $venta
+        ], 'Factura_' . $id . '.pdf'); // Stream to browser por defecto
+        exit;
     }
         /**
      * Procesa la petición AJAX para registrar un abono a una deuda de cliente.

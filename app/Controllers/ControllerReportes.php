@@ -53,7 +53,9 @@ class ControllerReportes extends Controller {
      * Endpoint para el reporte de Cartera por Edades
      */
     public function cartera() {
-        $res = $this->reporteModel->obtenerCarteraPorEdades();
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+        $res = $this->reporteModel->obtenerCarteraPorEdades($desde, $hasta);
         return $this->jsonResponse(['success' => true, 'data' => $res]);
     }
 
@@ -114,31 +116,48 @@ class ControllerReportes extends Controller {
     }
 
     /**
-     * Genera el comprobante de pago de nómina en PDF
+     * Genera o sirve el comprobante de pago de nómina en PDF (Uniforme con Facturación)
      */
-    public function generarReciboPagoPdf($id) {
+    public function imprimirRecibo($id = null) {
         RoleGuard::isAdmin();
-        $pago = $this->reporteModel->obtenerDetallePago($id);
-        if (!$pago) {
-            return $this->jsonResponse(['success' => false, 'mensaje' => 'Registro de pago no encontrado.'], 404);
+        if (!$id) die("ID de recibo no proporcionado.");
+
+        // 1. Si el parámetro es un nombre de archivo (.pdf), lo servimos directamente
+        if (strpos($id, '.pdf') !== false) {
+            $filePath = APPROOT . '/../public/temp_pdfs/' . $id;
+            if (file_exists($filePath)) {
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: inline; filename="' . $id . '"');
+                readfile($filePath);
+                exit;
+            }
         }
+
+        // 2. Si es un ID numérico, generamos el PDF en tiempo real usando el template uniformado
+        $pago = $this->reporteModel->obtenerDetallePago($id);
+        if (!$pago) die("El recibo de pago #$id no existe o el documento no se encontró.");
 
         $empresa = $this->model('Empresa')->obtenerConfiguracion();
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('recibo_pago', [
+            'titulo_documento' => 'Comprobante de Pago',
+            'empresa' => $empresa,
+            'pago' => $pago,
+            'documento_id' => $pago->id
+        ], 'Recibo_Nomina_' . $id . '.pdf'); // Stream directo al navegador
+        exit;
+    }
 
-        try {
-            $pdfService = new PdfService();
-            $filename = 'Recibo_Nomina_' . $id . '_' . time() . '.pdf';
-            $filePath = $pdfService->generarDocumento('recibo_pago', [
-                'titulo_documento' => 'Comprobante de Pago',
-                'empresa' => $empresa,
-                'pago' => $pago,
-                'documento_id' => $pago->id
-            ], $filename, false);
-
-            return $this->jsonResponse(['success' => true, 'pdf_url' => URLROOT . '/' . $filePath]);
-        } catch (Exception $e) {
-            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
-        }
+    /**
+     * Endpoint API para obtener el detalle de un pago de nómina para el modal de historial
+     */
+    public function detallePagoNomina($id) {
+        RoleGuard::isAdmin();
+        $pago = $this->reporteModel->obtenerDetallePago($id);
+        return $this->jsonResponse([
+            'success' => $pago ? true : false,
+            'data' => $pago
+        ]);
     }
 
     /**
