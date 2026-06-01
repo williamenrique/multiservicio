@@ -1,14 +1,12 @@
 <style>
-    .report-title { text-align: center; margin-bottom: 20px; text-transform: uppercase; font-weight: bold; font-size: 16px; border-bottom: 2px solid #e11d48; padding-bottom: 5px; color: #e11d48; }
     .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; }
     .table th { background-color: #fef2f2; text-transform: uppercase; font-weight: bold; color: #b91c1c; }
     .text-right { text-align: right; }
-    .period { font-size: 11px; margin-bottom: 10px; color: #555; font-weight: bold; }
+    .period { font-size: 11px; margin-bottom: 20px; color: #64748b; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
     .total-row { background-color: #fef2f2; font-weight: bold; }
 </style>
 
-<div class="report-title"><?php echo $data['titulo_documento']; ?></div>
 <div class="period">PERIODO: <?php echo date('d/m/Y', strtotime($data['desde'])); ?> AL <?php echo date('d/m/Y', strtotime($data['hasta'])); ?></div>
 
 <table class="table">

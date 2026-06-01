@@ -175,7 +175,8 @@ class ControllerReportes extends Controller {
             'titulo_documento' => 'Auditoría de Trabajos Realizados',
             'ventas' => array_values($ventas),
             'desde' => $desde,
-            'hasta' => $hasta
+            'hasta' => $hasta,
+            'documento_id' => 'REPORTE'
         ], 'Reporte_Auditoria_' . date('Ymd_His') . '.pdf');
         exit;
     }
