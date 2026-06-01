@@ -360,14 +360,6 @@
             </div>
         </div>
     </div>
-
-
-
-    <div class="flex justify-end pt-4">
-        <button onclick="window.print()" class="text-[10px] font-bold bg-slate-800 text-white px-6 py-2 rounded-xl flex items-center gap-2 hover:bg-black transition-all">
-            <i data-lucide="printer" class="w-4 h-4"></i> IMPRIMIR REPORTE
-        </button>
-    </div>
 </div>
 <script>
     // Definir URLROOT para que esté disponible en los scripts de reportes

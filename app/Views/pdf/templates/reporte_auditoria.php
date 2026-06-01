@@ -1,5 +1,3 @@
-<?php require APPROOT . '/Views/pdf/inc/header.php'; ?>
-
 <style>
     .report-title { text-align: center; margin-bottom: 20px; text-transform: uppercase; font-weight: bold; font-size: 16px; border-bottom: 2px solid #000; padding-bottom: 5px; }
     .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -30,7 +28,7 @@
         $totalGeneral = 0;
         if(!empty($data['ventas'])):
             foreach ($data['ventas'] as $v): 
-                $totalGeneral += $v->total;
+                $totalGeneral += (float)($v->subtotal_item ?? 0);
         ?>
             <tr>
                 <td>#<?php echo $v->id; ?></td>
@@ -38,8 +36,8 @@
                 <td><?php echo $v->placa; ?></td>
                 <td><?php echo $v->modelo_vehiculo; ?></td>
                 <td><?php echo $v->cliente_nombre; ?></td>
-                <td><?php echo $v->mecanico_nombre ?? $v->usuario_nombre; ?></td>
-                <td class="text-right">$ <?php echo number_format($v->total, 2, ',', '.'); ?></td>
+                <td><?php echo $v->descripcion; ?></td>
+                <td class="text-right">$ <?php echo number_format($v->subtotal_item, 2, ',', '.'); ?></td>
             </tr>
         <?php endforeach; else: ?>
             <tr><td colspan="7" style="text-align:center">No se encontraron registros en este periodo.</td></tr>
@@ -52,5 +50,3 @@
         </tr>
     </tfoot>
 </table>
-
-<?php require APPROOT . '/Views/pdf/inc/footer.php'; ?>

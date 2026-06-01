@@ -1,5 +1,3 @@
-<?php require APPROOT . '/Views/pdf/inc/header.php'; ?>
-
 <style>
     .report-title { text-align: center; margin-bottom: 20px; text-transform: uppercase; font-weight: bold; font-size: 16px; border-bottom: 2px solid #e11d48; padding-bottom: 5px; color: #e11d48; }
     .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -46,5 +44,3 @@
         </tr>
     </tfoot>
 </table>
-
-<?php require APPROOT . '/Views/pdf/inc/footer.php'; ?>

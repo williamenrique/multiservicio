@@ -713,12 +713,6 @@ window.verDetalleVenta = async (ventaId) => {
                             <span class="text-2xl font-black">${AppUtils.formatCurrency(venta.total || 0)}</span>
                         </div>
                     </div>
-                    
-                    <div class="flex gap-3">
-                        <button onclick="window.printVenta(${venta.id})" class="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2 hover:bg-slate-200 transition-all">
-                            <i data-lucide="printer" class="w-4 h-4"></i> Imprimir Comprobante
-                        </button>
-                    </div>
                 </div>
             `,
             showConfirmButton: false,
@@ -745,7 +739,6 @@ window.imprimirAuditoriaCompleta = () => {
     window.open(`${URLROOT}/reportes/imprimirAuditoria?desde=${desde}&hasta=${hasta}&q=${search}`, '_blank');
 };
 
-/**
 /**
  * Genera el reporte PDF de Gastos (Listado filtrado)
  */
@@ -1116,30 +1109,15 @@ window.openModalPago = async function () {
             };
         }
     });
-
-    if (formValues) {
-        try {
-            const res = await fetch(`${URLROOT}/reportes/registrarPagoNomina`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
-                body: JSON.stringify(formValues)
-            });
-            const result = await res.json();
-            if (result.success) {
-                AppUtils.showToast("Liquidación procesada correctamente", "success");
-                cargarNomina();
-            }
-        } catch (e) { console.error(e); }
-    }
 };
 
 /**
- * Realiza el cálculo en tiempo real dentro del modal
+ * Realiza el cálculo en tiempo real dentro del modal de pago
  */
 window.recalcularVistaPreviaPago = function () {
     const base = window.currentNominaPendiente || 0;
-    const factor = parseFloat(document.getElementById('pago-factor').value) || 0;
-    const isPorcentaje = document.getElementById('pago-modo-switch').checked;
+    const factor = parseFloat(document.getElementById('pago-factor')?.value) || 0;
+    const isPorcentaje = document.getElementById('pago-modo-switch')?.checked;
     const previewEl = document.getElementById('pago-total-preview');
 
     let total = isPorcentaje ? (base * (factor / 100)) : factor;
@@ -1158,13 +1136,13 @@ window.toggleModoPago = function (el) {
     const inputFactor = document.getElementById('pago-factor');
 
     if (el.checked) {
-        labelModo.innerText = "Porcentaje (%)";
-        labelFactor.innerText = "Porcentaje a aplicar (%)";
-        inputFactor.placeholder = "Ej: 30";
+        if (labelModo) labelModo.innerText = "Porcentaje (%)";
+        if (labelFactor) labelFactor.innerText = "Porcentaje a aplicar (%)";
+        if (inputFactor) inputFactor.placeholder = "Ej: 30";
     } else {
-        labelModo.innerText = "Monto Fijo";
-        labelFactor.innerText = "Monto a Cancelar ($)";
-        inputFactor.placeholder = "0.00";
+        if (labelModo) labelModo.innerText = "Monto Fijo";
+        if (labelFactor) labelFactor.innerText = "Monto a Cancelar ($)";
+        if (inputFactor) inputFactor.placeholder = "0.00";
     }
     window.recalcularVistaPreviaPago();
 };
@@ -1173,7 +1151,6 @@ window.toggleModoPago = function (el) {
  * Genera el PDF del recibo de pago
  */
 window.imprimirReciboPago = function (pagoId) {
-    // Uniformidad: Abrimos el endpoint de impresión directa
     AppUtils.showToast("Abriendo comprobante...", "info");
     window.open(`${URLROOT}/reportes/imprimirRecibo/${pagoId}`, '_blank');
 };
@@ -1194,27 +1171,27 @@ window.cargarHistorialNomina = async () => {
 
         if (result.success && result.data) {
             tbody.innerHTML = result.data.length > 0 ? result.data.map(p => `
-                <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
-                    <td class="px-4 py-4 font-mono text-xs text-slate-500">#${p.id}</td>
-                    <td class="px-4 py-4 text-sm font-bold text-slate-600">${new Date(p.fecha).toLocaleDateString()}</td>
-                    <td class="px-4 py-4">
-                        <div class="flex flex-col">
-                            <span class="text-sm font-black text-navy-blue uppercase">${p.staff_nombre}</span>
-                            <span class="text-[10px] text-slate-400 font-bold uppercase">${p.staff_cargo}</span>
-                        </div>
-                    </td>
-                    <td class="px-4 py-4">
-                        <span class="px-2 py-0.5 rounded text-[9px] font-black ${p.tipo === 'ADELANTO' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} uppercase">${p.tipo}</span>
-                    </td>
-                    <td class="px-4 py-4 text-right font-black text-navy-blue">${AppUtils.formatCurrency(p.monto)}</td>
-                    <td class="px-4 py-4 text-right">
-                        <div class="flex justify-end gap-2">
-                            <button onclick="verDetallePagoHistorial(${p.id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Resumen"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                            <button onclick="reimprimirPagoNomina(${p.id})" class="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Reimprimir Copia"><i data-lucide="printer" class="w-4 h-4"></i></button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('') : '<tr><td colspan="6" class="p-12 text-center text-slate-400 italic font-bold uppercase tracking-widest">No hay pagos registrados en este periodo</td></tr>';
+            <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+                <td class="px-4 py-4 font-mono text-xs text-slate-500">#${p.id}</td>
+                <td class="px-4 py-4 text-sm font-bold text-slate-600">${new Date(p.fecha).toLocaleDateString()}</td>
+                <td class="px-4 py-4">
+                    <div class="flex flex-col">
+                        <span class="text-sm font-black text-navy-blue uppercase">${p.staff_nombre}</span>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase">${p.staff_cargo}</span>
+                    </div>
+                </td>
+                <td class="px-4 py-4">
+                    <span class="px-2 py-0.5 rounded text-[9px] font-black ${p.tipo === 'ADELANTO' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} uppercase">${p.tipo}</span>
+                </td>
+                <td class="px-4 py-4 text-right font-black text-navy-blue">${AppUtils.formatCurrency(p.monto)}</td>
+                <td class="px-4 py-4 text-right">
+                    <div class="flex justify-end gap-2">
+                        <button onclick="verDetallePagoHistorial(${p.id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Resumen"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button onclick="reimprimirPagoNomina(${p.id})" class="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Reimprimir Copia"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `).join('') : '<tr><td colspan="6" class="p-12 text-center text-slate-400 italic font-bold uppercase tracking-widest">No hay pagos registrados en este periodo</td></tr>';
 
             if (window.lucide) lucide.createIcons();
         }

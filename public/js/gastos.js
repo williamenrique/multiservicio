@@ -35,6 +35,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Inyectar botón de impresión al lado del buscador de gastos
+    const searchExpenses = document.getElementById('searchExpenses');
+    if (searchExpenses) {
+        const wrapper = searchExpenses.parentElement;
+        if (wrapper && !document.getElementById('btn-print-expenses-direct')) {
+            const btn = document.createElement('button');
+            btn.id = 'btn-print-expenses-direct';
+            btn.type = 'button';
+            btn.onclick = () => {
+                const desde = document.getElementById('exp-desde')?.value || '';
+                const hasta = document.getElementById('exp-hasta')?.value || '';
+                const q = searchExpenses.value || '';
+                window.open(`${URLROOT}/reportes/imprimirGastos?desde=${desde}&hasta=${hasta}&q=${q}`, '_blank');
+            };
+            btn.className = "p-2.5 bg-navy-blue text-neon-green rounded-xl hover:bg-slate-800 transition-all shadow-sm flex items-center justify-center group flex-shrink-0";
+            btn.title = "Imprimir Reporte de Gastos";
+            btn.innerHTML = '<i data-lucide="printer" class="w-5 h-5"></i>';
+            wrapper.classList.add('flex', 'items-center', 'gap-2');
+            wrapper.appendChild(btn);
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+
     // Listeners para actualizar la tabla automáticamente al cambiar el rango de fechas
     document.getElementById('exp-desde')?.addEventListener('change', () => window.handler_gastos.reload());
     document.getElementById('exp-hasta')?.addEventListener('change', () => window.handler_gastos.reload());
