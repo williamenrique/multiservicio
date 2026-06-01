@@ -1,12 +1,3 @@
-LISTO A. Estabilidad y Seguridad (Cimientos)
-    Middleware CSRF Global: Actualmente, el token se valida en el Login, pero no en todas las peticiones POST/PUT/DELETE. Implementar una verificación automática protegería todo el sistema de ataques de falsificación.
-    Manejador Global de Excepciones: Crear un "Exception Handler" centralizado para que cualquier error (BD, Stock, Permisos) devuelva siempre un JSON estandarizado al frontend, evitando que el sistema "muera" en silencio.
-    Refactorización de Servicios: Mover el 100% de la lógica de negocio que aún queda en los modelos (como el cálculo de utilidad o stock) hacia clases de Servicio, dejando los modelos solo para consultas SQL puras.
-
-LIST B. Inteligencia de Negocio (Reportes y Finanzas)
-    Reporte de Cartera por Edades: Una vista que clasifique las deudas de clientes en: 0-15 días, 16-30 días y +30 días, facilitando la gestión de cobranza.
-    Análisis de Rentabilidad por Servicio: Calcular cuánto se gana realmente en mano de obra vs. repuestos, permitiendo saber qué servicios son los más rentables del taller.
-    Cierre de Caja Ciego: Implementar un proceso donde el cajero debe ingresar cuánto dinero físico tiene antes de que el sistema le muestre cuánto "debería" haber (evitando ajustes manuales malintencionados).
 
 C. Experiencia del Cliente (Fidelización)
 Notificaciones Automáticas vía WhatsApp/Email: Integrar una API para notificar al cliente automáticamente cuando su vehículo pase de "En Reparación" a "Listo para Entrega".
@@ -24,6 +15,4 @@ Punto a Mejorar: Hay una mezcla de lógica de presentación (generación de HTML
     
     6 Cierre de Caja Diario: Un proceso donde el sistema "congele" los movimientos del día y genere un reporte comparativo entre el dinero esperado en sistema y el dinero físico reportado por el cajero.
 
-c- Observaciones en Frontend (JS)
-    Refactorización de Tablas: La transición que hiciste en personal.js eliminando DataTable por una carga manual es muy limpia y mejora el rendimiento. Esta misma lógica debería replicarse en el historial de devoluciones y auditoría de trabajos para mantener la coherencia visual.
-    Debounce en Búsquedas: La implementación del searchTimeout es un gran acierto para no saturar el servidor.
+hay que revisar cartera de clientes deudasdashboard muetra que hay dos clientes con deudas y solo muestra uno en la tarjeta
