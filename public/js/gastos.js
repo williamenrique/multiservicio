@@ -1,18 +1,25 @@
 document.addEventListener('DOMContentLoaded', async () => {
     // Instancia unificada de la tabla de gastos
-    new DataTableRefactor({
-        tableId: 'gastos',
-        tableBodyId: 'tableBodyGastos',
+    window.handler_gastos = new DataTableRefactor({
+        tableId: 'expensesTable',
+        tableBodyId: 'expensesBody',
         endpoint: `${URLROOT}/gastos/listar`,
         searchInputId: 'searchExpenses',
         limitSelectorId: 'limitSelector',
         paginationId: 'paginationControls',
         totalId: 'totalCount',
+        noDataMessage: 'No hay gastos registrados en esta fecha',
+        getExtraParams: () => ({
+            desde: document.getElementById('exp-desde')?.value,
+            hasta: document.getElementById('exp-hasta')?.value
+        }),
         renderRow: (item) => {
+            // Evitar desfase de zona horaria reemplazando '-' por '/'
+            const localDate = new Date(item.fecha.replace(/-/g, '\/'));
             return `
                 <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300">
                     <td class="px-8 py-5 text-[11px] font-bold text-slate-500 uppercase tracking-tighter align-middle">
-                        ${new Date(item.fecha).toLocaleDateString('es-CO', { dateStyle: 'medium' })}
+                        ${localDate.toLocaleDateString('es-CO', { dateStyle: 'medium' })}
                     </td>
                     <td class="px-8 py-5 font-bold text-slate-700 uppercase tracking-tight align-middle">${item.descripcion}</td>
                     <td class="px-8 py-5 align-middle">
@@ -27,6 +34,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </tr>`;
         }
     });
+
+    // Listeners para actualizar la tabla automáticamente al cambiar el rango de fechas
+    document.getElementById('exp-desde')?.addEventListener('change', () => window.handler_gastos.reload());
+    document.getElementById('exp-hasta')?.addEventListener('change', () => window.handler_gastos.reload());
 });
 
 window.openExpenseModal = async function () { // Hacer la función asíncrona

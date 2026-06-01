@@ -17,10 +17,12 @@ class ControllerGastos extends Controller {
         $search = $_GET['q'] ?? null;
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
         $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+        $desde = $_GET['desde'] ?? null;
+        $hasta = $_GET['hasta'] ?? null;
 
-        $items = $this->gastoModel->listar($limit, $offset, $search);
+        $items = $this->gastoModel->listar($limit, $offset, $search, $desde, $hasta);
         $total = $this->gastoModel->contarTotal();
-        $totalFiltrados = $search ? $this->gastoModel->contarFiltrados($search) : $total;
+        $totalFiltrados = ($search || $desde || $hasta) ? $this->gastoModel->contarFiltrados($search, $desde, $hasta) : $total;
 
         return $this->jsonResponse([
             'success' => true,
@@ -50,9 +52,9 @@ class ControllerGastos extends Controller {
                     ]);
                 }
 
-                $this->jsonResponse(['success' => true]);
+                return $this->jsonResponse(['success' => true]);
             } catch (Exception $e) {
-                $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
+                return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
             }
         }
     }
@@ -60,9 +62,9 @@ class ControllerGastos extends Controller {
     public function eliminar($id) {
         RoleGuard::isAdmin();
         if ($this->gastoModel->eliminar($id)) {
-            $this->jsonResponse(['success' => true]);
+            return $this->jsonResponse(['success' => true]);
         } else {
-            $this->jsonResponse(['success' => false], 400);
+            return $this->jsonResponse(['success' => false], 400);
         }
     }
 }

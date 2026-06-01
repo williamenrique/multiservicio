@@ -16,11 +16,13 @@ class DataTableRefactor {
         this.displayStart = document.getElementById(config.startId) || document.getElementById('startIndex');
         this.displayEnd = document.getElementById(config.endId) || document.getElementById('endIndex');
 
+        this.noDataMessage = config.noDataMessage || 'No se encontraron registros';
+        this.getExtraParams = config.getExtraParams || null;
+
         this.state = {
             page: 1,
             limit: parseInt(this.limitSelector?.value) || 10,
-            search: '',
-            extraParams: config.extraParams || {}
+            search: ''
         };
 
         if (!this.tableBody) {
@@ -57,11 +59,15 @@ class DataTableRefactor {
         this.tableBody.innerHTML = `<tr><td colspan="20" class="px-8 py-12 text-center text-slate-400 italic animate-pulse">CARGANDO...</td></tr>`;
 
         const offset = (this.state.page - 1) * this.state.limit;
+        const dynamicParams = typeof this.getExtraParams === 'function' ? this.getExtraParams() : {};
+
+        console.log(`[DataTable] Disparando recarga para ${this.tableId}:`, { q: this.state.search, ...dynamicParams });
+
         const params = new URLSearchParams({
             q: this.state.search,
             limit: this.state.limit,
             offset: offset,
-            ...this.state.extraParams
+            ...dynamicParams
         });
 
         try {
@@ -80,8 +86,9 @@ class DataTableRefactor {
     }
 
     render(data) {
+        console.log(`[DataTable] Renderizando ${data.length} registros para ${this.tableId}`);
         this.tableBody.innerHTML = data.length === 0
-            ? `<tr><td colspan="20" class="px-8 py-12 text-center text-slate-400 italic">No se encontraron registros</td></tr>`
+            ? `<tr><td colspan="100%" class="px-8 py-24 text-center text-slate-400 italic font-bold uppercase tracking-widest bg-slate-50/30 border-none">${this.noDataMessage}</td></tr>`
             : data.map(item => this.renderRow(item)).join('');
         if (window.lucide) lucide.createIcons();
     }

@@ -104,6 +104,16 @@ class ControllerReportes extends Controller {
     }
 
     /**
+     * Retorna el historial de pagos de nómina realizados.
+     */
+    public function historialPagosNomina() {
+        $desde = $_GET['desde'] ?? date('Y-m-01');
+        $hasta = $_GET['hasta'] ?? date('Y-m-d');
+        $res = $this->reporteModel->obtenerHistorialPagosNomina($desde, $hasta);
+        return $this->jsonResponse(['success' => true, 'data' => $res]);
+    }
+
+    /**
      * Genera el comprobante de pago de nómina en PDF
      */
     public function generarReciboPagoPdf($id) {
