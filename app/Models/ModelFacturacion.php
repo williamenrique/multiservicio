@@ -158,18 +158,41 @@ class ModelFacturacion {
      * Lista las ventas realizadas por mostrador (sin placa vinculada)
      * para el historial específico de repuestos.
      */
-    public function obtenerVentasMostrador($limit = 10, $offset = 0) {
+    public function obtenerVentasMostrador($limit = 10, $offset = 0, $search = null, $desde = null, $hasta = null) {
+        $where = "WHERE (v.placa = '' OR v.placa IS NULL) AND v.status IN ('COMPLETADO', 'CREDITO')";
+        
+        if ($search) {
+            $where .= " AND (v.id LIKE :search OR c.nombre LIKE :search)";
+        }
+        if ($desde) {
+            $where .= " AND DATE(v.fecha) >= :desde";
+        }
+        if ($hasta) {
+            $where .= " AND DATE(v.fecha) <= :hasta";
+        }
+
+        // Obtener total de registros filtrados
+        $this->db->query("SELECT COUNT(*) as total FROM table_ventas v LEFT JOIN table_clientes c ON v.cliente_id = c.id $where");
+        if ($search) $this->db->bind(':search', "%$search%");
+        if ($desde) $this->db->bind(':desde', $desde);
+        if ($hasta) $this->db->bind(':hasta', $hasta);
+        $total = (int)$this->db->single()->total;
+
+        // Obtener los datos paginados
         $this->db->query("SELECT v.*, c.nombre as cliente_nombre, 
                           (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id AND producto_id IS NOT NULL) as cant_productos
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE (v.placa = '' OR v.placa IS NULL)
-                          AND v.status IN ('COMPLETADO', 'CREDITO')
+                          $where
                           ORDER BY v.fecha DESC 
                           LIMIT :limit OFFSET :offset");
+        if ($search) $this->db->bind(':search', "%$search%");
+        if ($desde) $this->db->bind(':desde', $desde);
+        if ($hasta) $this->db->bind(':hasta', $hasta);
         $this->db->bind(':limit', (int)$limit);
         $this->db->bind(':offset', (int)$offset);
-        return $this->db->resultSet();
+        
+        return ['data' => $this->db->resultSet(), 'total' => $total];
     }
 
     /**

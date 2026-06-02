@@ -57,6 +57,22 @@
                     <i data-lucide="history" class="w-4 h-4 text-slate-400"></i>
                     <h6 class="text-sm font-bold text-slate-700">Últimas Ventas de Mostrador</h6>
                 </div>
+                
+                <!-- Controles de Filtro -->
+                <div class="p-6 bg-slate-50/50 border-b border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="relative">
+                        <input type="text" id="historialSearch" class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/20 outline-none" placeholder="Buscar ID o Cliente...">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                    </div>
+                    <input type="date" id="historialDesde" class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/20 outline-none">
+                    <input type="date" id="historialHasta" class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/20 outline-none">
+                    <select id="historialLimit" class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/20 outline-none">
+                        <option value="10">10 registros</option>
+                        <option value="25">25 registros</option>
+                        <option value="50">50 registros</option>
+                    </select>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-base text-left text-slate-600">
                         <thead class="bg-slate-50/50 text-sm">
@@ -72,6 +88,19 @@
                             <!-- Cargado por historial() -->
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Paginación -->
+                <div class="p-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+                    <p class="text-xs font-bold text-slate-500 uppercase" id="historialInfo">Mostrando 0 de 0 ventas</p>
+                    <div class="flex gap-2">
+                        <button id="btnPrevHistorial" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                        </button>
+                        <button id="btnNextHistorial" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -207,6 +236,48 @@ document.addEventListener('DOMContentLoaded', function() {
     const hiddenCliId = document.getElementById('clienteId');
     const inputBusqueda = document.getElementById('buscarProducto');
     const resultados = document.getElementById('resultadosBusqueda');
+
+    // Inicialización del Motor de Tablas centralizado (Se mueve arriba para estar disponible)
+    const historialTable = new DataTableRefactor({
+        selector: '#cuerpoHistorial',
+        apiUrl: `${URLROOT}/venta/historial`,
+        perPageSelect: '#historialLimit',
+        searchInput: '#historialSearch',
+        dateFromInput: '#historialDesde',
+        dateToInput: '#historialHasta',
+        prevButton: '#btnPrevHistorial',
+        nextButton: '#btnNextHistorial',
+        infoDisplay: '#historialInfo',
+        renderCallback: (data) => {
+            const cuerpo = document.getElementById('cuerpoHistorial');
+            cuerpo.innerHTML = data.length > 0 ? data.map(v => `
+                <tr class="hover:bg-slate-50/50 transition-colors">
+                    <td class="px-6 py-5 font-black text-slate-800 text-lg">#${v.id}</td>
+                    <td class="px-6 py-5 text-slate-500 text-sm font-bold uppercase">${v.fecha}</td>
+                    <td class="px-6 py-5 text-slate-700 font-bold text-base uppercase">${v.cliente_nombre || 'CLIENTE MOSTRADOR'}</td>
+                    <td class="px-6 py-5 text-right font-black text-green-600 text-lg">$ ${parseFloat(v.total).toLocaleString()}</td>
+                    <td class="px-6 py-5 text-center">
+                        <button class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors" 
+                                onclick="window.open('${URLROOT}/venta/imprimirFactura/${v.id}', '_blank')">
+                            <i data-lucide="printer" class="w-5 h-5"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('') : `<tr><td colspan="5" class="px-6 py-12 text-center text-slate-400 italic">No se encontraron ventas en este periodo.</td></tr>`;
+            
+            if (window.lucide) lucide.createIcons();
+        }
+    });
+
+    // Inicializar fechas con el mes cursante
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
+    
+    document.getElementById('historialDesde').value = `${year}-${month}-01`;
+    document.getElementById('historialHasta').value = today;
 
     // Manejo de botones de pago
     document.querySelectorAll('.payment-method').forEach(btn => {
@@ -366,6 +437,7 @@ document.addEventListener('DOMContentLoaded', function() {
         inputCliSearch.value = '';
         inputBusqueda.value = '';
         renderizar();
+        historialTable.reload();
     };
 
     window.cerrarModalExito = () => {
@@ -444,34 +516,11 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('modalVentaExitosa').classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
             
-            limpiarVenta();
-            cargarHistorial();
+            // Limpiar app y refrescar tabla sin recargar página
+            carrito = [];
+            renderizar();
+            historialTable.reload();
         }
     };
-
-    // Historial
-    window.cargarHistorial = async function() {
-        const res = await fetch('<?php echo URLROOT; ?>/venta/historial');
-        const json = await res.json();
-        const cuerpo = document.getElementById('cuerpoHistorial');
-        cuerpo.innerHTML = '';
-        json.data.forEach(v => {
-            cuerpo.innerHTML += `
-                <tr class="hover:bg-slate-50/50 transition-colors">
-                    <td class="px-6 py-4 font-bold text-slate-800">#${v.id}</td>
-                    <td class="px-6 py-4 text-slate-500 text-xs font-bold">${v.fecha}</td>
-                    <td class="px-6 py-4 text-slate-700 font-medium">${v.cliente_nombre || 'CLIENTE MOSTRADOR'}</td>
-                    <td class="px-6 py-4 text-right font-black text-green-600">$ ${v.total}</td>
-                    <td class="px-6 py-4 text-center">
-                        <button class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors" onclick="window.open('<?php echo URLROOT; ?>/venta/imprimirFactura/${v.id}', '_blank')">
-                            <i data-lucide="printer" class="w-4 h-4"></i>
-                        </button>
-                    </td>
-                </tr>`;
-        });
-        if (window.lucide) lucide.createIcons();
-    };
-
-    cargarHistorial();
 });
 </script>

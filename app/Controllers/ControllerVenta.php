@@ -31,11 +31,16 @@ class ControllerVenta extends Controller {
     public function historial() {
         $limit = $_GET['limit'] ?? 10;
         $offset = $_GET['offset'] ?? 0;
-        $ventas = $this->facturaModel->obtenerVentasMostrador($limit, $offset);
+        $search = $_GET['q'] ?? null;
+        $desde = $_GET['desde'] ?? null;
+        $hasta = $_GET['hasta'] ?? null;
+        
+        $res = $this->facturaModel->obtenerVentasMostrador($limit, $offset, $search, $desde, $hasta);
         
         return $this->jsonResponse([
             'success' => true,
-            'data' => $ventas
+            'data' => $res['data'],
+            'total' => $res['total']
         ]);
     }
 
