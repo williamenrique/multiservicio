@@ -155,6 +155,24 @@ class ModelFacturacion {
     }
 
     /**
+     * Lista las ventas realizadas por mostrador (sin placa vinculada)
+     * para el historial específico de repuestos.
+     */
+    public function obtenerVentasMostrador($limit = 10, $offset = 0) {
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, 
+                          (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id AND producto_id IS NOT NULL) as cant_productos
+                          FROM table_ventas v
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE (v.placa = '' OR v.placa IS NULL)
+                          AND v.status IN ('COMPLETADO', 'CREDITO')
+                          ORDER BY v.fecha DESC 
+                          LIMIT :limit OFFSET :offset");
+        $this->db->bind(':limit', (int)$limit);
+        $this->db->bind(':offset', (int)$offset);
+        return $this->db->resultSet();
+    }
+
+    /**
      * Métodos de gestión de borradores requeridos por el controlador
      */
     public function obtenerBorradorPorId($id) {

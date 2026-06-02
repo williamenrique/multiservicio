@@ -43,6 +43,9 @@
                 <div class="mt-4">
                     <p class="text-xs uppercase text-gray-500 px-3 mb-2">Gestión</p>
                     <?php if($_SESSION['user_role'] === 'ADMINISTRADOR'): ?>
+                    <a href="<?php echo URLROOT; ?>/venta" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'venta') === 0) ? 'active' : ''; ?>" data-section="venta">
+                        <i data-lucide="shopping-cart"></i> <span>Venta Repuestos</span>
+                    </a>
                     <a href="<?php echo URLROOT; ?>/inventario" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'inventario') !== false) ? 'active' : ''; ?>" data-section="inventario">
                         <i data-lucide="package"></i> <span>Inventario</span>
                     </a>

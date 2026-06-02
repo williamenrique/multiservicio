@@ -1,0 +1,301 @@
+<div id="ventaMostradorApp" class="max-w-7xl mx-auto">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Panel de Venta -->
+        <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-100 rounded-lg">
+                            <i data-lucide="shopping-cart" class="w-5 h-5 text-blue-600"></i>
+                        </div>
+                        <h5 class="text-lg font-bold text-slate-800">Nueva Venta de Repuestos</h5>
+                    </div>
+                    <span class="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-full uppercase tracking-wider">Administrador</span>
+                </div>
+                <div class="p-6">
+                    <!-- Buscador de Productos -->
+                    <div class="position-relative mb-4">
+                        <div class="relative group">
+                            <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                                <i data-lucide="search" class="w-5 h-5"></i>
+                            </span>
+                            <input type="text" id="buscarProducto" class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm" 
+                                   placeholder="Escriba nombre, código o categoría del repuesto..." autocomplete="off">
+                        </div>
+                        <div id="resultadosBusqueda" class="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-2xl border border-slate-100 hidden max-h-80 overflow-y-auto overflow-x-hidden">
+                            <!-- Resultados vía AJAX -->
+                        </div>
+                    </div>
+
+                    <!-- Tabla de Items -->
+                    <div class="overflow-x-auto min-h-[350px]">
+                        <table class="w-full text-sm text-left text-slate-600" id="tablaVenta">
+                            <thead class="text-xs text-slate-400 uppercase bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-3 font-semibold">Repuesto</th>
+                                    <th class="px-4 py-3 font-semibold text-center" width="100">Cant.</th>
+                                    <th class="px-4 py-3 font-semibold text-right" width="120">Precio</th>
+                                    <th class="px-4 py-3 font-semibold text-right" width="120">Subtotal</th>
+                                    <th class="px-4 py-3" width="50"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="listaItems" class="divide-y divide-slate-100">
+                                <!-- Items cargados dinámicamente -->
+                            </tbody>
+                        </table>
+                        <div id="vacioPlaceholder" class="flex flex-col items-center justify-center py-20 text-slate-400">
+                            <i data-lucide="package-open" class="w-16 h-16 mb-4 opacity-20"></i>
+                            <p class="text-sm font-medium">No hay productos en la venta actual</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historial Reciente de Mostrador -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                    <i data-lucide="history" class="w-4 h-4 text-slate-400"></i>
+                    <h6 class="text-sm font-bold text-slate-700">Últimas Ventas de Mostrador</h6>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left text-slate-600">
+                        <thead class="bg-slate-50/50">
+                            <tr>
+                                <th class="px-6 py-3">ID</th>
+                                <th class="px-6 py-3">Fecha</th>
+                                <th class="px-6 py-3">Cliente</th>
+                                <th class="px-6 py-3 text-right">Total</th>
+                                <th class="px-6 py-3 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cuerpoHistorial" class="divide-y divide-slate-100">
+                            <!-- Cargado por historial() -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar de Totales -->
+        <div class="space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-24">
+                <h6 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Resumen de Operación</h6>
+                
+                <!-- Selección de Cliente -->
+                <div class="mb-6">
+                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">Cliente</label>
+                    <select id="clienteId" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/10 text-sm appearance-none">
+                        <option value="">VENTA DE MOSTRADOR (CONTADO)</option>
+                        <?php foreach($data['clientes'] as $c): ?>
+                            <option value="<?php echo $c->id; ?>"><?php echo $c->nombre; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="space-y-3 py-6 border-y border-slate-100">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-400">Subtotal:</span>
+                        <span id="txtSubtotal" class="font-bold text-slate-700">$ 0.00</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-400">Impuestos (IVA):</span>
+                        <span id="txtIva" class="font-bold text-slate-700">$ 0.00</span>
+                    </div>
+                    <div class="flex justify-between items-center pt-4">
+                        <span class="text-lg font-bold text-slate-800">TOTAL</span>
+                        <span id="txtTotal" class="text-2xl font-black text-blue-600">$ 0.00</span>
+                    </div>
+                </div>
+
+                <!-- Métodos de Pago -->
+                <div class="mt-6 mb-8">
+                    <label class="block text-xs font-bold text-slate-500 mb-3 uppercase tracking-tighter">Método de Pago</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button type="button" class="payment-method active flex flex-col items-center justify-center p-3 border-2 rounded-xl transition-all gap-1 group" data-type="EFECTIVO">
+                            <i data-lucide="banknote" class="w-5 h-5 group-[.active]:text-blue-600"></i>
+                            <span class="text-[10px] font-bold uppercase group-[.active]:text-blue-700">Efectivo</span>
+                        </button>
+                        <button type="button" class="payment-method flex flex-col items-center justify-center p-3 border-2 rounded-xl border-slate-100 transition-all gap-1 group text-slate-400" data-type="TRANSFERENCIA">
+                            <i data-lucide="landmark" class="w-5 h-5 group-[.active]:text-blue-600"></i>
+                            <span class="text-[10px] font-bold uppercase group-[.active]:text-blue-700">Transferencia</span>
+                        </button>
+                    </div>
+                </div>
+
+                <button id="btnProcesar" class="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2" disabled>
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    COMPLETAR VENTA
+                </button>
+                
+                <button class="w-full mt-4 py-2 text-slate-400 hover:text-slate-600 text-xs font-bold flex items-center justify-center gap-2 transition-colors" onclick="window.location.reload()">
+                    <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                    LIMPIAR FORMULARIO
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .payment-method.active { border-color: #2563eb; background-color: #eff6ff; color: #1e40af; }
+    .payment-method:not(.active) { border-color: #f1f5f9; }
+    .payment-method:not(.active):hover { border-color: #e2e8f0; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.lucide) lucide.createIcons();
+
+    let carrito = [];
+    const inputBusqueda = document.getElementById('buscarProducto');
+    const resultados = document.getElementById('resultadosBusqueda');
+
+    // Manejo de botones de pago
+    document.querySelectorAll('.payment-method').forEach(btn => {
+        btn.onclick = function() {
+            document.querySelectorAll('.payment-method').forEach(b => b.classList.remove('active', 'text-blue-700', 'bg-blue-50', 'border-blue-600'));
+            this.classList.add('active');
+        }
+    });
+
+    // Búsqueda AJAX de productos
+    inputBusqueda.addEventListener('input', async (e) => {
+        const term = e.target.value;
+        if (term.length < 2) {
+            resultados.classList.add('d-none');
+            return;
+        }
+
+        const res = await fetch(`<?php echo URLROOT; ?>/facturacion/buscarItems?term=${term}`);
+        const items = await res.json();
+        
+        resultados.innerHTML = '';
+        if (items.length > 0) {
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-50 transition-colors last:border-0';
+                div.innerHTML = `
+                    <div class="flex-1">
+                        <div class="text-sm font-bold text-slate-700 uppercase">${item.nombre}</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">STOCK: ${item.stock_disponible} | ${item.categoria}</div>
+                    </div>
+                    <div class="text-sm font-black text-blue-600">$ ${item.precio}</div>
+                `;
+                div.onclick = () => agregarAlCarrito(item);
+                resultados.appendChild(div);
+            });
+            resultados.classList.remove('hidden');
+        } else {
+            resultados.classList.add('hidden');
+        }
+    });
+
+    function agregarAlCarrito(item) {
+        const existe = carrito.find(i => i.id === item.id);
+        if (existe) {
+            if (existe.cantidad < item.stock_disponible) existe.cantidad++;
+        } else {
+            carrito.push({...item, cantidad: 1, tipo: 'PRODUCTO'});
+        }
+        inputBusqueda.value = '';
+        resultados.classList.add('hidden');
+        renderizar();
+    }
+
+    function renderizar() {
+        const lista = document.getElementById('listaItems');
+        const placeholder = document.getElementById('vacioPlaceholder');
+        lista.innerHTML = '';
+        
+        let subtotal = 0;
+        carrito.forEach((item, index) => {
+            const st = item.precio * item.cantidad;
+            subtotal += st;
+            lista.innerHTML += `
+                <tr class="hover:bg-slate-50/50 transition-colors">
+                    <td class="px-4 py-4">
+                        <div class="text-sm font-bold text-slate-700">${item.nombre}</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">${item.categoria}</div>
+                    </td>
+                    <td class="px-4 py-4 text-center">
+                        <input type="number" class="w-16 text-center py-1 bg-white border border-slate-200 rounded text-sm font-bold focus:border-blue-500 focus:outline-none" value="${item.cantidad}" 
+                               onchange="actualizarCant(${index}, this.value)">
+                    </td>
+                    <td class="px-4 py-4 text-right font-medium text-slate-500">$ ${item.precio}</td>
+                    <td class="px-4 py-4 text-right font-black text-slate-800">$ ${st.toFixed(2)}</td>
+                    <td class="px-4 py-4 text-center">
+                        <button class="p-2 text-slate-300 hover:text-red-500 transition-colors" onclick="eliminarItem(${index})">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        if (window.lucide) lucide.createIcons();
+
+        placeholder.style.display = carrito.length > 0 ? 'none' : 'flex';
+        document.getElementById('btnProcesar').disabled = carrito.length === 0;
+        
+        document.getElementById('txtSubtotal').innerText = `$ ${subtotal.toFixed(2)}`;
+        document.getElementById('txtTotal').innerText = `$ ${subtotal.toFixed(2)}`;
+    }
+
+    window.actualizarCant = (index, val) => {
+        if(val < 1) return;
+        carrito[index].cantidad = parseInt(val);
+        renderizar();
+    };
+
+    window.eliminarItem = (index) => {
+        carrito.splice(index, 1);
+        renderizar();
+    };
+
+    // Procesar Venta
+    document.getElementById('btnProcesar').onclick = async function() {
+        const payload = {
+            items: carrito,
+            cliente_id: document.getElementById('clienteId').value,
+            pago_efectivo: document.querySelector('.payment-method.active').dataset.type === 'EFECTIVO' ? parseFloat(document.getElementById('txtTotal').innerText.replace('$ ', '')) : 0,
+            pago_transferencia: document.querySelector('.payment-method.active').dataset.type === 'TRANSFERENCIA' ? parseFloat(document.getElementById('txtTotal').innerText.replace('$ ', '')) : 0,
+            mecanico_id: null,
+            placa: ''
+        };
+
+        const res = await fetch('<?php echo URLROOT; ?>/facturacion/procesar', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await res.json();
+        if (data.success) {
+            Swal.fire({ icon: 'success', title: '¡Venta Exitosa!', text: 'El comprobante se abrirá en una nueva pestaña.', showConfirmButton: false, timer: 2000 });
+            window.open(`<?php echo URLROOT; ?>/venta/imprimirFactura/${data.venta_id}`, '_blank');
+            setTimeout(() => window.location.reload(), 2100);
+        }
+    };
+
+    // Historial
+    (async function cargarHistorial() {
+        const res = await fetch('<?php echo URLROOT; ?>/venta/historial');
+        const json = await res.json();
+        const cuerpo = document.getElementById('cuerpoHistorial');
+        json.data.forEach(v => {
+            cuerpo.innerHTML += `
+                <tr class="hover:bg-slate-50/50 transition-colors">
+                    <td class="px-6 py-4 font-bold text-slate-800">#${v.id}</td>
+                    <td class="px-6 py-4 text-slate-500 text-[10px] font-bold">${v.fecha}</td>
+                    <td class="px-6 py-4 text-slate-700 font-medium">${v.cliente_nombre || 'CLIENTE MOSTRADOR'}</td>
+                    <td class="px-6 py-4 text-right font-black text-green-600">$ ${v.total}</td>
+                    <td class="px-6 py-4 text-center">
+                        <button class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors" onclick="window.open('<?php echo URLROOT; ?>/venta/imprimirFactura/${v.id}', '_blank')">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                        </button>
+                    </td>
+                </tr>`;
+        });
+        if (window.lucide) lucide.createIcons();
+    })();
+});
+</script>

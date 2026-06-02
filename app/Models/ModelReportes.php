@@ -410,4 +410,22 @@ class ModelReportes {
         $this->db->bind(':hasta', $hasta);
         return $this->db->resultSet() ?: [];
     }
+
+    /**
+     * Obtiene un reporte detallado de ventas de repuestos para el administrador.
+     */
+    public function obtenerReporteRepuestos($desde, $hasta) {
+        $this->db->query("SELECT v.id, v.fecha, c.nombre as cliente, 
+                          SUM(vd.cantidad * vd.precio_unitario) as total_venta,
+                          SUM(vd.cantidad * vd.costo_unitario) as total_costo,
+                          (SUM(vd.cantidad * vd.precio_unitario) - SUM(vd.cantidad * vd.costo_unitario)) as utilidad
+                          FROM table_ventas v
+                          JOIN table_ventas_detalle vd ON v.id = vd.venta_id
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE vd.producto_id IS NOT NULL AND DATE(v.fecha) BETWEEN :desde AND :hasta
+                          GROUP BY v.id ORDER BY v.fecha DESC");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        return $this->db->resultSet() ?: [];
+    }
 }
