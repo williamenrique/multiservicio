@@ -93,9 +93,10 @@ class ModelFacturacion {
      * @param array $datos Datos de la venta
      * @param string $status Estado (COMPLETADO, CREDITO, PENDIENTE)
      * @param array $totales Resumen de montos
+     * @param int $usuarioId ID del usuario que procesa
      * @return int ID de la venta
      */
-    public function guardarCabeceraVenta($datos, $status, $totales) {
+    public function guardarCabeceraVenta($datos, $status, $totales, $usuarioId) {
         try {
             $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
             if ($ventaId) {
@@ -111,7 +112,7 @@ class ModelFacturacion {
                 $this->db->query("INSERT INTO table_ventas (cliente_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
                                   pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, mecanico_id, status) 
                                   VALUES (:cid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :mid, :status)");
-                $this->db->bind(':uid', $_SESSION['user_id']);
+                $this->db->bind(':uid', $usuarioId);
             }
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
             $this->db->bind(':placa', !empty($datos['placa']) ? mb_strtoupper($datos['placa'], 'UTF-8') : '');

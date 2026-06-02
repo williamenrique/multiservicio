@@ -51,31 +51,15 @@ class ControllerFacturacion extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
             try {
-                $db = new Database();
-                $db->beginTransaction();
-                
                 $datos = json_decode(file_get_contents('php://input'), true);
                 
-                // Si el usuario es un MECANICO, forzamos que el mecanico_id sea el suyo automáticamente
                 if ($_SESSION['user_role'] === 'MECANICO') {
                     $datos['mecanico_id'] = $_SESSION['user_staff_id'];
-                }
-
-                // Si el mecánico no viene en el JSON (posiblemente porque el select está oculto o no seleccionado),
-                // pero es una factura existente (borrador), intentamos rescatarlo de la base de datos.
-                $idReal = $datos['id_db'] ?? null;
-                if (empty($datos['mecanico_id']) && $idReal) {
-                    $borradorExistente = $this->facturaModel->obtenerBorradorPorId($idReal);
-                    if ($borradorExistente && !empty($borradorExistente->mecanico_id)) {
-                        $datos['mecanico_id'] = $borradorExistente->mecanico_id;
-                    }
                 }
 
                 $v = new Validator($datos);
                 $v->required(['items', 'pago_efectivo', 'pago_transferencia'])->array('items');
 
-                // El mecánico solo es obligatorio si la venta está vinculada a un vehículo (trabajo técnico)
-                // En ventas de mostrador (sin placa), permitimos que sea opcional.
                 if (!empty($datos['placa'])) {
                     $v->required(['mecanico_id']);
                 }
@@ -84,69 +68,14 @@ class ControllerFacturacion extends Controller {
                     throw new Exception(implode(" ", $v->getErrors()));
                 }
 
-                $facturaModel = new ModelFacturacion($db);
-                $invModel = new ModelInventario($db);
-                $cajaModel = new ModelCaja($db);
+                $ventaId = $this->billingService->procesarVentaCompleta($datos, $_SESSION['user_id']);
 
-                // 1. Cálculos de totales y determinación de Status
-                $subtotal = 0;
-                foreach($datos['items'] as $it) $subtotal += ($it['precio'] * $it['cantidad']);
-                $tasaIva = (float)($datos['tasa_iva'] ?? 0);
-                $iva = ($datos['aplicar_iva'] ?? false) ? ($subtotal * ($tasaIva / 100)) : 0;
-                $totalVenta = $subtotal + $iva;
-                $saldoPendiente = $totalVenta - ((float)$datos['pago_efectivo'] + (float)$datos['pago_transferencia']);
-                
-                // Asegurar que el mecánico venga del JSON del frontend
-                $mecanicoId = !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null;
-                $status = ($saldoPendiente > 0.05) ? 'CREDITO' : 'COMPLETADO';
-                $totales = ['subtotal' => $subtotal, 'iva' => $iva, 'total' => $totalVenta, 'saldo' => max(0, $saldoPendiente)];
-
-                // 2. Guardar Cabecera
-                $datos['mecanico_id'] = $mecanicoId; // Forzamos la reinyección por si se perdió
-                $ventaId = $facturaModel->guardarCabeceraVenta($datos, $status, $totales);
-
-                // 3. Limpiar y registrar detalles + actualizar STOCK y KARDEX
-                $db->query("DELETE FROM table_ventas_detalle WHERE venta_id = :vid");
-                $db->bind(':vid', $ventaId);
-                $db->execute();
-
-                foreach ($datos['items'] as $item) {
-                    $db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
-                                VALUES (:vid, :pid, :desc, :cant, :pre, :costo)");
-                    $db->bind(':vid', $ventaId);
-                    $db->bind(':pid', $item['tipo'] === 'PRODUCTO' ? $item['id'] : null);
-                    $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
-                    $db->bind(':cant', $item['cantidad']);
-                    $db->bind(':pre', $item['precio']);
-                    $db->bind(':costo', $item['ultimo_costo'] ?? 0);
-                    $db->execute();
-
-                    if ($item['tipo'] === 'PRODUCTO') {
-                        // Descontar Stock y registrar en Kardex
-                        $db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
-                        $db->bind(':cant', $item['cantidad']);
-                        $db->bind(':pid', $item['id']);
-                        $db->execute();
-                        $invModel->registrarMovimiento($item['id'], 'SALIDA_VENTA', $item['cantidad'], $ventaId, "Venta Factura #$ventaId");
-                    }
-                }
-
-                // 4. Registrar movimiento en caja si hay pago en efectivo
-                if ((float)$datos['pago_efectivo'] > 0) {
-                    $cajaModel->registrarMovimiento([
-                        'tipo' => 'INGRESO', 'monto' => $datos['pago_efectivo'], 'metodo_pago' => 'EFECTIVO',
-                        'referencia_id' => $ventaId, 'concepto' => "VENTA FACTURA #$ventaId"
-                    ]);
-                }
-
-                $db->commit();
                 return $this->jsonResponse([
                     'success' => true,
                     'mensaje' => 'Venta realizada con éxito',
                     'venta_id' => $ventaId
                 ]);
             } catch (Exception $e) {
-                if (isset($db)) $db->rollBack();
                 return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
             }
         }

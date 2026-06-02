@@ -93,7 +93,7 @@
                 <!-- Paginación -->
                 <div class="p-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
                     <p class="text-xs font-bold text-slate-500 uppercase" id="historialInfo">Mostrando 0 de 0 ventas</p>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2" id="paginationControls">
                         <button id="btnPrevHistorial" class="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed">
                             <i data-lucide="chevron-left" class="w-4 h-4"></i>
                         </button>
@@ -237,47 +237,55 @@ document.addEventListener('DOMContentLoaded', function() {
     const inputBusqueda = document.getElementById('buscarProducto');
     const resultados = document.getElementById('resultadosBusqueda');
 
-    // Inicialización del Motor de Tablas centralizado (Se mueve arriba para estar disponible)
-    const historialTable = new DataTableRefactor({
-        selector: '#cuerpoHistorial',
-        apiUrl: `${URLROOT}/venta/historial`,
-        perPageSelect: '#historialLimit',
-        searchInput: '#historialSearch',
-        dateFromInput: '#historialDesde',
-        dateToInput: '#historialHasta',
-        prevButton: '#btnPrevHistorial',
-        nextButton: '#btnNextHistorial',
-        infoDisplay: '#historialInfo',
-        renderCallback: (data) => {
-            const cuerpo = document.getElementById('cuerpoHistorial');
-            cuerpo.innerHTML = data.length > 0 ? data.map(v => `
-                <tr class="hover:bg-slate-50/50 transition-colors">
-                    <td class="px-6 py-5 font-black text-slate-800 text-lg">#${v.id}</td>
-                    <td class="px-6 py-5 text-slate-500 text-sm font-bold uppercase">${v.fecha}</td>
-                    <td class="px-6 py-5 text-slate-700 font-bold text-base uppercase">${v.cliente_nombre || 'CLIENTE MOSTRADOR'}</td>
-                    <td class="px-6 py-5 text-right font-black text-green-600 text-lg">$ ${parseFloat(v.total).toLocaleString()}</td>
-                    <td class="px-6 py-5 text-center">
-                        <button class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors" 
-                                onclick="window.open('${URLROOT}/venta/imprimirFactura/${v.id}', '_blank')">
-                            <i data-lucide="printer" class="w-5 h-5"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('') : `<tr><td colspan="5" class="px-6 py-12 text-center text-slate-400 italic">No se encontraron ventas en este periodo.</td></tr>`;
-            
-            if (window.lucide) lucide.createIcons();
-        }
-    });
-
-    // Inicializar fechas con el mes cursante
+    // 1. Inicializar fechas con el mes cursante ANTES de crear la tabla
     const d = new Date();
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     const today = `${year}-${month}-${day}`;
     
-    document.getElementById('historialDesde').value = `${year}-${month}-01`;
-    document.getElementById('historialHasta').value = today;
+    const inputDesde = document.getElementById('historialDesde');
+    const inputHasta = document.getElementById('historialHasta');
+    
+    if (inputDesde) inputDesde.value = `${year}-${month}-01`;
+    if (inputHasta) inputHasta.value = today;
+
+    // Inicialización del Motor de Tablas centralizado (Se mueve arriba para estar disponible)
+    const historialTable = new DataTableRefactor({
+        tableBodyId: 'cuerpoHistorial',
+        endpoint: `${URLROOT}/venta/historial`,
+        limitSelectorId: 'historialLimit',
+        searchInputId: 'historialSearch',
+        paginationId: 'paginationControls', // Asegúrate de que este ID exista en tu HTML o usa los botones específicos
+        totalId: 'historialInfo',
+        getExtraParams: () => ({
+            desde: document.getElementById('historialDesde')?.value,
+            hasta: document.getElementById('historialHasta')?.value
+        }),
+        renderRow: (v) => {
+            return `
+                <tr class="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
+                    <td class="px-6 py-4 font-black text-slate-800 text-lg">#${v.id}</td>
+                    <td class="px-6 py-4 text-slate-500 text-sm font-bold uppercase">${v.fecha}</td>
+                    <td class="px-6 py-4 text-slate-700 font-bold text-base uppercase">${v.cliente_nombre || 'CLIENTE MOSTRADOR'}</td>
+                    <td class="px-6 py-4 text-right font-black text-green-600 text-lg">${AppUtils.formatCurrency(v.total)}</td>
+                    <td class="px-6 py-4 text-center">
+                        <button class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all" 
+                                onclick="window.open('${URLROOT}/venta/imprimirFactura/${v.id}', '_blank')" title="Reimprimir Factura">
+                            <i data-lucide="printer" class="w-5 h-5"></i>
+                        </button>
+                    </td>
+                </tr>
+                `;
+        }
+    });
+
+    // Forzar la carga inicial de datos
+    historialTable.reload();
+
+    // 2. Escuchar cambios en fechas para actualizar historial dinámicamente
+    if (inputDesde) inputDesde.addEventListener('change', () => historialTable.reload());
+    if (inputHasta) inputHasta.addEventListener('change', () => historialTable.reload());
 
     // Manejo de botones de pago
     document.querySelectorAll('.payment-method').forEach(btn => {

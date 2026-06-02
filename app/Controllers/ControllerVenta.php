@@ -32,8 +32,8 @@ class ControllerVenta extends Controller {
         $limit = $_GET['limit'] ?? 10;
         $offset = $_GET['offset'] ?? 0;
         $search = $_GET['q'] ?? null;
-        $desde = $_GET['desde'] ?? null;
-        $hasta = $_GET['hasta'] ?? null;
+        $desde = !empty($_GET['desde']) ? $_GET['desde'] : null;
+        $hasta = !empty($_GET['hasta']) ? $_GET['hasta'] : null;
         
         $res = $this->facturaModel->obtenerVentasMostrador($limit, $offset, $search, $desde, $hasta);
         
