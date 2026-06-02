@@ -14,7 +14,7 @@
                 </div>
                 <div class="p-6">
                     <!-- Buscador de Productos -->
-                    <div class="position-relative mb-4">
+                    <div class="relative mb-4">
                         <div class="relative group">
                             <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 group-focus-within:text-blue-500 transition-colors">
                                 <i data-lucide="search" class="w-5 h-5"></i>
@@ -22,15 +22,15 @@
                             <input type="text" id="buscarProducto" class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm" 
                                    placeholder="Escriba nombre, código o categoría del repuesto..." autocomplete="off">
                         </div>
-                        <div id="resultadosBusqueda" class="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-2xl border border-slate-100 hidden max-h-80 overflow-y-auto overflow-x-hidden">
+                        <div id="resultadosBusqueda" class="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-slate-100 hidden max-h-80 overflow-y-auto overflow-x-hidden">
                             <!-- Resultados vía AJAX -->
                         </div>
                     </div>
 
                     <!-- Tabla de Items -->
                     <div class="overflow-x-auto min-h-[350px]">
-                        <table class="w-full text-sm text-left text-slate-600" id="tablaVenta">
-                            <thead class="text-xs text-slate-400 uppercase bg-slate-50">
+                        <table class="w-full text-base text-left text-slate-600" id="tablaVenta">
+                            <thead class="text-sm text-slate-400 uppercase bg-slate-50">
                                 <tr>
                                     <th class="px-4 py-3 font-semibold">Repuesto</th>
                                     <th class="px-4 py-3 font-semibold text-center" width="100">Cant.</th>
@@ -58,8 +58,8 @@
                     <h6 class="text-sm font-bold text-slate-700">Últimas Ventas de Mostrador</h6>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-xs text-left text-slate-600">
-                        <thead class="bg-slate-50/50">
+                    <table class="w-full text-base text-left text-slate-600">
+                        <thead class="bg-slate-50/50 text-sm">
                             <tr>
                                 <th class="px-6 py-3">ID</th>
                                 <th class="px-6 py-3">Fecha</th>
@@ -83,13 +83,15 @@
                 
                 <!-- Selección de Cliente -->
                 <div class="mb-6">
-                    <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">Cliente</label>
-                    <select id="clienteId" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/10 text-sm appearance-none">
-                        <option value="">VENTA DE MOSTRADOR (CONTADO)</option>
-                        <?php foreach($data['clientes'] as $c): ?>
-                            <option value="<?php echo $c->id; ?>"><?php echo $c->nombre; ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-xs font-bold text-slate-500 uppercase">Cliente</label>
+                        <button type="button" onclick="abrirModalCliente()" class="text-[10px] font-black text-blue-600 hover:text-blue-800 transition-colors uppercase">+ Nuevo Cliente</button>
+                    </div>
+                    <div class="relative">
+                        <input type="text" id="clienteSearch" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/10 text-sm" placeholder="Buscar por nombre o CC (Venta Mostrador)" autocomplete="off">
+                        <input type="hidden" id="clienteId" value="">
+                        <div id="clienteResultados" class="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-xl border border-slate-100 hidden max-h-60 overflow-y-auto"></div>
+                    </div>
                 </div>
 
                 <div class="space-y-3 py-6 border-y border-slate-100">
@@ -127,11 +129,62 @@
                     COMPLETAR VENTA
                 </button>
                 
-                <button class="w-full mt-4 py-2 text-slate-400 hover:text-slate-600 text-xs font-bold flex items-center justify-center gap-2 transition-colors" onclick="window.location.reload()">
+                <button class="w-full mt-4 py-2 text-slate-400 hover:text-slate-600 text-xs font-bold flex items-center justify-center gap-2 transition-colors" onclick="limpiarVenta()">
                     <i data-lucide="refresh-cw" class="w-3 h-3"></i>
                     LIMPIAR FORMULARIO
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Registro Rápido de Cliente -->
+<div id="modalNuevoCliente" class="fixed inset-0 z-[60] hidden bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+            <h5 class="text-lg font-bold text-slate-800">Registro Rápido de Cliente</h5>
+            <button onclick="cerrarModalCliente()" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Cédula / NIT</label>
+                <input type="text" id="new_cli_id" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none text-sm" placeholder="Ej: 12345678">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Nombre Completo</label>
+                <input type="text" id="new_cli_nombre" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none text-sm" placeholder="Ej: JUAN PEREZ">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Teléfono</label>
+                <input type="text" id="new_cli_tel" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none text-sm" placeholder="Ej: 3001234567">
+            </div>
+        </div>
+        <div class="p-6 bg-slate-50 flex gap-3">
+            <button onclick="cerrarModalCliente()" class="flex-1 py-3 text-slate-500 font-bold text-xs uppercase hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
+            <button onclick="guardarClienteRapido()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">Guardar Cliente</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Venta Exitosa -->
+<div id="modalVentaExitosa" class="fixed inset-0 z-[70] hidden bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200 text-center p-8">
+        <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i data-lucide="check-circle" class="w-10 h-10"></i>
+        </div>
+        <h4 class="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">¡Venta Completada!</h4>
+        <p class="text-slate-500 text-sm mb-8 font-medium">La transacción se procesó correctamente.</p>
+        
+        <div class="flex flex-col gap-3">
+            <button id="btnImprimirFacturaExito" class="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+                <i data-lucide="printer" class="w-5 h-5"></i>
+                IMPRIMIR FACTURA
+            </button>
+            <button onclick="cerrarModalExito()" class="w-full py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all uppercase text-xs tracking-widest">
+                Cerrar
+            </button>
         </div>
     </div>
 </div>
@@ -147,6 +200,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.lucide) lucide.createIcons();
 
     let carrito = [];
+    let ultimaVentaId = null;
+    let lastClientResults = [];
+    const inputCliSearch = document.getElementById('clienteSearch');
+    const divCliResultados = document.getElementById('clienteResultados');
+    const hiddenCliId = document.getElementById('clienteId');
     const inputBusqueda = document.getElementById('buscarProducto');
     const resultados = document.getElementById('resultadosBusqueda');
 
@@ -181,13 +239,63 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="text-sm font-black text-blue-600">$ ${item.precio}</div>
                 `;
-                div.onclick = () => agregarAlCarrito(item);
+                div.onclick = () => {
+                    agregarAlCarrito(item);
+                    resultados.classList.add('hidden');
+                };
                 resultados.appendChild(div);
             });
             resultados.classList.remove('hidden');
         } else {
             resultados.classList.add('hidden');
         }
+    });
+
+    // Buscador de Clientes en tiempo real (Igual a Facturación)
+    inputCliSearch.addEventListener('input', async (e) => {
+        const term = e.target.value.trim();
+        if (term.length < 2) {
+            divCliResultados.classList.add('hidden');
+            if (term.length === 0) hiddenCliId.value = '';
+            return;
+        }
+
+        const res = await fetch(`<?php echo URLROOT; ?>/clientes/listar?search[value]=${term}&length=5`);
+        const data = await res.json();
+        lastClientResults = data.data || [];
+
+        if (lastClientResults.length > 0) {
+            divCliResultados.innerHTML = lastClientResults.map((c, i) => `
+                <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center group transition-colors" 
+                     onclick="seleccionarCliente('${i}')">
+                    <div>
+                        <p class="font-black text-xs uppercase text-slate-800 leading-none mb-1 group-hover:text-blue-600">${c.nombre}</p>
+                        <p class="text-[10px] text-slate-400 font-mono italic font-bold">CC/NIT: ${c.id}</p>
+                    </div>
+                    <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 group-hover:text-blue-500"></i>
+                </div>`).join('');
+            divCliResultados.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        } else {
+            divCliResultados.innerHTML = '<p class="p-3 text-center text-slate-400 text-xs uppercase">No encontrado. Use "+ Nuevo Cliente"</p>';
+            divCliResultados.classList.remove('hidden');
+        }
+    });
+
+    window.seleccionarCliente = (index) => {
+        const cliente = lastClientResults[index];
+        if (cliente) {
+            hiddenCliId.value = cliente.id;
+            inputCliSearch.value = cliente.nombre;
+            divCliResultados.classList.add('hidden');
+            AppUtils.showToast('Cliente vinculado');
+        }
+    };
+
+    // Cerrar resultados al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (!divCliResultados.contains(e.target) && e.target !== inputCliSearch) divCliResultados.classList.add('hidden');
+        if (!resultados.contains(e.target) && e.target !== inputBusqueda) resultados.classList.add('hidden');
     });
 
     function agregarAlCarrito(item) {
@@ -213,17 +321,17 @@ document.addEventListener('DOMContentLoaded', function() {
             subtotal += st;
             lista.innerHTML += `
                 <tr class="hover:bg-slate-50/50 transition-colors">
-                    <td class="px-4 py-4">
-                        <div class="text-sm font-bold text-slate-700">${item.nombre}</div>
+                    <td class="px-4 py-5">
+                        <div class="text-base font-bold text-slate-700 uppercase">${item.nombre}</div>
                         <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">${item.categoria}</div>
                     </td>
-                    <td class="px-4 py-4 text-center">
-                        <input type="number" class="w-16 text-center py-1 bg-white border border-slate-200 rounded text-sm font-bold focus:border-blue-500 focus:outline-none" value="${item.cantidad}" 
+                    <td class="px-4 py-5 text-center">
+                        <input type="number" class="w-16 text-center py-1 bg-white border border-slate-200 rounded text-base font-bold focus:border-blue-500 focus:outline-none" value="${item.cantidad}" 
                                onchange="actualizarCant(${index}, this.value)">
                     </td>
-                    <td class="px-4 py-4 text-right font-medium text-slate-500">$ ${item.precio}</td>
-                    <td class="px-4 py-4 text-right font-black text-slate-800">$ ${st.toFixed(2)}</td>
-                    <td class="px-4 py-4 text-center">
+                    <td class="px-4 py-5 text-right font-medium text-slate-500">$ ${item.precio}</td>
+                    <td class="px-4 py-5 text-right font-black text-slate-800">$ ${st.toFixed(2)}</td>
+                    <td class="px-4 py-5 text-center">
                         <button class="p-2 text-slate-300 hover:text-red-500 transition-colors" onclick="eliminarItem(${index})">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
@@ -252,6 +360,65 @@ document.addEventListener('DOMContentLoaded', function() {
         renderizar();
     };
 
+    window.limpiarVenta = () => {
+        carrito = [];
+        hiddenCliId.value = '';
+        inputCliSearch.value = '';
+        inputBusqueda.value = '';
+        renderizar();
+    };
+
+    window.cerrarModalExito = () => {
+        document.getElementById('modalVentaExitosa').classList.add('hidden');
+    };
+
+    document.getElementById('btnImprimirFacturaExito').onclick = () => {
+        if (ultimaVentaId) {
+            window.open(`<?php echo URLROOT; ?>/venta/imprimirFactura/${ultimaVentaId}`, '_blank');
+        }
+    };
+
+    // Funciones para Registro Rápido de Cliente
+    window.abrirModalCliente = () => {
+        document.getElementById('modalNuevoCliente').classList.remove('hidden');
+        document.getElementById('new_cli_id').focus();
+    };
+
+    window.cerrarModalCliente = () => {
+        document.getElementById('modalNuevoCliente').classList.add('hidden');
+        document.getElementById('new_cli_id').value = '';
+        document.getElementById('new_cli_nombre').value = '';
+        document.getElementById('new_cli_tel').value = '';
+    };
+
+    window.guardarClienteRapido = async () => {
+        const id = document.getElementById('new_cli_id').value.trim();
+        const nombre = document.getElementById('new_cli_nombre').value.trim();
+        const telefono = document.getElementById('new_cli_tel').value.trim();
+
+        if (!id || !nombre) {
+            AppUtils.showToast('Cédula y Nombre son obligatorios', 'error');
+            return;
+        }
+
+        const res = await fetch('<?php echo URLROOT; ?>/clientes/guardar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, nombre, telefono, email: '', direccion: '' })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            hiddenCliId.value = id;
+            inputCliSearch.value = nombre;
+            cerrarModalCliente();
+            divCliResultados.classList.add('hidden');
+            AppUtils.showToast('Cliente registrado y seleccionado');
+        } else {
+            AppUtils.showToast(data.mensaje || 'Error al guardar', 'error');
+        }
+    };
+
     // Procesar Venta
     document.getElementById('btnProcesar').onclick = async function() {
         const payload = {
@@ -265,27 +432,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const res = await fetch('<?php echo URLROOT; ?>/facturacion/procesar', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         
         const data = await res.json();
         if (data.success) {
-            Swal.fire({ icon: 'success', title: '¡Venta Exitosa!', text: 'El comprobante se abrirá en una nueva pestaña.', showConfirmButton: false, timer: 2000 });
-            window.open(`<?php echo URLROOT; ?>/venta/imprimirFactura/${data.venta_id}`, '_blank');
-            setTimeout(() => window.location.reload(), 2100);
+            ultimaVentaId = data.venta_id;
+            
+            // Mostrar modal de éxito en lugar de abrir pestaña directamente
+            document.getElementById('modalVentaExitosa').classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+            
+            limpiarVenta();
+            cargarHistorial();
         }
     };
 
     // Historial
-    (async function cargarHistorial() {
+    window.cargarHistorial = async function() {
         const res = await fetch('<?php echo URLROOT; ?>/venta/historial');
         const json = await res.json();
         const cuerpo = document.getElementById('cuerpoHistorial');
+        cuerpo.innerHTML = '';
         json.data.forEach(v => {
             cuerpo.innerHTML += `
                 <tr class="hover:bg-slate-50/50 transition-colors">
                     <td class="px-6 py-4 font-bold text-slate-800">#${v.id}</td>
-                    <td class="px-6 py-4 text-slate-500 text-[10px] font-bold">${v.fecha}</td>
+                    <td class="px-6 py-4 text-slate-500 text-xs font-bold">${v.fecha}</td>
                     <td class="px-6 py-4 text-slate-700 font-medium">${v.cliente_nombre || 'CLIENTE MOSTRADOR'}</td>
                     <td class="px-6 py-4 text-right font-black text-green-600">$ ${v.total}</td>
                     <td class="px-6 py-4 text-center">
@@ -296,6 +470,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>`;
         });
         if (window.lucide) lucide.createIcons();
-    })();
+    };
+
+    cargarHistorial();
 });
 </script>

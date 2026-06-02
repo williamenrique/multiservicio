@@ -72,8 +72,13 @@ class ControllerFacturacion extends Controller {
                 }
 
                 $v = new Validator($datos);
-                $v->required(['items', 'pago_efectivo', 'pago_transferencia', 'mecanico_id'])
-                  ->array('items');
+                $v->required(['items', 'pago_efectivo', 'pago_transferencia'])->array('items');
+
+                // El mecánico solo es obligatorio si la venta está vinculada a un vehículo (trabajo técnico)
+                // En ventas de mostrador (sin placa), permitimos que sea opcional.
+                if (!empty($datos['placa'])) {
+                    $v->required(['mecanico_id']);
+                }
 
                 if (!$v->success()) {
                     throw new Exception(implode(" ", $v->getErrors()));
