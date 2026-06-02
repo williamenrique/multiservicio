@@ -57,12 +57,12 @@ class ControllerProveedores extends Controller {
 
     public function registrarPago() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $data = json_decode(file_get_contents('php://input'), true);
-            
-            if ($this->proveedorModel->registrarPagoCompra($data)) {
+            try {
+                $data = json_decode(file_get_contents('php://input'), true);
+                $this->proveedorModel->registrarPagoCompra($data);
                 return $this->jsonResponse(['success' => true, 'mensaje' => 'Abono registrado correctamente']);
-            } else {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al registrar el pago'], 500);
+            } catch (Exception $e) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
             }
         }
     }

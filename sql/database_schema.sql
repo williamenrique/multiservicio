@@ -326,16 +326,18 @@ CREATE TABLE IF NOT EXISTS `table_compras` (
   CONSTRAINT `fk_compra_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 18.1 Pagos a Compras (Abonos a Proveedores)
-CREATE TABLE IF NOT EXISTS `table_compras_pagos` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `compra_id` INT NOT NULL,
-  `monto_pagado` DECIMAL(10,2) NOT NULL,
-  `metodo_pago` ENUM('EFECTIVO', 'TRANSFERENCIA') NOT NULL,
-  `usuario_id` INT NOT NULL,
-  `fecha` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT `fk_pago_compra` FOREIGN KEY (`compra_id`) REFERENCES `table_compras` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_pago_compra_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
+-- 18.1 Historial de Abonos a Proveedores (Cuentas por Pagar)
+CREATE TABLE IF NOT EXISTS `table_abonos_proveedores` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `compra_id` int(11) NOT NULL,
+  `monto` decimal(15,2) NOT NULL,
+  `metodo_pago` enum('EFECTIVO','TRANSFERENCIA') NOT NULL DEFAULT 'EFECTIVO',
+  `usuario_id` int(11) DEFAULT NULL,
+  `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_abono_compra` (`compra_id`),
+  CONSTRAINT `fk_abono_compra` FOREIGN KEY (`compra_id`) REFERENCES `table_compras` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_abono_compra_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 18.2 Gestión de Nómina (Pagos y Adelantos de Empleados)
@@ -440,7 +442,7 @@ TRUNCATE TABLE `table_usuario_sessions`;
 TRUNCATE TABLE `table_orden_estados_log`;
 TRUNCATE TABLE `table_caja_movimientos`;
 TRUNCATE TABLE `table_sesiones_caja`;
-TRUNCATE TABLE `table_compras_pagos`;
+TRUNCATE TABLE `table_abonos_proveedores`;
 TRUNCATE TABLE `table_pagos_empleados`;
 TRUNCATE TABLE `table_abonos_clientes`;
 TRUNCATE TABLE `table_orden_checklist`;

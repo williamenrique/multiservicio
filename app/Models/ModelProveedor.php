@@ -93,11 +93,24 @@ class ModelProveedor {
 
             if (!$compra) throw new Exception("Compra no encontrada");
 
-            // 2. Calcular nuevo saldo
+            // 2. Validaciones de negocio
+            if (empty($datos['monto']) || (float)$datos['monto'] <= 0) {
+                throw new Exception("El monto del abono debe ser mayor a cero");
+            }
+            
             $nuevoPagado = (float)$compra->pagado + (float)$datos['monto'];
             $nuevoStatus = ($nuevoPagado >= (float)$compra->total) ? 'PAGADO' : 'PENDIENTE';
 
-            // 3. Actualizar saldo y registrar qué usuario procesó el abono
+            // 3. Registrar el abono en el historial (Para flujo de caja granular)
+            $this->db->query("INSERT INTO table_abonos_proveedores (compra_id, monto, metodo_pago, usuario_id) 
+                              VALUES (:cid, :monto, :metodo, :uid)");
+            $this->db->bind(':cid', $datos['compra_id']);
+            $this->db->bind(':monto', $datos['monto']);
+            $this->db->bind(':metodo', $datos['metodo_pago'] ?? 'EFECTIVO');
+            $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
+            $this->db->execute();
+
+            // 4. Actualizar saldo en la cabecera de la compra
             $this->db->query("UPDATE table_compras SET pagado = :pag, status = :status, usuario_id = :uid WHERE id = :id");
             $this->db->bind(':pag', $nuevoPagado);
             $this->db->bind(':status', $nuevoStatus);
@@ -105,7 +118,7 @@ class ModelProveedor {
             $this->db->bind(':id', $datos['compra_id']);
             $this->db->execute();
 
-            // 4. Registrar el Egreso en Caja para el balance financiero
+            // 5. Registrar el Egreso en Caja
             $caja = new ModelCaja($this->db);
             $caja->registrarMovimiento([
                 'tipo' => 'EGRESO',
@@ -119,8 +132,20 @@ class ModelProveedor {
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
-            return false;
+            throw $e;
         }
+    }
+
+    /**
+     * Obtiene el historial de pagos realizados a una compra específica
+     */
+    public function obtenerHistorialAbonos($compraId) {
+        $this->db->query("SELECT a.*, u.username 
+                          FROM table_abonos_proveedores a 
+                          LEFT JOIN table_usuarios u ON a.usuario_id = u.id 
+                          WHERE a.compra_id = :cid ORDER BY a.fecha DESC");
+        $this->db->bind(':cid', $compraId);
+        return $this->db->resultSet();
     }
 
     public function registrarCompra($datos) {

@@ -49,13 +49,23 @@ class ModelReportes {
                           FROM table_gastos g 
                           WHERE DATE(g.fecha) BETWEEN :desde AND :hasta
                           UNION ALL
-                          SELECT c.id, c.fecha, c.total as monto, c.pagado as monto_pagado, 'COMPRA' as tipo, 'MERCANCÍA' as categoria,
+                          SELECT c.id, c.fecha, c.total as monto, 
+                          (COALESCE(c.pagado, 0) - COALESCE((SELECT SUM(monto) FROM table_abonos_proveedores WHERE compra_id = c.id), 0)) as monto_pagado, 
+                          'COMPRA' as tipo, 'MERCANCÍA' as categoria,
                           'COMPRA DE MERCANCIA' as descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre,
                           (SELECT COUNT(*) FROM table_compras_detalle WHERE compra_id = c.id) as cantidad_items,
                           p.nombre as proveedor_nombre, (c.total - c.pagado) as saldo_pendiente
                           FROM table_compras c
                           INNER JOIN table_proveedores p ON c.proveedor_id = p.id
                           WHERE DATE(c.fecha) BETWEEN :desde AND :hasta
+                          UNION ALL
+                          SELECT a.compra_id as id, a.fecha, a.monto as monto, a.monto as monto_pagado, 'ABONO PROV' as tipo, 'PAGO PROVEEDOR' as categoria,
+                          CONCAT('ABONO A COMPRA #', a.compra_id) as descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre,
+                          0 as cantidad_items, p.nombre as proveedor_nombre, 0 as saldo_pendiente
+                          FROM table_abonos_proveedores a
+                          JOIN table_compras c ON a.compra_id = c.id
+                          JOIN table_proveedores p ON c.proveedor_id = p.id
+                          WHERE DATE(a.fecha) BETWEEN :desde AND :hasta
                           UNION ALL
                           SELECT d.id, d.fecha, d.monto_devuelto as monto, d.monto_devuelto as monto_pagado, 'DEVOLUCION' as tipo, 'DEVOLUCION' as categoria,
                           d.descripcion, NULL as modelo_vehiculo, v.placa, NULL as cliente_nombre,
@@ -265,6 +275,26 @@ class ModelReportes {
         
         $results = $this->db->resultSet() ?: [];
         return $results; // Devolvemos el array directo para evitar error .map() en JS
+    }
+
+    /**
+     * Obtiene el reporte de cuentas por pagar (Proveedores) clasificado por antigüedad.
+     */
+    public function obtenerCarteraProveedoresPorEdades() {
+        $this->db->query("SELECT 
+                            p.nombre as proveedor_nombre,
+                            p.telefono as proveedor_telefono,
+                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(c.fecha)) <= 15 THEN (c.total - c.pagado) ELSE 0 END) as rango_0_15,
+                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(c.fecha)) > 15 AND DATEDIFF(CURDATE(), DATE(c.fecha)) <= 30 THEN (c.total - c.pagado) ELSE 0 END) as rango_16_30,
+                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(c.fecha)) > 30 THEN (c.total - c.pagado) ELSE 0 END) as rango_30_mas,
+                            SUM(c.total - c.pagado) as total_deuda
+                          FROM table_compras c
+                          JOIN table_proveedores p ON c.proveedor_id = p.id
+                          WHERE c.status = 'PENDIENTE' AND (c.total - c.pagado) > 0
+                          GROUP BY p.id
+                          ORDER BY total_deuda DESC");
+        
+        return $this->db->resultSet() ?: [];
     }
 
     /**

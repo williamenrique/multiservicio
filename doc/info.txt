@@ -23,10 +23,12 @@ En ModelReportes::obtenerFlujoCaja, observo que se realizan múltiples consultas
 
 Mejora: Para un sistema robusto, esta lógica debería delegarse a la base de datos. El uso de UNION ALL con subconsultas optimizadas o Vistas SQL permitiría que la paginación y los filtros se ejecuten directamente en el motor, evitando problemas de memoria cuando el taller tenga miles de registros.
 Cálculo de Proporciones: La lógica actual para dividir ingresos entre repuestos y servicios dentro de un bucle PHP es costosa. Podrías pre-calcular estos valores al momento de guardar la venta en una tabla de resumen financiero.
-5. Cuentas por Pagar (Proveedores)
-El sistema tiene un excelente manejo de cartera de clientes (obtenerCarteraPorEdades), pero el lado de los proveedores parece menos detallado.
 
-Mejora: Implementar un módulo de Abonos a Proveedores similar al de clientes. Actualmente, en obtenerFlujoCaja se toma el gasto de compra, pero no hay un seguimiento histórico de abonos parciales a facturas de compra a crédito que afecte el flujo de caja de forma granular.
+LISTO    5. Cuentas por Pagar (Proveedores)
+    El sistema tiene un excelente manejo de cartera de clientes (obtenerCarteraPorEdades), pero el lado de los proveedores parece menos detallado.
+
+    Mejora: Implementar un módulo de Abonos a Proveedores similar al de clientes. Actualmente, en obtenerFlujoCaja se toma el gasto de compra, pero no hay un seguimiento histórico de abonos parciales a facturas de compra a crédito que afecte el flujo de caja de forma granular.
+    
 6. Valoración de Inventario y Costeo
 En ControllerFacturacion::procesar, se guarda el costo_unitario en el detalle de la venta.
 
