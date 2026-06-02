@@ -59,15 +59,82 @@ class ControllerInventario extends Controller {
             $producto->imagen = 'img/default.png';
         }
 
-        $kardexMovimientos = $this->inventarioModel->obtenerKardexPorProducto($producto_id);
         $costHistory = $this->inventarioModel->getCostHistory($producto_id);
 
         $this->view('inventario/kardex', [
             'titulo' => 'Kardex de ' . $producto->nombre,
             'producto' => $producto,
-            'kardexMovimientos' => $kardexMovimientos,
             'costHistory' => $costHistory
         ]);
+    }
+
+    /**
+     * Endpoint AJAX para alimentar la tabla de movimientos de Kardex
+     */
+    public function kardexData($producto_id) {
+        RoleGuard::isAdmin();
+        $limit = $_GET['limit'] ?? 10;
+        $offset = $_GET['offset'] ?? 0;
+        $search = $_GET['q'] ?? null;
+
+        $res = $this->inventarioModel->obtenerKardexPaginado($producto_id, (int)$limit, (int)$offset, $search);
+        return $this->jsonResponse([
+            'success' => true,
+            'data' => $res['data'],
+            'total' => $res['total']
+        ]);
+    }
+
+    /**
+     * Genera un PDF detallado (tipo lista) de un único movimiento de Kardex
+     */
+    public function imprimirMovimiento($id) {
+        RoleGuard::isAdmin();
+        $db = new Database();
+        $db->query("SELECT k.*, i.nombre as producto_nombre, i.categoria, u.username, s.nombre as usuario_nombre
+                          FROM table_kardex k
+                          JOIN table_inventario i ON k.producto_id = i.id
+                          LEFT JOIN table_usuarios u ON k.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          WHERE k.id = :id");
+        $db->bind(':id', $id);
+        $movimiento = $db->single();
+
+        if (!$movimiento) die("Movimiento no encontrado.");
+
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('kardex_individual', [
+            'titulo_documento' => 'Detalle de Movimiento de Inventario',
+            'mov' => $movimiento,
+            'documento_id' => $movimiento->id
+        ], 'Movimiento_Kardex_' . $id . '.pdf');
+        exit;
+    }
+
+    /**
+     * Genera un PDF con todo el historial de Kardex del producto en formato de lista legible
+     */
+    public function imprimirKardexCompleto($producto_id) {
+        RoleGuard::isAdmin();
+        $producto = $this->inventarioModel->obtenerPorId($producto_id);
+        if (!$producto) die("Producto no encontrado.");
+
+        $db = new Database();
+        $db->query("SELECT k.*, s.nombre as usuario_nombre 
+                          FROM table_kardex k
+                          LEFT JOIN table_usuarios u ON k.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          WHERE k.producto_id = :pid ORDER BY k.fecha DESC");
+        $db->bind(':pid', $producto_id);
+        $movimientos = $db->resultSet();
+
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('kardex_reporte', [
+            'titulo_documento' => 'Historial Completo de Kardex',
+            'producto' => $producto,
+            'movimientos' => $movimientos
+        ], 'Kardex_' . str_replace(' ', '_', $producto->nombre) . '.pdf');
+        exit;
     }
 
     public function guardar() {

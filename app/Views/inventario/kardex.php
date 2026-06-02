@@ -1,9 +1,14 @@
 <div class="container mx-auto p-8">
     <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold text-navy-blue">Kardex de: <span class="text-neon-green"><?php echo s($producto->nombre); ?></span></h2>
-        <a href="<?php echo URLROOT; ?>/inventario" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300 transition shadow-sm">
-            <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver al Inventario
-        </a>
+        <div class="flex gap-3">
+            <button id="btnPrintAll" class="bg-navy-blue text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-800 transition shadow-sm">
+                <i data-lucide="printer" class="w-4 h-4"></i> IMPRIMIR HISTORIAL
+            </button>
+            <a href="<?php echo URLROOT; ?>/inventario" class="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300 transition shadow-sm">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver
+            </a>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -45,50 +50,55 @@
     </div>
 
     <div class="glass-card p-6 rounded-xl w-full">
-        <h3 class="text-lg font-semibold text-slate-600 mb-4">Movimientos de Kardex</h3>
-        <?php if (!empty($kardexMovimientos)): ?>
-            <div class="overflow-x-auto custom-scrollbar">
-                <table class="min-w-full divide-y divide-slate-200">
-                    <thead class="bg-slate-50">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Fecha</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tipo</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Cantidad</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock Anterior</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock Actual</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Referencia</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Observaciones</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-slate-200">
-                        <?php foreach ($kardexMovimientos as $mov): ?>
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s(date('d/m/Y H:i', strtotime($mov->fecha))); ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium <?php echo ($mov->tipo_movimiento === 'ENTRADA_COMPRA' || $mov->tipo_movimiento === 'DEVOLUCION') ? 'text-emerald-600' : 'text-rose-600'; ?>"><?php echo s(str_replace('_', ' ', $mov->tipo_movimiento)); ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->cantidad); ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->stock_anterior); ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->stock_actual); ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->referencia_id); ?></td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500"><?php echo s($mov->observaciones); ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <h3 class="text-lg font-semibold text-slate-600">Movimientos de Kardex</h3>
+            <div class="flex gap-4 w-full md:w-auto">
+                <div class="relative flex-1 md:min-w-[300px]">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                    <input type="text" id="searchKardex" placeholder="Filtrar movimientos..." class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-neon-green outline-none">
+                </div>
+                <select id="limitSelector" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none">
+                    <option value="10">10 registros</option>
+                    <option value="25">25 registros</option>
+                    <option value="50">50 registros</option>
+                </select>
             </div>
-        <?php else: ?>
-            <div class="text-center py-10 text-slate-400 italic font-bold uppercase tracking-widest">
-                No hay movimientos de kardex para este producto.
-            </div>
-        <?php endif; ?>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                    <tr class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        <th class="px-6 py-4 text-left">ID</th>
+                        <th class="px-6 py-4 text-left">Fecha</th>
+                        <th class="px-6 py-4 text-left">Tipo</th>
+                        <th class="px-6 py-4 text-left">Cantidad</th>
+                        <th class="px-6 py-4 text-left">Flujo Stock</th>
+                        <th class="px-6 py-4 text-center">Referencia</th>
+                        <th class="px-6 py-4 text-right">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBodyKardex" class="bg-white divide-y divide-slate-100 text-sm text-slate-600">
+                    <!-- Contenido dinámico -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p id="paginationInfo" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Mostrando movimientos...</p>
+            <div id="paginationControls" class="flex gap-2"></div>
+        </div>
     </div>
 </div>
 
-<?php if (!empty($costHistory)): ?>
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('load', () => {
+        // 1. Gráfico de Costos
+        <?php if (!empty($costHistory)): ?>
         const costHistoryData = <?php echo json_encode($costHistory); ?>;
-        const ctx = document.getElementById('costHistoryChart').getContext('2d');
-
+        const canvas = document.getElementById('costHistoryChart');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
         const labels = costHistoryData.map(item => new Date(item.fecha).toLocaleDateString());
         const data = costHistoryData.map(item => parseFloat(item.costo_unitario));
 
@@ -136,6 +146,51 @@
                 }
             }
         });
+        }
+        <?php endif; ?>
+
+        // 2. Tabla Dinámica
+        if (typeof DataTableRefactor === 'undefined') {
+            console.error('DataTableRefactor no está cargado. Verifique footer.php');
+            return;
+        }
+
+    const kardexTable = new DataTableRefactor({
+        tableBodyId: 'tableBodyKardex',
+        endpoint: `${URLROOT}/inventario/kardexData/<?php echo $producto->id; ?>`,
+        limitSelectorId: 'limitSelector',
+        searchInputId: 'searchKardex',
+        paginationId: 'paginationControls',
+            totalId: 'paginationInfo',
+        renderRow: (m) => {
+                const esEntrada = m.tipo_movimiento.includes('ENTRADA') || m.tipo_movimiento.includes('DEVOLUCION');
+            return `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4 font-mono font-bold text-slate-400">#${m.id}</td>
+                        <td class="px-6 py-4 text-xs font-bold text-slate-500">${m.fecha}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded text-[10px] font-black ${esEntrada ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                                ${m.tipo_movimiento.replace('_', ' ')}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 font-black text-slate-800">${m.cantidad}</td>
+                        <td class="px-6 py-4 text-xs text-slate-500">${m.stock_anterior} → <b class="text-navy-blue">${m.stock_actual}</b></td>
+                        <td class="px-6 py-4 text-center font-bold text-slate-400">#${m.referencia_id || '---'}</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="window.open('${URLROOT}/inventario/imprimirMovimiento/${m.id}', '_blank')" class="p-2 bg-slate-100 rounded-lg hover:bg-blue-600 hover:text-white transition-all" title="Detalle PDF">
+                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            }
+        });
+
+        // 3. Botón de Impresión General
+        const btnPrint = document.getElementById('btnPrintAll');
+        if (btnPrint) {
+            btnPrint.onclick = () => window.open(`${URLROOT}/inventario/imprimirKardexCompleto/<?php echo $producto->id; ?>`, '_blank');
+        }
+
+        if (window.lucide) lucide.createIcons();
     });
 </script>
-<?php endif; ?>

@@ -151,15 +151,36 @@ class ModelInventario {
         return $this->db->execute();
     }
 
-    public function obtenerKardexPorProducto($producto_id) {
-        $this->db->query("SELECT k.*, u.username, s.nombre as usuario_nombre 
+    /**
+     * Obtiene los movimientos de Kardex con soporte para paginación y búsqueda
+     */
+    public function obtenerKardexPaginado($producto_id, $limit = 10, $offset = 0, $search = null) {
+        $where = "WHERE k.producto_id = :pid";
+        if ($search) {
+            $where .= " AND (k.tipo_movimiento LIKE :search OR k.observaciones LIKE :search OR k.referencia_id LIKE :search)";
+        }
+
+        // Contar total
+        $this->db->query("SELECT COUNT(*) as total FROM table_kardex k $where");
+        $this->db->bind(':pid', $producto_id);
+        if ($search) $this->db->bind(':search', "%$search%");
+        $total = (int)$this->db->single()->total;
+
+        // Obtener datos
+        $this->db->query("SELECT k.*, u.username, s.nombre as usuario_nombre, i.nombre as producto_nombre
                           FROM table_kardex k
                           LEFT JOIN table_usuarios u ON k.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
-                          WHERE k.producto_id = :pid
-                          ORDER BY k.fecha DESC");
+                          LEFT JOIN table_inventario i ON k.producto_id = i.id
+                          $where
+                          ORDER BY k.fecha DESC 
+                          LIMIT :limit OFFSET :offset");
         $this->db->bind(':pid', $producto_id);
-        return $this->db->resultSet();
+        if ($search) $this->db->bind(':search', "%$search%");
+        $this->db->bind(':limit', (int)$limit);
+        $this->db->bind(':offset', (int)$offset);
+        
+        return ['data' => $this->db->resultSet(), 'total' => $total];
     }
 
     /**
