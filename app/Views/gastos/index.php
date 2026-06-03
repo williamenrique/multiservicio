@@ -6,10 +6,16 @@
             <p class="text-slate-500 text-sm">Control detallado de egresos operativos y servicios del taller.</p>
         </div>
         
-        <button onclick="openExpenseModal()" class="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-red-200 group">
-            <i data-lucide="plus-circle" class="w-5 h-5 group-hover:rotate-90 transition-transform"></i>
-            REGISTRAR GASTO
-        </button>
+        <div class="flex flex-col items-end gap-2">
+            <button onclick="openExpenseModal()" class="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-red-200 group">
+                <i data-lucide="plus-circle" class="w-5 h-5 group-hover:rotate-90 transition-transform"></i>
+                REGISTRAR GASTO
+            </button>
+            <button onclick="imprimirGastosActuales()" class="flex items-center gap-2 bg-navy-blue text-neon-green px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-md hover:scale-105 transition-all">
+                <i data-lucide="printer" class="w-4 h-4"></i>
+                Imprimir Reporte
+            </button>
+        </div>
     </div>
 
     <!-- Buscador -->

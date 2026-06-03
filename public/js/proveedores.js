@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button onclick="window.registrarCompra('${item.id}', '${item.nombre}')" class="flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-blue-500 text-slate-500 hover:text-white rounded-2xl transition-all shadow-sm" title="Ingresar Mercancía">
                                 <i data-lucide="shopping-bag" class="w-4 h-4"></i>
                             </button>
+                            <button onclick="window.imprimirReporteProveedorIndividual('${item.id}')" class="flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-navy-blue text-slate-500 hover:text-neon-green rounded-2xl transition-all shadow-sm" title="Imprimir Estado de Cuenta">
+                                <i data-lucide="printer" class="w-4 h-4"></i>
+                            </button>
                             <button onclick="editItem('${item.id}')" class="flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-neon-green text-slate-500 hover:text-black rounded-2xl transition-all shadow-sm">
                                 <i data-lucide="edit-3" class="w-4 h-4"></i>
                             </button>
@@ -172,6 +175,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (topControls) topControls.classList.add('hidden');
             if (bottomControls) bottomControls.classList.add('hidden');
             // Carga simple para deudas (no requiere paginación compleja)
+
+            // Inyectar botón de reporte global de deudas si no existe
+            if (!document.getElementById('btn-print-global-debts')) {
+                const container = document.createElement('div');
+                container.className = "flex justify-end mb-4 px-8";
+                container.innerHTML = `
+                    <button id="btn-print-global-debts" onclick="window.exportarCarteraProveedoresPdf()" 
+                            class="flex items-center gap-2 bg-navy-blue text-neon-green px-4 py-2 rounded-xl text-xs font-black uppercase shadow-lg hover:scale-105 transition-all">
+                        <i data-lucide="printer" class="w-4 h-4"></i> Reporte Global de Cuentas por Pagar
+                    </button>
+                `;
+                secDeudas.prepend(container);
+                if (window.lucide) lucide.createIcons();
+            }
+
             fetch(`${URLROOT}/proveedores/listarDeudas`)
                 .then(r => r.json())
                 .then(res => renderDeudas(res.data || []));
@@ -200,12 +218,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     </span>
                 </td>
                 <td class="px-8 py-5 text-right align-middle">
-                    <button onclick="openPaymentModal('${d.id}')" class="bg-navy-blue text-neon-green px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-md">Gestionar</button>
+                    <div class="flex justify-end gap-2">
+                        <button onclick="window.imprimirReporteProveedorIndividual('${d.id}')" class="flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-navy-blue text-slate-500 hover:text-neon-green rounded-2xl transition-all shadow-sm" title="Imprimir Estado de Cuenta">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="openPaymentModal('${d.id}')" class="bg-navy-blue text-neon-green px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-md">Gestionar</button>
+                    </div>
                 </td>
             `;
             tableDeudasBody.appendChild(row);
         });
         if (window.lucide) lucide.createIcons();
+    };
+
+    /**
+     * Funciones de impresión (Disponibles localmente para el módulo)
+     */
+    window.exportarCarteraProveedoresPdf = function () {
+        AppUtils.showToast("Generando reporte global de proveedores...", "info");
+        window.open(`${URLROOT}/reportes/imprimirCarteraProveedores`, '_blank');
+    };
+
+    window.imprimirReporteProveedorIndividual = function (id) {
+        if (!id) return;
+        AppUtils.showToast("Generando estado de cuenta...", "info");
+        window.open(`${URLROOT}/reportes/imprimirReporteProveedor/${id}`, '_blank');
     };
 
     /**
@@ -225,7 +262,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Categoría</label>
-                            <input id="compra-categoria" class="w-full p-2 bg-slate-50 border rounded-lg text-sm uppercase" value="REPUESTOS">
+                            <select id="compra-categoria" class="w-full p-2 bg-slate-50 border rounded-lg text-sm uppercase font-bold text-navy-blue">
+                                <option value="MECANICA">MECÁNICA</option>
+                                <option value="REPUESTOS">REPUESTOS</option>
+                                <option value="LUBRICANTES">LUBRICANTES</option>
+                                <option value="ELECTRICIDAD">ELECTRICIDAD</option>
+                                <option value="OTROS">OTROS</option>
+                            </select>
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Cantidad</label>

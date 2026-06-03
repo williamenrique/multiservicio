@@ -349,6 +349,23 @@ window.cargarCartera = async function () {
 };
 
 /**
+  * Dispara la impresión del reporte de cartera de proveedores (Global)
+ */
+window.exportarCarteraProveedoresPdf = function () {
+    AppUtils.showToast("Generando reporte de proveedores...", "info");
+    window.open(`${URLROOT}/reportes/imprimirCarteraProveedores`, '_blank');
+};
+
+/**
+ * Dispara la impresión del reporte individual de un proveedor
+ */
+window.imprimirReporteProveedorIndividual = function (id) {
+    if (!id) return;
+    AppUtils.showToast("Generando estado de cuenta...", "info");
+    window.open(`${URLROOT}/reportes/imprimirReporteProveedor/${id}`, '_blank');
+};
+
+/**
  * Exporta la cartera actual a Excel (CSV)
  */
 window.exportarCarteraExcel = function () {

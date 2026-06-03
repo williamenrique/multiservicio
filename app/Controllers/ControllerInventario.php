@@ -54,9 +54,9 @@ class ControllerInventario extends Controller {
             redirect('inventario?error=producto_no_encontrado');
         }
 
-        // Verificar si existe la imagen, de lo contrario usar la de por defecto
+        // Verificar si existe la imagen, de lo contrario enviamos null para que la vista maneje el icono 'package'
         if (empty($producto->imagen) || !file_exists(APPROOT . '/../public/' . $producto->imagen)) {
-            $producto->imagen = 'img/default.png';
+            $producto->imagen = null;
         }
 
         $costHistory = $this->inventarioModel->getCostHistory($producto_id);
@@ -129,63 +129,5 @@ class ControllerInventario extends Controller {
         $movimientos = $db->resultSet();
 
         $pdfService = new PdfService();
-        $pdfService->generarDocumento('kardex_reporte', [
-            'titulo_documento' => 'Historial Completo de Kardex',
-            'producto' => $producto,
-            'movimientos' => $movimientos
-        ], 'Kardex_' . str_replace(' ', '_', $producto->nombre) . '.pdf');
-        exit;
     }
-
-    public function guardar() {
-        RoleGuard::isAdmin();
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            try {
-                // Ahora recibimos datos vía $_POST por usar FormData
-                $data = $_POST;
-                $data['imagen'] = isset($data['imagen']) ? trim($data['imagen']) : null;
-                
-                if (empty($data['nombre'])) {
-                    return $this->jsonResponse(['success' => false, 'mensaje' => 'El nombre es obligatorio'], 400);
-                }
-
-                // Procesar Imagen Local
-                if (!empty($_FILES['imagen_archivo']['name'])) {
-                    $archivo = $_FILES['imagen_archivo'];
-                    $nombreLimpio = str_replace(' ', '_', strtolower($data['nombre']));
-                    $extension = pathinfo($archivo['name'], PATHINFO_EXTENSION);
-                    $nombreFinal = $nombreLimpio . "_" . time() . "." . $extension;
-                    
-                    $subfolder = 'inventario';
-                    $uploadPath = APPROOT . '/../public/uploads/' . $subfolder . '/';
-
-                    if (!is_dir($uploadPath)) {
-                        mkdir($uploadPath, 0777, true);
-                    }
-
-                    if (move_uploaded_file($archivo['tmp_name'], $uploadPath . $nombreFinal)) {
-                        $data['imagen'] = 'uploads/' . $subfolder . '/' . $nombreFinal;
-                    }
-                }
-
-                if (!empty($data['id'])) {
-                    $res = $this->inventarioModel->actualizar($data);
-                    $mensaje = "Producto actualizado";
-                } else {
-                    $res = $this->inventarioModel->crear($data);
-                    $mensaje = "Producto registrado";
-                }
-
-                return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? $mensaje : 'Error al procesar']);
-            } catch (Exception $e) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
-            }
-        }
-    }
-
-    public function eliminar($id) {
-        RoleGuard::isAdmin();
-        $res = $this->inventarioModel->eliminar($id);
-        return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Producto eliminado' : 'Error al eliminar']);
-    }
-}
+} 

@@ -149,6 +149,45 @@ class ControllerReportes extends Controller {
     }
 
     /**
+     * Genera el PDF del estado de cuenta de un proveedor individual
+     */
+    public function imprimirReporteProveedor($id = null) {
+        RoleGuard::isAdmin();
+        if (!$id) die("ID de proveedor no proporcionado.");
+
+        $data = $this->reporteModel->obtenerDetalleProveedor($id);
+        if (!$data) die("El proveedor no existe.");
+
+        $empresa = $this->model('Empresa')->obtenerConfiguracion();
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('reporte_proveedor_individual', [
+            'titulo_documento' => 'Estado de Cuenta de Proveedor',
+            'empresa' => $empresa,
+            'proveedor' => $data,
+            'documento_id' => 'PROV-' . $id
+        ], 'Reporte_Proveedor_' . $id . '.pdf');
+        exit;
+    }
+
+    /**
+     * Genera el reporte PDF global de cuentas por pagar (Proveedores)
+     */
+    public function imprimirCarteraProveedores() {
+        RoleGuard::isAdmin();
+        $cartera = $this->reporteModel->obtenerCarteraProveedoresPorEdades();
+        $empresa = $this->model('Empresa')->obtenerConfiguracion();
+
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('reporte_cartera_proveedores', [
+            'titulo_documento' => 'Cuentas por Pagar (Proveedores)',
+            'empresa' => $empresa,
+            'cartera' => $cartera,
+            'documento_id' => 'CPP-' . date('Ymd')
+        ], 'Reporte_Cartera_Proveedores_' . date('Ymd') . '.pdf');
+        exit;
+    }
+
+    /**
      * Genera el reporte PDF de la Auditoría de Trabajos (Listado completo)
      */
     public function imprimirAuditoria() {

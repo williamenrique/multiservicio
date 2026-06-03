@@ -298,6 +298,37 @@ class ModelReportes {
     }
 
     /**
+     * Obtiene el estado de cuenta detallado de un proveedor individual.
+     */
+    public function obtenerDetalleProveedor($id) {
+        // 1. Información básica del proveedor
+        $this->db->query("SELECT * FROM table_proveedores WHERE id = :id");
+        $this->db->bind(':id', $id);
+        $proveedor = $this->db->single();
+
+        if ($proveedor) {
+            // 2. Resumen de facturas de compra
+            $this->db->query("SELECT * FROM table_compras WHERE proveedor_id = :id ORDER BY fecha DESC");
+            $this->db->bind(':id', $id);
+            $proveedor->compras = $this->db->resultSet() ?: [];
+
+            // 3. Historial de abonos realizados a este proveedor
+            $this->db->query("SELECT a.*, c.total as total_compra FROM table_abonos_proveedores a 
+                              JOIN table_compras c ON a.compra_id = c.id 
+                              WHERE c.proveedor_id = :id ORDER BY a.fecha DESC");
+            $this->db->bind(':id', $id);
+            $proveedor->abonos = $this->db->resultSet() ?: [];
+
+            // 4. Totales acumulados
+            $this->db->query("SELECT SUM(total) as total_compras, SUM(pagado) as total_pagado, SUM(total - pagado) as saldo_pendiente 
+                              FROM table_compras WHERE proveedor_id = :id");
+            $this->db->bind(':id', $id);
+            $proveedor->resumen = $this->db->single();
+        }
+        return $proveedor;
+    }
+
+    /**
      * Calcula la rentabilidad comparando Repuestos vs Servicios en un periodo.
      */
     public function obtenerAnalisisRentabilidad($desde, $hasta) {
@@ -389,45 +420,45 @@ class ModelReportes {
         try {
             $this->db->beginTransaction();
 
-            // 1. Extraer los IDs de los trabajos para marcar como pagados
-            $detallesIds = $data['detalles_ids'] ?? [];
-
-            // 2. Insertar el registro de nómina con los nuevos campos de cálculo
+            // 1. Insertar el registro de nómina
             $this->db->query("INSERT INTO table_pagos_empleados (staff_id, monto, monto_base, modo_calculo, factor_calculo, tipo, metodo_pago, notas, usuario_id) 
                               VALUES (:sid, :monto, :base, :modo, :factor, :tipo, :metodo, :notas, :uid)");
+            
             $this->db->bind(':sid', $data['staff_id']);
             $this->db->bind(':monto', $data['monto']);
-            $this->db->bind(':base', $data['monto_base'] ?? 0);
-            $this->db->bind(':modo', $data['modo_calculo'] ?? 'FIJO');
-            $this->db->bind(':factor', $data['factor_calculo'] ?? 0);
-            $this->db->bind(':tipo', $data['tipo'] ?? 'ADELANTO');
-            $this->db->bind(':metodo', $data['metodo_pago'] ?? 'EFECTIVO');
-            $this->db->bind(':notas', $data['notas'] ?? '');
+            $this->db->bind(':base', $data['monto_base']);
+            $this->db->bind(':modo', $data['modo_calculo']);
+            $this->db->bind(':factor', $data['factor_calculo']);
+            $this->db->bind(':tipo', $data['tipo']);
+            $this->db->bind(':metodo', $data['metodo_pago']);
+            $this->db->bind(':notas', $data['notas']);
             $this->db->bind(':uid', $data['usuario_id']);
-            $this->db->execute();
             
+            $this->db->execute();
             $pagoId = $this->db->lastInsertId();
 
-            // 3. Vincular los ítems de mano de obra a este pago para el historial (cambian a Gris)
-            if ($pagoId && !empty($detallesIds)) {
-                foreach ($detallesIds as $detId) {
-                    $this->db->query("UPDATE table_ventas_detalle SET pago_nomina_id = :pid WHERE id = :did");
+            // 2. Marcar los trabajos como liquidados si existen en el array
+            $detallesIds = $data['detalles_ids'] ?? [];
+            if (!empty($detallesIds)) {
+                foreach ($detallesIds as $id) {
+                    $this->db->query("UPDATE table_ventas_detalle SET pago_nomina_id = :pid WHERE id = :id");
                     $this->db->bind(':pid', $pagoId);
-                    $this->db->bind(':did', $detId);
+                    $this->db->bind(':id', $id);
                     $this->db->execute();
                 }
             }
 
             $this->db->commit();
-            return $pagoId;
+            return true;
         } catch (Exception $e) {
-            $this->db->rollBack();
-            throw $e;
+            if ($this->db) $this->db->rollBack();
+            error_log("Error registrando pago nómina: " . $e->getMessage());
+            return false;
         }
     }
 
     /**
-     * Obtiene el listado de pagos de nómina realizados en un periodo.
+     * Obtiene el historial de pagos de nómina realizados.
      */
     public function obtenerHistorialPagosNomina($desde, $hasta) {
         $this->db->query("SELECT p.*, s.nombre as staff_nombre, s.cargo as staff_cargo, u.username as registrado_por 
@@ -436,24 +467,6 @@ class ModelReportes {
                           LEFT JOIN table_usuarios u ON p.usuario_id = u.id
                           WHERE DATE(p.fecha) BETWEEN :desde AND :hasta
                           ORDER BY p.fecha DESC");
-        $this->db->bind(':desde', $desde);
-        $this->db->bind(':hasta', $hasta);
-        return $this->db->resultSet() ?: [];
-    }
-
-    /**
-     * Obtiene un reporte detallado de ventas de repuestos para el administrador.
-     */
-    public function obtenerReporteRepuestos($desde, $hasta) {
-        $this->db->query("SELECT v.id, v.fecha, c.nombre as cliente, 
-                          SUM(vd.cantidad * vd.precio_unitario) as total_venta,
-                          SUM(vd.cantidad * vd.costo_unitario) as total_costo,
-                          (SUM(vd.cantidad * vd.precio_unitario) - SUM(vd.cantidad * vd.costo_unitario)) as utilidad
-                          FROM table_ventas v
-                          JOIN table_ventas_detalle vd ON v.id = vd.venta_id
-                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE vd.producto_id IS NOT NULL AND DATE(v.fecha) BETWEEN :desde AND :hasta
-                          GROUP BY v.id ORDER BY v.fecha DESC");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         return $this->db->resultSet() ?: [];
