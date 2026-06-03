@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('searchClient');
     const totalCount = document.getElementById('totalCount');
 
+    const invalidFields = new Set();
+
     new DataTableRefactor({
         tableId: 'clientes',
         tableBodyId: 'tableBody',
@@ -43,9 +45,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const setValidationIcon = (inputElement, status) => {
+        let iconContainer = inputElement.parentElement.querySelector('.validation-icon-container');
+        if (!iconContainer) {
+            iconContainer = document.createElement('div');
+            iconContainer.className = 'validation-icon-container absolute right-3 top-[38px] flex items-center pointer-events-none';
+            inputElement.parentElement.classList.add('relative');
+            inputElement.parentElement.appendChild(iconContainer);
+        }
+
+        if (status === 'error') {
+            iconContainer.innerHTML = '<i data-lucide="alert-circle" class="w-4 h-4 text-red-500 animate-in zoom-in duration-300"></i>';
+        } else if (status === 'success') {
+            iconContainer.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 animate-in zoom-in duration-300"></i>';
+        } else {
+            iconContainer.innerHTML = '';
+        }
+        if (window.lucide) lucide.createIcons();
+    };
+
+    const checkUniqueness = async (inputElement, endpoint, fieldLabel) => {
+        const value = inputElement.value.trim();
+        // Si el campo está vacío o es de solo lectura (edición), no validamos unicidad
+        if (!value || inputElement.readOnly) {
+            inputElement.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
+            setValidationIcon(inputElement, 'none');
+            invalidFields.delete(inputElement.id);
+            return;
+        }
+
+        try {
+            const res = await fetch(`${URLROOT}/clientes/${endpoint}?value=${encodeURIComponent(value)}`);
+            const result = await res.json();
+            if (result.exists) {
+                AppUtils.showToast(`Atención: El ${fieldLabel} ya se encuentra registrado`, 'error');
+                inputElement.classList.add('border-red-500', 'ring-2', 'ring-red-500/20');
+                setValidationIcon(inputElement, 'error');
+                invalidFields.add(inputElement.id);
+            } else {
+                inputElement.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
+                setValidationIcon(inputElement, 'success');
+                invalidFields.delete(inputElement.id);
+            }
+        } catch (e) { console.error(e); }
+
+        const btnSave = form.querySelector('button[type="submit"]');
+        if (btnSave) btnSave.disabled = invalidFields.size > 0;
+    };
+
+    const clientIdInput = document.getElementById('clientId');
+    clientIdInput?.addEventListener('blur', () => checkUniqueness(clientIdInput, 'verificarId', 'número de identificación'));
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
+
+        if (invalidFields.size > 0) {
+            AppUtils.showToast('No se puede guardar: La identificación ya está en uso.', 'error');
+            return;
+        }
 
         const btnSave = form.querySelector('button[type="submit"]');
         const originalText = btnSave.innerHTML;
@@ -93,6 +151,12 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.toggle('hidden', !show);
         if (!show) {
             form.reset();
+            invalidFields.clear();
+            if (clientIdInput) {
+                clientIdInput.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
+                clientIdInput.classList.add('border-slate-200');
+                setValidationIcon(clientIdInput, 'none');
+            }
             document.getElementById('clientId').readOnly = false;
             document.getElementById('modalTitle').textContent = "Registrar Cliente";
         }

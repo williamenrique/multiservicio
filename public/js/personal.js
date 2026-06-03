@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalCount = document.getElementById('totalCount');
     const searchInput = document.getElementById('searchStaff');
 
+    const invalidFields = new Set();
+
     new DataTableRefactor({
         tableId: 'personal',
         tableBodyId: 'tableBody',
@@ -57,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Validaciones dinámicas de unicidad (Cédula y Usuario)
     const staffCedulaInput = document.getElementById('staffCedula');
     const staffUserInput = document.getElementById('staffUser');
+    const staffEmailInput = document.getElementById('staffEmail');
     const staffIdInput = document.getElementById('staffId');
 
     const setValidationIcon = (inputElement, status) => {
@@ -95,18 +98,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputElement.classList.add('border-red-500', 'ring-2', 'ring-red-500/20');
                 inputElement.classList.remove('border-slate-200');
                 setValidationIcon(inputElement, 'error');
+                invalidFields.add(inputElement.id);
                 return false;
             } else {
                 inputElement.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
                 inputElement.classList.add('border-slate-200');
                 setValidationIcon(inputElement, 'success');
+                invalidFields.delete(inputElement.id);
             }
         } catch (e) { console.error(e); }
+
+        // Deshabilitar botón de guardado si hay errores
+        const btnSave = formStaff.querySelector('button[type="submit"]');
+        if (btnSave) btnSave.disabled = invalidFields.size > 0;
+
         return true;
     };
 
     staffCedulaInput?.addEventListener('blur', () => checkUniqueness(staffCedulaInput, 'verificarCedula', 'número de identificación'));
     staffUserInput?.addEventListener('blur', () => checkUniqueness(staffUserInput, 'verificarUsername', 'nombre de usuario'));
+    staffEmailInput?.addEventListener('blur', () => checkUniqueness(staffEmailInput, 'verificarEmail', 'correo electrónico'));
 
     document.getElementById('hasSystemAccess').addEventListener('change', (e) => {
         document.getElementById('userFields').classList.toggle('hidden', !e.target.checked);
@@ -115,6 +126,11 @@ document.addEventListener('DOMContentLoaded', () => {
     formStaff.addEventListener('submit', async (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
+
+        if (invalidFields.size > 0) {
+            AppUtils.showToast('No se puede guardar: Algunos datos (Cédula, Usuario o Email) ya están en uso.', 'error');
+            return;
+        }
 
         const btnSave = formStaff.querySelector('button[type="submit"]');
         const originalText = btnSave.innerHTML;
@@ -169,8 +185,9 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.toggle('hidden', !show);
         if (!show) {
             formStaff.reset();
+            invalidFields.clear();
             // Limpiar estilos de validación visual al cerrar
-            [staffCedulaInput, staffUserInput].forEach(el => {
+            [staffCedulaInput, staffUserInput, staffEmailInput].forEach(el => {
                 if (!el) return;
                 el.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
                 el.classList.add('border-slate-200');

@@ -121,4 +121,11 @@ class ModelCliente {
         $this->db->bind(':term', "%$term%");
         return $this->db->resultSet();
     }
+
+    public function verificarIdUnico($id) {
+        $this->db->query("SELECT COUNT(*) as total FROM table_clientes WHERE id = :id");
+        $this->db->bind(':id', mb_strtoupper(trim($id), 'UTF-8'));
+        $result = $this->db->single();
+        return (int)$result->total > 0;
+    }
 }

@@ -22,6 +22,60 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('searchProveedor');
     const totalCount = document.getElementById('totalCount');
 
+    const invalidFields = new Set();
+
+    // Validaciones dinámicas de unicidad (Email)
+    const provEmailInput = document.getElementById('provEmail');
+    const provIdInput = document.getElementById('provId');
+
+    const setValidationIcon = (inputElement, status) => {
+        let iconContainer = inputElement.parentElement.querySelector('.validation-icon-container');
+        if (!iconContainer) {
+            iconContainer = document.createElement('div');
+            iconContainer.className = 'validation-icon-container absolute right-3 top-[38px] flex items-center pointer-events-none';
+            inputElement.parentElement.classList.add('relative');
+            inputElement.parentElement.appendChild(iconContainer);
+        }
+        if (status === 'error') {
+            iconContainer.innerHTML = '<i data-lucide="alert-circle" class="w-4 h-4 text-red-500 animate-in zoom-in duration-300"></i>';
+        } else if (status === 'success') {
+            iconContainer.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 animate-in zoom-in duration-300"></i>';
+        } else {
+            iconContainer.innerHTML = '';
+        }
+        if (window.lucide) lucide.createIcons();
+    };
+
+    const checkUniqueness = async (inputElement, endpoint, fieldLabel) => {
+        const value = inputElement.value.trim();
+        if (!value) {
+            inputElement.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
+            setValidationIcon(inputElement, 'none');
+            return;
+        }
+        const currentId = provIdInput.value;
+        try {
+            const res = await fetch(`${URLROOT}/proveedores/${endpoint}?value=${encodeURIComponent(value)}&id=${currentId}`);
+            const result = await res.json();
+            if (result.exists) {
+                AppUtils.showToast(`Atención: El ${fieldLabel} ya se encuentra registrado`, 'error');
+                inputElement.classList.add('border-red-500', 'ring-2', 'ring-red-500/20');
+                setValidationIcon(inputElement, 'error');
+                invalidFields.add(inputElement.id);
+            } else {
+                inputElement.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
+                setValidationIcon(inputElement, 'success');
+                invalidFields.delete(inputElement.id);
+            }
+        } catch (e) { console.error(e); }
+
+        // Bloqueo visual del botón
+        const btnSave = formProveedor.querySelector('button[type="submit"]');
+        if (btnSave) btnSave.disabled = invalidFields.size > 0;
+    };
+
+    provEmailInput?.addEventListener('blur', () => checkUniqueness(provEmailInput, 'verificarEmail', 'correo electrónico'));
+
     new DataTableRefactor({
         tableId: 'proveedores',
         tableBodyId: 'tableBody',
@@ -68,9 +122,15 @@ document.addEventListener('DOMContentLoaded', () => {
         proveedorModal.classList.toggle('hidden', !show);
         if (!show) {
             formProveedor.reset();
+            invalidFields.clear();
             document.getElementById('provId').readOnly = false;
             document.getElementById('provIdExistente').value = "";
             document.getElementById('modalTitle').textContent = "Registrar Proveedor";
+            // Limpiar estilos de validación
+            if (provEmailInput) {
+                provEmailInput.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
+                setValidationIcon(provEmailInput, 'none');
+            }
         }
     };
 
@@ -101,6 +161,11 @@ document.addEventListener('DOMContentLoaded', () => {
     formProveedor?.addEventListener('submit', async (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
+
+        if (invalidFields.size > 0) {
+            AppUtils.showToast('El correo electrónico ya está registrado por otro proveedor.', 'error');
+            return;
+        }
 
         const btnSave = formProveedor.querySelector('button[type="submit"]');
         const originalText = btnSave.innerHTML;
