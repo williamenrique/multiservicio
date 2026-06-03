@@ -88,6 +88,7 @@ class DataTableRefactor {
             ? `<tr><td colspan="100%" class="px-8 py-24 text-center text-slate-400 italic font-bold uppercase tracking-widest bg-slate-50/30 border-none">${this.noDataMessage}</td></tr>`
             : data.map(item => this.renderRow(item)).join('');
         if (window.lucide) lucide.createIcons();
+        if (window.initGlobalTooltips) window.initGlobalTooltips();
     }
 
     updatePaginationUI(total, filtered) {

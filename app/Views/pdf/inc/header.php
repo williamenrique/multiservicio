@@ -8,6 +8,7 @@
                     ?? $pago->registrado_por 
                     ?? $mov->usuario_nombre 
                     ?? $orden->usuario_nombre 
+                    ?? $usuario_actual
                     ?? 'Taller Pro Sistema';
     ?>
     <title><?php echo ($titulo_documento ?? 'Documento') . (isset($documento_id) ? ' - ' . $documento_id : ''); ?></title>

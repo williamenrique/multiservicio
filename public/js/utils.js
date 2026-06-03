@@ -27,21 +27,14 @@ const AppUtils = {
      * @param {string} type Tipo de notificación (success, warning, error, info).
      */
     showToast: (msg, type = 'success') => {
-        const colors = {
-            success: '#39FF14',
-            warning: '#FFCD00',
-            error: '#ff4444',
-            info: '#0b1120'
-        };
-
         Toastify({
             text: msg,
             duration: 3000,
             gravity: "top",
             position: "right",
             style: {
-                background: colors[type],
-                color: type === 'success' || type === 'warning' ? '#000' : '#fff',
+                background: '#000000',
+                color: '#ffffff',
                 borderRadius: '8px',
                 fontWeight: 'bold'
             }

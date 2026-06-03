@@ -211,11 +211,12 @@ class ControllerReportes extends Controller {
 
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_auditoria', [
-            'titulo_documento' => 'Auditoría de Trabajos Realizados',
+            'titulo_documento' => 'Auditoría de Trabajos',
             'ventas' => array_values($ventas),
             'desde' => $desde,
             'hasta' => $hasta,
-            'documento_id' => 'REPORTE'
+            'documento_id' => 'FECHAS: ' . $desde . ' / ' . $hasta,
+            'usuario_actual' => $_SESSION['user_nombre']
         ], 'Reporte_Auditoria_' . date('Ymd_His') . '.pdf');
         exit;
     }
@@ -239,10 +240,12 @@ class ControllerReportes extends Controller {
 
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_gastos', [
-            'titulo_documento' => 'Reporte Detallado de Egresos',
+            'titulo_documento' => 'Reporte de Gastos',
             'gastos' => array_values($gastos),
             'desde' => $desde,
             'hasta' => $hasta,
+            'documento_id' => 'PERIODO: ' . $desde . ' AL ' . $hasta,
+            'usuario_actual' => $_SESSION['user_nombre'],
             'totales' => $res['totales'] ?? []
         ], 'Reporte_Gastos_' . date('Ymd_His') . '.pdf');
         exit;

@@ -329,7 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     maintainAspectRatio: false,
                     plugins: {
                         legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 11, weight: '600' }, padding: 20 } },
-                        tooltip: { backgroundColor: '#1e293b', titleFont: { size: 13 }, bodyFont: { size: 12 }, padding: 12, cornerRadius: 10 }
+                        tooltip: { backgroundColor: '#000000', titleFont: { size: 13 }, bodyFont: { size: 12 }, padding: 12, cornerRadius: 10 }
                     },
                     scales: {
                         y: {
