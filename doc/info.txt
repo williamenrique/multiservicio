@@ -11,18 +11,10 @@ Punto Fuerte: El uso de transacciones SQL (beginTransaction, commit) en los mode
 Punto a Mejorar: Hay una mezcla de lógica de presentación (generación de HTML vía JS) que se está volviendo extensa. Podríamos considerar una pequeña refactorización de componentes JS para que sean más reutilizables.
 ¿Sobre cuál de estos puntos te gustaría profundizar o empezar a trabajar primero? Quedo a la espera de tus instrucciones para proceder con el código cuando lo indiques.
     
-    5 Estado de Cuenta de Cliente: Una funcionalidad para generar un PDF o vista rápida de todos los abonos y saldos pendientes de un cliente específico, facilitando la cobranza.
-    
-    6 Cierre de Caja Diario: Un proceso donde el sistema "congele" los movimientos del día y genere un reporte comparativo entre el dinero esperado en sistema y el dinero físico reportado por el cajero.
+5 Estado de Cuenta de Cliente: Una funcionalidad para generar un PDF o vista rápida de todos los abonos y saldos pendientes de un cliente específico, facilitando la cobranza.    
 
 hay que revisar cartera de clientes deudasdashboard muetra que hay dos clientes con deudas y solo muestra uno en la tarjeta
 
-
-4. Optimización de Reportes (SQL vs PHP)
-En ModelReportes::obtenerFlujoCaja, observo que se realizan múltiples consultas y luego se utiliza array_merge, usort y array_slice en PHP.
-
-Mejora: Para un sistema robusto, esta lógica debería delegarse a la base de datos. El uso de UNION ALL con subconsultas optimizadas o Vistas SQL permitiría que la paginación y los filtros se ejecuten directamente en el motor, evitando problemas de memoria cuando el taller tenga miles de registros.
-Cálculo de Proporciones: La lógica actual para dividir ingresos entre repuestos y servicios dentro de un bucle PHP es costosa. Podrías pre-calcular estos valores al momento de guardar la venta en una tabla de resumen financiero.
 
 
 6. Valoración de Inventario y Costeo
@@ -37,3 +29,31 @@ Mejora: Si un administrador edita una factura o un gasto, el sistema debería re
 El sistema diferencia entre EFECTIVO y TRANSFERENCIA.
 
 Mejora: Crear un catálogo de "Bancos" o "Cuentas". En lugar de una etiqueta de texto, el dinero debería entrar a una entidad específica (ej. "Caja Principal", "Banco Nequi", "Banco General"). Esto permite realizar Conciliaciones Bancarias dentro del sistema.
+
+
+
+
+
+
+
+
+
+Cálculo de Proporciones: La división de ingresos entre "Repuestos" y "Servicios" se calcula en un bucle PHP consultando la base de datos por cada venta.
+Mejora: Almacenar estos totales pre-calculados en la tabla table_ventas al momento de cerrar la factura.
+B. Exactitud Contable e Inventario
+Costo Promedio Ponderado (CPP): Actualmente el sistema parece usar el "Último Costo" para calcular utilidades. Ante la inflación o cambios de precios, esto distorsiona la rentabilidad real.
+Mejora: Implementar el cálculo de CPP en el modelo de inventario cada vez que se registre una compra.
+Gestión de Bancos/Cajas: El sistema usa etiquetas de texto como "EFECTIVO" o "TRANSFERENCIA".
+Mejora: Crear un catálogo de "Cuentas" (Caja Principal, Nequi, Banco X) para permitir conciliaciones bancarias y saber exactamente cuánto dinero hay en cada canal.
+C. Lógica de Negocio y Refactorización
+Validación Centralizada: Aunque existe una clase Validator, mucha lógica de validación (como el plazo de 5 días para devoluciones) está embebida en los modelos o controladores.
+Mejora: Mover las reglas de negocio a la capa de Services. Los modelos solo deben persistir, los controladores solo dirigir, y los servicios validar el negocio.
+Manejo de Errores: Algunos controladores terminan la ejecución con un die().
+Mejora: Implementar un sistema de excepciones personalizadas (AppException) que sea capturado globalmente para devolver respuestas JSON estandarizadas al frontend.
+D. Funcionalidades de Valor Agregado
+Cartera de Proveedores: El sistema es fuerte en cartera de clientes, pero el seguimiento de deudas con proveedores podría ser más granular (historial de abonos por factura de compra).
+Portal de Consulta Externa: Aprovechando que el sistema ya tiene la información de placa y estado de orden, se podría crear una ruta pública donde el cliente vea el progreso de su vehículo sin loguearse.
+Cierre de Caja Diario: Implementar un proceso de "Arqueo" donde el sistema congele los movimientos de un turno y el usuario deba reportar el físico contra el sistema.
+E. Experiencia de Usuario (UI/UX)
+Buscador Global: El controlador ControllerSearch es una excelente base. Se puede expandir para que el buscador de la cabecera sea el centro de navegación rápida.
+Notificaciones: Integrar un servicio de colas para enviar avisos automáticos de "Orden Lista" por correo o una API de mensajería.
