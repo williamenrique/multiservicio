@@ -139,4 +139,42 @@ class ModelPersonal {
         logAction('PERSONAL', 'DELETE', "Se eliminó al personal con ID: " . $id);
         return $this->db->execute();
     }
+
+    /**
+     * Verifica si una cédula ya existe (excluyendo un ID opcional)
+     * @param string $cedula
+     * @param string|null $id ID actual del personal para omitir en la búsqueda
+     * @return bool True si ya existe, False si está disponible
+     */
+    public function verificarCedulaUnica($cedula, $id = null) {
+        $sql = "SELECT COUNT(*) as total FROM table_staff WHERE cedula = :cedula";
+        if ($id) {
+            $sql .= " AND id != :id";
+        }
+        $this->db->query($sql);
+        $this->db->bind(':cedula', mb_strtoupper(trim($cedula), 'UTF-8'));
+        if ($id) {
+            $this->db->bind(':id', mb_strtoupper($id, 'UTF-8'));
+        }
+        return (int)$this->db->single()->total > 0;
+    }
+
+    /**
+     * Verifica si un nombre de usuario ya está en uso (excluyendo un staffId opcional)
+     * @param string $username
+     * @param string|null $staffId ID del personal vinculado para omitir en la búsqueda
+     * @return bool True si ya existe, False si está disponible
+     */
+    public function verificarUsernameUnico($username, $staffId = null) {
+        $sql = "SELECT COUNT(*) as total FROM table_usuarios WHERE username = :un";
+        if ($staffId) {
+            $sql .= " AND staff_id != :sid";
+        }
+        $this->db->query($sql);
+        $this->db->bind(':un', mb_strtoupper(trim($username), 'UTF-8'));
+        if ($staffId) {
+            $this->db->bind(':sid', mb_strtoupper($staffId, 'UTF-8'));
+        }
+        return (int)$this->db->single()->total > 0;
+    }
 }

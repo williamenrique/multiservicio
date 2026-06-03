@@ -54,6 +54,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Validaciones dinámicas de unicidad (Cédula y Usuario)
+    const staffCedulaInput = document.getElementById('staffCedula');
+    const staffUserInput = document.getElementById('staffUser');
+    const staffIdInput = document.getElementById('staffId');
+
+    const setValidationIcon = (inputElement, status) => {
+        let iconContainer = inputElement.parentElement.querySelector('.validation-icon-container');
+        if (!iconContainer) {
+            iconContainer = document.createElement('div');
+            // Posicionamiento absoluto a la derecha del input, asumiendo estructura de label + input
+            iconContainer.className = 'validation-icon-container absolute right-3 top-[38px] flex items-center pointer-events-none';
+            inputElement.parentElement.classList.add('relative');
+            inputElement.parentElement.appendChild(iconContainer);
+        }
+
+        if (status === 'error') {
+            iconContainer.innerHTML = '<i data-lucide="alert-circle" class="w-4 h-4 text-red-500 animate-in zoom-in duration-300"></i>';
+        } else if (status === 'success') {
+            iconContainer.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 animate-in zoom-in duration-300"></i>';
+        } else {
+            iconContainer.innerHTML = '';
+        }
+        if (window.lucide) lucide.createIcons();
+    };
+
+    const checkUniqueness = async (inputElement, endpoint, fieldLabel) => {
+        const value = inputElement.value.trim();
+        if (!value) {
+            inputElement.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
+            setValidationIcon(inputElement, 'none');
+            return;
+        }
+        const currentId = staffIdInput.value;
+        try {
+            const res = await fetch(`${URLROOT}/personal/${endpoint}?value=${encodeURIComponent(value)}&id=${currentId}`);
+            const result = await res.json();
+            if (result.exists) {
+                AppUtils.showToast(`Atención: El ${fieldLabel} ya se encuentra registrado`, 'error');
+                inputElement.classList.add('border-red-500', 'ring-2', 'ring-red-500/20');
+                inputElement.classList.remove('border-slate-200');
+                setValidationIcon(inputElement, 'error');
+                return false;
+            } else {
+                inputElement.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
+                inputElement.classList.add('border-slate-200');
+                setValidationIcon(inputElement, 'success');
+            }
+        } catch (e) { console.error(e); }
+        return true;
+    };
+
+    staffCedulaInput?.addEventListener('blur', () => checkUniqueness(staffCedulaInput, 'verificarCedula', 'número de identificación'));
+    staffUserInput?.addEventListener('blur', () => checkUniqueness(staffUserInput, 'verificarUsername', 'nombre de usuario'));
+
     document.getElementById('hasSystemAccess').addEventListener('change', (e) => {
         document.getElementById('userFields').classList.toggle('hidden', !e.target.checked);
     });
@@ -115,6 +169,13 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.toggle('hidden', !show);
         if (!show) {
             formStaff.reset();
+            // Limpiar estilos de validación visual al cerrar
+            [staffCedulaInput, staffUserInput].forEach(el => {
+                if (!el) return;
+                el.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
+                el.classList.add('border-slate-200');
+                setValidationIcon(el, 'none');
+            });
             document.getElementById('staffId').disabled = false;
             document.getElementById('userFields').classList.add('hidden');
             document.getElementById('modalTitle').textContent = "Registrar Empleado";

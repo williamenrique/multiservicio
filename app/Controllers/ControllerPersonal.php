@@ -80,4 +80,26 @@ class ControllerPersonal extends Controller {
             }
         }
     }
+
+    /**
+     * Verifica si una cédula ya existe en el sistema (AJAX)
+     */
+    public function verificarCedula() {
+        $cedula = $_GET['value'] ?? '';
+        $id = $_GET['id'] ?? null;
+        
+        $exists = $this->staffModel->verificarCedulaUnica($cedula, $id);
+        return $this->jsonResponse(['exists' => $exists]);
+    }
+
+    /**
+     * Verifica si un nombre de usuario ya está en uso (AJAX)
+     */
+    public function verificarUsername() {
+        $username = $_GET['value'] ?? '';
+        $staffId = $_GET['id'] ?? null;
+
+        $exists = $this->staffModel->verificarUsernameUnico($username, $staffId);
+        return $this->jsonResponse(['exists' => $exists]);
+    }
 }
