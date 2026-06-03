@@ -55,7 +55,7 @@ class ModelHistorial {
         $this->db->query("SELECT v.id, v.fecha, v.placa, v.modelo_vehiculo, v.subtotal, v.iva_monto, v.total, v.status,
                           v.pago_efectivo, v.pago_transferencia, v.saldo_pendiente,
                           c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email,
-                          s.nombre as usuario_nombre, s.cargo as usuario_cargo
+                          COALESCE(s.nombre, u.username) as usuario_nombre, s.cargo as usuario_cargo
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id

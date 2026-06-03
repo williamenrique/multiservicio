@@ -29,4 +29,11 @@
     <div class="total-box text-right">
         <span style="font-size: 16px;"><strong>TOTAL A PAGAR: $<?php echo number_format($venta->total, 2); ?></strong></span>
     </div>
+
+    <?php if (isset($venta->status) && $venta->status === 'CREDITO'): ?>
+    <div class="text-right" style="margin-top: 10px; font-size: 11px; color: #475569; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
+        <span>Monto Pagado: $<?php echo number_format($venta->pago_efectivo + $venta->pago_transferencia, 2); ?></span><br>
+        <span style="color: #ef4444; font-weight: bold; font-size: 12px;">SALDO PENDIENTE: $<?php echo number_format($venta->saldo_pendiente, 2); ?></span>
+    </div>
+    <?php endif; ?>
 </div>

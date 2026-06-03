@@ -2,7 +2,15 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title><?php echo ($titulo_documento ?? 'Documento') . (isset($documento_id) ? ' #' . $documento_id : ''); ?></title>
+    <?php 
+        // Lógica para detectar el responsable según el tipo de documento
+        $responsable = $venta->vendedor_nombre 
+                    ?? $pago->registrado_por 
+                    ?? $mov->usuario_nombre 
+                    ?? $orden->usuario_nombre 
+                    ?? 'Taller Pro Sistema';
+    ?>
+    <title><?php echo ($titulo_documento ?? 'Documento') . (isset($documento_id) ? ' - ' . $documento_id : ''); ?></title>
     <style>
         body { font-family: 'Helvetica', sans-serif; font-size: 11px; color: #1e293b; margin: 0; padding: 0; }
         .header-table { width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 20px; }
@@ -27,13 +35,22 @@
             <div class="company-info">
                 NIT: <?php echo $empresa->nit; ?><br>
                 Dirección: <?php echo $empresa->address; ?><br>
-                Generado por: Taller Pro Sistema
+                
             </div>
         </td>
         <td width="40%" class="doc-details">
             <div class="doc-title"><?php echo $titulo_documento ?? 'Documento'; ?></div>
-            <div class="doc-number">ID: <?php echo $documento_id ?? '000'; ?></div>
-            <div>Generado el: <?php echo date('d/m/Y - h:i A'); ?></div>
+            <div class="doc-number"><?php echo $documento_id ?? '000'; ?></div>
+            <?php if (isset($venta->status)): ?>
+                <div style="margin-top: 5px;">
+                    <span style="font-size: 9px; padding: 2px 8px; border-radius: 3px; font-weight: bold; text-transform: uppercase; 
+                        <?php echo $venta->status === 'COMPLETADO' ? 'background-color: #dcfce7; color: #166534; border: 1px solid #166534;' : 'background-color: #fef3c7; color: #92400e; border: 1px solid #92400e;'; ?>">
+                        <?php echo $venta->status === 'COMPLETADO' ? 'CANCELADA' : 'CRÉDITO'; ?>
+                    </span>
+                </div>
+            <?php endif; ?>
+            <div style="margin-top: 5px;"><strong>Generado por:</strong> <?php echo $responsable; ?></div>
+            <div style="font-size: 9px; color: #64748b;">Fecha: <?php echo date('d/m/Y - h:i A'); ?></div>
         </td>
     </tr>
 </table>

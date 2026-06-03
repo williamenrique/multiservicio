@@ -137,10 +137,13 @@ class ModelFacturacion {
      * Obtiene los detalles completos de una venta para su impresión
      */
     public function obtenerVentaCompleta($id) {
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, s.nombre as mecanico_nombre
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
+                                 sm.nombre as mecanico_nombre, sv.nombre as vendedor_nombre
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          LEFT JOIN table_staff s ON v.mecanico_id = s.id
+                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff sv ON u.staff_id = sv.id
                           WHERE v.id = :id");
         $this->db->bind(':id', $id);
         $venta = $this->db->single();
@@ -181,9 +184,12 @@ class ModelFacturacion {
 
         // Obtener los datos paginados
         $this->db->query("SELECT v.*, c.nombre as cliente_nombre, 
+                          COALESCE(sv.nombre, u.username, 'SISTEMA') as vendedor_nombre, 
                           (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id AND producto_id IS NOT NULL) as cant_productos
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff sv ON u.staff_id = sv.id
                           $where
                           ORDER BY v.fecha DESC 
                           LIMIT :limit OFFSET :offset");
@@ -217,26 +223,36 @@ class ModelFacturacion {
     /**
      * Obtiene los datos para el reporte de auditoría de trabajos.
      * Retorna el resumen de deudas (para tarjetas) y la lista de trabajos realizados.
+     * Se agrega paginación y corrección en el conteo de deudores (Clientes únicos).
      */
-    public function obtenerAuditoriaTrabajos() {
-        // 1. Resumen de Deudores (Monto total pendiente y conteo)
-        $this->db->query("SELECT SUM(saldo_pendiente) as total_deuda, COUNT(*) as cantidad_deudores 
-                          FROM table_ventas WHERE status = 'CREDITO'");
+    public function obtenerAuditoriaTrabajos($limit = 10, $offset = 0) {
+        // 1. Resumen de Deudores (Monto total y cantidad de CLIENTES únicos con saldo pendiente)
+        $this->db->query("SELECT SUM(saldo_pendiente) as total_deuda, COUNT(DISTINCT cliente_id) as cantidad_deudores 
+                          FROM table_ventas WHERE status = 'CREDITO' AND saldo_pendiente > 0.05");
         $resumen = $this->db->single();
 
-        // 2. Lista de trabajos (Ventas finalizadas y a crédito) con datos relacionados
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, u.username as vendedor_nombre, s.nombre as mecanico_nombre
+        // 2. Conteo total para paginación
+        $this->db->query("SELECT COUNT(*) as total FROM table_ventas WHERE status IN ('COMPLETADO', 'CREDITO')");
+        $total = $this->db->single()->total;
+
+        // 3. Lista de trabajos con paginación
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, sv.nombre as vendedor_nombre, sm.nombre as mecanico_nombre
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
-                          LEFT JOIN table_staff s ON v.mecanico_id = s.id
+                          LEFT JOIN table_staff sv ON u.staff_id = sv.id
+                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')
-                          ORDER BY v.fecha DESC");
+                          ORDER BY v.fecha DESC
+                          LIMIT :limit OFFSET :offset");
+        $this->db->bind(':limit', (int)$limit);
+        $this->db->bind(':offset', (int)$offset);
         $lista = $this->db->resultSet();
 
         return [
             'resumen' => $resumen,
-            'lista' => $lista
+            'lista' => $lista,
+            'total' => $total
         ];
     }
 

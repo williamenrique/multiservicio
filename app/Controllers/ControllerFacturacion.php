@@ -190,7 +190,7 @@ class ControllerFacturacion extends Controller {
             $filename = 'Factura_' . $id . '_' . time() . '.pdf';
             $filePath = $pdfService->generarDocumento('factura', [
                 'titulo_documento' => 'Factura de Venta',
-                'documento_id' => $venta->id,
+                'documento_id' => 'Factura Número: ' . $venta->id,
                 'venta' => $venta
             ], $filename, false);
 
@@ -228,7 +228,7 @@ class ControllerFacturacion extends Controller {
         $pdfService = new PdfService();
         $pdfService->generarDocumento('factura', [
             'titulo_documento' => 'Factura de Venta',
-            'documento_id' => $venta->id,
+            'documento_id' => 'Factura Número: ' . $venta->id,
             'venta' => $venta
         ], 'Factura_' . $id . '.pdf'); // Stream to browser por defecto
         exit;
@@ -290,7 +290,10 @@ class ControllerFacturacion extends Controller {
      */
     public function getDeudoresSummary() {
         RoleGuard::isAdmin();
-        $data = $this->facturaModel->obtenerAuditoriaTrabajos();
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+        
+        $data = $this->facturaModel->obtenerAuditoriaTrabajos($limit, $offset);
         return $this->jsonResponse(['success' => true, 'data' => $data]);
     }
 

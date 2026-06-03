@@ -77,9 +77,10 @@
                     <table class="w-full text-base text-left text-slate-600">
                         <thead class="bg-slate-50/50 text-sm">
                             <tr>
-                                <th class="px-6 py-3">ID</th>
+                                <th class="px-6 py-3">N° Factura</th>
                                 <th class="px-6 py-3">Fecha</th>
                                 <th class="px-6 py-3">Cliente</th>
+                                <th class="px-6 py-3">Estado</th>
                                 <th class="px-6 py-3 text-right">Total</th>
                                 <th class="px-6 py-3 text-center">Acciones</th>
                             </tr>
@@ -139,17 +140,20 @@
                 </div>
 
                 <!-- Métodos de Pago -->
-                <div class="mt-6 mb-8">
-                    <label class="block text-xs font-bold text-slate-500 mb-3 uppercase tracking-tighter">Método de Pago</label>
+                <div class="mt-6 mb-8 space-y-4">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-tighter">Detalle de Pago (Crédito si el pago es parcial)</label>
                     <div class="grid grid-cols-2 gap-3">
-                        <button type="button" class="payment-method active flex flex-col items-center justify-center p-3 border-2 rounded-xl transition-all gap-1 group" data-type="EFECTIVO">
-                            <i data-lucide="banknote" class="w-5 h-5 group-[.active]:text-blue-600"></i>
-                            <span class="text-[10px] font-bold uppercase group-[.active]:text-blue-700">Efectivo</span>
-                        </button>
-                        <button type="button" class="payment-method flex flex-col items-center justify-center p-3 border-2 rounded-xl border-slate-100 transition-all gap-1 group text-slate-400" data-type="TRANSFERENCIA">
-                            <i data-lucide="landmark" class="w-5 h-5 group-[.active]:text-blue-600"></i>
-                            <span class="text-[10px] font-bold uppercase group-[.active]:text-blue-700">Transferencia</span>
-                        </button>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase">Efectivo</label>
+                            <input type="number" id="pagoEfectivo" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none" value="0" step="0.01">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase">Transferencia</label>
+                            <input type="number" id="pagoTransferencia" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none" value="0" step="0.01">
+                        </div>
+                    </div>
+                    <div id="msgSaldo" class="text-center p-2 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold uppercase hidden">
+                        Venta a Crédito: Pendiente <span id="txtSaldo"></span>
                     </div>
                 </div>
 
@@ -263,12 +267,16 @@ document.addEventListener('DOMContentLoaded', function() {
             hasta: document.getElementById('historialHasta')?.value
         }),
         renderRow: (v) => {
+            const statusClass = v.status === 'CREDITO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
             return `
                 <tr class="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
-                    <td class="px-6 py-4 font-black text-slate-800 text-lg">#${v.id}</td>
+                    <td class="px-6 py-4 font-black text-slate-800 text-base">#${v.id}</td>
                     <td class="px-6 py-4 text-slate-500 text-sm font-bold uppercase">${v.fecha}</td>
-                    <td class="px-6 py-4 text-slate-700 font-bold text-base uppercase">${v.cliente_nombre || 'CLIENTE MOSTRADOR'}</td>
-                    <td class="px-6 py-4 text-right font-black text-green-600 text-lg">${AppUtils.formatCurrency(v.total)}</td>
+                    <td class="px-6 py-4 text-slate-700 font-bold text-sm uppercase">${v.cliente_nombre || 'CLIENTE MOSTRADOR'}</td>
+                    <td class="px-6 py-4">
+                        <span class="text-[10px] font-black px-2 py-1 rounded-full ${statusClass} uppercase tracking-tighter">${v.status}</span>
+                    </td>
+                    <td class="px-6 py-4 text-right font-black text-slate-800 text-base">${AppUtils.formatCurrency(v.total)}</td>
                     <td class="px-6 py-4 text-center">
                         <button class="p-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all" 
                                 onclick="window.open('${URLROOT}/venta/imprimirFactura/${v.id}', '_blank')" title="Reimprimir Factura">
@@ -424,9 +432,33 @@ document.addEventListener('DOMContentLoaded', function() {
         placeholder.style.display = carrito.length > 0 ? 'none' : 'flex';
         document.getElementById('btnProcesar').disabled = carrito.length === 0;
         
+        const totalValue = subtotal.toFixed(2);
         document.getElementById('txtSubtotal').innerText = `$ ${subtotal.toFixed(2)}`;
         document.getElementById('txtTotal').innerText = `$ ${subtotal.toFixed(2)}`;
+        
+        // Auto-completar el pago en efectivo por defecto si es una venta nueva
+        if(carrito.length > 0 && parseFloat(document.getElementById('pagoEfectivo').value) === 0 && parseFloat(document.getElementById('pagoTransferencia').value) === 0) {
+            document.getElementById('pagoEfectivo').value = totalValue;
+        }
+        actualizarSaldo();
     }
+
+    function actualizarSaldo() {
+        const total = parseFloat(document.getElementById('txtTotal').innerText.replace('$ ', ''));
+        const pagado = parseFloat(document.getElementById('pagoEfectivo').value || 0) + parseFloat(document.getElementById('pagoTransferencia').value || 0);
+        const saldo = total - pagado;
+        const msgSaldo = document.getElementById('msgSaldo');
+        
+        if (saldo > 0.05) {
+            msgSaldo.classList.remove('hidden');
+            document.getElementById('txtSaldo').innerText = AppUtils.formatCurrency(saldo);
+        } else {
+            msgSaldo.classList.add('hidden');
+        }
+    }
+
+    document.getElementById('pagoEfectivo').addEventListener('input', actualizarSaldo);
+    document.getElementById('pagoTransferencia').addEventListener('input', actualizarSaldo);
 
     window.actualizarCant = (index, val) => {
         if(val < 1) return;
@@ -444,6 +476,8 @@ document.addEventListener('DOMContentLoaded', function() {
         hiddenCliId.value = '';
         inputCliSearch.value = '';
         inputBusqueda.value = '';
+        document.getElementById('pagoEfectivo').value = 0;
+        document.getElementById('pagoTransferencia').value = 0;
         renderizar();
         historialTable.reload();
     };
@@ -504,8 +538,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const payload = {
             items: carrito,
             cliente_id: document.getElementById('clienteId').value,
-            pago_efectivo: document.querySelector('.payment-method.active').dataset.type === 'EFECTIVO' ? parseFloat(document.getElementById('txtTotal').innerText.replace('$ ', '')) : 0,
-            pago_transferencia: document.querySelector('.payment-method.active').dataset.type === 'TRANSFERENCIA' ? parseFloat(document.getElementById('txtTotal').innerText.replace('$ ', '')) : 0,
+            pago_efectivo: parseFloat(document.getElementById('pagoEfectivo').value || 0),
+            pago_transferencia: parseFloat(document.getElementById('pagoTransferencia').value || 0),
             mecanico_id: null,
             placa: ''
         };

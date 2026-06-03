@@ -76,7 +76,7 @@ class ControllerVenta extends Controller {
         $pdfService->generarDocumento('factura', [
             'titulo_documento' => 'Comprobante de Venta',
             'venta' => $venta,
-            'documento_id' => $venta->id
+            'documento_id' => 'Factura Número: ' . $venta->id
         ], 'Factura_Repuestos_' . $id . '.pdf');
         exit;
     }
