@@ -49,8 +49,9 @@ const AppUtils = {
      * @param {string} icon Icono a mostrar.
      * @param {string} confirmText Texto del botón de confirmación.
      * @param {string} confirmColor Color hexadecimal del botón.
+     * @param {string} cancelText Texto del botón de cancelación.
      */
-    confirmAction: (title, text, onConfirm, icon = 'warning', confirmText = 'Sí, continuar', confirmColor = '#ef4444') => {
+    confirmAction: (title, text, onConfirm, icon = 'warning', confirmText = 'Sí, continuar', confirmColor = '#ef4444', cancelText = 'Cancelar') => {
         return Swal.fire({
             title,
             text,
@@ -58,7 +59,7 @@ const AppUtils = {
             showCancelButton: true,
             confirmButtonColor: confirmColor,
             confirmButtonText: confirmText,
-            cancelButtonText: 'Cancelar'
+            cancelButtonText: cancelText
         }).then((result) => {
             if (result.isConfirmed) onConfirm();
         });

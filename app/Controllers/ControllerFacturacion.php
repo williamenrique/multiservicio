@@ -114,11 +114,16 @@ class ControllerFacturacion extends Controller {
                 }
                 $tasaIva = (float)($datos['tasa_iva'] ?? 0);
                 $iva = ($datos['aplicar_iva'] ?? false) ? ($subtotal * ($tasaIva / 100)) : 0;
+                
+                $pef = (float)($datos['pago_efectivo'] ?? 0);
+                $ptra = (float)($datos['pago_transferencia'] ?? 0);
+                $totalFinal = $subtotal + $iva;
+
                 $totales = [
                     'subtotal' => $subtotal,
                     'iva' => $iva,
-                    'total' => $subtotal + $iva,
-                    'saldo' => $subtotal + $iva
+                    'total' => $totalFinal,
+                    'saldo' => max(0, $totalFinal - ($pef + $ptra))
                 ];
                 
                 // Inyectar el mecánico en los datos para el modelo

@@ -236,20 +236,24 @@ document.addEventListener('DOMContentLoaded', () => {
     inputPlaca.addEventListener('input', (e) => {
         updateActiveData('placa', e.target.value.toUpperCase());
         renderQueue();
+        renderInvoice();
     });
 
     inputModelo.addEventListener('input', (e) => {
         updateActiveData('modelo', e.target.value.toUpperCase());
         renderQueue();
+        renderInvoice();
     });
 
     inputCliente.addEventListener('change', (e) => {
         updateActiveData('cliente_id', e.target.value);
+        renderInvoice();
     });
 
     inputMecanico.addEventListener('change', (e) => {
         updateActiveData('mecanico_id', e.target.value);
         renderQueue();
+        renderInvoice();
     });
 
     // Listeners para captura de pagos
@@ -740,7 +744,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     () => window.open(`${URLROOT}/facturacion/imprimir/${data.venta_id}`, '_blank'),
                     'success',
                     'Sí, Imprimir',
-                    '#10b981'
+                    '#10b981',
+                    'Cerrar'
                 ).then(() => {
                     // Rehabilitar el botón y restaurar el contenido original independientemente de la elección
                     btnProcessSale.disabled = false;
