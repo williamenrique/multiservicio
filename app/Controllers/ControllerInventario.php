@@ -129,5 +129,74 @@ class ControllerInventario extends Controller {
         $movimientos = $db->resultSet();
 
         $pdfService = new PdfService();
+        $pdfService->generarDocumento('kardex_reporte', [
+            'titulo_documento' => 'Historial de Kardex',
+            'producto' => $producto,
+            'movimientos' => $movimientos,
+            'documento_id' => $producto->id
+        ], 'Kardex_' . $producto_id . '.pdf');
+        exit;
+    }
+
+    /**
+     * Guarda o actualiza un producto del inventario
+     */
+    public function guardar() {
+        RoleGuard::isAdmin();
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            // Detectar si los datos vienen por JSON o por FormData (POST tradicional)
+            $json = json_decode(file_get_contents('php://input'), true);
+            $input = $json ?? $_POST;
+
+            if (empty($input['nombre']) || !isset($input['precio'])) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Nombre y precio son requeridos'], 400);
+            }
+
+            try {
+                // Procesar subida de imagen si se adjuntó un archivo
+                if (isset($_FILES['imagen_archivo']) && $_FILES['imagen_archivo']['error'] === UPLOAD_ERR_OK) {
+                    $uploadDir = dirname(APPROOT) . '/public/img/productos/';
+                    if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+
+                    $fileExtension = strtolower(pathinfo($_FILES['imagen_archivo']['name'], PATHINFO_EXTENSION));
+                    $newFileName = 'prod_' . time() . '.' . $fileExtension;
+                    $destPath = $uploadDir . $newFileName;
+
+                    if (move_uploaded_file($_FILES['imagen_archivo']['tmp_name'], $destPath)) {
+                        // Si es una actualización, intentamos borrar la imagen anterior
+                        if (!empty($input['id'])) {
+                            $prodActual = $this->inventarioModel->obtenerPorId($input['id']);
+                            if ($prodActual && !empty($prodActual->imagen)) {
+                                $oldFile = dirname(APPROOT) . '/public/' . $prodActual->imagen;
+                                if (file_exists($oldFile)) @unlink($oldFile);
+                            }
+                        }
+                        // Asignamos la nueva ruta para guardar en la base de datos
+                        $input['imagen'] = 'img/productos/' . $newFileName;
+                    }
+                }
+
+                if (!empty($input['id'])) {
+                    $res = $this->inventarioModel->actualizar($input);
+                    $mensaje = 'Producto actualizado correctamente.';
+                } else {
+                    $res = $this->inventarioModel->crear($input);
+                    $mensaje = 'Producto creado correctamente.';
+                }
+
+                return $this->jsonResponse(['success' => $res, 'mensaje' => $mensaje]);
+            } catch (Exception $e) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+            }
+        }
+    }
+
+    /**
+     * Elimina un producto del inventario
+     */
+    public function eliminar($id) {
+        RoleGuard::isAdmin();
+        $res = $this->inventarioModel->eliminar($id);
+        return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Producto eliminado' : 'Error al eliminar']);
     }
 } 
