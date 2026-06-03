@@ -79,6 +79,7 @@ class ModelFacturacion {
                     'id' => $it->producto_id,
                     'nombre' => $it->descripcion,
                     'precio' => (float)$it->precio_unitario,
+                    'ultimo_costo' => (float)($it->costo_unitario ?? 0),
                     'cantidad' => (int)$it->cantidad,
                     'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO'
                 ];

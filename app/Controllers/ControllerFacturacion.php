@@ -126,7 +126,7 @@ class ControllerFacturacion extends Controller {
 
                 // Guardar cabecera usando el modelo inyectando la conexión actual
                 $tempModel = new ModelFacturacion($db);
-                $ventaId = $tempModel->guardarCabeceraVenta($datos, 'PENDIENTE', $totales);
+                $ventaId = $tempModel->guardarCabeceraVenta($datos, 'PENDIENTE', $totales, $_SESSION['user_id']);
 
                 // Limpiar y actualizar items del borrador
                 $db->query("DELETE FROM table_ventas_detalle WHERE venta_id = :vid");

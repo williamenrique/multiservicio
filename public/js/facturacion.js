@@ -177,6 +177,8 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.value = '';
 
         const userName = currentLoggedInUser ? currentLoggedInUser.staffName : '---';
+        const isMechanic = currentLoggedInUser && (parseInt(currentLoggedInUser.roleId) === 2 || currentLoggedInUser.role.toUpperCase() === 'MECANICO');
+        const staffId = currentLoggedInUser ? (currentLoggedInUser.staffId || currentLoggedInUser.staff_id) : '';
 
         const invData = {
             id: 'PROV-' + Math.floor(Math.random() * 9000 + 1000),
@@ -184,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
             placa: '',
             modelo: '',
             cliente_id: '',
-            mecanico_id: '',
+            mecanico_id: isMechanic ? staffId : '',
             iva_activo: false,
             pago_efectivo: 0,
             pago_transferencia: 0,
@@ -531,6 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
             id: selectedItemFromSearch.id,
             nombre: selectedItemFromSearch.nombre,
             precio: parseFloat(selectedItemFromSearch.precio),
+            ultimo_costo: parseFloat(selectedItemFromSearch.ultimo_costo || 0),
             cantidad: qty,
             tipo: 'PRODUCTO'
         });
