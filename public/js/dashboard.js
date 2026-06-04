@@ -14,7 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
         draftsContainer: document.getElementById('pending-bills-dashboard'),
         supplierDebts: document.getElementById('supplier-debts-dashboard'),
         financialStatusCards: document.getElementById('financial-status-cards'),
-        debtorsCard: document.getElementById('dashboard-debtors-card-container')
+        debtorsCard: document.getElementById('dashboard-debtors-card-container'),
+        workshopStatus: document.getElementById('workshop-status-container'),
+        topProducts: document.getElementById('top-products-container')
     };
 
     let performanceChart = null;
@@ -157,6 +159,67 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('');
         }
 
+        // 2.1 Renderizar Estado Operativo del Taller (Órdenes de Servicio)
+        if (statsElements.workshopStatus && data.workshopStatus) {
+            const ws = data.workshopStatus;
+            const totalActivas = (parseInt(ws.recibidos) || 0) + (parseInt(ws.reparacion) || 0) + (parseInt(ws.listos) || 0);
+
+            statsElements.workshopStatus.innerHTML = `
+                <div class="glass-card p-6 rounded-2xl border border-slate-100 h-full flex flex-col">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="p-2 bg-navy-blue text-white rounded-lg"><i data-lucide="wrench" class="w-4 h-4"></i></div>
+                        <h3 class="text-base font-black text-navy-blue uppercase tracking-tight">Estado del Taller</h3>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 flex-1">
+                        <div class="text-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <p class="text-2xl font-black text-slate-700">${ws.recibidos || 0}</p>
+                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Recibidos</p>
+                        </div>
+                        <div class="text-center p-3 bg-blue-50 rounded-xl border border-blue-100">
+                            <p class="text-2xl font-black text-blue-600">${ws.reparacion || 0}</p>
+                            <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest mt-1">En Proceso</p>
+                        </div>
+                        <div class="text-center p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                            <p class="text-2xl font-black text-emerald-600">${ws.listos || 0}</p>
+                            <p class="text-[9px] font-black text-emerald-400 uppercase tracking-widest mt-1">Listos</p>
+                        </div>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-400 uppercase">Total Vehículos:</span>
+                        <span class="text-sm font-black text-navy-blue">${totalActivas} EN PATIO</span>
+                    </div>
+                </div>`;
+        }
+
+        // 2.2 Renderizar Ranking de Repuestos más vendidos
+        if (statsElements.topProducts && data.topProducts) {
+            statsElements.topProducts.innerHTML = `
+                <div class="glass-card p-6 rounded-2xl border border-slate-100 h-full">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="p-2 bg-amber-500 text-white rounded-lg"><i data-lucide="trophy" class="w-4 h-4"></i></div>
+                        <h3 class="text-base font-black text-navy-blue uppercase tracking-tight">Top Ventas Repuestos</h3>
+                    </div>
+                    <div class="space-y-4">
+                        ${data.topProducts.length === 0 ? '<p class="text-center text-slate-400 text-xs py-10 uppercase font-bold">Sin ventas este mes</p>' :
+                    data.topProducts.map((p, idx) => `
+                            <div class="flex items-center justify-between group">
+                                <div class="flex items-center gap-3 overflow-hidden">
+                                    <span class="text-xs font-black text-slate-300 w-4">${idx + 1}</span>
+                                    <div class="overflow-hidden">
+                                        <p class="text-sm font-bold text-slate-700 uppercase truncate group-hover:text-amber-600 transition-colors">${p.nombre}</p>
+                                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">${p.categoria}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-sm font-black text-navy-blue">${p.total_vendido}</p>
+                                    <p class="text-[9px] font-bold text-slate-300 uppercase">Unid.</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+        }
+
         // 3. Limpiar el contenedor financiero duplicado (el que está al lado de la gráfica)
         if (statsElements.financialContainer && statsElements.financialContainer !== statsElements.inventoryContainer) {
             statsElements.financialContainer.innerHTML = '';
@@ -234,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
             } else {
                 const totalCarteraProv = data.supplierDebts.reduce((acc, d) => acc + parseFloat(d.saldo_pendiente), 0);
-                
+
                 statsElements.supplierDebts.innerHTML = `
                     <div class="glass-card rounded-2xl border border-slate-100 shadow-sm overflow-hidden col-span-full animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div class="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
@@ -265,14 +328,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
                                     ${data.supplierDebts.map(d => {
-                                        const fechaRaw = d.proximo_vencimiento || d.vencimiento;
-                                        const vencimiento = fechaRaw ? new Date(fechaRaw.replace(/-/g, '\/')) : null;
-                                        const hoy = new Date();
-                                        const diasRestantes = vencimiento ? Math.ceil((vencimiento - hoy) / (1000 * 60 * 60 * 24)) : null;
-                                        const isCritical = diasRestantes !== null && diasRestantes <= 3;
-                                        const numFacturas = d.facturas_pendientes || d.cantidad_facturas || 1;
+                    const fechaRaw = d.proximo_vencimiento || d.vencimiento;
+                    const vencimiento = fechaRaw ? new Date(fechaRaw.replace(/-/g, '\/')) : null;
+                    const hoy = new Date();
+                    const diasRestantes = vencimiento ? Math.ceil((vencimiento - hoy) / (1000 * 60 * 60 * 24)) : null;
+                    const isCritical = diasRestantes !== null && diasRestantes <= 3;
+                    const numFacturas = d.facturas_pendientes || d.cantidad_facturas || 1;
 
-                                        return `
+                    return `
                                         <tr class="hover:bg-slate-50/80 transition-colors group">
                                             <td class="px-6 py-4">
                                                 <p class="text-base font-black text-slate-700 uppercase group-hover:text-rose-600 transition-colors">${d.nombre}</p>
@@ -298,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 </button>
                                             </td>
                                         </tr>`;
-                                    }).join('')}
+                }).join('')}
                                 </tbody>
                             </table>
                         </div>

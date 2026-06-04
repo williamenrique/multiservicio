@@ -22,6 +22,9 @@ window.renderFlujoRow = (m) => {
                 <div class="flex flex-col gap-0.5">
                     <span class="text-sm font-bold text-slate-700 uppercase">${m.descripcion || m.categoria || 'OPERACIÓN'}</span>
                     ${m.placa ? `<span class="text-[9px] text-slate-400 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
+                    ${m.mecanico_nombre ? `
+                        <span class="text-[9px] text-slate-400 font-bold uppercase">TÉCNICO: ${m.mecanico_nombre}</span>
+                    ` : ''}
                 </div>
             </td>
             <td class="px-4 py-3 text-right w-36">
@@ -30,7 +33,7 @@ window.renderFlujoRow = (m) => {
                 </span>
             </td>
             <td class="px-4 py-3 text-right w-20">
-                ${m.tipo === 'VENTA' || m.tipo === 'ABONO' ?
+                ${(m.tipo === 'VENTA' || m.tipo === 'ABONO') && m.id ?
             `<button onclick="verDetalleVenta(${m.id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` :
             (m.tipo === 'COMPRA' ? `<button onclick="verDetalleCompra(${m.id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : '---')
         }
@@ -525,7 +528,7 @@ function renderAuditoriaLista(items) {
             return `
             <div class="border-b border-slate-100 py-8 last:border-0 group animate-in fade-in slide-in-from-bottom-2 duration-300 ${isCredit ? 'bg-rose-50/30 -mx-6 px-6 border-l-4 border-l-rose-500' : ''}">
                 <!-- Cabecera de Entrada (Libro Contable) -->
-                <div class="flex flex-wrap justify-between items-start gap-6 mb-5">
+                <div class="flex flex-wrap justify-between items-start gap-6 mb-5 w-full">
                     <div class="flex items-center gap-6">
                         <div class="h-14 w-14 rounded-2xl ${isCredit ? 'bg-amber-500 text-white' : 'bg-navy-blue text-neon-green'} flex flex-col items-center justify-center shadow-lg shadow-navy-blue/10">
                             <span class="text-xs font-black uppercase opacity-60 leading-none mb-0.5">ORD</span>
@@ -537,16 +540,17 @@ function renderAuditoriaLista(items) {
                                 <span class="bg-slate-50 border border-slate-200 text-slate-500 font-mono text-sm px-2 py-0.5 rounded font-black">${f.placa}</span>
                             </div>
                             <p class="text-sm font-bold text-slate-400 uppercase tracking-widest">
-                                <span class="text-slate-600">${f.cliente}</span> 
-                                <span class="text-slate-200 mx-2">|</span> 
+                                <span class="text-slate-600">${f.cliente}</span>
+                                <span class="text-slate-200 mx-2">|</span>
                                 ${new Date(f.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </p>
                         </div>
                     </div>
-                    
+
                     <div class="flex items-center gap-10">
                         <div class="text-right">
-                            <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Atendió: <span class="text-slate-600">${f.usuario}</span></p>
+                            <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Técnico: <span class="text-slate-600">${f.usuario}</span></p>
+                            <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Total Factura: <span class="text-navy-blue">${AppUtils.formatCurrency(totalFactura)}</span></p>
                             <div class="flex items-center justify-end gap-3">
                                 <span class="text-sm font-black text-slate-300 uppercase tracking-tighter">${isCredit ? 'SALDO DEUDOR' : 'TOTAL TRABAJO'}</span>
                                 <span class="text-3xl font-black ${isCredit ? 'text-rose-600' : 'text-emerald-600'} tracking-tighter">${AppUtils.formatCurrency(isCredit ? f.saldo_pendiente : totalFactura)}</span>
@@ -661,8 +665,9 @@ window.verDetalleVenta = async (ventaId) => {
                             <p class="text-xs font-bold text-slate-700">${venta.fecha ? new Date(venta.fecha).toLocaleString('es-CO') : 'N/A'}</p>
                         </div>
                         <div class="space-y-1">
-                            <p class="text-[9px] font-black text-slate-400 uppercase">Responsable</p>
-                            <p class="text-xs font-bold text-slate-700">${venta.usuario_nombre || 'SISTEMA'}</p>
+                            <p class="text-[9px] font-black text-slate-400 uppercase">Técnico Responsable</p>
+                            <p class="text-xs font-bold text-navy-blue uppercase">${venta.mecanico_nombre || venta.usuario_nombre || 'SISTEMA'}</p>
+                            ${venta.mecanico_nombre && venta.mecanico_nombre !== venta.usuario_nombre ? `<p class="text-[8px] text-slate-400 font-bold uppercase">Facturó: ${venta.usuario_nombre}</p>` : ''}
                         </div>
                         <div class="space-y-1">
                             <p class="text-[9px] font-black text-slate-400 uppercase">Propietario</p>
@@ -985,11 +990,12 @@ window.cargarNomina = async function () {
                     <td class="px-4 py-3 text-center w-10">
                         ${!isPaid ? `<input type="checkbox" class="work-checkbox w-4 h-4 rounded border-slate-300 text-navy-blue focus:ring-neon-green" value="${t.detalle_id}" data-monto="${monto}" checked onchange="window.recalcularSeleccionNomina()">` : `<i data-lucide="check-circle-2" class="w-4 h-4 text-slate-400 mx-auto"></i>`}
                     </td>
-                    <td class="px-4 py-3 font-mono text-[10px] text-slate-500 w-24 text-center">${new Date(t.fecha).toLocaleDateString()}</td>
                     <td class="px-4 py-3">
                         <div class="flex flex-col">
                             <span class="text-sm md:text-lg font-black ${isPaid ? 'text-slate-500' : 'text-navy-blue'} uppercase tracking-tight">${t.descripcion}</span>
-                            <span class="text-[9px] text-slate-400 font-bold uppercase">Vehículo: ${t.placa}</span>
+                            <span class="text-[9px] text-slate-400 font-bold uppercase">
+                                <span class="font-mono text-slate-500">#${t.venta_id}</span> | ${new Date(t.fecha).toLocaleDateString()} | Vehículo: ${t.placa}
+                            </span>
                         </div>
                     </td>
                     <td class="px-4 py-3 text-right font-black ${isPaid ? 'text-slate-400' : 'text-emerald-600'} text-lg md:text-2xl w-32">
@@ -1237,9 +1243,9 @@ window.verDetallePagoHistorial = async (id) => {
                         ${p.trabajos && p.trabajos.length > 0 ? `
                         <div class="border rounded-lg overflow-hidden">
                             <table class="w-full text-[10px]">
-                                <thead class="bg-slate-50"><tr><th class="p-2 text-left">Trabajo</th><th class="p-2 text-right">Monto</th></tr></thead>
+                                <thead class="bg-slate-50"><tr><th class="p-2 text-left">Trabajo (Factura)</th><th class="p-2 text-right">Monto</th></tr></thead>
                                 <tbody class="divide-y">
-                                    ${p.trabajos.map(t => `<tr><td class="p-2">${t.descripcion} (${t.placa})</td><td class="p-2 text-right font-bold">${AppUtils.formatCurrency(t.precio_unitario)}</td></tr>`).join('')}
+                                    ${p.trabajos.map(t => `<tr><td class="p-2">${t.descripcion} (${t.placa}) <span class="font-mono text-slate-400">#${t.venta_id}</span></td><td class="p-2 text-right font-bold">${AppUtils.formatCurrency(t.precio_unitario)}</td></tr>`).join('')}
                                 </tbody>
                             </table>
                         </div>` : ''}

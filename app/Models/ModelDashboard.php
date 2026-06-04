@@ -156,4 +156,32 @@ class ModelDashboard {
                           ORDER BY stock ASC LIMIT 10");
         return $this->db->resultSet();
     }
+
+    /**
+     * Obtiene el estado actual de las órdenes de servicio en el taller
+     */
+    public function getServiceOrdersStatus() {
+        $this->db->query("SELECT 
+            SUM(CASE WHEN estado = 'RECIBIDO' THEN 1 ELSE 0 END) as recibidos,
+            SUM(CASE WHEN estado = 'EN REPARACION' THEN 1 ELSE 0 END) as reparacion,
+            SUM(CASE WHEN estado = 'LISTO' THEN 1 ELSE 0 END) as listos
+            FROM table_ordenes_servicio
+            WHERE estado != 'ENTREGADO'");
+        return $this->db->single();
+    }
+
+    /**
+     * Ranking de los 5 productos más vendidos del mes actual
+     */
+    public function getTopSellingProducts() {
+        $this->db->query("SELECT i.nombre, SUM(vd.cantidad) as total_vendido, i.categoria
+                          FROM table_ventas_detalle vd
+                          JOIN table_inventario i ON vd.producto_id = i.id
+                          JOIN table_ventas v ON vd.venta_id = v.id
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO')
+                          AND MONTH(v.fecha) = MONTH(CURRENT_DATE())
+                          GROUP BY i.id 
+                          ORDER BY total_vendido DESC LIMIT 5");
+        return $this->db->resultSet();
+    }
 }

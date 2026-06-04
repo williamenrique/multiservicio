@@ -18,12 +18,19 @@ class ModelReportes {
                             (COALESCE(v.pago_efectivo, 0) + COALESCE(v.pago_transferencia, 0)) - 
                             COALESCE((SELECT SUM(monto) FROM table_abonos_clientes WHERE venta_id = v.id), 0)
                           , 0) as monto_pagado, 
-                          'VENTA' as tipo, 'VENTA' as categoria,
+                          'VENTA' as tipo,
+                          CASE WHEN v.placa != '' AND v.placa IS NOT NULL THEN 'ORDEN DE TRABAJO' ELSE 'VENTA MOSTRADOR' END as categoria,
+                          CONCAT(CASE WHEN v.placa != '' AND v.placa IS NOT NULL THEN 'SERVICIO TÉCNICO: ' ELSE 'VENTA DE REPUESTOS: ' END, COALESCE(v.modelo_vehiculo, 'GENERAL')) as descripcion,
+                          COALESCE(sm.nombre, s.nombre) as mecanico_nombre,
+                          s.nombre as usuario_nombre,
                           v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
                           (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items,
                           NULL as proveedor_nombre, v.saldo_pendiente
                           FROM table_ventas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO') 
                           AND DATE(v.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
@@ -32,10 +39,16 @@ class ModelReportes {
 
         // 2. Obtener Abonos (Dinero que entró de deudas antiguas en este periodo)
         $this->db->query("SELECT a.venta_id as id, a.fecha, COALESCE(a.monto, 0) as monto_pagado, 'ABONO' as tipo, 'ABONO CLIENTE' as categoria,
+                          CONCAT('ABONO A ', CASE WHEN v.placa != '' AND v.placa IS NOT NULL THEN 'ORDEN #' ELSE 'VENTA #' END, a.venta_id) as descripcion,
+                          COALESCE(sm.nombre, s.nombre) as mecanico_nombre,
+                          s.nombre as usuario_nombre,
                           v.placa, c.nombre as cliente_nombre
                           FROM table_abonos_clientes a
                           JOIN table_ventas v ON a.venta_id = v.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
                           WHERE DATE(a.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -170,12 +183,14 @@ class ModelReportes {
     public function obtenerReporteDetallado($desde, $hasta) {
         // 1. Detalle de Ventas (Vehículos + Items)
         $this->db->query("SELECT v.id, v.fecha, v.placa, v.modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, 
-                                 (vd.cantidad * vd.precio_unitario) as subtotal_item, s.nombre as usuario_nombre, c.nombre as cliente_nombre,
+                                 (vd.cantidad * vd.precio_unitario) as subtotal_item, 
+                                 COALESCE(sm.nombre, s.nombre) as usuario_nombre, c.nombre as cliente_nombre,
                                  v.subtotal, v.iva_monto, v.total, v.pago_efectivo, v.pago_transferencia, v.saldo_pendiente, v.status
                           FROM table_ventas v
                           JOIN table_ventas_detalle vd ON v.id = vd.venta_id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
+                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO') AND DATE(v.fecha) BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
@@ -406,7 +421,7 @@ class ModelReportes {
 
         if ($pago) {
             // Obtener los trabajos que fueron liquidados en este pago específico
-            $this->db->query("SELECT vd.descripcion, vd.cantidad, vd.precio_unitario, v.fecha, v.placa
+            $this->db->query("SELECT v.id as venta_id, vd.descripcion, vd.cantidad, vd.precio_unitario, v.fecha, v.placa
                               FROM table_ventas_detalle vd
                               JOIN table_ventas v ON vd.venta_id = v.id
                               WHERE vd.pago_nomina_id = :pid");

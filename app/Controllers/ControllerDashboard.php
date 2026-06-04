@@ -44,7 +44,9 @@ class ControllerDashboard extends Controller {
             'history' => $this->dashboardModel->getFinancialHistory(7, $usuarioFiltro),
             'recentExpenses' => $this->dashboardModel->getRecentExpenses(),
             'lowStock' => $this->dashboardModel->getLowStockProducts(),
-            'profitability' => $this->facturaModel->obtenerReporteUtilidad($desde, $hasta)
+            'profitability' => $this->facturaModel->obtenerReporteUtilidad($desde, $hasta),
+            'workshopStatus' => $this->dashboardModel->getServiceOrdersStatus(),
+            'topProducts' => $this->dashboardModel->getTopSellingProducts()
         ]);
     }
 }

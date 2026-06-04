@@ -65,8 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <p>${new Date(venta.fecha).toLocaleString('es-CO')}</p>
                             </div>
                             <div>
-                                <p class="text-slate-500 font-bold">Responsable:</p>
-                                <p>${venta.usuario_nombre || 'N/A'} (${venta.usuario_cargo || 'N/A'})</p>
+                                <p class="text-slate-500 font-bold">Técnico Asignado:</p>
+                                <p class="font-black text-navy-blue uppercase">${venta.mecanico_nombre || venta.usuario_nombre || 'N/A'}</p>
+                                ${venta.mecanico_nombre && venta.mecanico_nombre !== venta.usuario_nombre ? `<p class="text-[10px] text-slate-400 uppercase">Facturado por: ${venta.usuario_nombre}</p>` : ''}
                             </div>
                             <div>
                                 <p class="text-slate-500 font-bold">Cliente:</p>
