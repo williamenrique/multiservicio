@@ -5,12 +5,12 @@ class ControllerRecuperar extends Controller {
     public function __construct() {
         AuthGuard::handle();
         RoleGuard::isAdmin(); // Solo el administrador gestiona Recuperar
-        $this->staffModel = $this->model('Recuperar');
+        $this->staffModel = $this->model('Usuario');
     }
 
     public function index() {
         $data = [
-            'titulo' => 'Gestión de Recuperar'
+            'titulo' => 'Solicitudes de Acceso'
         ];
 
         $this->view('recuperar/index', $data);

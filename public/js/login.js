@@ -43,13 +43,30 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         if (identificador) {
-            const res = await fetch(`${URLROOT}/auth/solicitarRecuperacion`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ identificador })
-            });
-            const result = await res.json();
-            AppUtils.showAlert(result.success ? 'Solicitud Enviada' : 'Error', result.mensaje || result.error, result.success ? 'success' : 'error');
+            try {
+                AppUtils.showLoading('Validando...');
+                const csrfToken = document.getElementById('csrf_token')?.value || '';
+                const res = await fetch(`${URLROOT}/auth/solicitarRecuperacion`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    },
+                    body: JSON.stringify({ identificador })
+                });
+
+                AppUtils.hideLoading();
+                const result = await res.json();
+
+                if (result.success) {
+                    AppUtils.showToast(result.mensaje || 'Solicitud enviada al administrador', 'success');
+                } else {
+                    AppUtils.showToast(result.error || 'No se pudo procesar la solicitud', 'error');
+                }
+            } catch (error) {
+                AppUtils.hideLoading();
+                AppUtils.showToast('Error de comunicación con el servidor', 'error');
+            }
         }
     }
 

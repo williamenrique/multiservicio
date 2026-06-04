@@ -3,15 +3,14 @@
  * Modelo de Personal
  * Gestiona los datos de los empleados en la base de datos.
  */
-class ModelPersonal {
-    private $db;
+class ModelPersonal extends Model {
 
     /**
      * Constructor del modelo
      * @param Database|null $db Instancia de base de datos compartida
      */
     public function __construct($db = null) {
-        $this->db = $db ?: new Database();
+        parent::__construct($db);
     }
 
     /**

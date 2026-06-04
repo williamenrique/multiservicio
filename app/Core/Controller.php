@@ -14,15 +14,31 @@ class Controller {
     public function model($model) {
         // Forzamos PascalCase para compatibilidad con servidores Linux
         $modelName = 'Model' . ucfirst($model);
+        
+        // Intentar con "Models" (PascalCase)
         $path = APPROOT . '/Models/' . $modelName . '.php';
+        
+        // Si no existe, intentar con "models" (lowercase) por si acaso el servidor está configurado así
+        if (!file_exists($path)) {
+            $path = APPROOT . '/models/' . $modelName . '.php';
+        }
+
+        // Fallback adicional: Intentar con el nombre del archivo totalmente en minúsculas
+        if (!file_exists($path)) {
+            $modelLower = strtolower($modelName);
+            $path = APPROOT . '/Models/' . $modelLower . '.php';
+            if (!file_exists($path)) {
+                $path = APPROOT . '/models/' . $modelLower . '.php';
+            }
+        }
 
         if (file_exists($path)) {
             require_once $path;
             return new $modelName();
         } else {
             // Error crítico si el modelo no existe
-            error_log("Error: El modelo {$model} no se encontró en {$path}");
-            die("Error interno: El modelo de datos no pudo ser cargado.");
+            error_log("Error: El modelo {$modelName} no se encontró en las rutas de Models.");
+            die("Error interno: El modelo de datos '{$modelName}' no pudo ser cargado. Verifique que el archivo exista en app/Models/");
         }
     }
 

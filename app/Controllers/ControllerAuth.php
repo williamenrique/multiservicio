@@ -183,7 +183,7 @@ class ControllerAuth extends Controller {
                     ? ['success' => true, 'mensaje' => 'Solicitud enviada al administrador.'] 
                     : ['success' => false, 'error' => 'No se pudo procesar la solicitud.']);
             } else {
-                return $this->jsonResponse(['success' => false, 'error' => 'No se encontró ningún usuario con esos datos.'], 404);
+                return $this->jsonResponse(['success' => false, 'error' => 'No se encontró ningún usuario con esos datos.']);
             }
             exit();
         }
@@ -209,7 +209,7 @@ class ControllerAuth extends Controller {
         $data = [
             'titulo' => 'Solicitudes de Acceso'
         ];
-        $this->view('auth/solicitudes', $data);
+        $this->view('recuperar/index', $data);
     }
 
     /**

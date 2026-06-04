@@ -84,6 +84,7 @@ try {
         // Rutas excluidas de validación CSRF (Login y módulos con fallas de token reportadas)
         $excludedRoutes = [
             'auth/login',
+            'auth/solicitarRecuperacion',
             'proveedores',
             'empresa',
             'clientes',

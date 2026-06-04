@@ -27,18 +27,31 @@ const AppUtils = {
      * @param {string} type Tipo de notificación (success, warning, error, info).
      */
     showToast: (msg, type = 'success') => {
-        Toastify({
-            text: msg,
-            duration: 3000,
-            gravity: "top",
-            position: "right",
-            style: {
-                background: '#000000',
-                color: '#ffffff',
-                borderRadius: '8px',
-                fontWeight: 'bold'
-            }
-        }).showToast();
+        if (typeof Toastify === 'function') {
+            Toastify({
+                text: msg,
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                style: {
+                    background: '#000000',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    fontWeight: 'bold'
+                }
+            }).showToast();
+        } else {
+            // Fallback a SweetAlert2 si Toastify no está cargado
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                icon: type,
+                title: msg
+            });
+        }
     },
 
     /**
