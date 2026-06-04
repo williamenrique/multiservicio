@@ -449,7 +449,9 @@ class ModelFacturacion {
         $this->db->query("SELECT 
                             SUM(vd.precio_unitario * vd.cantidad) as total_ventas,
                             SUM(vd.costo_unitario * vd.cantidad) as total_costos,
-                            (SUM(vd.precio_unitario * vd.cantidad) - SUM(vd.costo_unitario * vd.cantidad)) as utilidad_bruta
+                            (SUM(vd.precio_unitario * vd.cantidad) - SUM(vd.costo_unitario * vd.cantidad)) as utilidad_bruta,
+                            SUM(CASE WHEN vd.producto_id IS NULL THEN (vd.precio_unitario * vd.cantidad) ELSE 0 END) as total_servicios,
+                            SUM(CASE WHEN vd.producto_id IS NOT NULL THEN (vd.precio_unitario * vd.cantidad) - (vd.costo_unitario * vd.cantidad) ELSE 0 END) as ganancia_repuestos
                           FROM table_ventas_detalle vd
                           JOIN table_ventas v ON vd.venta_id = v.id
                           WHERE DATE(v.fecha) BETWEEN :desde AND :hasta 
