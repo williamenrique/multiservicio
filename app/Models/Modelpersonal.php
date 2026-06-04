@@ -66,9 +66,22 @@ class ModelPersonal extends Model {
         return $this->db->resultSet();
     }
 
+    /**
+     * Obtiene el último correlativo numérico de los IDs tipo STAFF-XXX
+     */
+    public function obtenerUltimoCorrelativo() {
+        $this->db->query("SELECT id FROM table_staff WHERE id LIKE 'STAFF-%' ORDER BY id DESC LIMIT 1");
+        $result = $this->db->single();
+        if ($result) {
+            // Extraer el número de la cadena (ej: STAFF-001 -> 1)
+            return (int) str_replace('STAFF-', '', $result->id);
+        }
+        return 0;
+    }
+
     public function crear($datos) {
-        $this->db->query("INSERT INTO table_staff (id, cedula, nombre, cargo, telefono, email, direccion, foto, foto_frente) 
-                          VALUES (:id, :cedula, :nombre, :cargo, :telefono, :email, :direccion, :foto, :foto_frente)");
+        $this->db->query("INSERT INTO table_staff (id, cedula, nombre, cargo, telefono, email, direccion, foto) 
+                          VALUES (:id, :cedula, :nombre, :cargo, :telefono, :email, :direccion, :foto)");
         $this->db->bind(':id', mb_strtoupper($datos['id'] ?? '', 'UTF-8'));
         $this->db->bind(':cedula', mb_strtoupper($datos['cedula'] ?? '', 'UTF-8'));
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'] ?? '', 'UTF-8'));
@@ -77,7 +90,6 @@ class ModelPersonal extends Model {
         $this->db->bind(':email', mb_strtolower($datos['email'] ?? '', 'UTF-8'));
         $this->db->bind(':direccion', mb_strtoupper($datos['direccion'] ?? '', 'UTF-8'));
         $this->db->bind(':foto', 'img/default.png');
-        $this->db->bind(':foto_frente', 'img/default.png');
         
         logAction('PERSONAL', 'CREATE', "Se registró nuevo personal: " . ($datos['nombre'] ?? 'Desconocido'));
         

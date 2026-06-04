@@ -24,7 +24,7 @@ class ModelCliente {
             $sql .= " WHERE nombre LIKE :search OR id LIKE :search OR telefono LIKE :search";
         }
 
-        $sql .= " ORDER BY created_at DESC";
+        $sql .= " ORDER BY fecha_registro DESC";
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
@@ -110,6 +110,16 @@ class ModelCliente {
         $this->db->query("DELETE FROM table_clientes WHERE id = :id");
         $this->db->bind(':id', $id);
         return $this->db->execute();
+    }
+
+    /**
+     * Obtiene todos los vehículos registrados a nombre de un cliente
+     * @param string $clienteId ID/Cédula del cliente
+     */
+    public function obtenerVehiculos($clienteId) {
+        $this->db->query("SELECT * FROM table_vehiculos WHERE cliente_id = :id ORDER BY marca, modelo ASC");
+        $this->db->bind(':id', $clienteId);
+        return $this->db->resultSet();
     }
 
     /**

@@ -24,7 +24,7 @@ class ModelVehiculo {
         $this->db->bind(':anio', $data['anio']);
         $this->db->bind(':color', mb_strtoupper($data['color'], 'UTF-8'));
         $this->db->bind(':cliente_id', $data['cliente_id']);
-        return $this->db->execute() ? $this->db->lastInsertId() : false;
+        return $this->db->execute();
     }
 
     public function obtenerHistorial($vehiculo_id) {

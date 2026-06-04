@@ -7,7 +7,7 @@
 define('DB_HOST', $_ENV['DB_HOST'] ?? 'localhost');
 define('DB_USER', $_ENV['DB_USER'] ?? 'root');
 define('DB_PASS', $_ENV['DB_PASS'] ?? '');
-define('DB_NAME', $_ENV['DB_NAME'] ?? 'multiservicio');
+define('DB_NAME', $_ENV['DB_NAME'] ?? 'multiservicio_2.0');
 
 // Seguridad para encriptación de datos sensibles
 define('METHOD', 'AES-256-CBC');

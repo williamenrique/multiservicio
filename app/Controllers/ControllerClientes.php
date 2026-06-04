@@ -57,6 +57,14 @@ class ControllerClientes extends Controller {
     }
 
     /**
+     * Endpoint API para listar vehículos de un cliente (AJAX)
+     */
+    public function vehiculos($id) {
+        $data = $this->clienteModel->obtenerVehiculos($id);
+        return $this->jsonResponse(['success' => true, 'data' => $data]);
+    }
+
+    /**
      * Guarda o actualiza un cliente
      */
     public function guardar() {
