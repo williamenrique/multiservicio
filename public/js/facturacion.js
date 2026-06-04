@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
             id: selectedItemFromSearch.id,
             nombre: selectedItemFromSearch.nombre,
             precio: parseFloat(selectedItemFromSearch.precio),
-            ultimo_costo: parseFloat(selectedItemFromSearch.ultimo_costo || 0),
+            costo_promedio: parseFloat(selectedItemFromSearch.costo_promedio || 0),
             cantidad: qty,
             tipo: 'PRODUCTO'
         });

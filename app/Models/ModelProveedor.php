@@ -158,20 +158,35 @@ class ModelProveedor {
             
             // 1. Si el producto no existe (ID null), lo creamos en el inventario
             if (empty($productoId)) {
-                $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, ultimo_costo, precio) 
-                                  VALUES (:nom, :cat, :stock, :costo, :precio)");
+                $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, ultimo_costo, costo_promedio, precio) 
+                                  VALUES (:nom, :cat, :stock, :costo, :cpp, :precio)");
                 $this->db->bind(':nom', mb_strtoupper($datos['nombre'], 'UTF-8'));
                 $this->db->bind(':cat', mb_strtoupper($datos['categoria'] ?? 'REPUESTOS', 'UTF-8'));
                 $this->db->bind(':stock', $datos['cantidad']);
                 $this->db->bind(':costo', $costo);
+                $this->db->bind(':cpp', $costo);
                 $this->db->bind(':precio', $precioVenta);
                 $this->db->execute();
                 $productoId = $this->db->lastInsertId();
             } else {
-                // 2. Si existe, sumamos el stock y actualizamos costos/precios (Estrategia Reposición)
-                $this->db->query("UPDATE table_inventario SET stock = stock + :cant, ultimo_costo = :costo, precio = :precio WHERE id = :id");
+                // 2. Si existe, recalculamos CPP (Costo Promedio Ponderado)
+                $this->db->query("SELECT stock, costo_promedio FROM table_inventario WHERE id = :id");
+                $this->db->bind(':id', $productoId);
+                $actual = $this->db->single();
+
+                $stockActual = (float)($actual->stock ?? 0);
+                $cppActual = (float)($actual->costo_promedio ?? 0);
+                $nuevaCant = (float)$datos['cantidad'];
+                
+                // Fórmula CPP: ((Stock Actual * CPP Actual) + (Nueva Cant * Nuevo Costo)) / (Stock Actual + Nueva Cant)
+                $nuevoCpp = ($stockActual > 0) 
+                    ? (($stockActual * $cppActual) + ($nuevaCant * $costo)) / ($stockActual + $nuevaCant)
+                    : $costo;
+
+                $this->db->query("UPDATE table_inventario SET stock = stock + :cant, ultimo_costo = :costo, costo_promedio = :cpp, precio = :precio WHERE id = :id");
                 $this->db->bind(':cant', $datos['cantidad']);
                 $this->db->bind(':costo', $costo);
+                $this->db->bind(':cpp', $nuevoCpp);
                 $this->db->bind(':precio', $precioVenta);
                 $this->db->bind(':id', $productoId);
                 $this->db->execute();

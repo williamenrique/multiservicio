@@ -146,7 +146,7 @@ class ControllerFacturacion extends Controller {
                     $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
                     $db->bind(':cant', $item['cantidad']);
                     $db->bind(':pre', $item['precio']);
-                    $db->bind(':costo', $item['tipo'] === 'PRODUCTO' ? ($item['ultimo_costo'] ?? 0) : 0);
+                    $db->bind(':costo', $item['tipo'] === 'PRODUCTO' ? ($item['costo_promedio'] ?? 0) : 0);
                     $db->execute();
                 }
 
