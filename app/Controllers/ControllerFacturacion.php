@@ -210,7 +210,7 @@ class ControllerFacturacion extends Controller {
      */
     public function imprimir($id = null) {
         if (!$id) {
-            die("ID de factura o archivo no proporcionado.");
+            throw new AppException("ID de factura o archivo no proporcionado.", 400);
         }
 
         // 1. Si el parámetro es un nombre de archivo (contiene .pdf), intentamos servirlo directamente
@@ -227,7 +227,7 @@ class ControllerFacturacion extends Controller {
         // 2. Si es un ID numérico o el archivo anterior no existe, generamos el PDF en tiempo real
         $venta = $this->facturaModel->obtenerVentaCompleta($id);
         if (!$venta) {
-            die("La factura #$id no existe o el documento solicitado no se encontró.");
+            throw new AppException("La factura #$id no existe o el documento solicitado no se encontró.", 404);
         }
 
         $pdfService = new PdfService();

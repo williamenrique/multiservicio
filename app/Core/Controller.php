@@ -37,8 +37,7 @@ class Controller {
             return new $modelName();
         } else {
             // Error crítico si el modelo no existe
-            error_log("Error: El modelo {$modelName} no se encontró en las rutas de Models.");
-            die("Error interno: El modelo de datos '{$modelName}' no pudo ser cargado. Verifique que el archivo exista en app/Models/");
+            throw new AppException("El modelo de datos '{$modelName}' no pudo ser cargado.", 500);
         }
     }
 
@@ -96,16 +95,7 @@ class Controller {
                 }
             } else {
                 // Mensaje de error mejorado para desarrollo
-                die("
-                <div style='background:#0f172a; color:#f87171; padding:30px; border:1px solid #ef4444; border-radius:15px; font-family:sans-serif; max-width:600px; margin:50px auto; shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);'>
-                    <h2 style='color:#ef4444; margin-top:0;'>⚠️ Error Crítico de Renderizado</h2>
-                    <p style='color:#94a3b8;'>El sistema no pudo encontrar la vista solicitada.</p>
-                    <div style='background:#1e293b; padding:15px; border-radius:8px; font-family:monospace; font-size:14px; color:#fff;'>
-                        <strong>Vista:</strong> {$view}<br>
-                        <strong>Ruta:</strong> {$viewPath}
-                    </div>
-                    <p style='font-size:12px; color:#64748b; margin-top:20px;'>Verifica que el archivo exista en la carpeta app/Views y que el nombre coincida exactamente.</p>
-                </div>");
+                throw new AppException("La vista '{$view}' no existe.", 404);
             }
         }
     }

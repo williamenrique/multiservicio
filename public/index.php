@@ -109,8 +109,18 @@ try {
 
     $init = new App();
 } catch (Throwable $e) {
-    // Capturamos Throwable para atrapar tanto Errors como Exceptions (PHP 7+)
-    error_log("Error crítico: " . $e->getMessage() . " en " . $e->getFile() . ":" . $e->getLine());
+    // Determinar el código de estado y mensaje
+    $statusCode = 500;
+    $errorMessage = (defined('ENVIRONMENT') && ENVIRONMENT === 'development') 
+        ? $e->getMessage() 
+        : 'Ocurrió un error interno en el servidor.';
+
+    if ($e instanceof AppException) {
+        $statusCode = $e->getCode() ?: 400;
+        $errorMessage = $e->getMessage();
+    }
+    
+    error_log("Error [{$statusCode}]: " . $e->getMessage() . " en " . $e->getFile() . ":" . $e->getLine());
     
     // Detectar si la petición espera JSON (AJAX / Fetch)
     $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') || 
@@ -119,10 +129,10 @@ try {
 
     if ($isAjax) {
         header('Content-Type: application/json');
-        http_response_code(500);
+        http_response_code($statusCode);
         echo json_encode([
             'success' => false,
-            'error' => (defined('ENVIRONMENT') && ENVIRONMENT === 'development') ? $e->getMessage() : 'Ocurrió un error interno en el servidor.'
+            'error' => $errorMessage
         ]);
         exit;
     }

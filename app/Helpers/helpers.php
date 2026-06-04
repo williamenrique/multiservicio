@@ -83,7 +83,7 @@ function renderView($view, $data = []) {
             require_once APPROOT . '/Views/inc/footer.php';
         }
     } else {
-        die("Error: La vista '{$view}' no existe.");
+        throw new AppException("Error: La vista '{$view}' no existe.", 404);
     }
 }
 
