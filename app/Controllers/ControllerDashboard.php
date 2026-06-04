@@ -30,6 +30,9 @@ class ControllerDashboard extends Controller {
         $desde = date('Y-m-01');
         $hasta = date('Y-m-d');
 
+        // Cargamos el modelo de proveedor para obtener deudas detalladas
+        $proveedorModel = $this->model('Proveedor');
+
         // Centralizamos la llamada a través del modelo
         $this->jsonResponse([
             'inventory' => $this->dashboardModel->getInventoryStats(),
@@ -37,7 +40,7 @@ class ControllerDashboard extends Controller {
             'gastosMes' => $this->dashboardModel->getExpensesMonth(),
             'recentSales' => $this->dashboardModel->getRecentSales($usuarioFiltro),
             'drafts' => $this->dashboardModel->getPendingDrafts($usuarioFiltro),
-            'supplierDebts' => $this->dashboardModel->getSupplierDebtsSummary(),
+            'supplierDebts' => $proveedorModel->listarDeudas(),
             'history' => $this->dashboardModel->getFinancialHistory(7, $usuarioFiltro),
             'recentExpenses' => $this->dashboardModel->getRecentExpenses(),
             'lowStock' => $this->dashboardModel->getLowStockProducts(),

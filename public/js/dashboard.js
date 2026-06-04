@@ -228,17 +228,87 @@ document.addEventListener('DOMContentLoaded', () => {
         if (statsElements.supplierDebts && data.supplierDebts && isAdmin()) {
             if (data.supplierDebts.length === 0) {
                 statsElements.supplierDebts.innerHTML = `
-                    <div class="col-span-full glass-card p-8 rounded-xl text-center text-slate-400 border-2 border-dashed border-slate-100">
+                    <div class="col-span-full glass-card p-8 rounded-2xl text-center text-slate-400 border-2 border-dashed border-slate-100">
                         <i data-lucide="check-circle" class="w-10 h-10 mx-auto mb-2 opacity-20 text-emerald-500"></i>
                         <p class="text-[10px] font-bold uppercase tracking-widest">Al día con proveedores</p>
                     </div>`;
             } else {
-                statsElements.supplierDebts.innerHTML = data.supplierDebts.map(debt => `
-                    <div class="glass-card p-4 rounded-xl">
-                        <p class="text-xs font-bold text-slate-400 uppercase">${debt.nombre}</p>
-                        <p class="text-xl font-black text-rose-500">${AppUtils.formatCurrency(debt.saldo_pendiente)}</p>
+                const totalCarteraProv = data.supplierDebts.reduce((acc, d) => acc + parseFloat(d.saldo_pendiente), 0);
+                
+                statsElements.supplierDebts.innerHTML = `
+                    <div class="glass-card rounded-2xl border border-slate-100 shadow-sm overflow-hidden col-span-full animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        <div class="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-rose-600 text-white rounded-lg shadow-sm">
+                                    <i data-lucide="truck" class="w-4 h-4"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-black text-navy-blue uppercase tracking-tight">Cuentas por Pagar (Proveedores)</h3>
+                                    <p class="text-sm text-slate-400 font-bold uppercase">${data.supplierDebts.length} Proveedores con saldo pendiente</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-3xl font-black text-rose-600 leading-none">${AppUtils.formatCurrency(totalCarteraProv)}</p>
+                                <p class="text-xs font-bold text-rose-400 uppercase tracking-widest mt-1">Total Deuda a Proveedores</p>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50/30 text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                        <th class="px-6 py-3">Proveedor</th>
+                                        <th class="px-6 py-3 text-center">Facturas</th>
+                                        <th class="px-6 py-3 text-center">Próximo Vencimiento</th>
+                                        <th class="px-6 py-3 text-right">Saldo Total</th>
+                                        <th class="px-6 py-3"></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50">
+                                    ${data.supplierDebts.map(d => {
+                                        const fechaRaw = d.proximo_vencimiento || d.vencimiento;
+                                        const vencimiento = fechaRaw ? new Date(fechaRaw.replace(/-/g, '\/')) : null;
+                                        const hoy = new Date();
+                                        const diasRestantes = vencimiento ? Math.ceil((vencimiento - hoy) / (1000 * 60 * 60 * 24)) : null;
+                                        const isCritical = diasRestantes !== null && diasRestantes <= 3;
+                                        const numFacturas = d.facturas_pendientes || d.cantidad_facturas || 1;
+
+                                        return `
+                                        <tr class="hover:bg-slate-50/80 transition-colors group">
+                                            <td class="px-6 py-4">
+                                                <p class="text-base font-black text-slate-700 uppercase group-hover:text-rose-600 transition-colors">${d.nombre}</p>
+                                                <p class="text-sm text-slate-400 font-bold uppercase tracking-tighter">${d.telefono || 'Sin teléfono'}</p>
+                                            </td>
+                                            <td class="px-6 py-4 text-center">
+                                                <span class="px-2 py-1 rounded bg-slate-100 text-slate-600 text-xs font-black">${numFacturas} FACT.</span>
+                                            </td>
+                                            <td class="px-6 py-4 text-center">
+                                                <span class="text-sm font-bold ${isCritical ? 'text-rose-600' : 'text-slate-600'}">
+                                                    ${vencimiento ? vencimiento.toLocaleDateString() : '---'}
+                                                </span>
+                                                <p class="text-[11px] font-black uppercase ${isCritical ? 'text-rose-400' : 'text-slate-300'}">
+                                                    ${diasRestantes !== null ? (diasRestantes <= 0 ? 'Vencido' : `En ${diasRestantes} días`) : ''}
+                                                </p>
+                                            </td>
+                                            <td class="px-6 py-4 text-right">
+                                                <span class="text-base font-black text-rose-600">${AppUtils.formatCurrency(d.saldo_pendiente)}</span>
+                                            </td>
+                                            <td class="px-6 py-4 text-right w-20">
+                                                <button onclick="window.location.href='${URLROOT}/proveedores?tab=deudas'" class="p-2 text-slate-300 hover:text-navy-blue transition-colors">
+                                                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                                </button>
+                                            </td>
+                                        </tr>`;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-6 py-3 bg-slate-50/50 border-t border-slate-100 text-center">
+                            <a href="${URLROOT}/proveedores?tab=deudas" class="text-sm font-black text-blue-600 hover:underline uppercase tracking-widest">
+                                Gestionar Cartera de Proveedores
+                            </a>
+                        </div>
                     </div>
-                `).join('');
+                `;
             }
         }
 

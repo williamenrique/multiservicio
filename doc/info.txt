@@ -17,10 +17,7 @@ hay que revisar cartera de clientes deudasdashboard muetra que hay dos clientes 
 
 
 
-6. Valoración de Inventario y Costeo
-En ControllerFacturacion::procesar, se guarda el costo_unitario en el detalle de la venta.
 
-Mejora: Para una contabilidad clara, el sistema debe decidir qué costo usar: ¿El último costo de compra o el Costo Promedio Ponderado (CPP)? Implementar CPP garantiza que la utilidad bruta reportada en obtenerAnalisisRentabilidad sea fiscalmente exacta, especialmente ante la inflación de los repuestos.
 7. Auditoría Financiera Específica
 Aunque tienes un logAction, las transacciones financieras requieren un log de "Valores Anteriores" vs "Valores Nuevos".
 
@@ -28,32 +25,16 @@ Mejora: Si un administrador edita una factura o un gasto, el sistema debería re
 8. Gestión de Métodos de Pago (Bancos)
 El sistema diferencia entre EFECTIVO y TRANSFERENCIA.
 
-Mejora: Crear un catálogo de "Bancos" o "Cuentas". En lugar de una etiqueta de texto, el dinero debería entrar a una entidad específica (ej. "Caja Principal", "Banco Nequi", "Banco General"). Esto permite realizar Conciliaciones Bancarias dentro del sistema.
 
 
-
-
-
-
-
-
-
-Cálculo de Proporciones: La división de ingresos entre "Repuestos" y "Servicios" se calcula en un bucle PHP consultando la base de datos por cada venta.
-Mejora: Almacenar estos totales pre-calculados en la tabla table_ventas al momento de cerrar la factura.
-B. Exactitud Contable e Inventario
-Costo Promedio Ponderado (CPP): Actualmente el sistema parece usar el "Último Costo" para calcular utilidades. Ante la inflación o cambios de precios, esto distorsiona la rentabilidad real.
-Mejora: Implementar el cálculo de CPP en el modelo de inventario cada vez que se registre una compra.
-Gestión de Bancos/Cajas: El sistema usa etiquetas de texto como "EFECTIVO" o "TRANSFERENCIA".
-Mejora: Crear un catálogo de "Cuentas" (Caja Principal, Nequi, Banco X) para permitir conciliaciones bancarias y saber exactamente cuánto dinero hay en cada canal.
 C. Lógica de Negocio y Refactorización
 Validación Centralizada: Aunque existe una clase Validator, mucha lógica de validación (como el plazo de 5 días para devoluciones) está embebida en los modelos o controladores.
 Mejora: Mover las reglas de negocio a la capa de Services. Los modelos solo deben persistir, los controladores solo dirigir, y los servicios validar el negocio.
 Manejo de Errores: Algunos controladores terminan la ejecución con un die().
 Mejora: Implementar un sistema de excepciones personalizadas (AppException) que sea capturado globalmente para devolver respuestas JSON estandarizadas al frontend.
-D. Funcionalidades de Valor Agregado
-Cartera de Proveedores: El sistema es fuerte en cartera de clientes, pero el seguimiento de deudas con proveedores podría ser más granular (historial de abonos por factura de compra).
-Portal de Consulta Externa: Aprovechando que el sistema ya tiene la información de placa y estado de orden, se podría crear una ruta pública donde el cliente vea el progreso de su vehículo sin loguearse.
-Cierre de Caja Diario: Implementar un proceso de "Arqueo" donde el sistema congele los movimientos de un turno y el usuario deba reportar el físico contra el sistema.
+
+
+
 E. Experiencia de Usuario (UI/UX)
 Buscador Global: El controlador ControllerSearch es una excelente base. Se puede expandir para que el buscador de la cabecera sea el centro de navegación rápida.
 Notificaciones: Integrar un servicio de colas para enviar avisos automáticos de "Orden Lista" por correo o una API de mensajería.
