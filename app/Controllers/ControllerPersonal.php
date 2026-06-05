@@ -93,6 +93,11 @@ class ControllerPersonal extends Controller {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
             
+            // Validación preventiva de campos
+            if (empty($input['staff_id']) || empty($input['username'])) {
+                return $this->jsonResponse(['success' => false, 'error' => 'Faltan datos obligatorios para la cuenta.'], 400);
+            }
+
             if ($this->personalModel->verificarUsernameUnico($input['username'], $input['staff_id'])) {
                 return $this->jsonResponse(['success' => false, 'error' => 'El nombre de usuario ya está en uso.'], 400);
             }

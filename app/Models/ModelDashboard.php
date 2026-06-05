@@ -15,9 +15,9 @@ class ModelDashboard {
      */
     public function getInventoryStats() {
         $this->db->query("SELECT 
-            SUM(CASE WHEN stock > stock_minimo THEN 1 ELSE 0 END) as ok,
-            SUM(CASE WHEN stock <= stock_minimo AND stock > 0 THEN 1 ELSE 0 END) as critico,
-            SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END) as agotado
+            COALESCE(SUM(CASE WHEN stock > stock_minimo THEN 1 ELSE 0 END), 0) as ok,
+            COALESCE(SUM(CASE WHEN stock <= stock_minimo AND stock > 0 THEN 1 ELSE 0 END), 0) as critico,
+            COALESCE(SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END), 0) as agotado
             FROM table_inventario");
         return $this->db->single();
     }
@@ -26,7 +26,7 @@ class ModelDashboard {
      * Suma de ventas completadas en el día actual
      */
     public function getIncomeToday($usuarioId = null) {
-        $sql = "SELECT SUM(total) as total FROM table_ventas WHERE DATE(fecha) = CURDATE() AND status IN ('COMPLETADO', 'CREDITO')";
+        $sql = "SELECT COALESCE(SUM(total), 0) as total FROM table_ventas WHERE DATE(fecha) = CURDATE() AND status IN ('COMPLETADO', 'CREDITO')";
         if ($usuarioId) $sql .= " AND usuario_id = :uid";
         
         $this->db->query($sql);
@@ -38,7 +38,7 @@ class ModelDashboard {
      * Suma de gastos registrados en el mes actual
      */
     public function getExpensesMonth() {
-        $this->db->query("SELECT SUM(monto) as total FROM table_gastos WHERE MONTH(fecha) = MONTH(CURRENT_DATE()) AND YEAR(fecha) = YEAR(CURRENT_DATE())");
+        $this->db->query("SELECT COALESCE(SUM(monto), 0) as total FROM table_gastos WHERE MONTH(fecha) = MONTH(CURRENT_DATE()) AND YEAR(fecha) = YEAR(CURRENT_DATE())");
         return $this->db->single()->total ?? 0;
     }
 

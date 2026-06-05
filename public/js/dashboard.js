@@ -160,8 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 2.1 Renderizar Estado Operativo del Taller (Órdenes de Servicio)
-        if (statsElements.workshopStatus && data.workshopStatus) {
-            const ws = data.workshopStatus;
+        if (statsElements.workshopStatus) {
+            const ws = data.workshopStatus || { recibidos: 0, reparacion: 0, listos: 0 };
             const totalActivas = (parseInt(ws.recibidos) || 0) + (parseInt(ws.reparacion) || 0) + (parseInt(ws.listos) || 0);
 
             statsElements.workshopStatus.innerHTML = `
@@ -192,7 +192,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 2.2 Renderizar Ranking de Repuestos más vendidos
-        if (statsElements.topProducts && data.topProducts) {
+        if (statsElements.topProducts) {
+            const topP = data.topProducts || [];
             statsElements.topProducts.innerHTML = `
                 <div class="glass-card p-6 rounded-2xl border border-slate-100 h-full">
                     <div class="flex items-center gap-3 mb-6">
@@ -200,8 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <h3 class="text-base font-black text-navy-blue uppercase tracking-tight">Top Ventas Repuestos</h3>
                     </div>
                     <div class="space-y-4">
-                        ${data.topProducts.length === 0 ? '<p class="text-center text-slate-400 text-xs py-10 uppercase font-bold">Sin ventas este mes</p>' :
-                    data.topProducts.map((p, idx) => `
+                        ${topP.length === 0 ? '<p class="text-center text-slate-400 text-xs py-10 uppercase font-bold">Sin ventas este mes</p>' :
+                    topP.map((p, idx) => `
                             <div class="flex items-center justify-between group">
                                 <div class="flex items-center gap-3 overflow-hidden">
                                     <span class="text-xs font-black text-slate-300 w-4">${idx + 1}</span>
