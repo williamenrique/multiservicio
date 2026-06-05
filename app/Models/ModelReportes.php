@@ -13,24 +13,23 @@ class ModelReportes {
     public function obtenerFlujoCaja($desde, $hasta, $limit = null, $offset = null, $search = null) {
         // 1. Obtener Ventas (Pagos iniciales de facturas creadas en el periodo)
         // Restamos la suma de abonos del total pagado para obtener solo el pago inicial realizado en la fecha de la venta
-        $this->db->query("SELECT v.id, v.fecha, 
+        $this->db->query("SELECT v.id, v.fecha,
                           COALESCE(
-                            (COALESCE(v.pago_efectivo, 0) + COALESCE(v.pago_transferencia, 0)) - 
-                            COALESCE((SELECT SUM(monto) FROM table_abonos_clientes WHERE venta_id = v.id), 0)
+                            (COALESCE(v.pago_efectivo, 0) + COALESCE(v.pago_transferencia, 0)) -
+                            COALESCE((SELECT SUM(monto) FROM table_abonos_clientes WHERE factura_id = v.id), 0)
                           , 0) as monto_pagado, 
                           'VENTA' as tipo,
-                          CASE WHEN v.placa != '' AND v.placa IS NOT NULL THEN 'ORDEN DE TRABAJO' ELSE 'VENTA MOSTRADOR' END as categoria,
-                          CONCAT(CASE WHEN v.placa != '' AND v.placa IS NOT NULL THEN 'SERVICIO TÉCNICO: ' ELSE 'VENTA DE REPUESTOS: ' END, COALESCE(v.modelo_vehiculo, 'GENERAL')) as descripcion,
-                          COALESCE(sm.nombre, s.nombre) as mecanico_nombre,
+                          CASE WHEN v.orden_id IS NOT NULL THEN 'ORDEN DE TRABAJO' ELSE 'VENTA MOSTRADOR' END as categoria,
+                          CONCAT(CASE WHEN v.orden_id IS NOT NULL THEN 'SERVICIO TÉCNICO' ELSE 'VENTA DE REPUESTOS' END) as descripcion,
                           s.nombre as usuario_nombre,
-                          v.modelo_vehiculo, v.placa, c.nombre as cliente_nombre,
-                          (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id) as cantidad_items,
+                          os.modelo_vehiculo, os.placa, c.nombre as cliente_nombre,
+                          (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id) as cantidad_items,
                           NULL as proveedor_nombre, v.saldo_pendiente
-                          FROM table_ventas v
+                          FROM table_facturas v
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
-                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO') 
                           AND DATE(v.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
@@ -38,17 +37,16 @@ class ModelReportes {
         $ingresos = $this->db->resultSet() ?: [];
 
         // 2. Obtener Abonos (Dinero que entró de deudas antiguas en este periodo)
-        $this->db->query("SELECT a.venta_id as id, a.fecha, COALESCE(a.monto, 0) as monto_pagado, 'ABONO' as tipo, 'ABONO CLIENTE' as categoria,
-                          CONCAT('ABONO A ', CASE WHEN v.placa != '' AND v.placa IS NOT NULL THEN 'ORDEN #' ELSE 'VENTA #' END, a.venta_id) as descripcion,
-                          COALESCE(sm.nombre, s.nombre) as mecanico_nombre,
+        $this->db->query("SELECT a.factura_id as id, a.fecha, COALESCE(a.monto, 0) as monto_pagado, 'ABONO' as tipo, 'ABONO CLIENTE' as categoria,
+                          CONCAT('ABONO A FACTURA #', a.factura_id) as descripcion,
                           s.nombre as usuario_nombre,
-                          v.placa, c.nombre as cliente_nombre
+                          os.placa, c.nombre as cliente_nombre
                           FROM table_abonos_clientes a
-                          JOIN table_ventas v ON a.venta_id = v.id
+                          JOIN table_facturas v ON a.factura_id = v.id
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
-                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
                           WHERE DATE(a.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -84,7 +82,8 @@ class ModelReportes {
                           d.descripcion, NULL as modelo_vehiculo, v.placa, NULL as cliente_nombre,
                           1 as cantidad_items, NULL as proveedor_nombre, 0 as saldo_pendiente
                           FROM table_devoluciones d
-                          JOIN table_ventas v ON d.venta_id = v.id
+                          JOIN table_facturas f ON d.factura_id = f.id
+                          LEFT JOIN table_ordenes_servicio v ON f.orden_id = v.id
                           WHERE DATE(d.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -119,8 +118,8 @@ class ModelReportes {
         foreach ($todasLasEntradas as $mov) {
             // Calculamos la proporción basada en los valores base
             $this->db->query("SELECT 
-                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NOT NULL) as total_val_repuestos,
-                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_ventas_detalle WHERE venta_id = :vid AND producto_id IS NULL) as total_val_servicios");
+                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_facturas_detalle WHERE factura_id = :vid AND producto_id IS NOT NULL) as total_val_repuestos,
+                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_facturas_detalle WHERE factura_id = :vid AND producto_id IS NULL) as total_val_servicios");
             
             $this->db->bind(':vid', $mov->id);
             $pesos = $this->db->single();
@@ -182,15 +181,15 @@ class ModelReportes {
 
     public function obtenerReporteDetallado($desde, $hasta) {
         // 1. Detalle de Ventas (Vehículos + Items)
-        $this->db->query("SELECT v.id, v.fecha, v.placa, v.modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, 
+        $this->db->query("SELECT v.id, v.fecha, os.placa, os.modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, 
                                  (vd.cantidad * vd.precio_unitario) as subtotal_item, 
-                                 COALESCE(sm.nombre, s.nombre) as usuario_nombre, c.nombre as cliente_nombre,
+                                 s.nombre as usuario_nombre, c.nombre as cliente_nombre,
                                  v.subtotal, v.iva_monto, v.total, v.pago_efectivo, v.pago_transferencia, v.saldo_pendiente, v.status
-                          FROM table_ventas v
-                          JOIN table_ventas_detalle vd ON v.id = vd.venta_id
+                          FROM table_facturas v
+                          JOIN table_facturas_detalle vd ON v.id = vd.factura_id
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
-                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO') AND DATE(v.fecha) BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
@@ -225,9 +224,10 @@ class ModelReportes {
     }
 
     public function obtenerReporteDevoluciones($desde, $hasta, $limit = null, $offset = null, $search = null) {
-        $sql = "SELECT d.*, s.nombre as usuario_nombre, v.placa, c.nombre as cliente_nombre
+        $sql = "SELECT d.*, s.nombre as usuario_nombre, os.placa, c.nombre as cliente_nombre
                 FROM table_devoluciones d
-                LEFT JOIN table_ventas v ON d.venta_id = v.id
+                JOIN table_facturas v ON d.factura_id = v.id
+                LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                 LEFT JOIN table_usuarios u ON d.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id
@@ -256,12 +256,13 @@ class ModelReportes {
     }
 
     public function contarDevoluciones($desde, $hasta, $search = null) {
-        $sql = "SELECT COUNT(*) as total 
+        $sql = "SELECT COUNT(*) as total
                 FROM table_devoluciones d 
-                LEFT JOIN table_ventas v ON d.venta_id = v.id 
+                JOIN table_facturas v ON d.factura_id = v.id 
+                LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                 WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
 
-        if ($search) $sql .= " AND (v.placa LIKE :search OR d.descripcion LIKE :search)";
+        if ($search) $sql .= " AND (os.placa LIKE :search OR d.descripcion LIKE :search)";
         $this->db->query($sql);
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -282,7 +283,7 @@ class ModelReportes {
                             SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) > 15 AND DATEDIFF(CURDATE(), DATE(v.fecha)) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
                             SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
                             SUM(v.saldo_pendiente) as total_deuda
-                          FROM table_ventas v
+                          FROM table_facturas v
                           JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'CREDITO' AND v.saldo_pendiente > 0
                           GROUP BY c.id

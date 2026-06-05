@@ -19,8 +19,9 @@ class ModelFacturacion {
      * @param string $term Término de búsqueda
      */
     public function searchInvoices($term) {
-        $this->db->query("SELECT v.id, v.placa, c.nombre as cliente_nombre
-                          FROM table_ventas v
+        $this->db->query("SELECT v.id, os.placa, c.nombre as cliente_nombre
+                          FROM table_facturas v
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE (v.id LIKE :term OR v.placa LIKE :term OR c.nombre LIKE :term)
                           AND v.status IN ('COMPLETADO', 'CREDITO') LIMIT 5");
@@ -37,8 +38,8 @@ class ModelFacturacion {
         $this->db->query("SELECT i.id, i.nombre, i.categoria, i.stock, i.precio, i.costo_promedio,
                           (i.stock - COALESCE((
                               SELECT SUM(vd.cantidad) 
-                              FROM table_ventas_detalle vd 
-                              JOIN table_ventas v ON vd.venta_id = v.id 
+                              FROM table_facturas_detalle vd 
+                              JOIN table_facturas v ON vd.factura_id = v.id 
                               WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
                           ), 0)) as stock_disponible
                           FROM table_inventario i
@@ -50,7 +51,7 @@ class ModelFacturacion {
     }
 
     public function obtenerBorradores() {
-        $this->db->query("SELECT * FROM table_ventas WHERE status = 'PENDIENTE' ORDER BY fecha DESC");
+        $this->db->query("SELECT * FROM table_facturas WHERE status = 'PENDIENTE' ORDER BY fecha DESC");
         return $this->db->resultSet();
     }
 
@@ -58,8 +59,9 @@ class ModelFacturacion {
      * Obtiene todos los borradores con sus respectivos items cargados
      */
     public function obtenerBorradoresCompleto() {
-        $this->db->query("SELECT v.*, s.nombre as usuario_nombre, c.nombre as cliente_nombre 
-                          FROM table_ventas v 
+        $this->db->query("SELECT v.*, s.nombre as usuario_nombre, c.nombre as cliente_nombre, os.placa, os.modelo_vehiculo 
+                          FROM table_facturas v 
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id 
                           LEFT JOIN table_staff s ON u.staff_id = s.id 
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
@@ -67,10 +69,10 @@ class ModelFacturacion {
         $ventas = $this->db->resultSet();
 
         foreach ($ventas as $key => $venta) {
-            $this->db->query("SELECT vd.*, i.id as prod_id 
-                              FROM table_ventas_detalle vd 
+            $this->db->query("SELECT vd.*, i.id as prod_id
+                              FROM table_facturas_detalle vd 
                               LEFT JOIN table_inventario i ON vd.producto_id = i.id
-                              WHERE vd.venta_id = :vid");
+                              WHERE vd.factura_id = :vid");
             $this->db->bind(':vid', $venta->id);
             $items = $this->db->resultSet();
             
@@ -101,30 +103,28 @@ class ModelFacturacion {
         try {
             $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
             if ($ventaId) {
-                $this->db->query("UPDATE table_ventas SET
-                                  cliente_id = :cid, placa = :placa, modelo_vehiculo = :modelo, 
+                $this->db->query("UPDATE table_facturas SET
+                                  cliente_id = :cid, orden_id = :oid,
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
                                   pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
-                                  status = :status, mecanico_id = :mid" .
+                                  status = :status" .
                                   (in_array($status, ['COMPLETADO', 'CREDITO']) ? ", fecha_cierre = NOW()" : "") . " 
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
             } else {
-                $this->db->query("INSERT INTO table_ventas (cliente_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
-                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, mecanico_id, status) 
-                                  VALUES (:cid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :mid, :status)");
+                $this->db->query("INSERT INTO table_facturas (cliente_id, orden_id, subtotal, iva_monto, total, 
+                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status) 
+                                  VALUES (:cid, :oid, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status)");
                 $this->db->bind(':uid', $usuarioId);
             }
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
-            $this->db->bind(':placa', !empty($datos['placa']) ? mb_strtoupper($datos['placa'], 'UTF-8') : '');
-            $this->db->bind(':modelo', !empty($datos['modelo']) ? mb_strtoupper($datos['modelo'], 'UTF-8') : '');
+            $this->db->bind(':oid', !empty($datos['orden_id']) ? $datos['orden_id'] : null);
             $this->db->bind(':sub', $totales['subtotal']);
             $this->db->bind(':iva', $totales['iva']);
             $this->db->bind(':total', $totales['total']);
             $this->db->bind(':pef', $datos['pago_efectivo']);
             $this->db->bind(':ptra', $datos['pago_transferencia']);
             $this->db->bind(':spend', $totales['saldo']);
-            $this->db->bind(':mid', !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null);
             $this->db->bind(':status', $status);
             $this->db->execute();
             return $ventaId ?: $this->db->lastInsertId();
@@ -138,11 +138,11 @@ class ModelFacturacion {
      * Obtiene los detalles completos de una venta para su impresión
      */
     public function obtenerVentaCompleta($id) {
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
-                                 sm.nombre as mecanico_nombre, sv.nombre as vendedor_nombre
-                          FROM table_ventas v
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email,
+                                 os.placa, os.modelo_vehiculo, sv.nombre as vendedor_nombre
+                          FROM table_facturas v
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff sv ON u.staff_id = sv.id
                           WHERE v.id = :id");
@@ -150,9 +150,10 @@ class ModelFacturacion {
         $venta = $this->db->single();
 
         if ($venta) {
-            $this->db->query("SELECT vd.id, vd.producto_id, vd.descripcion, vd.cantidad, vd.precio_unitario 
-                              FROM table_ventas_detalle vd 
-                              WHERE vd.venta_id = :vid");
+            $this->db->query("SELECT vd.*, s.nombre as mecanico_nombre 
+                              FROM table_facturas_detalle vd
+                              LEFT JOIN table_staff s ON vd.mecanico_id = s.id 
+                              WHERE vd.factura_id = :vid");
             $this->db->bind(':vid', $id);
             $venta->items = $this->db->resultSet();
         }
@@ -164,7 +165,7 @@ class ModelFacturacion {
      * para el historial específico de repuestos.
      */
     public function obtenerVentasMostrador($limit = 10, $offset = 0, $search = null, $desde = null, $hasta = null) {
-        $where = "WHERE (v.placa = '' OR v.placa IS NULL) AND v.status IN ('COMPLETADO', 'CREDITO')";
+        $where = "WHERE v.orden_id IS NULL AND v.status IN ('COMPLETADO', 'CREDITO')";
         
         if ($search) {
             $where .= " AND (v.id LIKE :search OR c.nombre LIKE :search)";
@@ -177,7 +178,7 @@ class ModelFacturacion {
         }
 
         // Obtener total de registros filtrados
-        $this->db->query("SELECT COUNT(*) as total FROM table_ventas v LEFT JOIN table_clientes c ON v.cliente_id = c.id $where");
+        $this->db->query("SELECT COUNT(*) as total FROM table_facturas v LEFT JOIN table_clientes c ON v.cliente_id = c.id $where");
         if ($search) $this->db->bind(':search', "%$search%");
         if ($desde) $this->db->bind(':desde', $desde);
         if ($hasta) $this->db->bind(':hasta', $hasta);
@@ -186,8 +187,8 @@ class ModelFacturacion {
         // Obtener los datos paginados
         $this->db->query("SELECT v.*, c.nombre as cliente_nombre, 
                           COALESCE(sv.nombre, u.username, 'SISTEMA') as vendedor_nombre, 
-                          (SELECT COUNT(*) FROM table_ventas_detalle WHERE venta_id = v.id AND producto_id IS NOT NULL) as cant_productos
-                          FROM table_ventas v
+                          (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id AND producto_id IS NOT NULL) as cant_productos
+                          FROM table_facturas v
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff sv ON u.staff_id = sv.id
@@ -207,7 +208,7 @@ class ModelFacturacion {
      * Métodos de gestión de borradores requeridos por el controlador
      */
     public function obtenerBorradorPorId($id) {
-        $this->db->query("SELECT * FROM table_ventas WHERE id = :id AND status = 'PENDIENTE'");
+        $this->db->query("SELECT * FROM table_facturas WHERE id = :id AND status = 'PENDIENTE'");
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
@@ -216,7 +217,7 @@ class ModelFacturacion {
      * Elimina un borrador de factura (Venta en estado PENDIENTE).
      */
     public function eliminarBorrador($id) {
-        $this->db->query("DELETE FROM table_ventas WHERE id = :id AND status = 'PENDIENTE'");
+        $this->db->query("DELETE FROM table_facturas WHERE id = :id AND status = 'PENDIENTE'");
         $this->db->bind(':id', $id);
         return $this->db->execute();
     }
@@ -229,20 +230,20 @@ class ModelFacturacion {
     public function obtenerAuditoriaTrabajos($limit = 10, $offset = 0) {
         // 1. Resumen de Deudores (Monto total y cantidad de CLIENTES únicos con saldo pendiente)
         $this->db->query("SELECT SUM(saldo_pendiente) as total_deuda, COUNT(DISTINCT cliente_id) as cantidad_deudores 
-                          FROM table_ventas WHERE status = 'CREDITO' AND saldo_pendiente > 0.05");
+                          FROM table_facturas WHERE status = 'CREDITO' AND saldo_pendiente > 0.05");
         $resumen = $this->db->single();
 
         // 2. Conteo total para paginación
-        $this->db->query("SELECT COUNT(*) as total FROM table_ventas WHERE status IN ('COMPLETADO', 'CREDITO')");
+        $this->db->query("SELECT COUNT(*) as total FROM table_facturas WHERE status IN ('COMPLETADO', 'CREDITO')");
         $total = $this->db->single()->total;
 
         // 3. Lista de trabajos con paginación
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, sv.nombre as vendedor_nombre, sm.nombre as mecanico_nombre
-                          FROM table_ventas v
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, sv.nombre as vendedor_nombre, os.placa, os.modelo_vehiculo
+                          FROM table_facturas v
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff sv ON u.staff_id = sv.id
-                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')
                           ORDER BY v.fecha DESC
                           LIMIT :limit OFFSET :offset");
@@ -263,7 +264,7 @@ class ModelFacturacion {
      */
     public function registrarAbono($ventaId, $monto, $metodo) {
         try {
-            $this->db->query("SELECT total, pago_efectivo, pago_transferencia, saldo_pendiente FROM table_ventas WHERE id = :id");
+            $this->db->query("SELECT total, pago_efectivo, pago_transferencia, saldo_pendiente FROM table_facturas WHERE id = :id");
             $this->db->bind(':id', $ventaId);
             $venta = $this->db->single();
 
@@ -273,7 +274,7 @@ class ModelFacturacion {
             $nuevoPendiente = $venta->saldo_pendiente - $monto;
             
             // 1. Insertar el registro en la tabla de abonos
-            $this->db->query("INSERT INTO table_abonos_clientes (venta_id, monto, metodo_pago) VALUES (:vid, :monto, :metodo)");
+            $this->db->query("INSERT INTO table_abonos_clientes (factura_id, monto, metodo_pago) VALUES (:vid, :monto, :metodo)");
             $this->db->bind(':vid', $ventaId);
             $this->db->bind(':monto', $monto);
             $this->db->bind(':metodo', $metodo);
@@ -286,7 +287,7 @@ class ModelFacturacion {
             // Si el saldo pendiente es muy cercano a cero (por decimales), marcar como COMPLETADO
             $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
 
-            $this->db->query("UPDATE table_ventas SET 
+            $this->db->query("UPDATE table_facturas SET 
                               $columnaPago = $columnaPago + :monto,
                               saldo_pendiente = :pendiente,
                               status = :status
@@ -308,10 +309,11 @@ class ModelFacturacion {
      * @return array
      */
     public function obtenerCreditosVencidos($dias = 15) {
-        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, v.placa, v.modelo_vehiculo, COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre 
-                          FROM table_ventas v
+        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, os.placa, os.modelo_vehiculo, COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre 
+                          FROM table_facturas v
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE v.status = 'CREDITO' 
+                          WHERE v.status = 'CREDITO'
                           AND v.saldo_pendiente > 0
                           AND DATEDIFF(CURDATE(), COALESCE(DATE(v.fecha), CURDATE())) >= :dias
                           ORDER BY v.fecha ASC");
@@ -342,8 +344,8 @@ class ModelFacturacion {
             $this->db->query("SELECT vd.producto_id, vd.descripcion, vd.cantidad, vd.precio_unitario, 
                                      v.fecha, v.subtotal, v.iva_monto, v.total, v.saldo_pendiente,
                                      v.pago_efectivo, v.pago_transferencia
-                              FROM table_ventas_detalle vd
-                              JOIN table_ventas v ON vd.venta_id = v.id
+                              FROM table_facturas_detalle vd
+                              JOIN table_facturas v ON vd.factura_id = v.id
                               WHERE vd.id = :id AND v.id = :vid");
             $this->db->bind(':id', $detalleId);
             $this->db->bind(':vid', $ventaId);
@@ -377,7 +379,7 @@ class ModelFacturacion {
             }
 
             // 3. Registrar en el historial de devoluciones para auditoría
-            $this->db->query("INSERT INTO table_devoluciones (venta_id, producto_id, descripcion, cantidad, monto_devuelto, destino, usuario_id) 
+            $this->db->query("INSERT INTO table_devoluciones (factura_id, producto_id, descripcion, cantidad, monto_devuelto, destino, usuario_id) 
                               VALUES (:vid, :pid, :desc, :cant, :monto, :dest, :uid)");
             $this->db->bind(':vid', $ventaId);
             $this->db->bind(':pid', $item->producto_id);
@@ -413,7 +415,7 @@ class ModelFacturacion {
                 }
             }
 
-            $this->db->query("UPDATE table_ventas SET 
+            $this->db->query("UPDATE table_facturas SET 
                               subtotal = :sub,
                               iva_monto = :iva,
                               total = :total, 
@@ -431,7 +433,7 @@ class ModelFacturacion {
             $this->db->execute();
 
             // 5. Eliminar el detalle de la factura original
-            $this->db->query("DELETE FROM table_ventas_detalle WHERE id = :id");
+            $this->db->query("DELETE FROM table_facturas_detalle WHERE id = :id");
             $this->db->bind(':id', $detalleId);
             $this->db->execute();
 
@@ -452,8 +454,8 @@ class ModelFacturacion {
                             (SUM(vd.precio_unitario * vd.cantidad) - SUM(vd.costo_unitario * vd.cantidad)) as utilidad_bruta,
                             SUM(CASE WHEN vd.producto_id IS NULL THEN (vd.precio_unitario * vd.cantidad) ELSE 0 END) as total_servicios,
                             SUM(CASE WHEN vd.producto_id IS NOT NULL THEN (vd.precio_unitario * vd.cantidad) - (vd.costo_unitario * vd.cantidad) ELSE 0 END) as ganancia_repuestos
-                          FROM table_ventas_detalle vd
-                          JOIN table_ventas v ON vd.venta_id = v.id
+                          FROM table_facturas_detalle vd
+                          JOIN table_facturas v ON vd.factura_id = v.id
                           WHERE DATE(v.fecha) BETWEEN :desde AND :hasta 
                           AND v.status IN ('COMPLETADO', 'CREDITO')");
         $this->db->bind(':desde', $desde);

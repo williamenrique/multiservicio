@@ -26,7 +26,7 @@ class ModelDashboard {
      * Suma de ventas completadas en el día actual
      */
     public function getIncomeToday($usuarioId = null) {
-        $sql = "SELECT COALESCE(SUM(total), 0) as total FROM table_ventas WHERE DATE(fecha) = CURDATE() AND status IN ('COMPLETADO', 'CREDITO')";
+        $sql = "SELECT COALESCE(SUM(total), 0) as total FROM table_facturas WHERE DATE(fecha) = CURDATE() AND status IN ('COMPLETADO', 'CREDITO')";
         if ($usuarioId) $sql .= " AND usuario_id = :uid";
         
         $this->db->query($sql);
@@ -47,7 +47,7 @@ class ModelDashboard {
      */
     public function getRecentSales($usuarioId = null) {
         $sql = "SELECT v.*, c.nombre as cliente_nombre 
-                          FROM table_ventas v 
+                          FROM table_facturas v 
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id 
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')";
         if ($usuarioId) $sql .= " AND v.usuario_id = :uid";
@@ -62,9 +62,10 @@ class ModelDashboard {
      * Obtiene los borradores (ventas pendientes)
      */
     public function getPendingDrafts($usuarioId = null) {
-        $sql = "SELECT v.id, v.usuario_id, v.fecha, v.placa, v.modelo_vehiculo, v.total, 
+        $sql = "SELECT v.id, v.usuario_id, v.fecha, os.placa, os.modelo_vehiculo, v.total, 
                                  c.nombre as cliente_nombre, s.nombre as responsable_nombre 
-                          FROM table_ventas v 
+                          FROM table_facturas v 
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id 
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
@@ -98,7 +99,7 @@ class ModelDashboard {
         $dateStart = date('Y-m-d', strtotime("-" . ($days - 1) . " days"));
 
         // Ingresos agrupados por día
-        $sql = "SELECT DATE(fecha) as date, SUM(total) as total FROM table_ventas 
+        $sql = "SELECT DATE(fecha) as date, SUM(total) as total FROM table_facturas 
                 WHERE DATE(fecha) >= :start AND status IN ('COMPLETADO', 'CREDITO')";
         if ($usuarioId) $sql .= " AND usuario_id = :uid";
         $sql .= " GROUP BY DATE(fecha)";
@@ -175,9 +176,9 @@ class ModelDashboard {
      */
     public function getTopSellingProducts() {
         $this->db->query("SELECT i.nombre, SUM(vd.cantidad) as total_vendido, i.categoria
-                          FROM table_ventas_detalle vd
+                          FROM table_facturas_detalle vd
                           JOIN table_inventario i ON vd.producto_id = i.id
-                          JOIN table_ventas v ON vd.venta_id = v.id
+                          JOIN table_facturas v ON vd.factura_id = v.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')
                           AND MONTH(v.fecha) = MONTH(CURRENT_DATE())
                           GROUP BY i.id 
