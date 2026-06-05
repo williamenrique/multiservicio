@@ -3,14 +3,15 @@
  * Modelo de Personal
  * Gestiona los datos de los empleados en la base de datos.
  */
-class ModelPersonal extends Model {
+class ModelPersonal {
+    private $db;
 
     /**
      * Constructor del modelo
      * @param Database|null $db Instancia de base de datos compartida
      */
     public function __construct($db = null) {
-        parent::__construct($db);
+        $this->db = $db ?: new Database();
     }
 
     /**
@@ -67,14 +68,15 @@ class ModelPersonal extends Model {
     }
 
     /**
-     * Obtiene el último correlativo numérico de los IDs tipo STAFF-XXX
+     * Obtiene el último correlativo numérico de una serie (ej: STAFF-, MEC-)
      */
-    public function obtenerUltimoCorrelativo() {
-        $this->db->query("SELECT id FROM table_staff WHERE id LIKE 'STAFF-%' ORDER BY id DESC LIMIT 1");
+    public function obtenerUltimoCorrelativo($prefix) {
+        $this->db->query("SELECT id FROM table_staff WHERE id LIKE :prefix ORDER BY id DESC LIMIT 1");
+        $this->db->bind(':prefix', $prefix . '%');
         $result = $this->db->single();
         if ($result) {
-            // Extraer el número de la cadena (ej: STAFF-001 -> 1)
-            return (int) str_replace('STAFF-', '', $result->id);
+            // Extraer el número de la cadena (ej: MEC-001 -> 1)
+            return (int) str_replace($prefix, '', $result->id);
         }
         return 0;
     }

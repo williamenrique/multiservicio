@@ -82,7 +82,7 @@ class ModelDashboard {
      * Obtiene un resumen de deudas con proveedores
      */
     public function getSupplierDebtsSummary() {
-        $this->db->query("SELECT p.nombre, SUM(c.total - c.pagado) as saldo_pendiente
+       $this->db->query("SELECT p.id, p.nombre, p.telefono, SUM(c.total - c.pagado) as saldo_pendiente, MIN(c.fecha_vencimiento) as proximo_vencimiento
                           FROM table_compras c
                           INNER JOIN table_proveedores p ON c.proveedor_id = p.id
                           WHERE (c.total - c.pagado) > 0
@@ -163,9 +163,9 @@ class ModelDashboard {
      */
     public function getServiceOrdersStatus() {
         $this->db->query("SELECT 
-            SUM(CASE WHEN estado = 'RECIBIDO' THEN 1 ELSE 0 END) as recibidos,
-            SUM(CASE WHEN estado = 'EN REPARACION' THEN 1 ELSE 0 END) as reparacion,
-            SUM(CASE WHEN estado = 'LISTO' THEN 1 ELSE 0 END) as listos
+            COALESCE(SUM(CASE WHEN estado = 'RECIBIDO' THEN 1 ELSE 0 END), 0) as recibidos,
+            COALESCE(SUM(CASE WHEN estado = 'EN_REPARACION' THEN 1 ELSE 0 END), 0) as reparacion,
+            COALESCE(SUM(CASE WHEN estado = 'LISTO' THEN 1 ELSE 0 END), 0) as listos
             FROM table_ordenes_servicio
             WHERE estado != 'ENTREGADO'");
         return $this->db->single();

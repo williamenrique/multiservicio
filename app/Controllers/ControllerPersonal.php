@@ -41,11 +41,13 @@ class ControllerPersonal extends Controller {
     }
 
     /**
-     * Crea un nuevo registro de staff generando el ID STAFF-XXX automático
+     * Guarda o actualiza un registro de personal.
+     * Soluciona el error 404 y gestiona IDs dinámicos (MEC-001, STAFF-001).
      */
-    public function crear() {
+    public function guardar() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
+            $idIngresado = $input['id'] ?? '';
 
             $v = new Validator($input);
             $v->required(['cedula', 'nombre', 'cargo']);
@@ -54,19 +56,41 @@ class ControllerPersonal extends Controller {
                 return $this->jsonResponse(['success' => false, 'error' => implode(' ', $v->getErrors())], 400);
             }
 
-            if ($this->personalModel->verificarCedulaUnica($input['cedula'])) {
-                return $this->jsonResponse(['success' => false, 'error' => 'La cédula ya existe en el sistema.'], 400);
+            // Verificar si el ID ya existe para decidir si es UPDATE o CREATE
+            $existe = $this->personalModel->obtenerPorId($idIngresado);
+
+            if ($this->personalModel->verificarCedulaUnica($input['cedula'], $existe ? $idIngresado : null)) {
+                return $this->jsonResponse(['success' => false, 'error' => 'La cédula ya está registrada en el sistema.'], 400);
             }
 
-            // Lógica de ID correlativo STAFF-XXX basado en el último registro
-            $ultimoCorrelativo = $this->personalModel->obtenerUltimoCorrelativo();
-            $input['id'] = 'STAFF-' . str_pad($ultimoCorrelativo + 1, 3, '0', STR_PAD_LEFT);
+            if ($existe) {
+                // MODO ACTUALIZACIÓN
+                if ($this->personalModel->actualizar($input)) {
+                    return $this->jsonResponse(['success' => true, 'mensaje' => 'Datos del personal actualizados.']);
+                }
+                return $this->jsonResponse(['success' => false, 'error' => 'No se realizaron cambios en el registro.'], 500);
+            } else {
+                // MODO CREACIÓN: Lógica de ID dinámico por iniciales
+                $prefix = !empty($idIngresado) ? mb_strtoupper($idIngresado, 'UTF-8') : 'STAFF-';
+                
+                // Asegurar formato de prefijo (ej: MEC -> MEC-)
+                if (strpos($prefix, '-') === false) {
+                    $prefix .= '-';
+                } else {
+                    // Si el usuario escribió "MEC-00", nos quedamos solo con "MEC-" para recalcular
+                    $parts = explode('-', $prefix);
+                    $prefix = $parts[0] . '-';
+                }
 
-            if ($this->personalModel->crear($input)) {
-                return $this->jsonResponse(['success' => true, 'mensaje' => 'Empleado registrado con ID: ' . $input['id']]);
+                $ultimoNum = $this->personalModel->obtenerUltimoCorrelativo($prefix);
+                $input['id'] = $prefix . str_pad($ultimoNum + 1, 3, '0', STR_PAD_LEFT);
+
+                if ($this->personalModel->crear($input)) {
+                    return $this->jsonResponse(['success' => true, 'mensaje' => 'Registrado con éxito con ID: ' . $input['id']]);
+                }
             }
 
-            return $this->jsonResponse(['success' => false, 'error' => 'Error interno al crear personal.'], 500);
+            return $this->jsonResponse(['success' => false, 'error' => 'Error crítico al procesar la solicitud.'], 500);
         }
     }
 
@@ -74,16 +98,6 @@ class ControllerPersonal extends Controller {
         $staff = $this->personalModel->obtenerPorId($id);
         if (!$staff) throw new AppException("Empleado no encontrado", 404);
         return $this->jsonResponse(['success' => true, 'data' => $staff]);
-    }
-
-    public function actualizar() {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $input = json_decode(file_get_contents('php://input'), true);
-            if ($this->personalModel->actualizar($input)) {
-                return $this->jsonResponse(['success' => true, 'mensaje' => 'Datos actualizados.']);
-            }
-            return $this->jsonResponse(['success' => false, 'error' => 'No se realizaron cambios.'], 500);
-        }
     }
 
     /**
@@ -116,5 +130,27 @@ class ControllerPersonal extends Controller {
     public function eliminar($id) {
         $this->personalModel->eliminarUsuario($id);
         return $this->jsonResponse(['success' => $this->personalModel->eliminar($id)]);
+    }
+
+    /**
+     * Verifica si una cédula ya existe (AJAX para validación en tiempo real)
+     */
+    public function verificarCedula() {
+        $value = $_GET['value'] ?? null;
+        $id = !empty($_GET['id']) ? $_GET['id'] : null;
+        
+        $exists = $this->personalModel->verificarCedulaUnica($value, $id);
+        return $this->jsonResponse(['exists' => $exists]);
+    }
+
+    /**
+     * Verifica si un nombre de usuario ya está en uso (AJAX para validación en tiempo real)
+     */
+    public function verificarUsername() {
+        $value = $_GET['value'] ?? null;
+        $staffId = !empty($_GET['id']) ? $_GET['id'] : null;
+
+        $exists = $this->personalModel->verificarUsernameUnico($value, $staffId);
+        return $this->jsonResponse(['exists' => $exists]);
     }
 }
