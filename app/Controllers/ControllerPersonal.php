@@ -66,6 +66,18 @@ class ControllerPersonal extends Controller {
             if ($existe) {
                 // MODO ACTUALIZACIÓN
                 if ($this->personalModel->actualizar($input)) {
+                    // Vincular o actualizar cuenta de usuario si se enviaron datos de cuenta
+                    if (!empty($input['username']) && !empty($input['role_id'])) {
+                        if ($this->personalModel->verificarUsernameUnico($input['username'], $idIngresado)) {
+                            return $this->jsonResponse(['success' => false, 'error' => 'El nombre de usuario ya está en uso por otro empleado.'], 400);
+                        }
+                        
+                        if (!empty($input['password'])) {
+                            $input['password'] = password_hash($input['password'], PASSWORD_BCRYPT);
+                        }
+                        
+                        $this->personalModel->gestionarUsuario($idIngresado, $input);
+                    }
                     return $this->jsonResponse(['success' => true, 'mensaje' => 'Datos del personal actualizados.']);
                 }
                 return $this->jsonResponse(['success' => false, 'error' => 'No se realizaron cambios en el registro.'], 500);
@@ -86,6 +98,18 @@ class ControllerPersonal extends Controller {
                 $input['id'] = $prefix . str_pad($ultimoNum + 1, 3, '0', STR_PAD_LEFT);
 
                 if ($this->personalModel->crear($input)) {
+                    // Vincular cuenta de usuario si se enviaron datos de cuenta
+                    if (!empty($input['username']) && !empty($input['role_id'])) {
+                        if ($this->personalModel->verificarUsernameUnico($input['username'], $input['id'])) {
+                            return $this->jsonResponse(['success' => true, 'mensaje' => 'Personal registrado, pero el usuario ya existe.']);
+                        }
+
+                        if (!empty($input['password'])) {
+                            $input['password'] = password_hash($input['password'], PASSWORD_BCRYPT);
+                        }
+
+                        $this->personalModel->gestionarUsuario($input['id'], $input);
+                    }
                     return $this->jsonResponse(['success' => true, 'mensaje' => 'Registrado con éxito con ID: ' . $input['id']]);
                 }
             }

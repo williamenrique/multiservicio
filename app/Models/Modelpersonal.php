@@ -68,15 +68,14 @@ class ModelPersonal {
     }
 
     /**
-     * Obtiene el último correlativo numérico de una serie (ej: STAFF-, MEC-)
+     * Obtiene el último correlativo numérico de los IDs tipo STAFF-XXX
      */
-    public function obtenerUltimoCorrelativo($prefix) {
-        $this->db->query("SELECT id FROM table_staff WHERE id LIKE :prefix ORDER BY id DESC LIMIT 1");
-        $this->db->bind(':prefix', $prefix . '%');
+    public function obtenerUltimoCorrelativo() {
+        $this->db->query("SELECT id FROM table_staff WHERE id LIKE 'STAFF-%' ORDER BY id DESC LIMIT 1");
         $result = $this->db->single();
         if ($result) {
-            // Extraer el número de la cadena (ej: MEC-001 -> 1)
-            return (int) str_replace($prefix, '', $result->id);
+            // Extraer el número de la cadena (ej: STAFF-001 -> 1)
+            return (int) str_replace('STAFF-', '', $result->id);
         }
         return 0;
     }
@@ -187,6 +186,22 @@ class ModelPersonal {
         $this->db->bind(':un', mb_strtoupper(trim($username), 'UTF-8'));
         if ($staffId) {
             $this->db->bind(':sid', mb_strtoupper($staffId, 'UTF-8'));
+        }
+        return (int)$this->db->single()->total > 0;
+    }
+
+    /**
+     * Verifica si un email ya existe (excluyendo un ID opcional)
+     */
+    public function verificarEmailUnico($email, $id = null) {
+        $sql = "SELECT COUNT(*) as total FROM table_staff WHERE email = :email";
+        if ($id) {
+            $sql .= " AND id != :id";
+        }
+        $this->db->query($sql);
+        $this->db->bind(':email', mb_strtolower(trim($email), 'UTF-8'));
+        if ($id) {
+            $this->db->bind(':id', mb_strtoupper($id, 'UTF-8'));
         }
         return (int)$this->db->single()->total > 0;
     }
