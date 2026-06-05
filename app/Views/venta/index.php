@@ -535,23 +535,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Procesar Venta
     document.getElementById('btnProcesar').onclick = async function() {
+        const btn = this;
+        const originalContent = btn.innerHTML;
+
         const payload = {
             items: carrito,
             cliente_id: document.getElementById('clienteId').value,
             pago_efectivo: parseFloat(document.getElementById('pagoEfectivo').value || 0),
             pago_transferencia: parseFloat(document.getElementById('pagoTransferencia').value || 0),
             mecanico_id: null,
-            placa: ''
+            placa: '',
+            iva_activo: false // Por defecto en mostrador no se aplica IVA a menos que se implemente el switch
         };
 
-        const res = await fetch('<?php echo URLROOT; ?>/facturacion/procesar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        
-        const data = await res.json();
-        if (data.success) {
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader" class="w-5 h-5 animate-spin"></i> PROCESANDO...';
+            if(window.lucide) lucide.createIcons();
+
+            const res = await fetch('<?php echo URLROOT; ?>/facturacion/procesar', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.mensaje || 'Error interno del servidor');
+            }
+
+            const data = await res.json();
+            
+            if (!data.success) throw new Error(data.mensaje);
+
             ultimaVentaId = data.venta_id;
             
             // Mostrar modal de éxito en lugar de abrir pestaña directamente
@@ -562,6 +581,13 @@ document.addEventListener('DOMContentLoaded', function() {
             carrito = [];
             renderizar();
             historialTable.reload();
+        } catch (error) {
+            AppUtils.showToast(error.message, 'error');
+            console.error("Error en venta:", error);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+            if(window.lucide) lucide.createIcons();
         }
     };
 });

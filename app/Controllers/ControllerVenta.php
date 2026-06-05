@@ -40,7 +40,7 @@ class ControllerVenta extends Controller {
         return $this->jsonResponse([
             'success' => true,
             'data' => $res['data'],
-            'total' => $res['total'],
+            'total' => $res['total'], // Total absoluto para paginación
             'totalFiltrados' => $res['total']
         ]);
     }

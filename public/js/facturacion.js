@@ -704,13 +704,16 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.cliente_id = inputCliente.value;
             activeInvoice.mecanico_id = inputMecanico.value;
 
-            if (!activeInvoice.mecanico_id || activeInvoice.mecanico_id === "") {
-                AppUtils.showToast('Debe seleccionar un mecánico responsable antes de cerrar la factura', 'warning');
-                btnProcessSale.disabled = false;
-                btnProcessSale.innerHTML = originalContent;
-                if (window.lucide) lucide.createIcons();
-                inputMecanico.focus();
-                return;
+            // En Venta de Repuestos (sin placa), el mecánico es opcional
+            if (activeInvoice.placa && activeInvoice.placa.trim() !== "") {
+                if (!activeInvoice.mecanico_id || activeInvoice.mecanico_id === "") {
+                    AppUtils.showToast('Para órdenes de taller debe seleccionar un mecánico', 'warning');
+                    btnProcessSale.disabled = false;
+                    btnProcessSale.innerHTML = originalContent;
+                    if (window.lucide) lucide.createIcons();
+                    inputMecanico.focus();
+                    return;
+                }
             }
 
             // Asegurar que los montos de pago se capturen incluso si no hubo evento 'input'

@@ -275,7 +275,12 @@ class ModelReportes {
      * Divide la deuda en rangos de 0-15, 16-30 y más de 30 días. 
      * Se usa DATE() para asegurar que deudas del mismo día (diff 0) sean incluidas.
      */
-    public function obtenerCarteraPorEdades() {
+    public function obtenerCarteraPorEdades($desde = null, $hasta = null) {
+        $where = "WHERE v.status = 'CREDITO' AND v.saldo_pendiente > 0";
+        if ($desde && $hasta) {
+            $where .= " AND DATE(v.fecha) BETWEEN :desde AND :hasta";
+        }
+
         $this->db->query("SELECT 
                             c.nombre as cliente_nombre,
                             c.telefono as cliente_telefono,
@@ -285,10 +290,15 @@ class ModelReportes {
                             SUM(v.saldo_pendiente) as total_deuda
                           FROM table_facturas v
                           JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE v.status = 'CREDITO' AND v.saldo_pendiente > 0
+                          $where
                           GROUP BY c.id
                           ORDER BY total_deuda DESC");
         
+        if ($desde && $hasta) {
+            $this->db->bind(':desde', $desde);
+            $this->db->bind(':hasta', $hasta);
+        }
+
         $results = $this->db->resultSet() ?: [];
         return $results; // Devolvemos el array directo para evitar error .map() en JS
     }
@@ -354,8 +364,8 @@ class ModelReportes {
                             SUM(vd.cantidad * vd.costo_unitario) as costo_total,
                             SUM(vd.cantidad * (vd.precio_unitario - vd.costo_unitario)) as utilidad_bruta,
                             COUNT(DISTINCT v.id) as cantidad_operaciones
-                          FROM table_ventas_detalle vd
-                          JOIN table_ventas v ON vd.venta_id = v.id
+                          FROM table_facturas_detalle vd
+                          JOIN table_facturas v ON vd.factura_id = v.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO') 
                           AND DATE(v.fecha) BETWEEN :desde AND :hasta
                           GROUP BY tipo");
@@ -380,8 +390,8 @@ class ModelReportes {
         $this->db->query("SELECT v.id as venta_id, v.fecha, v.placa, v.modelo_vehiculo, 
                                  vd.id as detalle_id, vd.descripcion, vd.cantidad, 
                                  vd.precio_unitario as monto_trabajo, vd.pago_nomina_id
-                          FROM table_ventas v
-                          JOIN table_ventas_detalle vd ON v.id = vd.venta_id
+                          FROM table_facturas v
+                          JOIN table_facturas_detalle vd ON v.factura_id = v.id
                           WHERE (v.mecanico_id = :staff_id OR :staff_id_alt = '0')
                           AND vd.producto_id IS NULL 
                           AND v.status IN ('COMPLETADO', 'CREDITO')
@@ -423,8 +433,8 @@ class ModelReportes {
         if ($pago) {
             // Obtener los trabajos que fueron liquidados en este pago específico
             $this->db->query("SELECT v.id as venta_id, vd.descripcion, vd.cantidad, vd.precio_unitario, v.fecha, v.placa
-                              FROM table_ventas_detalle vd
-                              JOIN table_ventas v ON vd.venta_id = v.id
+                              FROM table_facturas_detalle vd
+                              JOIN table_facturas v ON vd.factura_id = v.id
                               WHERE vd.pago_nomina_id = :pid");
             $this->db->bind(':pid', $id);
             $pago->trabajos = $this->db->resultSet();
@@ -457,7 +467,7 @@ class ModelReportes {
             $detallesIds = $data['detalles_ids'] ?? [];
             if (!empty($detallesIds)) {
                 foreach ($detallesIds as $id) {
-                    $this->db->query("UPDATE table_ventas_detalle SET pago_nomina_id = :pid WHERE id = :id");
+                    $this->db->query("UPDATE table_facturas_detalle SET pago_nomina_id = :pid WHERE id = :id");
                     $this->db->bind(':pid', $pagoId);
                     $this->db->bind(':id', $id);
                     $this->db->execute();

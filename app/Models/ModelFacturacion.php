@@ -43,7 +43,7 @@ class ModelFacturacion {
                               WHERE vd.producto_id = i.id AND v.status != 'ANULADO'
                           ), 0)) as stock_disponible
                           FROM table_inventario i
-                          WHERE (i.nombre LIKE :term OR i.categoria LIKE :term) AND i.estado = 'ACTIVO'
+                          WHERE (i.nombre LIKE :term OR i.categoria LIKE :term OR i.id LIKE :term) AND i.estado = 'ACTIVO'
                           HAVING stock_disponible > 0
                           LIMIT 15");
         $this->db->bind(':term', "%$termino%");

@@ -57,8 +57,12 @@ class ControllerFacturacion extends Controller {
                     $datos['mecanico_id'] = $_SESSION['user_staff_id'];
                 }
 
+                // Normalizar datos para ventas de mostrador (asegurar campos mínimos para BillingService)
+                $datos['iva_activo'] = $datos['iva_activo'] ?? false;
+                $datos['placa'] = !empty($datos['placa']) ? strtoupper(trim($datos['placa'])) : '';
+
                 $v = new Validator($datos);
-                $v->required(['items', 'pago_efectivo', 'pago_transferencia'])->array('items');
+                $v->required(['items'])->array('items');
 
                 if (!empty($datos['placa'])) {
                     $v->required(['mecanico_id']);
