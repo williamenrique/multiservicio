@@ -20,15 +20,22 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         renderRow: (item) => {
             const isLow = item.stock <= (item.stock_minimo || 5);
+
+            // LÓGICA DE RENDERIZADO DE IMAGEN
             const cleanPath = item.imagen ? item.imagen.trim() : null;
-            const isRemote = cleanPath && (cleanPath.toLowerCase().startsWith('http') || cleanPath.toLowerCase().startsWith('data:'));
-            const imgUrl = isRemote ? cleanPath : (cleanPath ? `${URLROOT}/${cleanPath}` : null);
-            
+            const isDataUri = cleanPath && cleanPath.toLowerCase().startsWith('data:');
+            const isRemote = cleanPath && cleanPath.toLowerCase().startsWith('http');
+            const imgUrl = (isDataUri || isRemote) ? cleanPath : (cleanPath ? `${URLROOT}/${cleanPath}` : null);
+
+            const stockFisico = parseFloat(item.stock);
+            const stockDisponible = parseFloat(item.stock_disponible ?? item.stock);
+            const reservado = stockFisico - stockDisponible;
+
             return `
                 <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300">
                     <td class="px-8 py-5 align-middle">
                         <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 ${imgUrl ? 'cursor-zoom-in hover:opacity-80 transition-all shadow-sm' : ''}" 
-                             ${imgUrl ? `onclick="AppUtils.viewImage('${imgUrl}', '${item.nombre}')"` : ''}>
+                             ${imgUrl ? `onclick="AppUtils.viewImage(this.querySelector('img').src, '${item.nombre.replace(/'/g, "\\'")}')"` : ''}>
                             ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="package" class="w-5 h-5 text-slate-300"></i>`}
                         </div>
                     </td>
@@ -38,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </td>
                     <td class="px-8 py-5 align-middle font-mono text-sm">
                         <span class="${isLow ? 'text-red-500 font-bold' : 'text-slate-600'}">${item.stock} uds</span>
+                        ${reservado > 0 ? `<div class="text-[9px] text-orange-500 font-bold uppercase tracking-tighter">Reservado: ${reservado}</div>` : ''}
                     </td>
                     <td class="px-8 py-5 align-middle font-black text-navy-blue">${AppUtils.formatCurrency(item.precio)}</td>
                     <td class="px-8 py-5 align-middle">
@@ -116,6 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: formData
             });
+
+            if (!res.ok) throw new Error('Error en la comunicación con el servidor');
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) throw new Error('El servidor devolvió una respuesta inválida (HTML)');
+
             const result = await res.json();
             if (result.success) {
                 toggleModal(false);
@@ -159,12 +172,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('prodPrecio').value = item.precio;
         document.getElementById('prodImagen').value = item.imagen || '';
 
+        // Lógica de previsualización en edición
         if (item.imagen) {
             const cleanPath = item.imagen.trim();
-            const isRemote = cleanPath.toLowerCase().startsWith('http') || cleanPath.toLowerCase().startsWith('data:');
-            const imgUrl = isRemote
-                ? cleanPath
-                : `${URLROOT}/${cleanPath}`;
+            const isDataUri = cleanPath.toLowerCase().startsWith('data:');
+            const isRemote = cleanPath.toLowerCase().startsWith('http');
+            const imgUrl = (isDataUri || isRemote) ? cleanPath : `${URLROOT}/${cleanPath}`;
             imagePreview.innerHTML = `<img src="${imgUrl}" class="w-full h-full object-cover">`;
         }
 

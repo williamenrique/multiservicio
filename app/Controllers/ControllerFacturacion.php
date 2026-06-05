@@ -134,14 +134,14 @@ class ControllerFacturacion extends Controller {
                 $ventaId = $tempModel->guardarCabeceraVenta($datos, 'PENDIENTE', $totales, $_SESSION['user_id']);
 
                 // Limpiar y actualizar items del borrador
-                $db->query("DELETE FROM table_ventas_detalle WHERE venta_id = :vid");
+                $db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :vid");
                 $db->bind(':vid', $ventaId);
                 $db->execute();
 
                 foreach ($datos['items'] as $item) {
-                    $db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
-                                VALUES (:vid, :pid, :desc, :cant, :pre, :costo)");
-                    $db->bind(':vid', $ventaId);
+                    $db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                                VALUES (:fid, :pid, :desc, :cant, :pre, :costo)");
+                    $db->bind(':fid', $ventaId);
                     $db->bind(':pid', $item['tipo'] === 'PRODUCTO' ? $item['id'] : null);
                     $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
                     $db->bind(':cant', $item['cantidad']);

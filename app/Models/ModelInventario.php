@@ -13,13 +13,20 @@ class ModelInventario {
      * Lista productos con soporte opcional para paginación (LIMIT/OFFSET)
      */
     public function listar($limit = null, $offset = null, $search = null) {
-        $sql = "SELECT * FROM table_inventario";
+        $sql = "SELECT i.*, 
+                (i.stock - COALESCE((
+                    SELECT SUM(vd.cantidad) 
+                    FROM table_facturas_detalle vd 
+                    JOIN table_facturas v ON vd.factura_id = v.id 
+                    WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
+                ), 0)) as stock_disponible
+                FROM table_inventario i";
         
         if ($search) {
-            $sql .= " WHERE nombre LIKE :search OR categoria LIKE :search";
+            $sql .= " WHERE i.nombre LIKE :search OR i.categoria LIKE :search";
         }
 
-        $sql .= " ORDER BY nombre ASC";
+        $sql .= " ORDER BY i.nombre ASC";
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";

@@ -54,7 +54,7 @@
                 </thead>
                 <tbody id="tableBody" class="divide-y divide-slate-100 text-sm text-slate-600">
                     <tr>
-                        <td colspan="6" class="px-8 py-16 text-center text-slate-400 italic animate-pulse">SINCRONIZANDO INVENTARIO...</td>
+                        <td colspan="7" class="px-8 py-16 text-center text-slate-400 italic animate-pulse">SINCRONIZANDO INVENTARIO...</td>
                     </tr>
                 </tbody>
             </table>

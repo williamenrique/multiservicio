@@ -23,7 +23,7 @@ class ModelFacturacion {
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE (v.id LIKE :term OR v.placa LIKE :term OR c.nombre LIKE :term)
+                          WHERE (v.id LIKE :term OR os.placa LIKE :term OR c.nombre LIKE :term)
                           AND v.status IN ('COMPLETADO', 'CREDITO') LIMIT 5");
         $this->db->bind(':term', "%$term%");
         return $this->db->resultSet();
@@ -40,10 +40,10 @@ class ModelFacturacion {
                               SELECT SUM(vd.cantidad) 
                               FROM table_facturas_detalle vd 
                               JOIN table_facturas v ON vd.factura_id = v.id 
-                              WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
+                              WHERE vd.producto_id = i.id AND v.status != 'ANULADO'
                           ), 0)) as stock_disponible
                           FROM table_inventario i
-                          WHERE (i.nombre LIKE :term OR i.categoria LIKE :term)
+                          WHERE (i.nombre LIKE :term OR i.categoria LIKE :term) AND i.estado = 'ACTIVO'
                           HAVING stock_disponible > 0
                           LIMIT 15");
         $this->db->bind(':term', "%$termino%");
