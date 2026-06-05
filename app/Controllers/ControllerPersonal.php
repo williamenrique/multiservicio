@@ -153,4 +153,15 @@ class ControllerPersonal extends Controller {
         $exists = $this->personalModel->verificarUsernameUnico($value, $staffId);
         return $this->jsonResponse(['exists' => $exists]);
     }
+
+    /**
+     * Verifica si un email ya existe (AJAX para validación en tiempo real)
+     */
+    public function verificarEmail() {
+        $value = $_GET['value'] ?? null;
+        $id = !empty($_GET['id']) ? $_GET['id'] : null;
+        
+        $exists = $this->personalModel->verificarEmailUnico($value, $id);
+        return $this->jsonResponse(['exists' => $exists]);
+    }
 }
