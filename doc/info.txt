@@ -1,0 +1,43 @@
+
+C. Experiencia del Cliente (Fidelización)
+Notificaciones Automáticas vía WhatsApp/Email: Integrar una API para notificar al cliente automáticamente cuando su vehículo pase de "En Reparación" a "Listo para Entrega".
+Portal de Consulta Externa: Una página pública (sin login) donde el cliente, solo con su placa y un código, pueda ver el estado actual de su orden de servicio y fotos del progreso.
+D. Optimización Operativa (Taller e Inventario)
+Asignación de Mecánicos y Tiempos: Poder asignar mecánicos específicos a cada ítem de una orden de servicio para medir la productividad del personal.
+Escaneo de Código de Barras: Adaptar el buscador de facturación e inventario para que acepte entradas de escáner, acelerando la venta de repuestos en mostrador.
+Gestión de Archivos de Vehículos: Permitir subir fotos del estado en que llega el vehículo (evidencia visual) directamente en la Orden de Servicio.
+3. Diagnóstico Técnico Actual
+Punto Fuerte: El uso de transacciones SQL (beginTransaction, commit) en los modelos de proveedores y facturación garantiza que la base de datos nunca quede en un estado inconsistente si algo falla a mitad de proceso.
+Punto a Mejorar: Hay una mezcla de lógica de presentación (generación de HTML vía JS) que se está volviendo extensa. Podríamos considerar una pequeña refactorización de componentes JS para que sean más reutilizables.
+¿Sobre cuál de estos puntos te gustaría profundizar o empezar a trabajar primero? Quedo a la espera de tus instrucciones para proceder con el código cuando lo indiques.
+    
+    5 Estado de Cuenta de Cliente: Una funcionalidad para generar un PDF o vista rápida de todos los abonos y saldos pendientes de un cliente específico, facilitando la cobranza.
+    
+    6 Cierre de Caja Diario: Un proceso donde el sistema "congele" los movimientos del día y genere un reporte comparativo entre el dinero esperado en sistema y el dinero físico reportado por el cajero.
+
+hay que revisar cartera de clientes deudasdashboard muetra que hay dos clientes con deudas y solo muestra uno en la tarjeta
+
+
+4. Optimización de Reportes (SQL vs PHP)
+En ModelReportes::obtenerFlujoCaja, observo que se realizan múltiples consultas y luego se utiliza array_merge, usort y array_slice en PHP.
+
+Mejora: Para un sistema robusto, esta lógica debería delegarse a la base de datos. El uso de UNION ALL con subconsultas optimizadas o Vistas SQL permitiría que la paginación y los filtros se ejecuten directamente en el motor, evitando problemas de memoria cuando el taller tenga miles de registros.
+Cálculo de Proporciones: La lógica actual para dividir ingresos entre repuestos y servicios dentro de un bucle PHP es costosa. Podrías pre-calcular estos valores al momento de guardar la venta en una tabla de resumen financiero.
+
+LISTO    5. Cuentas por Pagar (Proveedores)
+    El sistema tiene un excelente manejo de cartera de clientes (obtenerCarteraPorEdades), pero el lado de los proveedores parece menos detallado.
+
+    Mejora: Implementar un módulo de Abonos a Proveedores similar al de clientes. Actualmente, en obtenerFlujoCaja se toma el gasto de compra, pero no hay un seguimiento histórico de abonos parciales a facturas de compra a crédito que afecte el flujo de caja de forma granular.
+    integrar pdf
+6. Valoración de Inventario y Costeo
+En ControllerFacturacion::procesar, se guarda el costo_unitario en el detalle de la venta.
+
+Mejora: Para una contabilidad clara, el sistema debe decidir qué costo usar: ¿El último costo de compra o el Costo Promedio Ponderado (CPP)? Implementar CPP garantiza que la utilidad bruta reportada en obtenerAnalisisRentabilidad sea fiscalmente exacta, especialmente ante la inflación de los repuestos.
+7. Auditoría Financiera Específica
+Aunque tienes un logAction, las transacciones financieras requieren un log de "Valores Anteriores" vs "Valores Nuevos".
+
+Mejora: Si un administrador edita una factura o un gasto, el sistema debería registrar exactamente qué monto cambió. Esto previene fraudes internos donde se alteran montos después de haber recibido el dinero.
+8. Gestión de Métodos de Pago (Bancos)
+El sistema diferencia entre EFECTIVO y TRANSFERENCIA.
+
+Mejora: Crear un catálogo de "Bancos" o "Cuentas". En lugar de una etiqueta de texto, el dinero debería entrar a una entidad específica (ej. "Caja Principal", "Banco Nequi", "Banco General"). Esto permite realizar Conciliaciones Bancarias dentro del sistema.
