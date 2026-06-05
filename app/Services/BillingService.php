@@ -51,12 +51,12 @@ class BillingService {
             $ventaId = $this->facturaModel->guardarCabeceraVenta($datos, $status, $totales, $usuarioId);
 
             // 3. Limpiar y registrar detalles
-            $this->db->query("DELETE FROM table_ventas_detalle WHERE venta_id = :vid");
+            $this->db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :vid");
             $this->db->bind(':vid', $ventaId);
             $this->db->execute();
 
             foreach ($datos['items'] as $item) {
-                $this->db->query("INSERT INTO table_ventas_detalle (venta_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                $this->db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
                                 VALUES (:vid, :pid, :desc, :cant, :pre, :costo)");
                 $this->db->bind(':vid', $ventaId);
                 $this->db->bind(':pid', $item['tipo'] === 'PRODUCTO' ? $item['id'] : null);
@@ -122,7 +122,7 @@ class BillingService {
             $this->db->beginTransaction();
             
             // Llamamos al modelo para ejecutar la lógica de resta de totales y suma de stock
-            $res = $this->facturaModel->procesarDevolucion($input['venta_id'], $input['detalle_id'], $input['destino']);
+            $res = $this->facturaModel->procesarDevolucion($input['factura_id'], $input['detalle_id'], $input['destino']);
             
             if (!$res) throw new Exception("Error interno al procesar la devolución en el modelo.");
 

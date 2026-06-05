@@ -23,7 +23,7 @@ class ModelFacturacion {
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE (v.id LIKE :term OR os.placa LIKE :term OR c.nombre LIKE :term)
+                          WHERE (v.id LIKE :term OR os.placa LIKE :term OR c.nombre LIKE :term OR v.placa LIKE :term)
                           AND v.status IN ('COMPLETADO', 'CREDITO') LIMIT 5");
         $this->db->bind(':term', "%$term%");
         return $this->db->resultSet();
@@ -367,7 +367,7 @@ class ModelFacturacion {
             // 2. Si es producto y el destino es REINGRESO, sumar al inventario
             if (!empty($item->producto_id)) {
                 if ($destino === 'STOCK') {
-                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant WHERE id = :pid");
+                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant, updated_at = NOW() WHERE id = :pid");
                     $this->db->bind(':cant', $item->cantidad);
                     $this->db->bind(':pid', $item->producto_id);
                     $this->db->execute();

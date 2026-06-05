@@ -26,7 +26,7 @@ class ModelReportes {
                           (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id) as cantidad_items,
                           NULL as proveedor_nombre, v.saldo_pendiente
                           FROM table_facturas v
-                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id -- Placa desde O.S.
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
