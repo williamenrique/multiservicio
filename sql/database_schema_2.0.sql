@@ -141,6 +141,7 @@ CREATE TABLE `table_kardex` (
   `stock_actual` int(11) NOT NULL,
   `referencia_id` varchar(50), -- ID de Factura o Compra
   `usuario_id` int(11), -- Quién realizó el movimiento
+  `observacion` text DEFAULT NULL,
   `fecha` timestamp DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`producto_id`) REFERENCES `table_inventario`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`)
@@ -169,6 +170,16 @@ CREATE TABLE `table_ordenes_servicio` (
   INDEX (`estado`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Checklist de Entrada (Accesorios y estado del vehículo)
+CREATE TABLE `table_orden_checklist` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `orden_id` int(11) NOT NULL,
+  `item` varchar(100) NOT NULL, -- Ej: Llaves, Gato, Herramientas
+  `estado` tinyint(1) DEFAULT 0,
+  `observacion` varchar(255) DEFAULT NULL,
+  FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- =============================================================================
 -- BLOQUE 5: FINANZAS Y FACTURACION (CONTABLE)
 -- =============================================================================
@@ -186,6 +197,8 @@ CREATE TABLE `table_facturas` (
   `id` int(11) PRIMARY KEY AUTO_INCREMENT,
   `orden_id` int(11) NULL, -- Referencia a OS si aplica
   `cliente_id` varchar(50),
+  `placa` varchar(20) DEFAULT NULL, -- Para ventas de mostrador sin O.S.
+  `modelo_vehiculo` varchar(100) DEFAULT NULL,
   `usuario_id` int(11), -- El que cobró (Administrador)
   `subtotal` decimal(15,2) NOT NULL,
   `iva_monto` decimal(15,2) DEFAULT 0,

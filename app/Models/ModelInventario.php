@@ -144,7 +144,7 @@ class ModelInventario {
         $es_entrada = in_array($tipo, ['ENTRADA_COMPRA', 'DEVOLUCION']);
         $stock_actual = $es_entrada ? ($stock_anterior + $cantidad) : ($stock_anterior - $cantidad);
 
-        $this->db->query("INSERT INTO table_kardex (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_actual, referencia_id, usuario_id, observaciones) 
+        $this->db->query("INSERT INTO table_kardex (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_actual, referencia_id, usuario_id, observacion) 
                           VALUES (:pid, :tipo, :cant, :ant, :act, :ref, :uid, :obs)");
         $this->db->bind(':pid', $producto_id);
         $this->db->bind(':tipo', $tipo);
@@ -164,7 +164,7 @@ class ModelInventario {
     public function obtenerKardexPaginado($producto_id, $limit = 10, $offset = 0, $search = null) {
         $where = "WHERE k.producto_id = :pid";
         if ($search) {
-            $where .= " AND (k.tipo_movimiento LIKE :search OR k.observaciones LIKE :search OR k.referencia_id LIKE :search)";
+            $where .= " AND (k.tipo_movimiento LIKE :search OR k.observacion LIKE :search OR k.referencia_id LIKE :search)";
         }
 
         // Contar total
