@@ -23,7 +23,7 @@ define('APPROOT', dirname(dirname(__FILE__)));
 // Cámbialo por tu dominio real cuando subas a producción
 // Ejemplo local: http://localhost/taller_pro
 // Ejemplo servidor: https://taller-pro.com
-define('URLROOT', $_ENV['URLROOT'] ?? 'http://tallerv1.test');
+define('URLROOT', $_ENV['URLROOT'] ?? 'http://multiservicio2.0.test');
 
 // Ruta absoluta para el almacenamiento de datos JSON (Base de datos plana para módulos no migrados)
 define('JSON_DIR', APPROOT . '/../public/json/');
