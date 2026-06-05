@@ -76,7 +76,7 @@ class ModelReportes {
                           FROM table_transacciones t
                           JOIN table_compras c ON t.referencia_id = c.id
                           JOIN table_proveedores p ON c.proveedor_id = p.id
-                          WHERE t.categoria = 'ABONO_PROVEEDOR' AND DATE(t.fecha) BETWEEN :desde AND :hasta");
+                          WHERE t.categoria = 'ABONO_PROVEEDOR' AND DATE(t.fecha) BETWEEN :desde AND :hasta
                           UNION ALL
                           SELECT d.id, d.fecha, d.monto_devuelto as monto, d.monto_devuelto as monto_pagado, 'DEVOLUCION' as tipo, 'DEVOLUCION' as categoria,
                           d.descripcion, NULL as modelo_vehiculo, v.placa, NULL as cliente_nombre,
