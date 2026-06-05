@@ -61,7 +61,7 @@ class ModelReportes {
                           WHERE DATE(g.fecha) BETWEEN :desde AND :hasta
                           UNION ALL
                           SELECT c.id, c.fecha, c.total as monto, 
-                          (COALESCE(c.pagado, 0) - COALESCE((SELECT SUM(monto) FROM table_abonos_proveedores WHERE compra_id = c.id), 0)) as monto_pagado, 
+                          (COALESCE(c.pagado, 0) - COALESCE((SELECT SUM(monto) FROM table_transacciones WHERE referencia_id = c.id AND categoria = 'ABONO_PROVEEDOR'), 0)) as monto_pagado, 
                           'COMPRA' as tipo, 'MERCANCÍA' as categoria,
                           'COMPRA DE MERCANCIA' as descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre,
                           (SELECT COUNT(*) FROM table_compras_detalle WHERE compra_id = c.id) as cantidad_items,
@@ -70,13 +70,13 @@ class ModelReportes {
                           INNER JOIN table_proveedores p ON c.proveedor_id = p.id
                           WHERE DATE(c.fecha) BETWEEN :desde AND :hasta
                           UNION ALL
-                          SELECT a.compra_id as id, a.fecha, a.monto as monto, a.monto as monto_pagado, 'ABONO PROV' as tipo, 'PAGO PROVEEDOR' as categoria,
-                          CONCAT('ABONO A COMPRA #', a.compra_id) as descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre,
+                          SELECT t.referencia_id as id, t.fecha, t.monto as monto, t.monto as monto_pagado, 'ABONO PROV' as tipo, 'PAGO PROVEEDOR' as categoria,
+                          CONCAT('ABONO A COMPRA #', t.referencia_id) as descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre,
                           0 as cantidad_items, p.nombre as proveedor_nombre, 0 as saldo_pendiente
-                          FROM table_abonos_proveedores a
-                          JOIN table_compras c ON a.compra_id = c.id
+                          FROM table_transacciones t
+                          JOIN table_compras c ON t.referencia_id = c.id
                           JOIN table_proveedores p ON c.proveedor_id = p.id
-                          WHERE DATE(a.fecha) BETWEEN :desde AND :hasta
+                          WHERE t.categoria = 'ABONO_PROVEEDOR' AND DATE(t.fecha) BETWEEN :desde AND :hasta");
                           UNION ALL
                           SELECT d.id, d.fecha, d.monto_devuelto as monto, d.monto_devuelto as monto_pagado, 'DEVOLUCION' as tipo, 'DEVOLUCION' as categoria,
                           d.descripcion, NULL as modelo_vehiculo, v.placa, NULL as cliente_nombre,

@@ -31,7 +31,7 @@ class BillingService {
             $subtotal = 0;
             foreach($datos['items'] as $it) $subtotal += ($it['precio'] * $it['cantidad']);
             
-            $tasaIva = (float)($datos['tasa_iva'] ?? 16); // O usar la config global
+            $tasaIva = (float)($datos['tasa_iva'] ?? 19); // Alineado con database_schema_2.0.sql
             $iva = ($datos['aplicar_iva'] ?? false || !empty($datos['iva_activo'])) ? ($subtotal * ($tasaIva / 100)) : 0;
             $totalVenta = $subtotal + $iva;
             
@@ -56,14 +56,15 @@ class BillingService {
             $this->db->execute();
 
             foreach ($datos['items'] as $item) {
-                $this->db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
-                                VALUES (:vid, :pid, :desc, :cant, :pre, :costo)");
+                $this->db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                                VALUES (:vid, :pid, :mid, :desc, :cant, :pre, :costo)");
                 $this->db->bind(':vid', $ventaId);
                 $this->db->bind(':pid', $item['tipo'] === 'PRODUCTO' ? $item['id'] : null);
+                $this->db->bind(':mid', $datos['mecanico_id'] ?? null);
                 $this->db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
                 $this->db->bind(':cant', $item['cantidad']);
                 $this->db->bind(':pre', $item['precio']);
-                $this->db->bind(':costo', $item['ultimo_costo'] ?? 0);
+                $this->db->bind(':costo', $item['costo_promedio'] ?? $item['ultimo_costo'] ?? 0);
                 $this->db->execute();
 
                 if ($item['tipo'] === 'PRODUCTO' && $status !== 'PENDIENTE') {
@@ -78,15 +79,15 @@ class BillingService {
                 }
             }
 
-            // 4. Registrar movimiento en caja
+            // 4. Registrar movimiento en el Libro Mayor (table_transacciones)
             if ($pagoEfe > 0 && $status !== 'PENDIENTE') {
-                $this->cajaModel->registrarMovimiento([
-                    'tipo' => 'INGRESO', 
-                    'monto' => $pagoEfe, 
-                    'metodo_pago' => 'EFECTIVO',
-                    'referencia_id' => $ventaId, 
-                    'concepto' => "VENTA FACTURA #$ventaId"
-                ]);
+                $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                                  VALUES (1, 'INGRESO', 'VENTA', :monto, :ref, :desc, :uid)");
+                $this->db->bind(':monto', $pagoEfe);
+                $this->db->bind(':ref', $ventaId);
+                $this->db->bind(':desc', "VENTA FACTURA #$ventaId");
+                $this->db->bind(':uid', $usuarioId);
+                $this->db->execute();
             }
 
             $this->db->commit();
