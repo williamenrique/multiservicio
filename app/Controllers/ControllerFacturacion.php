@@ -299,11 +299,15 @@ class ControllerFacturacion extends Controller {
      */
     public function getDeudoresSummary() {
         RoleGuard::isAdmin();
-        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
-        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
-        
-        $data = $this->facturaModel->obtenerAuditoriaTrabajos($limit, $offset);
-        return $this->jsonResponse(['success' => true, 'data' => $data]);
+        try {
+            $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+            $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+            
+            $data = $this->facturaModel->obtenerAuditoriaTrabajos($limit, $offset);
+            return $this->jsonResponse(['success' => true, 'data' => $data]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 
     /**

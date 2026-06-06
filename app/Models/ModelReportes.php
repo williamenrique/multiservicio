@@ -398,7 +398,7 @@ class ModelReportes {
                                  vd.id as detalle_id, vd.descripcion, vd.cantidad, 
                                  vd.precio_unitario as monto_trabajo, vd.pago_nomina_id
                           FROM table_facturas v
-                          JOIN table_facturas_detalle vd ON v.factura_id = v.id
+                          JOIN table_facturas_detalle vd ON vd.factura_id = v.id
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                           WHERE (v.mecanico_id = :staff_id OR :staff_id_alt = '0')

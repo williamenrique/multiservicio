@@ -24,28 +24,32 @@ class ControllerDashboard extends Controller {
      * Endpoint API que centraliza todas las estadísticas del dashboard (AJAX)
      */
     public function getStats() {
-        $isAdmin = RoleGuard::is_admin_check();
-        $usuarioId = $isAdmin ? null : ($_SESSION['user_id'] ?? null);
-        
-        // Rango de fechas para el análisis de rentabilidad (Mes actual)
-        $desde = date('Y-m-01');
-        $hasta = date('Y-m-d');
+        try {
+            $isAdmin = RoleGuard::is_admin_check();
+            $usuarioId = $isAdmin ? null : ($_SESSION['user_id'] ?? null);
+            
+            $desde = date('Y-m-01');
+            $hasta = date('Y-m-d');
 
-        $data = [
-            'inventory' => $this->dashboardModel->getInventoryStats(),
-            'ingresosHoy' => (float)$this->dashboardModel->getIncomeToday($usuarioId),
-            'gastosMes' => $isAdmin ? (float)$this->dashboardModel->getExpensesMonth() : 0,
-            'recentSales' => $this->dashboardModel->getRecentSales($usuarioId),
-            'drafts' => $this->dashboardModel->getPendingDrafts($usuarioId),
-            'history' => $isAdmin ? $this->dashboardModel->getFinancialHistory(7, $usuarioId) : [],
-            'recentExpenses' => $isAdmin ? $this->dashboardModel->getRecentExpenses() : [],
-            'lowStock' => $this->dashboardModel->getLowStockProducts(),
-            'workshopStatus' => $this->dashboardModel->getServiceOrdersStatus(),
-            'topProducts' => $this->dashboardModel->getTopSellingProducts(),
-            'supplierDebts' => $isAdmin ? $this->dashboardModel->getSupplierDebtsSummary() : [],
-            'profitability' => $isAdmin ? $this->facturacionModel->obtenerReporteUtilidad($desde, $hasta) : null
-        ];
+            $data = [
+                'success' => true,
+                'inventory' => $this->dashboardModel->getInventoryStats(),
+                'ingresosHoy' => (float)$this->dashboardModel->getIncomeToday($usuarioId),
+                'gastosMes' => $isAdmin ? (float)$this->dashboardModel->getExpensesMonth() : 0,
+                'recentSales' => $this->dashboardModel->getRecentSales($usuarioId),
+                'drafts' => $this->dashboardModel->getPendingDrafts($usuarioId),
+                'history' => $isAdmin ? $this->dashboardModel->getFinancialHistory(7, $usuarioId) : [],
+                'recentExpenses' => $isAdmin ? $this->dashboardModel->getRecentExpenses() : [],
+                'lowStock' => $this->dashboardModel->getLowStockProducts(),
+                'workshopStatus' => $this->dashboardModel->getServiceOrdersStatus(),
+                'topProducts' => $this->dashboardModel->getTopSellingProducts(),
+                'supplierDebts' => $isAdmin ? $this->dashboardModel->getSupplierDebtsSummary() : [],
+                'profitability' => $isAdmin ? $this->facturacionModel->obtenerReporteUtilidad($desde, $hasta) : null
+            ];
 
-        return $this->jsonResponse($data);
+            return $this->jsonResponse($data);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 }

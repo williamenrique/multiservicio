@@ -243,9 +243,10 @@ class ModelFacturacion {
         $total = $this->db->single()->total;
 
         // 3. Lista de trabajos con paginación
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, sv.nombre as vendedor_nombre, 
+        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, v.status,
+                                 c.nombre as cliente_nombre, sv.nombre as vendedor_nombre, 
                                  COALESCE(vh.placa, v.placa) as placa, 
-                                 COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo
+                                 COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id

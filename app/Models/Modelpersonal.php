@@ -68,22 +68,18 @@ class ModelPersonal {
     }
 
     /**
-     * Obtiene el último correlativo numérico de los IDs según el prefijo.
-     * Usa CAST y SUBSTRING_INDEX para ordenar numéricamente la parte final del ID.
+     * Obtiene el último correlativo numérico de los IDs según el prefijo (ej: MEC-, STAFF-)
      * @param string $prefix Prefijo a buscar
      * @return int El número mayor encontrado
      */
     public function obtenerUltimoCorrelativo($prefix = 'STAFF-') {
-        // Extraemos la parte después del '-' y la convertimos a UNSIGNED para ordenar correctamente
         $this->db->query("SELECT id FROM table_staff 
                           WHERE id LIKE :prefix 
                           ORDER BY CAST(SUBSTRING_INDEX(id, '-', -1) AS UNSIGNED) DESC 
                           LIMIT 1");
         $this->db->bind(':prefix', $prefix . '%');
         $result = $this->db->single();
-        
         if ($result) {
-            // Extraer la parte numérica después del guion (ej: MEC-003 -> 3)
             $parts = explode('-', $result->id);
             return (int) end($parts);
         }

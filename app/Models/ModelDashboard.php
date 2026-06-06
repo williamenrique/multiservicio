@@ -48,7 +48,7 @@ class ModelDashboard {
     public function getRecentSales($usuarioId = null) {
         $sql = "SELECT v.*, c.nombre as cliente_nombre,
                        COALESCE(vh.placa, v.placa) as placa, 
-                       COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo
+                       COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo
                           FROM table_facturas v 
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id 
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
@@ -67,8 +67,8 @@ class ModelDashboard {
      */
     public function getPendingDrafts($usuarioId = null) {
         $sql = "SELECT v.id, v.usuario_id, v.fecha, v.total,
-                       COALESCE(vh.placa, v.placa) as placa, 
-                       COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                       COALESCE(vh.placa, v.placa, '---') as placa, 
+                       COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
                        COALESCE(c.nombre, 'CLIENTE MOSTRADOR') as cliente_nombre, 
                        COALESCE(s.nombre, u.username) as responsable_nombre 
                           FROM table_facturas v 
