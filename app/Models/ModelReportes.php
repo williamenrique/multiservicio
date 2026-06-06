@@ -13,16 +13,33 @@ class ModelReportes {
     public function obtenerFlujoCaja($desde, $hasta, $limit = null, $offset = null, $search = null) {
         // En la v2.0, table_transacciones es el origen centralizado de todo movimiento de caja.
         $sql = "SELECT t.*, 
+                       t.monto as monto_pagado,
                        s.nombre as usuario_nombre,
-                       COALESCE(vh.placa, f.placa) as placa,
+                       f.orden_id,
+                       COALESCE(vh.placa, f.placa, '---') as placa,
                        c.nombre as cliente_nombre,
                        p.nombre as proveedor_nombre,
-                       st.nombre as empleado_nombre
+                       st.nombre as empleado_nombre,
+                       CASE 
+                           WHEN t.tipo = 'INGRESO' THEN 'emerald' 
+                           ELSE 'rose' 
+                       END as tipo_color,
+                       CASE 
+                           WHEN t.categoria = 'VENTA' AND f.orden_id IS NULL THEN 'VENTA MOSTRADOR'
+                           WHEN t.categoria = 'VENTA' AND f.orden_id IS NOT NULL THEN 'VENTA SERVICIO'
+                           WHEN t.categoria = 'ABONO_CLIENTE' THEN 'ABONO CLIENTE'
+                           WHEN t.categoria = 'GASTO' THEN 'GASTO TALLER'
+                           WHEN t.categoria = 'COMPRA_PROVEEDOR' THEN 'COMPRA REPUESTOS'
+                           WHEN t.categoria = 'ABONO_PROVEEDOR' THEN 'PAGO PROVEEDOR'
+                           WHEN t.categoria = 'NOMINA' THEN 'PAGO NÓMINA'
+                           WHEN t.categoria = 'DEVOLUCION' THEN 'DEVOLUCIÓN'
+                           ELSE t.categoria 
+                       END as categoria_label
                 FROM table_transacciones t
                 LEFT JOIN table_usuarios u ON t.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
-                -- Joins para detalles según categoría
-                LEFT JOIN table_facturas f ON (t.categoria IN ('VENTA', 'ABONO_CLIENTE') AND t.referencia_id = f.id)
+                -- Joins para detalles según categoría, incluimos DEVOLUCION para ver placa/cliente
+                LEFT JOIN table_facturas f ON (t.categoria IN ('VENTA', 'ABONO_CLIENTE', 'DEVOLUCION') AND t.referencia_id = f.id)
                 LEFT JOIN table_ordenes_servicio os ON f.orden_id = os.id
                 LEFT JOIN table_vehiculos vh ON (f.placa = vh.placa)
                 LEFT JOIN table_clientes c ON f.cliente_id = c.id
@@ -33,7 +50,7 @@ class ModelReportes {
                 WHERE DATE(t.fecha) BETWEEN :desde AND :hasta";
 
         if ($search) {
-            $sql .= " AND (t.descripcion LIKE :q OR vh.placa LIKE :q OR c.nombre LIKE :q OR p.nombre LIKE :q)";
+            $sql .= " AND (t.descripcion LIKE :q OR vh.placa LIKE :q OR f.placa LIKE :q OR c.nombre LIKE :q OR p.nombre LIKE :q)";
         }
 
         $sql .= " ORDER BY t.fecha DESC";
@@ -343,7 +360,7 @@ class ModelReportes {
                           FROM table_facturas v
                           JOIN table_facturas_detalle vd ON vd.factura_id = v.id
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           WHERE (v.mecanico_id = :staff_id OR :staff_id_alt = '0')
                           AND vd.producto_id IS NULL 
                           AND v.status IN ('COMPLETADO', 'CREDITO')

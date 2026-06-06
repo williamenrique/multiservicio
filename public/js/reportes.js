@@ -10,33 +10,40 @@ let activeReportTab = 'resumen';
  * Renderiza una fila del Flujo de Caja (6 columnas)
  */
 window.renderFlujoRow = (m) => {
-    const isIngreso = m.tipo === 'VENTA' || m.tipo === 'ABONO';
+    const isIngreso = m.tipo === 'INGRESO';
+    const color = m.tipo_color || (isIngreso ? 'emerald' : 'rose');
+    const label = m.categoria_label || m.categoria || m.tipo;
+
     return `
         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 animate-in fade-in duration-300">
             <td class="px-4 py-3 font-mono text-xs font-bold text-slate-400 text-center">#${m.id || '---'}</td>
             <td class="px-4 py-3 text-sm font-bold text-slate-600 uppercase text-center">${new Date(m.fecha).toLocaleDateString()}</td>
-            <td class="px-4 py-3 text-center w-24">
-                <span class="px-2 py-0.5 rounded text-[10px] font-black ${isIngreso ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">${m.tipo}</span>
+            <td class="px-4 py-3 text-center w-40">
+                <span class="px-3 py-1 rounded text-[10px] font-black bg-${color}-100 text-${color}-600 whitespace-nowrap inline-block">${label}</span>
             </td>
             <td class="px-4 py-3">
                 <div class="flex flex-col gap-0.5">
-                    <span class="text-sm font-bold text-slate-700 uppercase">${m.descripcion || m.categoria || 'OPERACIÓN'}</span>
-                    ${m.placa ? `<span class="text-[9px] text-slate-400 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
-                    ${m.mecanico_nombre ? `
-                        <span class="text-[9px] text-slate-400 font-bold uppercase">TÉCNICO: ${m.mecanico_nombre}</span>
-                    ` : ''}
+                    <span class="text-sm font-bold text-slate-700 uppercase">${m.descripcion || 'OPERACIÓN'}</span>
+                    ${m.placa && m.placa !== '---' ? `<span class="text-[9px] text-slate-400 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
+                    ${m.cliente_nombre ? `<span class="text-[9px] text-slate-500 font-bold uppercase">CLIENTE: ${m.cliente_nombre}</span>` : ''}
+                    ${m.proveedor_nombre ? `<span class="text-[9px] text-slate-500 font-bold uppercase">PROV: ${m.proveedor_nombre}</span>` : ''}
+                    ${m.empleado_nombre ? `<span class="text-[9px] text-slate-500 font-bold uppercase">EMPLEADO: ${m.empleado_nombre}</span>` : ''}
                 </div>
             </td>
             <td class="px-4 py-3 text-right w-36">
-                <span class="text-base font-black ${isIngreso ? 'text-emerald-600' : 'text-rose-600'} tracking-tight">
-                    ${isIngreso ? '+' : '-'}${AppUtils.formatCurrency(Math.abs(m.monto_pagado))}
+                <span class="text-base font-black text-${color}-600 tracking-tight">
+                    ${isIngreso ? '+' : '-'}${AppUtils.formatCurrency(Math.abs(parseFloat(m.monto_pagado || 0)))}
                 </span>
             </td>
             <td class="px-4 py-3 text-right w-20">
-                ${(m.tipo === 'VENTA' || m.tipo === 'ABONO') && m.id ?
-            `<button onclick="verDetalleVenta(${m.id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` :
-            (m.tipo === 'COMPRA' ? `<button onclick="verDetalleCompra(${m.id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : '---')
-        }
+                ${m.referencia_id ? `
+                    ${m.categoria === 'VENTA' || m.categoria === 'ABONO_CLIENTE' || m.categoria === 'DEVOLUCION' ?
+                `<button onclick="verDetalleVenta(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
+                    ${m.categoria === 'COMPRA_PROVEEDOR' || m.categoria === 'ABONO_PROVEEDOR' ?
+                `<button onclick="verDetalleCompra(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
+                    ${m.categoria === 'NOMINA' ?
+                `<button onclick="verDetallePagoHistorial(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
+                ` : '---'}
             </td>
         </tr>`;
 };

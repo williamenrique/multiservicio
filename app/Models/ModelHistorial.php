@@ -66,7 +66,7 @@ class ModelHistorial {
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
