@@ -22,11 +22,13 @@ class ModelReportes {
                           CASE WHEN v.orden_id IS NOT NULL THEN 'ORDEN DE TRABAJO' ELSE 'VENTA MOSTRADOR' END as categoria,
                           CONCAT(CASE WHEN v.orden_id IS NOT NULL THEN 'SERVICIO TÉCNICO' ELSE 'VENTA DE REPUESTOS' END) as descripcion,
                           s.nombre as usuario_nombre,
-                          os.modelo_vehiculo, os.placa, c.nombre as cliente_nombre,
+                          COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
+                          COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre,
                           (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id) as cantidad_items,
                           NULL as proveedor_nombre, v.saldo_pendiente
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id -- Placa desde O.S.
+                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
@@ -40,10 +42,11 @@ class ModelReportes {
         $this->db->query("SELECT a.factura_id as id, a.fecha, COALESCE(a.monto, 0) as monto_pagado, 'ABONO' as tipo, 'ABONO CLIENTE' as categoria,
                           CONCAT('ABONO A FACTURA #', a.factura_id) as descripcion,
                           s.nombre as usuario_nombre,
-                          os.placa, c.nombre as cliente_nombre
+                          COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre
                           FROM table_abonos_clientes a
                           JOIN table_facturas v ON a.factura_id = v.id
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
@@ -79,11 +82,12 @@ class ModelReportes {
                           WHERE t.categoria = 'ABONO_PROVEEDOR' AND DATE(t.fecha) BETWEEN :desde AND :hasta
                           UNION ALL
                           SELECT d.id, d.fecha, d.monto_devuelto as monto, d.monto_devuelto as monto_pagado, 'DEVOLUCION' as tipo, 'DEVOLUCION' as categoria,
-                          d.descripcion, NULL as modelo_vehiculo, v.placa, NULL as cliente_nombre,
+                          d.descripcion, NULL as modelo_vehiculo, COALESCE(vh.placa, f.placa) as placa, NULL as cliente_nombre,
                           1 as cantidad_items, NULL as proveedor_nombre, 0 as saldo_pendiente
                           FROM table_devoluciones d
                           JOIN table_facturas f ON d.factura_id = f.id
-                          LEFT JOIN table_ordenes_servicio v ON f.orden_id = v.id
+                          LEFT JOIN table_ordenes_servicio os ON f.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                           WHERE DATE(d.fecha) BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -181,13 +185,14 @@ class ModelReportes {
 
     public function obtenerReporteDetallado($desde, $hasta) {
         // 1. Detalle de Ventas (Vehículos + Items)
-        $this->db->query("SELECT v.id, v.fecha, os.placa, os.modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, 
+        $this->db->query("SELECT v.id, v.fecha, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, 
                                  (vd.cantidad * vd.precio_unitario) as subtotal_item, 
                                  s.nombre as usuario_nombre, c.nombre as cliente_nombre,
                                  v.subtotal, v.iva_monto, v.total, v.pago_efectivo, v.pago_transferencia, v.saldo_pendiente, v.status
                           FROM table_facturas v
                           JOIN table_facturas_detalle vd ON v.id = vd.factura_id
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
@@ -224,17 +229,18 @@ class ModelReportes {
     }
 
     public function obtenerReporteDevoluciones($desde, $hasta, $limit = null, $offset = null, $search = null) {
-        $sql = "SELECT d.*, s.nombre as usuario_nombre, os.placa, c.nombre as cliente_nombre
+        $sql = "SELECT d.*, s.nombre as usuario_nombre, COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre
                 FROM table_devoluciones d
                 JOIN table_facturas v ON d.factura_id = v.id
                 LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                 LEFT JOIN table_usuarios u ON d.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id
                 WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
 
         if ($search) {
-            $sql .= " AND (v.placa LIKE :search OR c.nombre LIKE :search OR d.descripcion LIKE :search)";
+            $sql .= " AND (COALESCE(vh.placa, v.placa) LIKE :search OR c.nombre LIKE :search OR d.descripcion LIKE :search)";
         }
 
         $sql .= " ORDER BY d.fecha DESC";
@@ -260,9 +266,10 @@ class ModelReportes {
                 FROM table_devoluciones d 
                 JOIN table_facturas v ON d.factura_id = v.id 
                 LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                 WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
 
-        if ($search) $sql .= " AND (os.placa LIKE :search OR d.descripcion LIKE :search)";
+        if ($search) $sql .= " AND (COALESCE(vh.placa, v.placa) LIKE :search OR d.descripcion LIKE :search)";
         $this->db->query($sql);
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -387,11 +394,13 @@ class ModelReportes {
      */
     public function obtenerNominaEmpleado($staff_id, $desde, $hasta) {
  
-        $this->db->query("SELECT v.id as venta_id, v.fecha, v.placa, v.modelo_vehiculo, 
+        $this->db->query("SELECT v.id as venta_id, v.fecha, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
                                  vd.id as detalle_id, vd.descripcion, vd.cantidad, 
                                  vd.precio_unitario as monto_trabajo, vd.pago_nomina_id
                           FROM table_facturas v
                           JOIN table_facturas_detalle vd ON v.factura_id = v.id
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                           WHERE (v.mecanico_id = :staff_id OR :staff_id_alt = '0')
                           AND vd.producto_id IS NULL 
                           AND v.status IN ('COMPLETADO', 'CREDITO')

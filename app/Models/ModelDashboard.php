@@ -46,9 +46,13 @@ class ModelDashboard {
      * Obtiene las últimas 5 ventas para el widget de actividad reciente
      */
     public function getRecentSales($usuarioId = null) {
-        $sql = "SELECT v.*, c.nombre as cliente_nombre 
+        $sql = "SELECT v.*, c.nombre as cliente_nombre,
+                       COALESCE(vh.placa, v.placa) as placa, 
+                       COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo
                           FROM table_facturas v 
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id 
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')";
         if ($usuarioId) $sql .= " AND v.usuario_id = :uid";
         $sql .= " ORDER BY v.fecha DESC LIMIT 5";
@@ -62,10 +66,14 @@ class ModelDashboard {
      * Obtiene los borradores (ventas pendientes)
      */
     public function getPendingDrafts($usuarioId = null) {
-        $sql = "SELECT v.id, v.usuario_id, v.fecha, os.placa, os.modelo_vehiculo, v.total, 
-                                 c.nombre as cliente_nombre, s.nombre as responsable_nombre 
+        $sql = "SELECT v.id, v.usuario_id, v.fecha, v.total,
+                       COALESCE(vh.placa, v.placa) as placa, 
+                       COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                       COALESCE(c.nombre, 'CLIENTE MOSTRADOR') as cliente_nombre, 
+                       COALESCE(s.nombre, u.username) as responsable_nombre 
                           FROM table_facturas v 
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id 
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
