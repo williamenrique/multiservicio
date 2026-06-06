@@ -269,6 +269,18 @@ CREATE TABLE `table_compras_detalle` (
   FOREIGN KEY (`producto_id`) REFERENCES `table_inventario`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Historial de abonos realizados a proveedores
+CREATE TABLE `table_abonos_proveedores` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `compra_id` int(11) NOT NULL,
+  `monto` decimal(15,2) NOT NULL,
+  `metodo_pago` enum('EFECTIVO', 'TRANSFERENCIA') DEFAULT 'EFECTIVO',
+  `usuario_id` int(11),
+  `fecha` timestamp DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`compra_id`) REFERENCES `table_compras`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- =============================================================================
 -- BLOQUE 7: EL LIBRO MAYOR (TRANSACCIONES CENTRALIZADAS)
 -- =============================================================================

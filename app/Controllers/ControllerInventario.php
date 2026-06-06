@@ -30,6 +30,19 @@ class ControllerInventario extends Controller {
         $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 
         $items = $this->inventarioModel->listar($limit, $offset, $search);
+        
+        // Procesar las rutas de imágenes antes de enviar al frontend
+        foreach ($items as $item) {
+            if (!empty($item->imagen)) {
+                // Si NO empieza con http o data:, le ponemos el prefijo local
+                if (!str_starts_with($item->imagen, 'http') && !str_starts_with($item->imagen, 'data:')) {
+                    $item->imagen = URLROOT . '/' . $item->imagen;
+                }
+            } else {
+                $item->imagen = null;
+            }
+        }
+
         $total = $this->inventarioModel->contarTotal();
         $totalFiltrados = $search ? $this->inventarioModel->contarFiltrados($search) : $total;
 
@@ -55,9 +68,15 @@ class ControllerInventario extends Controller {
             redirect('inventario?error=producto_no_encontrado');
         }
 
-        // Verificar si existe la imagen, de lo contrario enviamos null para que la vista maneje el icono 'package'
-        if (empty($producto->imagen) || !file_exists(APPROOT . '/../public/' . $producto->imagen)) {
-            $producto->imagen = null;
+        if (!empty($producto->imagen)) {
+            if (str_starts_with($producto->imagen, 'data:') || str_starts_with($producto->imagen, 'http')) {
+                // Es URL externa o Base64, no hacemos nada con el archivo físico
+            } else {
+                // Validamos localmente
+                if (!file_exists(APPROOT . '/../public/' . $producto->imagen)) {
+                    $producto->imagen = null;
+                }
+            }
         }
 
         $costHistory = $this->inventarioModel->getCostHistory($producto_id);
@@ -174,7 +193,7 @@ class ControllerInventario extends Controller {
 
                     if (move_uploaded_file($_FILES['imagen_archivo']['tmp_name'], $destPath)) {
                         // Borrar imagen física anterior si existe y es un archivo local (empieza por uploads/)
-                        if ($prodActual && !empty($prodActual->imagen) && strpos($prodActual->imagen, 'uploads/') === 0) {
+                if ($prodActual && !empty($prodActual->imagen) && strpos((string)$prodActual->imagen, 'uploads/') === 0) {
                             $oldFilePath = dirname(APPROOT) . '/public/' . $prodActual->imagen;
                             if (file_exists($oldFilePath)) @unlink($oldFilePath);
                         }
@@ -184,15 +203,15 @@ class ControllerInventario extends Controller {
                 } else {
                     // Si no se subió un archivo nuevo por $_FILES
                     if (empty($input['imagen'])) {
-                        // Si el campo de texto también está vacío, conservamos la imagen que ya tenía
-                        $input['imagen'] = $prodActual->imagen;
+                        // Si el campo de texto está vacío, conservamos la imagen previa en edición o null en creación
+                        $input['imagen'] = ($prodActual && isset($prodActual->imagen)) ? $prodActual->imagen : null;
                     } else {
                         // Si el usuario pegó una URL o Base64 en el campo de texto:
                         // Verificamos si antes había un archivo físico para borrarlo
-                        if ($prodActual && !empty($prodActual->imagen)) {
+                        if ($prodActual && !empty($prodActual->imagen) && is_string($prodActual->imagen)) {
                             // Si la imagen anterior era local (empezaba con uploads/) 
                             // y la nueva NO lo es (es data: o http), borramos la física.
-                            if (strpos($prodActual->imagen, 'uploads/') === 0 && strpos($input['imagen'], 'uploads/') === false) {
+                            if (strpos($prodActual->imagen, 'uploads/') === 0 && strpos((string)$input['imagen'], 'uploads/') === false) {
                                 $oldFilePath = dirname(APPROOT) . '/public/' . $prodActual->imagen;
                                 if (file_exists($oldFilePath)) @unlink($oldFilePath);
                             }

@@ -16,12 +16,10 @@ class ControllerProveedores extends Controller {
     }
 
     public function index() {
-        $empresaModel = $this->model('Empresa');
-        $config = $empresaModel->obtenerConfiguracion();
+        // Ajustado para esquema 2.0: se elimina markup_default de la configuración de empresa
         
         $data = [
-            'titulo' => 'Gestión de Proveedores',
-            'markup_default' => $config->markup_default ?? 30.00
+            'titulo' => 'Gestión de Proveedores'
         ];
         $this->view('proveedor/index', $data);
     }
@@ -89,9 +87,38 @@ class ControllerProveedores extends Controller {
         }
     }
 
+    /**
+     * Endpoint para validar si un ID/NIT ya existe vía AJAX (proveedores.js)
+     */
+    public function verificarId() {
+        $idValue = $_GET['value'] ?? '';
+        $excludeId = $_GET['id'] ?? null;
+
+        $exists = $this->proveedorModel->existeId($idValue, $excludeId);
+
+        // Retornamos JSON para que el validador de proveedores.js lo procese
+        return $this->jsonResponse(['exists' => $exists]);
+    }
+
+    /**
+     * Endpoint para validar si un correo ya existe vía AJAX (proveedores.js)
+     */
+    public function verificarEmail() {
+        // Los datos vienen por GET según el rastro del error
+        $email = $_GET['value'] ?? '';
+        $id = $_GET['id'] ?? null;
+
+        $exists = $this->proveedorModel->existeEmail($email, $id);
+
+        // Retornamos JSON puro para que el JS no falle al parsear
+        return $this->jsonResponse(['exists' => $exists]);
+    }
+
     public function guardar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $input = json_decode(file_get_contents('php://input'), true);
+            // Permitir tanto JSON como FormData (POST tradicional) para compatibilidad con el JS
+            $json = json_decode(file_get_contents('php://input'), true);
+            $input = $json ?? $_POST;
 
             // Validación de campos requeridos usando el Helper Validator
             $v = new Validator($input);

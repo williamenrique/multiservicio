@@ -53,7 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
             setValidationIcon(inputElement, 'none');
             return;
         }
-        const currentId = provIdInput.value;
+        // Usamos el ID original (id_existente) para excluirlo de la validación al editar
+        const currentId = document.getElementById('provIdExistente').value;
         try {
             const res = await fetch(`${URLROOT}/proveedores/${endpoint}?value=${encodeURIComponent(value)}&id=${currentId}`);
             const result = await res.json();
@@ -75,8 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     provEmailInput?.addEventListener('blur', () => checkUniqueness(provEmailInput, 'verificarEmail', 'correo electrónico'));
+    // Agregamos la validación dinámica para el ID/NIT
+    provIdInput?.addEventListener('blur', () => checkUniqueness(provIdInput, 'verificarId', 'identificación (NIT/Cédula)'));
 
-    new DataTableRefactor({
+    window.handler_proveedores = new DataTableRefactor({
         tableId: 'proveedores',
         tableBodyId: 'tableBody',
         endpoint: `${URLROOT}/proveedores/listar`,

@@ -7,7 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('fileInput');
     const imagePreview = document.getElementById('imagePreview');
 
-    new DataTableRefactor({
+    // Asignamos la instancia a window para que el manejador del formulario pueda llamar a .reload()
+    window.handler_inventario = new DataTableRefactor({
         tableId: 'inventario',
         tableBodyId: 'tableBody',
         endpoint: `${URLROOT}/inventario/listar`,
@@ -17,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         totalId: 'totalCount',
         onDataLoaded: (res) => {
             window.currentData = res.data;
+            if (window.lucide) lucide.createIcons();
         },
         renderRow: (item) => {
             const isLow = item.stock <= (item.stock_minimo || 5);
@@ -36,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="px-8 py-5 align-middle">
                         <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 ${imgUrl ? 'cursor-zoom-in hover:opacity-80 transition-all shadow-sm' : ''}" 
                              ${imgUrl ? `onclick="AppUtils.viewImage(this.querySelector('img').src, '${item.nombre.replace(/'/g, "\\'")}')"` : ''}>
-                            ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="package" class="w-5 h-5 text-slate-300"></i>`}
+                            ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="image" class="w-5 h-5 text-slate-400"></i>`}
                         </div>
                     </td>
                     <td class="px-8 py-5 font-bold text-slate-700 uppercase tracking-tight align-middle">${item.nombre}</td>

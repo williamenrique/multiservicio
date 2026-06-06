@@ -28,31 +28,30 @@ class ModelEmpresa {
         $name = mb_strtoupper($datos['name'] ?? '', 'UTF-8');
         $nit = mb_strtoupper($datos['nit'] ?? '', 'UTF-8');
         $iva = $datos['iva'] ?? 0.00;
-        $markup = $datos['markup_default'] ?? 30.00;
-        $address = mb_strtoupper($datos['address'] ?? '', 'UTF-8');
+        $direccion = mb_strtoupper($datos['direccion'] ?? '', 'UTF-8');
+        $telefono = $datos['telefono'] ?? '';
         
         // Si no se envía un logo nuevo en los datos, intentamos mantener el que ya existe en la DB
         $configActual = $this->obtenerConfiguracion();
         $logo = $datos['logo'] ?? ($configActual ? $configActual->logo : null);
 
         // Intentar actualizar, si no existe, insertar
-        $this->db->query("INSERT INTO table_company_settings (id, name, nit, iva, markup_default, logo, address) 
-                          VALUES (1, :name, :nit, :iva, :markup, :logo, :address)
+        $this->db->query("INSERT INTO table_company_settings (id, name, nit, iva, logo, direccion, telefono) 
+                          VALUES (1, :name, :nit, :iva, :logo, :direccion, :telefono)
                           ON DUPLICATE KEY UPDATE
                               name = :name,
                               nit = :nit,
                               iva = :iva,
-                              markup_default = :markup,
                               logo = :logo,
-                              address = :address,
-                              updated_at = CURRENT_TIMESTAMP");
+                              direccion = :direccion,
+                              telefono = :telefono");
         
         $this->db->bind(':name', $name);
         $this->db->bind(':nit', $nit);
         $this->db->bind(':iva', $iva);
-        $this->db->bind(':markup', $markup);
         $this->db->bind(':logo', $logo);
-        $this->db->bind(':address', $address);
+        $this->db->bind(':direccion', $direccion);
+        $this->db->bind(':telefono', $telefono);
 
         return $this->db->execute();
     }

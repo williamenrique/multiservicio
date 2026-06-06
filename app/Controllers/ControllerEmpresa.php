@@ -37,12 +37,12 @@ class ControllerEmpresa extends Controller {
 
             // Procesar subida de Logo si se adjuntó un archivo
             if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = dirname(APPROOT) . '/public/img/';
+                $uploadDir = dirname(APPROOT) . '/public/uploads/logo/';
                 if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
                 // 1. Borrar logo anterior si existe y no es el por defecto
-                if (!empty($configActual->logo) && $configActual->logo !== 'img/default.png') {
-                    $oldPath = dirname(APPROOT) . '/public/' . $configActual->logo;
+                if (!empty($configActual->logo)) {
+                    $oldPath = dirname(APPROOT) . '/public/' . ltrim($configActual->logo, '/');
                     if (file_exists($oldPath)) {
                         unlink($oldPath);
                     }
@@ -54,14 +54,18 @@ class ControllerEmpresa extends Controller {
 
                 if (move_uploaded_file($_FILES['logo']['tmp_name'], $destPath)) {
                     // Guardamos la ruta relativa correcta (sin repetir public)
-                    $input['logo'] = 'img/' . $newFileName;
+                    $input['logo'] = 'uploads/logo/' . $newFileName;
                 }
             }
 
             $res = $this->empresaModel->guardarConfiguracion($input);
 
             if ($res) {
-                $this->jsonResponse(['success' => true, 'mensaje' => 'Configuración guardada correctamente']);
+                $this->jsonResponse([
+                    'success' => true, 
+                    'mensaje' => 'Configuración guardada correctamente',
+                    'new_logo_url' => $input['logo'] ?? null
+                ]);
             } else {
                 $this->jsonResponse(['success' => false, 'mensaje' => 'Error al guardar la configuración'], 500);
             }

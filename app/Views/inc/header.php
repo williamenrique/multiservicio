@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.min.css">
+    <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
     <script>
         // Definimos la constante global para que todos los JS la usen
         const URLROOT = "<?php echo URLROOT; ?>";
@@ -26,6 +26,9 @@
 <body class="bg-main-dark text-slate-800 font-sans">
 
     <div class="flex h-screen overflow-hidden">
+        <!-- Overlay para Sidebar en móviles (Se activa vía JS cuando el sidebar está abierto) -->
+        <div id="sidebarOverlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden transition-opacity duration-300 opacity-0"></div>
+
         <!-- Sidebar -->
         <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-50 w-64 bg-navy-blue border-r border-gray-800 transition-all duration-300 transform -translate-x-full lg:translate-x-0 shadow-2xl lg:shadow-none">
             <div class="px-5 py-6 flex items-center gap-4 border-b border-gray-800/50 min-h-[64px]">
@@ -86,16 +89,16 @@
         <!-- Main Content -->
         <main class="flex-1 flex flex-col overflow-y-auto">
             <!-- Top Bar -->
-            <header
-                class="h-16 bg-navy-blue border-b border-gray-800 flex items-center justify-between px-8 sticky top-0 z-50">
+            <header 
+                class="h-16 bg-navy-blue border-b border-gray-800 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-50">
                 <div class="flex items-center gap-4">
                     <button id="toggleSidebar" class="p-2 text-white hover:bg-gray-800 rounded-lg">
                         <i data-lucide="menu"></i>
                     </button>
-                    <div id="digitalClock" class="text-neon-green font-mono text-lg flex-shrink-0 mr-4">00:00:00</div>
+                    <div id="digitalClock" class="text-neon-green font-mono text-sm md:text-lg flex-shrink-0">00:00:00</div>
                 </div>
 
-                <div class="flex items-center gap-4 ml-auto px-4">
+                <div class="flex items-center gap-2 md:gap-4 ml-auto px-2 md:px-4">
                     <!-- Buscador Global -->
                     <div class="relative group hidden md:block">
                         <input type="text" id="globalSearchInput" placeholder="Buscar factura, placa, cliente..." class="w-64 bg-gray-800 border border-gray-700 text-white text-xs px-4 py-2 rounded-lg focus:outline-none focus:border-neon-green transition-all">
@@ -109,7 +112,7 @@
                 </div>
 
                 <div class="relative group">
-                    <button id="userDropdownTrigger" class="flex items-center gap-3 p-2 bg-gray-800 rounded-full text-white hover:bg-gray-700 transition-colors">
+                    <button id="userDropdownTrigger" class="flex items-center gap-2 md:gap-3 p-1.5 md:p-2 bg-gray-800 rounded-full text-white hover:bg-gray-700 transition-colors">
                         <?php if(!empty($_SESSION['user_foto'])): ?>
                             <img src="<?php echo URLROOT . '/' . $_SESSION['user_foto']; ?>" class="w-7 h-7 rounded-full object-cover border border-neon-green" alt="Avatar">
                         <?php else: ?>
@@ -134,4 +137,4 @@
                 </div>
             </header>
             <!-- Sections Content -->
-            <div id="content-area" class="p-8">
+            <div id="content-area" class="p-4 md:p-8">

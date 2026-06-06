@@ -118,15 +118,14 @@ class ModelProveedor {
             $this->db->bind(':id', $datos['compra_id']);
             $this->db->execute();
 
-            // 5. Registrar el Egreso en Caja
-            $caja = new ModelCaja($this->db);
-            $caja->registrarMovimiento([
-                'tipo' => 'EGRESO',
-                'monto' => $datos['monto'],
-                'metodo_pago' => $datos['metodo_pago'] ?? 'EFECTIVO',
-                'referencia_id' => $datos['compra_id'],
-                'concepto' => "ABONO A FACTURA PROVEEDOR #" . $datos['compra_id']
-            ]);
+            // 5. Registrar Egreso en el Libro Mayor (table_transacciones)
+            $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                              VALUES (1, 'EGRESO', 'ABONO_PROVEEDOR', :monto, :ref, :desc, :uid)");
+            $this->db->bind(':monto', $datos['monto']);
+            $this->db->bind(':ref', $datos['compra_id']);
+            $this->db->bind(':desc', "ABONO A COMPRA #{$datos['compra_id']} - " . ($datos['metodo_pago'] ?? 'EFECTIVO'));
+            $this->db->bind(':uid', $_SESSION['user_id']);
+            $this->db->execute();
 
             $this->db->commit();
             return true;
@@ -154,10 +153,10 @@ class ModelProveedor {
 
             $productoId = $datos['producto_id'];
             $costo = (float)$datos['costo'];
-            $precioVenta = (float)($datos['precio_venta'] ?? ($costo * 1.30));
             
             // 1. Si el producto no existe (ID null), lo creamos en el inventario
             if (empty($productoId)) {
+                $precioVenta = (float)($datos['precio_venta'] ?? ($costo * 1.30));
                 $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, ultimo_costo, costo_promedio, precio) 
                                   VALUES (:nom, :cat, :stock, :costo, :cpp, :precio)");
                 $this->db->bind(':nom', mb_strtoupper($datos['nombre'], 'UTF-8'));
@@ -170,7 +169,7 @@ class ModelProveedor {
                 $productoId = $this->db->lastInsertId();
             } else {
                 // 2. Si existe, recalculamos CPP (Costo Promedio Ponderado)
-                $this->db->query("SELECT stock, costo_promedio FROM table_inventario WHERE id = :id");
+                $this->db->query("SELECT stock, costo_promedio, precio FROM table_inventario WHERE id = :id");
                 $this->db->bind(':id', $productoId);
                 $actual = $this->db->single();
 
@@ -183,7 +182,10 @@ class ModelProveedor {
                     ? (($stockActual * $cppActual) + ($nuevaCant * $costo)) / ($stockActual + $nuevaCant)
                     : $costo;
 
-                $this->db->query("UPDATE table_inventario SET stock = stock + :cant, ultimo_costo = :costo, costo_promedio = :cpp, precio = :precio WHERE id = :id");
+                // Mantenemos el precio actual si no se envía uno nuevo explícitamente
+                $precioVenta = isset($datos['precio_venta']) ? (float)$datos['precio_venta'] : (float)$actual->precio;
+
+                $this->db->query("UPDATE table_inventario SET stock = stock + :cant, ultimo_costo = :costo, costo_promedio = :cpp, precio = :precio, estado = 'ACTIVO' WHERE id = :id");
                 $this->db->bind(':cant', $datos['cantidad']);
                 $this->db->bind(':costo', $costo);
                 $this->db->bind(':cpp', $nuevoCpp);
@@ -211,7 +213,7 @@ class ModelProveedor {
             $invModel = new ModelInventario($this->db);
             $invModel->registrarMovimiento($productoId, 'ENTRADA_COMPRA', $datos['cantidad'], $compraId, "Compra a proveedor Factura #$compraId");
 
-            // 4. Registrar Detalle de la Compra
+            // 5. Registrar Detalle de la Compra
             $this->db->query("INSERT INTO table_compras_detalle (compra_id, producto_id, descripcion, cantidad, costo_unitario) 
                               VALUES (:cid, :pid, :desc, :cant, :costo)");
             $this->db->bind(':cid', $compraId);
@@ -220,6 +222,17 @@ class ModelProveedor {
             $this->db->bind(':cant', $datos['cantidad']);
             $this->db->bind(':costo', $datos['costo']);
             $this->db->execute();
+
+            // 6. Registrar Egreso en el Libro Mayor (table_transacciones) si hubo pago inmediato
+            if ($datos['pagado'] > 0) {
+                $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                                  VALUES (1, 'EGRESO', 'COMPRA_PROVEEDOR', :monto, :ref, :desc, :uid)");
+                $this->db->bind(':monto', $datos['pagado']);
+                $this->db->bind(':ref', $compraId);
+                $this->db->bind(':desc', "PAGO INICIAL COMPRA #$compraId - " . mb_strtoupper($datos['nombre'], 'UTF-8'));
+                $this->db->bind(':uid', $_SESSION['user_id']);
+                $this->db->execute();
+            }
 
             $this->db->commit();
             return true;
@@ -232,8 +245,10 @@ class ModelProveedor {
 
     public function guardar($data) {
         if (!empty($data['id_existente'])) {
-            $this->db->query("UPDATE table_proveedores SET nombre = :nom, telefono = :tel, email = :em, direccion = :dir WHERE id = :id");
-            $this->db->bind(':id', $data['id']);
+            // Lógica para permitir actualizar el ID (NIT) si es necesario
+            $this->db->query("UPDATE table_proveedores SET id = :new_id, nombre = :nom, telefono = :tel, email = :em, direccion = :dir WHERE id = :old_id");
+            $this->db->bind(':new_id', $data['id']);
+            $this->db->bind(':old_id', $data['id_existente']);
         } else {
             $this->db->query("INSERT INTO table_proveedores (id, nombre, telefono, email, direccion) VALUES (:id, :nom, :tel, :em, :dir)");
             $this->db->bind(':id', $data['id']);
@@ -243,6 +258,48 @@ class ModelProveedor {
         $this->db->bind(':em', mb_strtolower(trim($data['email']), 'UTF-8'));
         $this->db->bind(':dir', mb_strtoupper(trim($data['direccion']), 'UTF-8'));
         return $this->db->execute();
+    }
+
+    /**
+     * Verifica la existencia de un ID (NIT/Cédula) en la tabla de proveedores
+     */
+    public function existeId($id, $excludeId = null) {
+        $sql = "SELECT COUNT(*) as total FROM table_proveedores WHERE id = :id";
+        
+        // Si estamos editando, excluimos el ID original para permitir guardar sin cambios
+        if ($excludeId) {
+            $sql .= " AND id <> :exclude";
+        }
+
+        $this->db->query($sql);
+        $this->db->bind(':id', mb_strtoupper(trim($id), 'UTF-8'));
+        if ($excludeId) {
+            $this->db->bind(':exclude', mb_strtoupper(trim($excludeId), 'UTF-8'));
+        }
+
+        $res = $this->db->single();
+        return (int)$res->total > 0;
+    }
+
+    /**
+     * Verifica la existencia de un email en la tabla de proveedores
+     */
+    public function existeEmail($email, $id = null) {
+        $sql = "SELECT COUNT(*) as total FROM table_proveedores WHERE email = :email";
+        
+        // Si estamos editando, excluimos el ID del proveedor actual
+        if ($id) {
+            $sql .= " AND id <> :id";
+        }
+
+        $this->db->query($sql);
+        $this->db->bind(':email', $email);
+        if ($id) {
+            $this->db->bind(':id', $id);
+        }
+
+        $res = $this->db->single();
+        return (int)$res->total > 0;
     }
 
     public function eliminar($id) {
