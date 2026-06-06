@@ -231,8 +231,15 @@ class ModelFacturacion {
 
     /**
      * Elimina un borrador de factura (Venta en estado PENDIENTE).
+     * Elimina primero el detalle para evitar errores de integridad referencial (FK).
      */
     public function eliminarBorrador($id) {
+        // 1. Eliminar el detalle asociado a la factura
+        $this->db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :id");
+        $this->db->bind(':id', $id);
+        $this->db->execute();
+
+        // 2. Eliminar la cabecera de la factura
         $this->db->query("DELETE FROM table_facturas WHERE id = :id AND status = 'PENDIENTE'");
         $this->db->bind(':id', $id);
         return $this->db->execute();

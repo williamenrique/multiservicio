@@ -175,14 +175,17 @@ class ControllerFacturacion extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
             
-            $borrador = $this->facturaModel->obtenerBorradorPorId($id);
-            if (!$borrador) {
-                echo json_encode(['success' => false, 'mensaje' => 'Borrador no encontrado']);
-                return;
-            }
+            try {
+                $borrador = $this->facturaModel->obtenerBorradorPorId($id);
+                if (!$borrador) {
+                    return $this->jsonResponse(['success' => false, 'mensaje' => 'Borrador no encontrado']);
+                }
 
-            $resultado = $this->facturaModel->eliminarBorrador($id);
-            echo json_encode(['success' => $resultado]);
+                $resultado = $this->facturaModel->eliminarBorrador($id);
+                return $this->jsonResponse(['success' => $resultado]);
+            } catch (Exception $e) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+            }
         }
     }
 
