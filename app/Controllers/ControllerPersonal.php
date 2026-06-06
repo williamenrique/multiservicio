@@ -47,7 +47,7 @@ class ControllerPersonal extends Controller {
     public function guardar() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
-            $idIngresado = $input['id'] ?? '';
+            $idIngresado = trim($input['id'] ?? '');
 
             $v = new Validator($input);
             $v->required(['cedula', 'nombre', 'cargo']);
@@ -83,19 +83,28 @@ class ControllerPersonal extends Controller {
                 return $this->jsonResponse(['success' => false, 'error' => 'No se realizaron cambios en el registro.'], 500);
             } else {
                 // MODO CREACIÓN: Lógica de ID dinámico por iniciales
-                $prefix = !empty($idIngresado) ? mb_strtoupper($idIngresado, 'UTF-8') : 'STAFF-';
-                
-                // Asegurar formato de prefijo (ej: MEC -> MEC-)
-                if (strpos($prefix, '-') === false) {
-                    $prefix .= '-';
-                } else {
-                    // Si el usuario escribió "MEC-00", nos quedamos solo con "MEC-" para recalcular
-                    $parts = explode('-', $prefix);
-                    $prefix = $parts[0] . '-';
-                }
+                $idIngresadoUpper = mb_strtoupper($idIngresado, 'UTF-8');
 
-                $ultimoNum = $this->personalModel->obtenerUltimoCorrelativo($prefix);
-                $input['id'] = $prefix . str_pad($ultimoNum + 1, 3, '0', STR_PAD_LEFT);
+                // Determinamos si es un prefijo o un ID completo. 
+                // Si está vacío, termina en guion o no tiene el formato de 3 dígitos finales, autogeneramos.
+                if (empty($idIngresado) || substr($idIngresado, -1) === '-' || !preg_match('/-[0-9]{3,}$/', $idIngresado)) {
+                    $prefix = !empty($idIngresadoUpper) ? $idIngresadoUpper : 'STAFF-';
+                    
+                    // Asegurar formato de prefijo (ej: MEC -> MEC-)
+                    if (strpos($prefix, '-') === false) {
+                        $prefix .= '-';
+                    } else {
+                        // Si escribió algo como "MEC-00", limpiamos para obtener solo el prefijo base
+                        $parts = explode('-', $prefix);
+                        $prefix = $parts[0] . '-';
+                    }
+
+                    $ultimoNum = $this->personalModel->obtenerUltimoCorrelativo($prefix);
+                    $input['id'] = $prefix . str_pad($ultimoNum + 1, 3, '0', STR_PAD_LEFT);
+                } else {
+                    // Si el usuario ingresó un ID completo que no existe, lo respetamos
+                    $input['id'] = $idIngresadoUpper;
+                }
 
                 if ($this->personalModel->crear($input)) {
                     // Vincular cuenta de usuario si se enviaron datos de cuenta
@@ -165,6 +174,17 @@ class ControllerPersonal extends Controller {
         
         $exists = $this->personalModel->verificarCedulaUnica($value, $id);
         return $this->jsonResponse(['exists' => $exists]);
+    }
+
+    /**
+     * Verifica si un ID de personal ya existe (AJAX)
+     */
+    public function verificarId() {
+        $value = $_GET['value'] ?? null;
+        if (!$value) return $this->jsonResponse(['exists' => false]);
+        
+        $exists = $this->personalModel->obtenerPorId($value);
+        return $this->jsonResponse(['exists' => !empty($exists)]);
     }
 
     /**
