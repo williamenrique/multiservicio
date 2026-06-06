@@ -463,6 +463,15 @@ class ModelFacturacion {
             $this->db->bind(':vid', $ventaId);
             $this->db->execute();
 
+            // REGISTRAR EN LIBRO MAYOR (EGRESO POR DEVOLUCIÓN)
+            $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                              VALUES (1, 'EGRESO', 'DEVOLUCION', :monto, :ref, :desc, :uid)");
+            $this->db->bind(':monto', $totalARestar);
+            $this->db->bind(':ref', $ventaId);
+            $this->db->bind(':desc', "DEVOLUCION ITEM: " . mb_strtoupper($item->descripcion, 'UTF-8'));
+            $this->db->bind(':uid', $_SESSION['user_id']);
+            $this->db->execute();
+
             // 5. Eliminar el detalle de la factura original
             $this->db->query("DELETE FROM table_facturas_detalle WHERE id = :id");
             $this->db->bind(':id', $detalleId);

@@ -11,133 +11,84 @@ class ModelReportes {
     }
 
     public function obtenerFlujoCaja($desde, $hasta, $limit = null, $offset = null, $search = null) {
-        // 1. Obtener Ventas (Pagos iniciales de facturas creadas en el periodo)
-        // Restamos la suma de abonos del total pagado para obtener solo el pago inicial realizado en la fecha de la venta
-        $this->db->query("SELECT v.id, v.fecha,
-                          COALESCE(
-                            (COALESCE(v.pago_efectivo, 0) + COALESCE(v.pago_transferencia, 0)) -
-                            COALESCE((SELECT SUM(monto) FROM table_abonos_clientes WHERE factura_id = v.id), 0)
-                          , 0) as monto_pagado, 
-                          'VENTA' as tipo,
-                          CASE WHEN v.orden_id IS NOT NULL THEN 'ORDEN DE TRABAJO' ELSE 'VENTA MOSTRADOR' END as categoria,
-                          CONCAT(CASE WHEN v.orden_id IS NOT NULL THEN 'SERVICIO TÉCNICO' ELSE 'VENTA DE REPUESTOS' END) as descripcion,
-                          s.nombre as usuario_nombre,
-                          COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
-                          COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre,
-                          (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id) as cantidad_items,
-                          NULL as proveedor_nombre, v.saldo_pendiente
-                          FROM table_facturas v
-                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id -- Placa desde O.S.
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
-                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
-                          LEFT JOIN table_staff s ON u.staff_id = s.id
-                          WHERE v.status IN ('COMPLETADO', 'CREDITO') 
-                          AND DATE(v.fecha) BETWEEN :desde AND :hasta");
-        $this->db->bind(':desde', $desde);
-        $this->db->bind(':hasta', $hasta);
-        $ingresos = $this->db->resultSet() ?: [];
+        // En la v2.0, table_transacciones es el origen centralizado de todo movimiento de caja.
+        $sql = "SELECT t.*, 
+                       s.nombre as usuario_nombre,
+                       COALESCE(vh.placa, f.placa) as placa,
+                       c.nombre as cliente_nombre,
+                       p.nombre as proveedor_nombre,
+                       st.nombre as empleado_nombre
+                FROM table_transacciones t
+                LEFT JOIN table_usuarios u ON t.usuario_id = u.id
+                LEFT JOIN table_staff s ON u.staff_id = s.id
+                -- Joins para detalles según categoría
+                LEFT JOIN table_facturas f ON (t.categoria IN ('VENTA', 'ABONO_CLIENTE') AND t.referencia_id = f.id)
+                LEFT JOIN table_ordenes_servicio os ON f.orden_id = os.id
+                LEFT JOIN table_vehiculos vh ON (f.placa = vh.placa)
+                LEFT JOIN table_clientes c ON f.cliente_id = c.id
+                LEFT JOIN table_compras comp ON (t.categoria IN ('COMPRA_PROVEEDOR', 'ABONO_PROVEEDOR') AND t.referencia_id = comp.id)
+                LEFT JOIN table_proveedores p ON comp.proveedor_id = p.id
+                LEFT JOIN table_pagos_empleados pe ON (t.categoria = 'NOMINA' AND t.referencia_id = pe.id)
+                LEFT JOIN table_staff st ON pe.staff_id = st.id
+                WHERE DATE(t.fecha) BETWEEN :desde AND :hasta";
 
-        // 2. Obtener Abonos (Dinero que entró de deudas antiguas en este periodo)
-        $this->db->query("SELECT a.factura_id as id, a.fecha, COALESCE(a.monto, 0) as monto_pagado, 'ABONO' as tipo, 'ABONO CLIENTE' as categoria,
-                          CONCAT('ABONO A FACTURA #', a.factura_id) as descripcion,
-                          s.nombre as usuario_nombre,
-                          COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre
-                          FROM table_abonos_clientes a
-                          JOIN table_facturas v ON a.factura_id = v.id
-                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
-                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
-                          LEFT JOIN table_staff s ON u.staff_id = s.id
-                          WHERE DATE(a.fecha) BETWEEN :desde AND :hasta");
-        $this->db->bind(':desde', $desde);
-        $this->db->bind(':hasta', $hasta);
-        $abonos = $this->db->resultSet() ?: [];
-
-        // 3. Obtener Gastos, Compras y Devoluciones (Egresos Reales)
-        // Unificamos gastos generales y compras a proveedores
-        $this->db->query("SELECT g.id, g.fecha, g.monto, COALESCE(g.monto, 0) as monto_pagado, 'GASTO' as tipo, g.categoria, 
-                          g.descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre, 
-                          0 as cantidad_items, NULL as proveedor_nombre, 0 as saldo_pendiente
-                          FROM table_gastos g 
-                          WHERE DATE(g.fecha) BETWEEN :desde AND :hasta
-                          UNION ALL
-                          SELECT c.id, c.fecha, c.total as monto, 
-                          (COALESCE(c.pagado, 0) - COALESCE((SELECT SUM(monto) FROM table_transacciones WHERE referencia_id = c.id AND categoria = 'ABONO_PROVEEDOR'), 0)) as monto_pagado, 
-                          'COMPRA' as tipo, 'MERCANCÍA' as categoria,
-                          'COMPRA DE MERCANCIA' as descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre,
-                          (SELECT COUNT(*) FROM table_compras_detalle WHERE compra_id = c.id) as cantidad_items,
-                          p.nombre as proveedor_nombre, (c.total - c.pagado) as saldo_pendiente
-                          FROM table_compras c
-                          INNER JOIN table_proveedores p ON c.proveedor_id = p.id
-                          WHERE DATE(c.fecha) BETWEEN :desde AND :hasta
-                          UNION ALL
-                          SELECT t.referencia_id as id, t.fecha, t.monto as monto, t.monto as monto_pagado, 'ABONO PROV' as tipo, 'PAGO PROVEEDOR' as categoria,
-                          CONCAT('ABONO A COMPRA #', t.referencia_id) as descripcion, NULL as modelo_vehiculo, NULL as placa, NULL as cliente_nombre,
-                          0 as cantidad_items, p.nombre as proveedor_nombre, 0 as saldo_pendiente
-                          FROM table_transacciones t
-                          JOIN table_compras c ON t.referencia_id = c.id
-                          JOIN table_proveedores p ON c.proveedor_id = p.id
-                          WHERE t.categoria = 'ABONO_PROVEEDOR' AND DATE(t.fecha) BETWEEN :desde AND :hasta
-                          UNION ALL
-                          SELECT d.id, d.fecha, d.monto_devuelto as monto, d.monto_devuelto as monto_pagado, 'DEVOLUCION' as tipo, 'DEVOLUCION' as categoria,
-                          d.descripcion, NULL as modelo_vehiculo, COALESCE(vh.placa, f.placa) as placa, NULL as cliente_nombre,
-                          1 as cantidad_items, NULL as proveedor_nombre, 0 as saldo_pendiente
-                          FROM table_devoluciones d
-                          JOIN table_facturas f ON d.factura_id = f.id
-                          LEFT JOIN table_ordenes_servicio os ON f.orden_id = os.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
-                          WHERE DATE(d.fecha) BETWEEN :desde AND :hasta");
-        $this->db->bind(':desde', $desde);
-        $this->db->bind(':hasta', $hasta);
-        $egresos = $this->db->resultSet() ?: [];
-
-        // 4. Unificar movimientos para el listado
-        $movimientos = array_merge($ingresos, $abonos, $egresos);
-        
         if ($search) {
-            $movimientos = array_filter($movimientos, function($m) use ($search) {
-                $s = strtolower($search);
-                return strpos(strtolower($m->id ?? ''), $s) !== false || 
-                       strpos(strtolower($m->placa ?? ''), $s) !== false ||
-                       strpos(strtolower($m->cliente_nombre ?? ''), $s) !== false ||
-                       strpos(strtolower($m->descripcion ?? ''), $s) !== false;
-            });
+            $sql .= " AND (t.descripcion LIKE :q OR vh.placa LIKE :q OR c.nombre LIKE :q OR p.nombre LIKE :q)";
         }
 
-        usort($movimientos, function($a, $b) {
-            return strtotime($b->fecha) - strtotime($a->fecha);
-        });
+        $sql .= " ORDER BY t.fecha DESC";
 
-        $totalMovimientos = count($movimientos);
+        if ($limit !== null && $offset !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+        }
 
-        // 5. Calcular División de Ingresos (Repuestos vs Servicios)
+        $this->db->query($sql);
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        if ($search) $this->db->bind(':q', "%$search%");
+        if ($limit !== null && $offset !== null) {
+            $this->db->bind(':limit', (int)$limit);
+            $this->db->bind(':offset', (int)$offset);
+        }
+
+        $movimientos = $this->db->resultSet() ?: [];
+
+        // Obtener total para paginación
+        $this->db->query("SELECT COUNT(*) as total FROM table_transacciones WHERE DATE(fecha) BETWEEN :desde AND :hasta");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $totalMovimientos = (int)$this->db->single()->total;
+
+        // Cálculos de Totales sin N+1
         $ingresoRepuestos = 0;
         $ingresoServicios = 0;
-        $totalDevolucionesPeriodo = 0;
 
-        // Analizamos cada venta que tuvo movimiento de dinero
-        $todasLasEntradas = array_merge($ingresos, $abonos);
-        foreach ($todasLasEntradas as $mov) {
-            // Calculamos la proporción basada en los valores base
-            $this->db->query("SELECT 
-                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_facturas_detalle WHERE factura_id = :vid AND producto_id IS NOT NULL) as total_val_repuestos,
-                (SELECT COALESCE(SUM(cantidad * precio_unitario), 0) FROM table_facturas_detalle WHERE factura_id = :vid AND producto_id IS NULL) as total_val_servicios");
-            
-            $this->db->bind(':vid', $mov->id);
-            $pesos = $this->db->single();
-            
-            $totalItems = (float)($pesos->total_val_repuestos ?? 0) + (float)($pesos->total_val_servicios ?? 0);
-            $montoRecibido = (float)($mov->monto_pagado ?? 0);
+        // Agrupamos el peso de repuestos vs servicios de las facturas involucradas
+        $this->db->query("SELECT 
+                            SUM(CASE WHEN vd.producto_id IS NOT NULL THEN (vd.cantidad * vd.precio_unitario) ELSE 0 END) as val_repuestos,
+                            SUM(CASE WHEN vd.producto_id IS NULL THEN (vd.cantidad * vd.precio_unitario) ELSE 0 END) as val_servicios,
+                            v.id as factura_id
+                          FROM table_facturas_detalle vd
+                          JOIN table_facturas v ON vd.factura_id = v.id
+                          WHERE v.id IN (SELECT referencia_id FROM table_transacciones WHERE categoria IN ('VENTA', 'ABONO_CLIENTE') AND DATE(fecha) BETWEEN :desde AND :hasta)
+                          GROUP BY v.id");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $pesos = $this->db->resultSet();
+        
+        $mapPesos = [];
+        foreach ($pesos as $p) {
+            $total = (float)$p->val_repuestos + (float)$p->val_servicios;
+            $mapPesos[$p->factura_id] = $total > 0 ? (float)$p->val_repuestos / $total : 1;
+        }
 
-            if ($totalItems > 0) {
-                $porcentajeRepuestos = (float)$pesos->total_val_repuestos / $totalItems;
-                $ingresoRepuestos += ($montoRecibido * $porcentajeRepuestos);
-                $ingresoServicios += ($montoRecibido * (1 - $porcentajeRepuestos));
+        foreach ($movimientos as $m) {
+            if ($m->tipo === 'INGRESO' && in_array($m->categoria, ['VENTA', 'ABONO_CLIENTE'])) {
+                $ratio = $mapPesos[$m->referencia_id] ?? 0.5;
+                $ingresoRepuestos += ((float)$m->monto * $ratio);
+                $ingresoServicios += ((float)$m->monto * (1 - $ratio));
             } else {
-                // Si no hay detalles (raro), lo sumamos a servicios
-                $ingresoServicios += $montoRecibido;
+                // Otros ingresos (si los hubiera)
             }
         }
 
@@ -147,25 +98,17 @@ class ModelReportes {
         $this->db->bind(':hasta', $hasta);
         $totalDevolucionesPeriodo = (float)$this->db->single()->total;
 
-        // Los ingresos ya vienen "netos" porque ajustamos pago_efectivo en la venta al devolver
-        // El total de devoluciones se muestra para fines informativos en el dashboard
         $totalIngresosNetos = $ingresoRepuestos + $ingresoServicios;
 
-        // Egresos Operativos (Gastos y Compras - Excluimos devoluciones de aquí para evitar resta doble)
-        $totalEgresosOperativos = array_reduce($egresos, function($acc, $item) { 
-            if ($item->tipo === 'DEVOLUCION') return $acc;
-            return $acc + (float)($item->monto_pagado ?? 0); 
-        }, 0);
+        $this->db->query("SELECT COALESCE(SUM(monto), 0) as total FROM table_transacciones WHERE tipo = 'EGRESO' AND DATE(fecha) BETWEEN :desde AND :hasta");
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        $totalEgresosOperativos = (float)$this->db->single()->total;
 
         // Obtener la Deuda Total Global de Proveedores (Independiente del periodo seleccionado)
         $this->db->query("SELECT SUM(total - pagado) as deuda FROM table_compras WHERE status = 'PENDIENTE'");
         $resDeuda = $this->db->single();
         $totalDeuda = (float)($resDeuda->deuda ?? 0);
-
-        // Paginación en PHP para el set de datos unificado
-        if ($limit !== null && $offset !== null) {
-            $movimientos = array_slice($movimientos, $offset, $limit);
-        }
 
         return [
             'data' => $movimientos,
@@ -192,7 +135,7 @@ class ModelReportes {
                           FROM table_facturas v
                           JOIN table_facturas_detalle vd ON v.id = vd.factura_id
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
@@ -233,7 +176,7 @@ class ModelReportes {
                 FROM table_devoluciones d
                 JOIN table_facturas v ON d.factura_id = v.id
                 LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                 LEFT JOIN table_usuarios u ON d.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id
@@ -266,7 +209,7 @@ class ModelReportes {
                 FROM table_devoluciones d 
                 JOIN table_facturas v ON d.factura_id = v.id 
                 LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                 WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
 
         if ($search) $sql .= " AND (COALESCE(vh.placa, v.placa) LIKE :search OR d.descripcion LIKE :search)";
@@ -482,6 +425,15 @@ class ModelReportes {
                     $this->db->execute();
                 }
             }
+
+            // 3. Registrar el egreso en el Libro Mayor (table_transacciones)
+            $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                              VALUES (1, 'EGRESO', 'NOMINA', :monto, :ref, :desc, :uid)");
+            $this->db->bind(':monto', $data['monto']);
+            $this->db->bind(':ref', $pagoId);
+            $this->db->bind(':desc', "PAGO NÓMINA: " . ($data['notas'] ?? 'PAGO EMPLEADO'));
+            $this->db->bind(':uid', $data['usuario_id']);
+            $this->db->execute();
 
             $this->db->commit();
             return true;

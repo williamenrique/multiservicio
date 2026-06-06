@@ -65,7 +65,16 @@ class ModelGasto {
         $this->db->bind(':metodo', $data['metodo_pago'] ?? 'EFECTIVO');
         $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
         if ($this->db->execute()) {
-            return $this->db->lastInsertId();
+            $gastoId = $this->db->lastInsertId();
+            // REGISTRAR EN LIBRO MAYOR (Transacciones)
+            $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                              VALUES (1, 'EGRESO', 'GASTO', :monto, :ref, :desc, :uid)");
+            $this->db->bind(':monto', $data['monto']);
+            $this->db->bind(':ref', $gastoId);
+            $this->db->bind(':desc', "GASTO: " . mb_strtoupper($data['descripcion'], 'UTF-8'));
+            $this->db->bind(':uid', $_SESSION['user_id']);
+            $this->db->execute();
+            return $gastoId;
         }
         return false;
     }
