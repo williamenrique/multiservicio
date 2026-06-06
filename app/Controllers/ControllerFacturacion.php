@@ -41,7 +41,11 @@ class ControllerFacturacion extends Controller {
      * Lista todos los borradores activos en el sistema (Global)
      */
     public function listarBorradores() {
-        return $this->jsonResponse($this->facturaModel->obtenerBorradoresCompleto());
+        try {
+            return $this->jsonResponse($this->facturaModel->obtenerBorradoresCompleto());
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -290,8 +294,12 @@ class ControllerFacturacion extends Controller {
      */
     public function alertasCredito() {
         RoleGuard::isAdmin();
-        $data = $this->facturaModel->obtenerCreditosVencidos(15);
-        return $this->jsonResponse(['success' => true, 'data' => $data]);
+        try {
+            $data = $this->facturaModel->obtenerCreditosVencidos(15);
+            return $this->jsonResponse(['success' => true, 'data' => $data]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 
     /**

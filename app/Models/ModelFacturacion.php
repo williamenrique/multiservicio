@@ -22,7 +22,7 @@ class ModelFacturacion {
         $this->db->query("SELECT v.id, COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE (v.id LIKE :term OR os.id LIKE :term OR vh.placa LIKE :term OR c.nombre LIKE :term OR v.placa LIKE :term)
                           AND v.status IN ('COMPLETADO', 'CREDITO') LIMIT 5");
@@ -63,7 +63,7 @@ class ModelFacturacion {
         $this->db->query("SELECT v.*, s.nombre as usuario_nombre, c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo 
                           FROM table_facturas v 
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id 
                           LEFT JOIN table_staff s ON u.staff_id = s.id 
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
@@ -146,7 +146,7 @@ class ModelFacturacion {
                                  COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, sv.nombre as vendedor_nombre
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff sv ON u.staff_id = sv.id
@@ -249,7 +249,7 @@ class ModelFacturacion {
                                  COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff sv ON u.staff_id = sv.id
@@ -321,7 +321,7 @@ class ModelFacturacion {
         $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre 
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'CREDITO'
                           AND v.saldo_pendiente > 0
