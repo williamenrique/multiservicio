@@ -66,7 +66,7 @@ class ModelFacturacion {
                                  COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1), su.nombre, u.username) as usuario_nombre, 
                                  c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
-                                 IF(v.orden_id IS NULL, 'MOSTRADOR', 'TALLER') as tipo_procedencia
+                                 IF(v.orden_id IS NULL AND v.placa IS NULL, 'MOSTRADOR', 'TALLER') as tipo_procedencia
                           FROM table_facturas v 
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
@@ -260,7 +260,7 @@ class ModelFacturacion {
                                  COALESCE(sm.nombre, sv.nombre, 'ADMIN') as responsable_nombre,
                                  COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
-                                 IF(v.orden_id IS NULL, 'MOSTRADOR', 'TALLER') as tipo_procedencia
+                                 IF(v.orden_id IS NULL AND v.placa IS NULL, 'MOSTRADOR', 'TALLER') as tipo_procedencia
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa

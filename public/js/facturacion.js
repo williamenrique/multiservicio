@@ -52,23 +52,29 @@ document.addEventListener('DOMContentLoaded', () => {
             // Esto evita que el refresco automático borre lo que el usuario está empezando a escribir
             const localInvoices = openInvoices.filter(inv => !inv.id_db);
 
-            const serverInvoices = drafts.map(d => ({
-                id: 'FAC-' + String(d.id).padStart(3, '0'),
-                id_db: d.id,
-                placa: d.placa || '',
-                modelo: d.modelo_vehiculo || '',
-                cliente_id: d.cliente_id || '',
-                mecanico_id: d.mecanico_id || '',
-                iva_activo: (parseFloat(d.iva_monto) > 0),
-                pago_efectivo: parseFloat(d.pago_efectivo || 0),
-                pago_transferencia: parseFloat(d.pago_transferencia || 0),
-                saldo_pendiente: parseFloat(d.saldo_pendiente || 0),
-                items: d.items || [],
-                usuario_id: d.usuario_id,
-                usuario_nombre: d.usuario_nombre,
-                cliente_nombre: d.cliente_nombre || '',
-                tipo_procedencia: d.tipo_procedencia || 'MOSTRADOR'
-            }));
+            const serverInvoices = drafts.map(d => {
+                // Intentar preservar el mecánico local si el servidor lo envía vacío (borradores sin ítems)
+                const existingInv = openInvoices.find(inv => inv.id_db === d.id);
+                const preservedMecanicoId = (existingInv && !d.mecanico_id) ? existingInv.mecanico_id : d.mecanico_id;
+
+                return {
+                    id: 'FAC-' + String(d.id).padStart(3, '0'),
+                    id_db: d.id,
+                    placa: d.placa || '',
+                    modelo: d.modelo_vehiculo || '',
+                    cliente_id: d.cliente_id || '',
+                    mecanico_id: preservedMecanicoId || '',
+                    iva_activo: (parseFloat(d.iva_monto) > 0),
+                    pago_efectivo: parseFloat(d.pago_efectivo || 0),
+                    pago_transferencia: parseFloat(d.pago_transferencia || 0),
+                    saldo_pendiente: parseFloat(d.saldo_pendiente || 0),
+                    items: d.items || [],
+                    usuario_id: d.usuario_id,
+                    usuario_nombre: d.usuario_nombre,
+                    cliente_nombre: d.cliente_nombre || '',
+                    tipo_procedencia: d.tipo_procedencia || 'MOSTRADOR'
+                };
+            });
 
             openInvoices = [...serverInvoices, ...localInvoices];
 
