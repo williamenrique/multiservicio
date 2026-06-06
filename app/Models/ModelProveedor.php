@@ -123,7 +123,7 @@ class ModelProveedor {
                               VALUES (1, 'EGRESO', 'ABONO_PROVEEDOR', :monto, :ref, :desc, :uid)");
             $this->db->bind(':monto', $datos['monto']);
             $this->db->bind(':ref', $datos['compra_id']);
-            $this->db->bind(':desc', "ABONO A COMPRA #{$datos['compra_id']} - " . ($datos['metodo_pago'] ?? 'EFECTIVO'));
+            $this->db->bind(':desc', "PAGO A PROVEEDOR - COMPRA #{$datos['compra_id']} (" . ($datos['metodo_pago'] ?? 'EFECTIVO') . ")");
             $this->db->bind(':uid', $_SESSION['user_id']);
             $this->db->execute();
 
@@ -229,7 +229,7 @@ class ModelProveedor {
                                   VALUES (1, 'EGRESO', 'COMPRA_PROVEEDOR', :monto, :ref, :desc, :uid)");
                 $this->db->bind(':monto', $datos['pagado']);
                 $this->db->bind(':ref', $compraId);
-                $this->db->bind(':desc', "PAGO INICIAL COMPRA #$compraId - " . mb_strtoupper($datos['nombre'], 'UTF-8'));
+                $this->db->bind(':desc', "COMPRA DE REPUESTOS #$compraId - " . mb_strtoupper($datos['nombre'], 'UTF-8'));
                 $this->db->bind(':uid', $_SESSION['user_id']);
                 $this->db->execute();
             }

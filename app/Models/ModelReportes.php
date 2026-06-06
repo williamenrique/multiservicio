@@ -25,9 +25,10 @@ class ModelReportes {
                            ELSE 'rose' 
                        END as tipo_color,
                        CASE 
-                           WHEN t.categoria = 'VENTA' AND f.orden_id IS NULL THEN 'VENTA MOSTRADOR'
-                           WHEN t.categoria = 'VENTA' AND f.orden_id IS NOT NULL THEN 'VENTA SERVICIO'
-                           WHEN t.categoria = 'ABONO_CLIENTE' THEN 'ABONO CLIENTE'
+                           WHEN t.categoria = 'VENTA' AND f.orden_id IS NULL AND f.placa IS NULL THEN 'VENTA MOSTRADOR'
+                           WHEN t.categoria = 'VENTA' THEN 'VENTA SERVICIO'
+                           WHEN t.categoria = 'ABONO_CLIENTE' AND f.orden_id IS NULL AND f.placa IS NULL THEN 'ABONO MOSTRADOR'
+                           WHEN t.categoria = 'ABONO_CLIENTE' THEN 'ABONO SERVICIO'
                            WHEN t.categoria = 'GASTO' THEN 'GASTO TALLER'
                            WHEN t.categoria = 'COMPRA_PROVEEDOR' THEN 'COMPRA REPUESTOS'
                            WHEN t.categoria = 'ABONO_PROVEEDOR' THEN 'PAGO PROVEEDOR'
@@ -47,10 +48,12 @@ class ModelReportes {
                 LEFT JOIN table_proveedores p ON comp.proveedor_id = p.id
                 LEFT JOIN table_pagos_empleados pe ON (t.categoria = 'NOMINA' AND t.referencia_id = pe.id)
                 LEFT JOIN table_staff st ON pe.staff_id = st.id
-                WHERE DATE(t.fecha) BETWEEN :desde AND :hasta";
+                WHERE DATE(t.fecha) BETWEEN :desde AND :hasta
+                GROUP BY t.id";
 
         if ($search) {
-            $sql .= " AND (t.descripcion LIKE :q OR vh.placa LIKE :q OR f.placa LIKE :q OR c.nombre LIKE :q OR p.nombre LIKE :q)";
+            $sql = "SELECT * FROM ($sql) as filtered_t 
+                    WHERE descripcion LIKE :q OR placa LIKE :q OR cliente_nombre LIKE :q OR proveedor_nombre LIKE :q";
         }
 
         $sql .= " ORDER BY t.fecha DESC";

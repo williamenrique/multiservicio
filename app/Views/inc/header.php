@@ -130,7 +130,7 @@
                             <i data-lucide="settings-2" class="w-4 h-4"></i> Mi Perfil
                         </a>
                         <hr class="border-gray-700">
-                        <a href="<?php echo URLROOT; ?>/auth/logout" class="logout block px-4 py-2 text-sm text-red-400 hover:bg-gray-800 flex items-center gap-2">
+                        <a href="<?php echo URLROOT; ?>/auth/logout" class="block px-4 py-2 text-sm text-red-400 hover:bg-gray-800 flex items-center gap-2">
                             <i data-lucide="log-out" class="w-4 h-4 flex-shrink-0"></i> Cerrar Sesión
                         </a>
                     </div>
