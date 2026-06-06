@@ -116,8 +116,7 @@ class ModelFacturacion {
                                   cliente_id = :cid, orden_id = :oid, placa = :placa, modelo_vehiculo = :modelo,
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
                                   pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
-                                  status = :status" .
-                                  (in_array($status, ['COMPLETADO', 'CREDITO']) ? ", fecha_cierre = NOW()" : "") . " 
+                                  status = :status
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
             } else {
