@@ -60,13 +60,16 @@ class ModelFacturacion {
      * Obtiene todos los borradores con sus respectivos items cargados
      */
     public function obtenerBorradoresCompleto() {
-        $this->db->query("SELECT v.*, COALESCE(sm.nombre, su.nombre, u.username) as usuario_nombre, c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo 
+        $this->db->query("SELECT v.*, COALESCE(sm.nombre, su.nombre, u.username) as usuario_nombre, 
+                                 c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
+                                 COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                                 IF(v.orden_id IS NULL, 'MOSTRADOR', 'TALLER') as tipo_procedencia
                           FROM table_facturas v 
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id 
                           LEFT JOIN table_staff su ON u.staff_id = su.id 
-                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
+                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'PENDIENTE' ORDER BY v.fecha DESC");
         $ventas = $this->db->resultSet();
@@ -246,16 +249,17 @@ class ModelFacturacion {
         // 3. Lista de trabajos con paginación
         $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, v.status,
                                  c.nombre as cliente_nombre, sv.nombre as vendedor_nombre, 
-                                 COALESCE(sm.nombre, sv.nombre) as responsable_nombre,
+                                 COALESCE(sm.nombre, sv.nombre, 'ADMIN') as responsable_nombre,
                                  COALESCE(vh.placa, v.placa) as placa, 
-                                 COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo
+                                 COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
+                                 IF(v.orden_id IS NULL, 'MOSTRADOR', 'TALLER') as tipo_procedencia
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff sv ON u.staff_id = sv.id
-                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
+                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')
                           ORDER BY v.fecha DESC
                           LIMIT :limit OFFSET :offset");

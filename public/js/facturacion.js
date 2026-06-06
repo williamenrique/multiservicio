@@ -66,7 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 items: d.items || [],
                 usuario_id: d.usuario_id,
                 usuario_nombre: d.usuario_nombre,
-                cliente_nombre: d.cliente_nombre || ''
+                cliente_nombre: d.cliente_nombre || '',
+                tipo_procedencia: d.tipo_procedencia || 'MOSTRADOR'
             }));
 
             openInvoices = [...serverInvoices, ...localInvoices];
@@ -195,7 +196,8 @@ document.addEventListener('DOMContentLoaded', () => {
             items: [],
             usuario_id: currentLoggedInUser ? currentLoggedInUser.id : null,
             usuario_nombre: userName,
-            cliente_nombre: ''
+            cliente_nombre: '',
+            tipo_procedencia: 'MOSTRADOR'
         };
 
         // Si no es un guardado forzado (clic en "Nueva Factura"), solo creamos el objeto localmente.
@@ -235,7 +237,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Listeners para guardar metadatos en tiempo real
     inputPlaca.addEventListener('input', (e) => {
-        updateActiveData('placa', e.target.value.toUpperCase());
+        const val = e.target.value.toUpperCase();
+        updateActiveData('placa', val);
+        
+        // Cambio dinámico de procedencia: Si hay placa, es Taller. Si no, Mostrador.
+        if (val.trim() !== '') {
+            updateActiveData('tipo_procedencia', 'TALLER');
+        } else {
+            updateActiveData('tipo_procedencia', 'MOSTRADOR');
+        }
         renderQueue();
         renderInvoice();
     });
@@ -356,11 +366,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         container.innerHTML = openInvoices.map((inv, index) => {
+            // 'inv' representa el objeto de la factura/borrador
+            const badgeClass = inv.tipo_procedencia === 'TALLER' 
+                ? 'bg-blue-100 text-blue-700 border-blue-200' 
+                : 'bg-amber-100 text-amber-700 border-amber-200';
+
+            const htmlBadge = `
+                <span class="px-1.5 py-0.5 rounded text-[7px] font-bold border ${badgeClass}">
+                    ${inv.tipo_procedencia || 'MOSTRADOR'}
+                </span>
+            `;
+
             return `
             <div onclick="switchInvoice('${inv.id}')" class="flex-shrink-0 px-3 py-1.5 rounded-lg border-2 transition-all cursor-pointer flex items-center gap-3 
                 ${inv.id === activeInvoiceId ? 'border-neon-green bg-white shadow-sm' : 'border-transparent bg-slate-100 opacity-60 hover:opacity-100'}">
                 <div class="flex flex-col">
-                    <span class="text-[9px] font-black text-navy-blue">${inv.id}</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[9px] font-black text-navy-blue">${inv.id}</span>
+                        ${htmlBadge}
+                    </div>
                     <span class="text-[10px] font-bold uppercase truncate max-w-[80px]">${inv.modelo || 'SIN DESC.'}</span>
                 </div>
                 <button onclick="closeInvoice(${index}, event)" class="text-slate-400 hover:text-red-500 transition-colors" title="Cerrar Factura">

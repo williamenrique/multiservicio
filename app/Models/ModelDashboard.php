@@ -77,7 +77,8 @@ class ModelDashboard {
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id 
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff su ON u.staff_id = su.id
-                          LEFT JOIN table_staff sm ON v.mecanico_id = sm.id
+                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
+                          -- Cambiamos v.mecanico_id por os.mecanico_id
                           WHERE v.status = 'PENDIENTE'";
         if ($usuarioId) $sql .= " AND v.usuario_id = :uid";
         $sql .= " ORDER BY v.fecha DESC LIMIT 6";

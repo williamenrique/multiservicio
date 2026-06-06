@@ -147,10 +147,11 @@ class ControllerFacturacion extends Controller {
                 $db->execute();
 
                 foreach ($datos['items'] as $item) {
-                    $db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
-                                VALUES (:fid, :pid, :desc, :cant, :pre, :costo)");
+                    $db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                                VALUES (:fid, :pid, :mid, :desc, :cant, :pre, :costo)");
                     $db->bind(':fid', $ventaId);
                     $db->bind(':pid', $item['tipo'] === 'PRODUCTO' ? $item['id'] : null);
+                    $db->bind(':mid', $datos['mecanico_id'] ?? null);
                     $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
                     $db->bind(':cant', $item['cantidad']);
                     $db->bind(':pre', $item['precio']);
