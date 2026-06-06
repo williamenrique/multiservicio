@@ -106,13 +106,13 @@ class ControllerFacturacion extends Controller {
                     $datos['mecanico_id'] = $_SESSION['user_staff_id'];
                 }
 
-                // Misma lógica para sincronizar borradores: mantener el mecánico si ya existe
-                $idReal = $datos['id_db'] ?? null;
-                if (empty($datos['mecanico_id']) && $idReal) {
-                    $borradorExistente = $this->facturaModel->obtenerBorradorPorId($idReal);
-                    if ($borradorExistente && !empty($borradorExistente->mecanico_id)) {
-                        $datos['mecanico_id'] = $borradorExistente->mecanico_id;
-                    }
+                // Si no hay mecánico en el input pero hay una Orden de Servicio vinculada,
+                // intentamos recuperar el mecánico desde la orden.
+                if (empty($datos['mecanico_id']) && !empty($datos['orden_id'])) {
+                    $db->query("SELECT mecanico_id FROM table_ordenes_servicio WHERE id = :oid");
+                    $db->bind(':oid', $datos['orden_id']);
+                    $resOS = $db->single();
+                    if ($resOS) $datos['mecanico_id'] = $resOS->mecanico_id;
                 }
 
                 // Cálculos rápidos para el borrador

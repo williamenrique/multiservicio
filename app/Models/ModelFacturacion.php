@@ -19,7 +19,7 @@ class ModelFacturacion {
      * @param string $term Término de búsqueda
      */
     public function searchInvoices($term) {
-        $this->db->query("SELECT v.id, COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre
+        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado, COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
@@ -60,7 +60,10 @@ class ModelFacturacion {
      * Obtiene todos los borradores con sus respectivos items cargados
      */
     public function obtenerBorradoresCompleto() {
-        $this->db->query("SELECT v.*, COALESCE(sm.nombre, su.nombre, u.username) as usuario_nombre, 
+        $this->db->query("SELECT v.*, 
+                                 CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                                 COALESCE(sm.id, (SELECT vd.mecanico_id FROM table_facturas_detalle vd WHERE vd.factura_id = v.id AND vd.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_id,
+                                 COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1), su.nombre, u.username) as usuario_nombre, 
                                  c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
                                  IF(v.orden_id IS NULL, 'MOSTRADOR', 'TALLER') as tipo_procedencia
@@ -146,10 +149,14 @@ class ModelFacturacion {
      * Obtiene los detalles completos de una venta para su impresión
      */
     public function obtenerVentaCompleta($id) {
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
-                                 COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, sv.nombre as vendedor_nombre
+        $this->db->query("SELECT v.*, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                                 c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
+                                 COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
+                                 COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_nombre,
+                                 sv.nombre as vendedor_nombre
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
@@ -247,7 +254,8 @@ class ModelFacturacion {
         $total = $this->db->single()->total;
 
         // 3. Lista de trabajos con paginación
-        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, v.status,
+        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                                 v.fecha, v.total, v.saldo_pendiente, v.status,
                                  c.nombre as cliente_nombre, sv.nombre as vendedor_nombre, 
                                  COALESCE(sm.nombre, sv.nombre, 'ADMIN') as responsable_nombre,
                                  COALESCE(vh.placa, v.placa) as placa, 

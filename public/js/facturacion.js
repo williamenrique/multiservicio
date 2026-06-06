@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const localInvoices = openInvoices.filter(inv => !inv.id_db);
 
             const serverInvoices = drafts.map(d => ({
-                id: 'TKT-' + d.id,
+                id: 'FAC-' + String(d.id).padStart(3, '0'),
                 id_db: d.id,
                 placa: d.placa || '',
                 modelo: d.modelo_vehiculo || '',
@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const urlId = new URLSearchParams(window.location.search).get('id');
                 const found = openInvoices.find(inv => String(inv.id_db) === String(urlId));
                 if (urlId && found) {
-                    activeInvoiceId = 'TKT-' + urlId;
+                    activeInvoiceId = 'FAC-' + String(urlId).padStart(3, '0');
                 } else {
                     activeInvoiceId = openInvoices[0].id;
                 }
@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await res.json();
 
             if (result.success) {
-                invData.id = 'TKT-' + result.venta_id;
+                invData.id = 'FAC-' + String(result.venta_id).padStart(3, '0');
                 invData.id_db = result.venta_id;
                 openInvoices.push(invData);
                 activeInvoiceId = invData.id;
@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inputPlaca.addEventListener('input', (e) => {
         const val = e.target.value.toUpperCase();
         updateActiveData('placa', val);
-        
+
         // Cambio dinámico de procedencia: Si hay placa, es Taller. Si no, Mostrador.
         if (val.trim() !== '') {
             updateActiveData('tipo_procedencia', 'TALLER');
@@ -367,8 +367,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.innerHTML = openInvoices.map((inv, index) => {
             // 'inv' representa el objeto de la factura/borrador
-            const badgeClass = inv.tipo_procedencia === 'TALLER' 
-                ? 'bg-blue-100 text-blue-700 border-blue-200' 
+            const badgeClass = inv.tipo_procedencia === 'TALLER'
+                ? 'bg-blue-100 text-blue-700 border-blue-200'
                 : 'bg-amber-100 text-amber-700 border-amber-200';
 
             const htmlBadge = `
@@ -523,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Si es la primera vez que se guarda en DB, convertimos el ID temporal PROV- en un ID TKT- real
                 if (isFirstSync) {
                     const oldId = inv.id;
-                    inv.id = 'TKT-' + data.venta_id;
+                    inv.id = 'FAC-' + String(data.venta_id).padStart(3, '0');
                     if (activeInvoiceId === oldId) activeInvoiceId = inv.id;
 
                     renderQueue();
