@@ -262,7 +262,7 @@ class ModelFacturacion {
         // 3. Lista de trabajos con paginación
         $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  v.fecha, v.total, v.saldo_pendiente, v.status,
-                                 c.nombre as cliente_nombre, sv.nombre as vendedor_nombre, 
+                                 c.nombre as cliente_nombre, c.telefono as cliente_telefono, sv.nombre as vendedor_nombre, 
                                  COALESCE(
                                      sm.nombre, 
                                      (SELECT st2.nombre FROM table_facturas_detalle vd2 JOIN table_staff st2 ON vd2.mecanico_id = st2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1),

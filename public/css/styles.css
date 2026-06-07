@@ -8,19 +8,19 @@
 
 /* Ajuste de escala base para evitar que todo se vea "enorme" */
 html {
-    font-size: 12px;
+    font-size: 14px;
     /* Reducción a estándar de dashboard industrial */
 }
 
 @media (min-width: 1280px) {
     html {
-        font-size: 13px;
+        font-size: 15px;
     }
 }
 
 @media (min-width: 1536px) {
     html {
-        font-size: 14px;
+        font-size: 16px;
     }
 }
 
@@ -262,7 +262,7 @@ table.dataTable tbody td {
     padding: 8px 6px !important;
     /* Celdas más compactas */
     border-bottom: 1px solid #f1f5f9 !important;
-    font-size: 0.95rem;
+    font-size: 1rem;
     line-height: 1.4;
 }
 
@@ -271,7 +271,7 @@ table.dataTable thead th {
     color: var(--navy-blue) !important;
     padding: 10px 6px !important;
     background-color: #f8fafc;
-    font-size: 0.9rem;
+    font-size: 1rem;
     line-height: 1.4;
     text-transform: uppercase;
     /* Para que los encabezados resalten */

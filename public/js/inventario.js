@@ -41,17 +41,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="image" class="w-5 h-5 text-slate-400"></i>`}
                         </div>
                     </td>
-                    <td class="px-8 py-5 font-bold text-slate-700 uppercase tracking-tight align-middle">${item.nombre}</td>
+                    <td class="px-8 py-5 font-bold text-base text-slate-700 uppercase tracking-tight align-middle">${item.nombre}</td>
                     <td class="px-8 py-5 align-middle">
-                        <span class="text-[10px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider">${item.categoria}</span>
+                        <span class="text-xs font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider">${item.categoria}</span>
                     </td>
-                    <td class="px-8 py-5 align-middle font-mono text-sm">
-                        <span class="${isLow ? 'text-red-500 font-bold' : 'text-slate-600'}">${item.stock} uds</span>
-                        ${reservado > 0 ? `<div class="text-[9px] text-orange-500 font-bold uppercase tracking-tighter">Reservado: ${reservado}</div>` : ''}
+                    <td class="px-8 py-5 align-middle font-mono text-base">
+                        <span class="${isLow ? 'text-red-500 font-black' : 'text-slate-700 font-bold'}">${item.stock} uds</span>
+                        ${reservado > 0 ? `<div class="text-xs text-orange-500 font-black uppercase tracking-tighter">Reservado: ${reservado}</div>` : ''}
                     </td>
-                    <td class="px-8 py-5 align-middle font-black text-navy-blue">${AppUtils.formatCurrency(item.precio)}</td>
+                    <td class="px-8 py-5 align-middle font-black text-lg text-navy-blue">${AppUtils.formatCurrency(item.precio)}</td>
                     <td class="px-8 py-5 align-middle">
-                        <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${isLow ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}">
+                        <span class="px-3 py-1 rounded-full text-xs font-black uppercase ${isLow ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}">
                             ${isLow ? (item.stock == 0 ? 'AGOTADO' : 'CRÍTICO') : 'OK'}
                         </span>
                     </td>

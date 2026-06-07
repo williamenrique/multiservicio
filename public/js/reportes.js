@@ -487,6 +487,7 @@ function renderAuditoriaLista(items) {
                     vehiculo: current.modelo_vehiculo || 'GENERAL',
                     placa: current.placa || '---',
                     cliente: current.cliente_nombre || 'VENTA RÁPIDA',
+                    cliente_telefono: current.cliente_telefono || '',
                     usuario: current.mecanico_nombre || current.usuario_nombre || 'SISTEMA',
                     iva: parseFloat(current.iva_monto || 0),
                     subtotal: parseFloat(current.subtotal || 0),
@@ -548,6 +549,7 @@ function renderAuditoriaLista(items) {
                             </div>
                         <p class="text-base font-bold text-slate-400 uppercase tracking-widest">
                                 <span class="text-slate-600">${f.cliente}</span>
+                                ${f.cliente_telefono ? `<span class="ml-2 text-xs font-black text-navy-blue/40 font-mono">[TEL: ${f.cliente_telefono}]</span>` : ''}
                                 <span class="text-slate-200 mx-2">|</span>
                                 ${new Date(f.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </p>
@@ -1062,7 +1064,7 @@ window.openModalPago = async function () {
     if (!staffId) return AppUtils.showToast("Seleccione un empleado primero", "warning");
 
     const { value: formValues } = await Swal.fire({
-        title: `<span class="text-xs uppercase text-slate-400 font-black">Liquidación de Nómina</span>`,
+        title: `<span class="text-xs uppercase text-slate-400 font-black">REGISTRAR PAGO</span>`,
         html: `
             <div class="text-left space-y-4 pt-4">
                 <div class="p-4 bg-slate-900 rounded-2xl border-l-4 border-neon-green shadow-inner">
@@ -1113,8 +1115,8 @@ window.openModalPago = async function () {
                 </div>
             </div>`,
         showCancelButton: true,
-        confirmButtonText: 'PROCESAR LIQUIDACIÓN',
-        confirmButtonColor: '#0f172a',
+        confirmButtonText: 'PROCESAR PAGO',
+        confirmButtonColor: '#10b981',
         didOpen: () => {
             window.recalcularVistaPreviaPago();
         },

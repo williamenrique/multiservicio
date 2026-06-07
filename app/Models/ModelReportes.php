@@ -151,7 +151,7 @@ class ModelReportes {
                                  (vd.cantidad * vd.precio_unitario) as subtotal_item, 
                                  s.nombre as usuario_nombre,
                                  COALESCE(sm.nombre, (SELECT st2.nombre FROM table_facturas_detalle vd2 JOIN table_staff st2 ON vd2.mecanico_id = st2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_nombre,
-                                 c.nombre as cliente_nombre,
+                                 c.nombre as cliente_nombre, c.telefono as cliente_telefono,
                                  v.subtotal, v.iva_monto, v.total, v.pago_efectivo, v.pago_transferencia, v.saldo_pendiente, v.status
                           FROM table_facturas v
                           JOIN table_facturas_detalle vd ON v.id = vd.factura_id
@@ -453,7 +453,8 @@ class ModelReportes {
                               VALUES (1, 'EGRESO', 'NOMINA', :monto, :ref, :desc, :uid)");
             $this->db->bind(':monto', $data['monto']);
             $this->db->bind(':ref', $pagoId);
-            $this->db->bind(':desc', "PAGO NÓMINA: " . ($data['notas'] ?? 'PAGO EMPLEADO'));
+            $prefix = ($data['tipo'] === 'ADELANTO') ? 'ADELANTO NÓMINA' : 'PAGO NÓMINA';
+            $this->db->bind(':desc', "$prefix: " . ($data['notas'] ?: 'SIN OBSERVACIONES'));
             $this->db->bind(':uid', $data['usuario_id']);
             $this->db->execute();
 

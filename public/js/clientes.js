@@ -18,16 +18,16 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRow: (item) => {
             return `
                 <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300">
-                    <td class="px-8 py-5 font-mono text-xs font-bold text-slate-400 align-middle">${item.id}</td>
-                    <td class="px-8 py-5 font-bold text-slate-700 uppercase tracking-tight align-middle">${item.nombre}</td>
+                    <td class="px-8 py-5 font-mono text-sm font-black text-slate-400 align-middle">${item.id}</td>
+                    <td class="px-8 py-5 font-black text-base text-slate-700 uppercase tracking-tight align-middle">${item.nombre}</td>
                     <td class="px-8 py-5 align-middle">
                         <div class="flex flex-col">
-                            <span class="text-xs font-bold text-slate-600">${item.telefono || '---'}</span>
+                            <span class="text-sm font-bold text-slate-600">${item.telefono || '---'}</span>
                             <span class="text-[10px] text-slate-400 lowercase">${item.email || '---'}</span>
                         </div>
                     </td>
                     <td class="px-8 py-5 align-middle">
-                        <span class="text-[10px] font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider">${item.direccion || 'N/A'}</span>
+                        <span class="text-xs font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider">${item.direccion || 'N/A'}</span>
                     </td>
                     <td class="px-8 py-5 text-right align-middle">
                         <div class="flex justify-end gap-2">
