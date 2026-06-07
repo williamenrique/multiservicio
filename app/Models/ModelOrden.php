@@ -7,15 +7,15 @@ class ModelOrden {
     }
 
     public function crear($data) {
-        $this->db->query("INSERT INTO table_ordenes_servicio (placa, usuario_id, mecanico_id, kilometraje, nivel_combustible, observaciones_entrada, fecha_entrega_estimada) 
-                          VALUES (:placa, :uid, :mid, :km, :comb, :obs, :fecha_e)");
+        $this->db->query("INSERT INTO table_ordenes_servicio (cliente_id, placa, mecanico_id, kilometraje, nivel_combustible, diagnostico_entrada, observaciones) 
+                          VALUES (:cid, :placa, :mid, :km, :comb, :diag, :obs)");
+        $this->db->bind(':cid', $data['cliente_id']);
         $this->db->bind(':placa', $data['placa']);
-        $this->db->bind(':uid', $_SESSION['user_id']);
-        $this->db->bind(':mid', $data['mecanico_id'] ?? null);
+        $this->db->bind(':mid', !empty($data['mecanico_id']) ? $data['mecanico_id'] : null);
         $this->db->bind(':km', $data['kilometraje']);
         $this->db->bind(':comb', $data['nivel_combustible']);
-        $this->db->bind(':obs', mb_strtoupper($data['observaciones_entrada'], 'UTF-8'));
-        $this->db->bind(':fecha_e', $data['fecha_entrega']);
+        $this->db->bind(':diag', mb_strtoupper($data['observaciones_entrada'] ?? '', 'UTF-8'));
+        $this->db->bind(':obs', mb_strtoupper($data['observaciones'] ?? '', 'UTF-8'));
         
         if($this->db->execute()) {
             return $this->db->lastInsertId();
@@ -28,10 +28,10 @@ class ModelOrden {
             $this->db->query("INSERT INTO table_orden_checklist (orden_id, item, estado, observacion) 
                               VALUES (:oid, :item, :estado, :obs)");
             $this->db->bind(':oid', $ordenId);
-            $this->db->bind(':item', $item['item']);
+            $this->db->bind(':item', mb_strtoupper($item['item'], 'UTF-8'));
             // Si el ítem llega en el array es porque se marcó el checkbox en el formulario
             $this->db->bind(':estado', 1); 
-            $this->db->bind(':obs', $item['nota'] ?? '');
+            $this->db->bind(':obs', mb_strtoupper($item['nota'] ?? '', 'UTF-8'));
             $this->db->execute();
         }
         return true;
@@ -80,7 +80,7 @@ class ModelOrden {
                           INNER JOIN table_vehiculos v ON os.placa = v.placa
                           LEFT JOIN table_staff s ON os.mecanico_id = s.id
                           WHERE os.estado NOT IN ('ENTREGADO')
-                          ORDER BY os.fecha_entrada DESC");
+                          ORDER BY os.fecha_ingreso DESC");
         return $this->db->resultSet();
     }
 

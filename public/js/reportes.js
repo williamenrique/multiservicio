@@ -1015,8 +1015,12 @@ window.cargarNomina = async function () {
 
             const pBody = document.getElementById('nomina-pagos-body');
             let totalPagos = 0;
+            let totalAdelantos = 0;
             pBody.innerHTML = pagos.length > 0 ? pagos.map(p => {
-                totalPagos += parseFloat(p.monto);
+                const monto = parseFloat(p.monto);
+                totalPagos += monto;
+                if (p.tipo === 'ADELANTO') totalAdelantos += monto;
+
                 return `<tr>
                     <td class="px-4 py-3 font-mono">${new Date(p.fecha).toLocaleDateString()}</td>
                     <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[9px] font-black ${p.tipo === 'ADELANTO' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} uppercase">${p.tipo}</span></td>
@@ -1031,12 +1035,14 @@ window.cargarNomina = async function () {
             const elAdelantos = document.getElementById('nomina-total-adelantos');
             const elPendiente = document.getElementById('nomina-total-pendiente');
 
+            const saldoNetoReal = totalPendiente - totalAdelantos;
+
             if (elTrabajos) { elTrabajos.textContent = AppUtils.formatCurrency(totalGeneral); elTrabajos.classList.add('text-3xl', 'md:text-5xl', 'font-black', 'text-navy-blue', 'tracking-tighter'); }
-            if (elAdelantos) { elAdelantos.textContent = AppUtils.formatCurrency(totalPagos); elAdelantos.classList.add('text-3xl', 'md:text-5xl', 'font-black', 'text-rose-600', 'tracking-tighter'); }
-            if (elPendiente) { elPendiente.textContent = AppUtils.formatCurrency(totalPendiente); elPendiente.classList.add('text-4xl', 'md:text-6xl', 'font-black', 'text-neon-green', 'tracking-tighter'); }
+            if (elAdelantos) { elAdelantos.textContent = AppUtils.formatCurrency(totalAdelantos); elAdelantos.classList.add('text-3xl', 'md:text-5xl', 'font-black', 'text-rose-600', 'tracking-tighter'); }
+            if (elPendiente) { elPendiente.textContent = AppUtils.formatCurrency(saldoNetoReal > 0 ? saldoNetoReal : 0); elPendiente.classList.add('text-4xl', 'md:text-6xl', 'font-black', 'text-neon-green', 'tracking-tighter'); }
 
             // Guardar total pendiente actual para cálculos del modal
-            window.currentNominaPendiente = totalPendiente;
+            window.currentNominaPendiente = saldoNetoReal;
         }
         if (window.lucide) lucide.createIcons();
     } catch (e) { console.error(e); }
@@ -1141,6 +1147,34 @@ window.openModalPago = async function () {
             };
         }
     });
+
+    if (formValues) {
+        try {
+            AppUtils.showLoading('Procesando pago...');
+            const res = await fetch(`${URLROOT}/reportes/registrarPagoNomina`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
+                body: JSON.stringify(formValues)
+            });
+
+            const result = await res.json();
+            AppUtils.hideLoading();
+
+            if (result.success) {
+                AppUtils.showToast('Pago registrado correctamente');
+                window.cargarNomina(); // Recargar la vista actual de nómina
+                if (activeReportTab === 'historial_nomina') window.cargarHistorialNomina();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al procesar el pago', 'error');
+            }
+        } catch (error) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
 };
 
 /**

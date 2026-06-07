@@ -18,8 +18,10 @@ class ControllerTaller extends Controller {
     }
 
     public function nuevaOrden() {
+        $reportModel = $this->model('Reportes');
         $this->view('taller/nueva_orden', [
-            'titulo' => 'Nueva Orden de Servicio'
+            'titulo' => 'Nueva Orden de Servicio',
+            'staff' => $reportModel->obtenerStaffSimple()
         ]);
     }
 
@@ -61,6 +63,8 @@ class ControllerTaller extends Controller {
                 if (!$this->vehiculoModel->registrar($input)) {
                     return $this->jsonResponse(['success' => false, 'error' => "Error al registrar el vehículo."]);
                 }
+            } else {
+                $input['cliente_id'] = $vehiculo->cliente_id;
             }
 
             // En el esquema 2.0 la relación es por PLACA, no por un ID numérico

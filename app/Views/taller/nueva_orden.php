@@ -37,6 +37,15 @@
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre del Cliente</label>
                         <input type="text" id="cliente_nombre" readonly class="w-full bg-slate-100 border border-gray-200 rounded-lg px-4 py-2 outline-none font-bold text-navy-blue italic" placeholder="Ingrese ID para buscar...">
                     </div>
+                    <div class="md:col-span-3">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Mecánico Asignado</label>
+                        <select name="mecanico_id" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none font-bold text-navy-blue">
+                            <option value="">-- ASIGNAR MÁS TARDE --</option>
+                            <?php foreach($data['staff'] as $s): ?>
+                                <option value="<?php echo $s->id; ?>"><?php echo $s->nombre; ?> (<?php echo $s->cargo; ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Marca *</label>
                         <input type="text" name="marca" required placeholder="Ej: Toyota" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
@@ -82,19 +91,17 @@
         <!-- Checklist y Guardado -->
         <div class="space-y-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Checklist de Entrada</h3>
-                <div class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                    <?php 
-                    $items = ['Llaves', 'Gato/Herramientas', 'Llave de Rueda', 'Repuesto', 'Radio', 'Antena', 'Espejos', 'Encendedor', 'Alfombras'];
-                    foreach($items as $item): ?>
-                    <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-100 transition-all">
-                        <label class="flex items-center gap-3 cursor-pointer">
-                            <input type="checkbox" class="w-4 h-4 text-neon-green rounded border-gray-300 focus:ring-neon-green checklist-item" value="<?php echo $item; ?>">
-                            <span class="text-sm text-slate-700"><?php echo $item; ?></span>
-                        </label>
-                        <input type="text" placeholder="Nota" class="text-[10px] w-24 border-b border-gray-200 focus:border-neon-green outline-none bg-transparent checklist-note">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 class="text-lg font-bold text-slate-800">Checklist</h3>
+                    <button type="button" onclick="agregarFilaChecklist()" class="text-[10px] bg-navy-blue text-neon-green px-2 py-1 rounded-lg font-black uppercase hover:scale-105 transition-all">
+                        + Agregar
+                    </button>
+                </div>
+                <div id="checklist-container" class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                    <!-- Las filas se insertan aquí -->
+                    <div class="text-center py-4 text-slate-400 text-xs italic" id="empty-checklist-msg">
+                        No hay items agregados
                     </div>
-                    <?php endforeach; ?>
                 </div>
             </div>
 
@@ -108,6 +115,29 @@
 <script src="<?php echo URLROOT; ?>/js/taller_nueva_orden.js"></script>
 
 <script>
+function agregarFilaChecklist() {
+    const container = document.getElementById('checklist-container');
+    const emptyMsg = document.getElementById('empty-checklist-msg');
+    if(emptyMsg) emptyMsg.remove();
+
+    const div = document.createElement('div');
+    div.className = "flex flex-col gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 animate-in slide-in-from-right-2 duration-200";
+    div.innerHTML = `
+        <div class="flex justify-between items-center">
+            <input type="text" placeholder="¿Qué recibe? (Ej: Llaves)" class="text-xs font-black text-navy-blue uppercase bg-transparent outline-none flex-1 checklist-item-name">
+            <button type="button" onclick="this.parentElement.parentElement.remove()" class="text-rose-500 hover:text-rose-700">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+        <input type="text" placeholder="Observación o estado..." class="text-[10px] w-full border-b border-slate-200 focus:border-neon-green outline-none bg-transparent checklist-item-note uppercase">
+    `;
+    container.appendChild(div);
+    if(window.lucide) lucide.createIcons();
+    
+    // Hacer scroll al final para ver el nuevo item
+    container.scrollTop = container.scrollHeight;
+}
+
 document.getElementById('formNuevaOrden').addEventListener('submit', async function(e) {
     e.preventDefault();
     
@@ -122,11 +152,12 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
     const formData = new FormData(this);
     const checklist = [];
     
-    document.querySelectorAll('.checklist-item').forEach((check, index) => {
-        if (check.checked) {
+    document.querySelectorAll('#checklist-container > div').forEach((row) => {
+        const item = row.querySelector('.checklist-item-name').value.trim();
+        if (item) {
             checklist.push({
-                item: check.value,
-                nota: document.querySelectorAll('.checklist-note')[index].value
+                item: item,
+                nota: row.querySelector('.checklist-item-note').value.trim()
             });
         }
     });
@@ -134,6 +165,7 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
     const data = {
         placa: formData.get('placa'),
         cliente_id: formData.get('cliente_id'),
+        mecanico_id: formData.get('mecanico_id'),
         marca: formData.get('marca'),
         modelo: formData.get('modelo'),
         anio: formData.get('anio'),
@@ -148,7 +180,10 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
     try {
         const resp = await fetch(`${URLROOT}/taller/guardarOrden`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token']; ?>'
+            },
             body: JSON.stringify(data)
         });
         const res = await resp.json();

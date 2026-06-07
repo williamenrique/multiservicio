@@ -32,7 +32,7 @@ class ModelVehiculo {
                           FROM table_ordenes_servicio os
                           LEFT JOIN table_staff s ON os.mecanico_id = s.id
                           WHERE os.placa = :placa 
-                          ORDER BY os.fecha_entrada DESC");
+                          ORDER BY os.fecha_ingreso DESC");
         $this->db->bind(':placa', $placa);
         return $this->db->resultSet();
     }

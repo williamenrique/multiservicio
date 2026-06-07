@@ -67,7 +67,16 @@
                             </select>
                         </td>
                         <td class="px-6 py-4 text-sm text-slate-600">
-                            <i data-lucide="user-cog" class="inline w-4 h-4 mr-1"></i> <?php echo $o->mecanico_nombre; ?>
+                            <?php if (empty($o->mecanico_nombre)): ?>
+                                <span class="flex items-center gap-1.5 text-rose-500 font-black animate-pulse uppercase tracking-widest text-[10px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-100">
+                                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Sin Asignar
+                                </span>
+                            <?php else: ?>
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="user-cog" class="w-4 h-4 text-slate-400"></i>
+                                    <span class="font-bold text-slate-700 uppercase"><?php echo $o->mecanico_nombre; ?></span>
+                                </div>
+                            <?php endif; ?>
                         </td>
                         <td class="px-6 py-4 text-right">
                             <button onclick="imprimirOrden(<?php echo $o->id; ?>)" class="text-slate-400 hover:text-blue-600 p-2 transition-colors" title="Imprimir Orden">

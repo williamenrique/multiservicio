@@ -421,14 +421,12 @@ class ModelReportes {
             $this->db->beginTransaction();
 
             // 1. Insertar el registro de nómina
-            $this->db->query("INSERT INTO table_pagos_empleados (staff_id, monto, monto_base, modo_calculo, factor_calculo, tipo, metodo_pago, notas, usuario_id) 
-                              VALUES (:sid, :monto, :base, :modo, :factor, :tipo, :metodo, :notas, :uid)");
+            $this->db->query("INSERT INTO table_pagos_empleados (staff_id, monto, monto_base, tipo, metodo_pago, notas, usuario_id) 
+                              VALUES (:sid, :monto, :base, :tipo, :metodo, :notas, :uid)");
             
             $this->db->bind(':sid', $data['staff_id']);
             $this->db->bind(':monto', $data['monto']);
             $this->db->bind(':base', $data['monto_base']);
-            $this->db->bind(':modo', $data['modo_calculo']);
-            $this->db->bind(':factor', $data['factor_calculo']);
             $this->db->bind(':tipo', $data['tipo']);
             $this->db->bind(':metodo', $data['metodo_pago']);
             $this->db->bind(':notas', $data['notas']);
