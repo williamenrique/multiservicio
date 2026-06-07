@@ -248,7 +248,7 @@ class ModelReportes {
      * Se usa DATE() para asegurar que deudas del mismo día (diff 0) sean incluidas.
      */
     public function obtenerCarteraPorEdades($desde = null, $hasta = null) {
-        $where = "WHERE v.status = 'CREDITO' AND v.saldo_pendiente > 0";
+        $where = "WHERE v.status = 'CREDITO' AND v.saldo_pendiente > 0.05";
         if ($desde && $hasta) {
             $where .= " AND DATE(v.fecha) BETWEEN :desde AND :hasta";
         }
@@ -264,7 +264,7 @@ class ModelReportes {
                           JOIN table_clientes c ON v.cliente_id = c.id
                           $where
                           GROUP BY c.id
-                          ORDER BY total_deuda DESC");
+                          ORDER BY total_deuda ASC");
         
         if ($desde && $hasta) {
             $this->db->bind(':desde', $desde);
@@ -366,7 +366,7 @@ class ModelReportes {
                           JOIN table_facturas_detalle vd ON vd.factura_id = v.id
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
-                          WHERE (v.mecanico_id = :staff_id OR :staff_id_alt = '0')
+                          WHERE (vd.mecanico_id = :staff_id OR os.mecanico_id = :staff_id OR :staff_id_alt = '0')
                           AND vd.producto_id IS NULL 
                           AND v.status IN ('COMPLETADO', 'CREDITO')
                           AND DATE(v.fecha) BETWEEN :desde AND :hasta
