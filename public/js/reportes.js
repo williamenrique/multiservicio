@@ -546,7 +546,7 @@ function renderAuditoriaLista(items) {
                                 <h4 class="font-black text-navy-blue uppercase text-lg tracking-tight">${f.vehiculo}</h4>
                                 <span class="bg-slate-50 border border-slate-200 text-slate-500 font-mono text-sm px-2 py-0.5 rounded font-black">${f.placa}</span>
                             </div>
-                            <p class="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                        <p class="text-base font-bold text-slate-400 uppercase tracking-widest">
                                 <span class="text-slate-600">${f.cliente}</span>
                                 <span class="text-slate-200 mx-2">|</span>
                                 ${new Date(f.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -556,8 +556,8 @@ function renderAuditoriaLista(items) {
 
                     <div class="flex items-center gap-10">
                         <div class="text-right">
-                            <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Técnico: <span class="text-slate-600">${f.usuario}</span></p>
-                            <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Total Factura: <span class="text-navy-blue">${AppUtils.formatCurrency(totalFactura)}</span></p>
+                            <p class="text-sm font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Técnico: <span class="text-navy-blue font-black">${f.usuario}</span></p>
+                            <p class="text-sm font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Total Factura: <span class="text-slate-600">${AppUtils.formatCurrency(totalFactura)}</span></p>
                             <div class="flex items-center justify-end gap-3">
                                 <span class="text-sm font-black text-slate-300 uppercase tracking-tighter">${isCredit ? 'SALDO DEUDOR' : 'TOTAL TRABAJO'}</span>
                                 <span class="text-3xl font-black ${isCredit ? 'text-rose-600' : 'text-emerald-600'} tracking-tighter">${AppUtils.formatCurrency(isCredit ? f.saldo_pendiente : totalFactura)}</span>
@@ -584,10 +584,10 @@ function renderAuditoriaLista(items) {
                     <table class="w-full text-left">
                         <thead>
                             <tr class="border-b border-slate-50">
-                                <th class="pb-2 text-sm font-black text-slate-300 uppercase tracking-widest">Cant.</th>
-                                <th class="pb-2 text-sm font-black text-slate-300 uppercase tracking-widest">Descripción detallada</th>
-                                <th class="pb-2 text-sm font-black text-slate-300 uppercase tracking-widest text-right">P. Unitario</th>
-                                <th class="pb-2 text-sm font-black text-slate-300 uppercase tracking-widest text-right">Subtotal</th>
+                                <th class="pb-2 text-base font-black text-slate-300 uppercase tracking-widest">Cant.</th>
+                                <th class="pb-2 text-base font-black text-slate-300 uppercase tracking-widest">Descripción detallada</th>
+                                <th class="pb-2 text-base font-black text-slate-300 uppercase tracking-widest text-right">P. Unitario</th>
+                                <th class="pb-2 text-base font-black text-slate-300 uppercase tracking-widest text-right">Subtotal</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-50">
@@ -663,31 +663,31 @@ window.verDetalleVenta = async (ventaId) => {
         }
 
         Swal.fire({
-            title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Vista Previa Operación</span><br><span class="text-navy-blue">FACTURA #${venta.id || idLimpio}</span>`,
+            title: `<span class="text-sm uppercase text-slate-400 font-black tracking-widest">Detalle de Operación</span><br><span class="text-navy-blue text-2xl">FACTURA #${venta.id || idLimpio}</span>`,
             html: `
                 <div class="text-left space-y-6 pt-4">
                     <div class="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <div class="space-y-1">
-                            <p class="text-[9px] font-black text-slate-400 uppercase">Fecha Realizada</p>
-                            <p class="text-xs font-bold text-slate-700">${venta.fecha ? new Date(venta.fecha).toLocaleString('es-CO') : 'N/A'}</p>
+                            <p class="text-xs font-black text-slate-400 uppercase">Fecha Realizada</p>
+                            <p class="text-sm font-bold text-slate-700">${venta.fecha ? new Date(venta.fecha).toLocaleString('es-CO') : 'N/A'}</p>
                         </div>
                         <div class="space-y-1">
-                            <p class="text-[9px] font-black text-slate-400 uppercase">Técnico Responsable</p>
-                            <p class="text-xs font-bold text-navy-blue uppercase">${venta.mecanico_nombre || venta.usuario_nombre || 'SISTEMA'}</p>
+                            <p class="text-xs font-black text-slate-400 uppercase">Personal que Atendió</p>
+                            <p class="text-base font-black text-navy-blue uppercase">${venta.mecanico_nombre || venta.usuario_nombre || 'SISTEMA'}</p>
                             ${venta.mecanico_nombre && venta.mecanico_nombre !== venta.usuario_nombre ? `<p class="text-[8px] text-slate-400 font-bold uppercase">Facturó: ${venta.usuario_nombre}</p>` : ''}
                         </div>
                         <div class="space-y-1">
-                            <p class="text-[9px] font-black text-slate-400 uppercase">Propietario</p>
-                            <p class="text-xs font-bold text-slate-700">${venta.cliente_nombre || 'VENTA RÁPIDA'}</p>
+                            <p class="text-xs font-black text-slate-400 uppercase">Cliente / Propietario</p>
+                            <p class="text-sm font-bold text-slate-700 uppercase">${venta.cliente_nombre || 'VENTA RÁPIDA'}</p>
                         </div>
                         <div class="space-y-1">
-                            <p class="text-[9px] font-black text-slate-400 uppercase">Vehículo</p>
-                            <p class="text-xs font-bold text-slate-700 uppercase">${venta.modelo_vehiculo || 'N/A'} <span class="text-blue-500 font-mono">[${venta.placa || '---'}]</span></p>
+                            <p class="text-xs font-black text-slate-400 uppercase">Vehículo</p>
+                            <p class="text-sm font-bold text-slate-700 uppercase">${venta.modelo_vehiculo || 'N/A'} <span class="text-blue-500 font-mono font-black">[${venta.placa || '---'}]</span></p>
                         </div>
                     </div>
 
                     <div class="max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-white shadow-inner">
-                        <table class="w-full text-[11px] border-collapse">
+                        <table class="w-full text-sm border-collapse">
                             <thead>
                                 <tr class="text-slate-400 border-b">
                                     <th class="text-left p-2 uppercase tracking-tighter">Descripción</th>
@@ -699,46 +699,46 @@ window.verDetalleVenta = async (ventaId) => {
                             <tbody class="divide-y divide-slate-100">
                                 ${(venta.items || []).map(i => `
                                     <tr class="hover:bg-slate-50/50">
-                                        <td class="p-2 text-slate-700 font-medium uppercase">${i.descripcion}</td>
+                                        <td class="p-2 text-slate-800 font-bold uppercase">${i.descripcion}</td>
                                         <td class="p-2 text-center font-bold text-slate-500">${i.cantidad}</td>
                                         <td class="p-2 text-right text-slate-500">${AppUtils.formatCurrency(i.precio_unitario)}</td>
-                                        <td class="p-2 text-right font-black text-navy-blue">${AppUtils.formatCurrency(i.cantidad * i.precio_unitario)}</td>
+                                        <td class="p-2 text-right font-black text-slate-800">${AppUtils.formatCurrency(i.cantidad * i.precio_unitario)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-2 text-[10px]">
+                    <div class="grid grid-cols-3 gap-2 text-xs">
                         <div class="p-2 bg-slate-50 rounded-xl border border-slate-100">
                             <p class="text-slate-400 font-bold uppercase mb-1">Efectivo</p>
-                            <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_efectivo || 0)}</p>
+                            <p class="font-black text-slate-700 text-base">${AppUtils.formatCurrency(venta.pago_efectivo || 0)}</p>
                         </div>
                         <div class="p-2 bg-slate-50 rounded-xl border border-slate-100">
                             <p class="text-slate-400 font-bold uppercase mb-1">Transf.</p>
-                            <p class="font-black text-slate-700 text-sm">${AppUtils.formatCurrency(venta.pago_transferencia || 0)}</p>
+                            <p class="font-black text-slate-700 text-base">${AppUtils.formatCurrency(venta.pago_transferencia || 0)}</p>
                         </div>
                         <div class="p-2 ${(parseFloat(venta.saldo_pendiente) > 0) ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'} rounded-xl border">
                             <p class="${(parseFloat(venta.saldo_pendiente) > 0) ? 'text-rose-400' : 'text-slate-400'} font-bold uppercase mb-1">Deuda</p>
-                            <p class="font-black ${(parseFloat(venta.saldo_pendiente) > 0) ? 'text-rose-600' : 'text-slate-700'} text-sm">${AppUtils.formatCurrency(venta.saldo_pendiente || 0)}</p>
+                            <p class="font-black ${(parseFloat(venta.saldo_pendiente) > 0) ? 'text-rose-600' : 'text-slate-700'} text-base">${AppUtils.formatCurrency(venta.saldo_pendiente || 0)}</p>
                         </div>
                     </div>
 
                     <div class="bg-navy-blue p-5 rounded-2xl space-y-3 text-white">
-                        <div class="flex justify-between items-center text-xs opacity-70">
+                        <div class="flex justify-between items-center text-sm opacity-70">
                             <span class="font-bold uppercase">Subtotal Neto</span>
                             <span class="font-bold">${AppUtils.formatCurrency(venta.subtotal || 0)}</span>
                         </div>
-                        <div class="flex justify-between items-center text-xs opacity-70">
+                        <div class="flex justify-between items-center text-sm opacity-70">
                             <span class="font-bold uppercase">Impuestos (IVA)</span>
                             <span class="font-bold">${AppUtils.formatCurrency(venta.iva_monto || 0)}</span>
                         </div>
-                        <div class="flex justify-between items-center text-xs text-emerald-400 pt-1 border-t border-white/5">
+                        <div class="flex justify-between items-center text-sm text-emerald-400 pt-1 border-t border-white/5">
                             <span class="font-bold uppercase">Total Abonado</span>
                             <span class="font-bold">${AppUtils.formatCurrency(parseFloat(venta.pago_efectivo || 0) + parseFloat(venta.pago_transferencia || 0))}</span>
                         </div>
                         <div class="flex justify-between items-center pt-3 border-t border-white/10">
-                            <span class="font-black uppercase text-xs tracking-widest text-neon-green">Total de la Venta</span>
+                            <span class="font-black uppercase text-sm tracking-widest text-neon-green">Total Final de la Venta</span>
                             <span class="text-2xl font-black">${AppUtils.formatCurrency(venta.total || 0)}</span>
                         </div>
                     </div>

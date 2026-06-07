@@ -149,7 +149,9 @@ class ModelReportes {
         // 1. Detalle de Ventas (Vehículos + Items)
         $this->db->query("SELECT v.id, v.fecha, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, vd.descripcion, vd.cantidad, vd.precio_unitario, 
                                  (vd.cantidad * vd.precio_unitario) as subtotal_item, 
-                                 s.nombre as usuario_nombre, c.nombre as cliente_nombre,
+                                 s.nombre as usuario_nombre,
+                                 COALESCE(sm.nombre, (SELECT st2.nombre FROM table_facturas_detalle vd2 JOIN table_staff st2 ON vd2.mecanico_id = st2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_nombre,
+                                 c.nombre as cliente_nombre,
                                  v.subtotal, v.iva_monto, v.total, v.pago_efectivo, v.pago_transferencia, v.saldo_pendiente, v.status
                           FROM table_facturas v
                           JOIN table_facturas_detalle vd ON v.id = vd.factura_id
@@ -157,8 +159,9 @@ class ModelReportes {
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
+                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE v.status IN ('COMPLETADO', 'CREDITO') AND DATE(v.fecha) BETWEEN :desde AND :hasta
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO', 'PENDIENTE') AND (v.orden_id IS NOT NULL OR v.placa IS NOT NULL) AND DATE(v.fecha) BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
