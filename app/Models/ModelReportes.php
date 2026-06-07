@@ -52,8 +52,7 @@ class ModelReportes {
                 GROUP BY t.id";
 
         if ($search) {
-            $sql = "SELECT * FROM ($sql) as filtered_t 
-                    WHERE descripcion LIKE :q OR placa LIKE :q OR cliente_nombre LIKE :q OR proveedor_nombre LIKE :q";
+            $sql .= " AND (t.descripcion LIKE :q OR vh.placa LIKE :q OR f.placa LIKE :q OR c.nombre LIKE :q OR p.nombre LIKE :q)";
         }
 
         $sql .= " ORDER BY t.fecha DESC";

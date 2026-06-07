@@ -17,21 +17,21 @@ window.renderFlujoRow = (m) => {
     return `
         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 animate-in fade-in duration-300">
             <td class="px-4 py-3 font-mono text-xs font-bold text-slate-400 text-center">#${m.id || '---'}</td>
-            <td class="px-4 py-3 text-sm font-bold text-slate-600 uppercase text-center">${new Date(m.fecha).toLocaleDateString()}</td>
-            <td class="px-4 py-3 text-center w-40">
-                <span class="px-3 py-1 rounded text-[10px] font-black bg-${color}-100 text-${color}-600 whitespace-nowrap inline-block">${label}</span>
+            <td class="px-4 py-3 text-base font-bold text-slate-600 uppercase text-center">${new Date(m.fecha).toLocaleDateString()}</td>
+            <td class="px-4 py-3 text-center w-48">
+                <span class="px-4 py-1.5 rounded text-xs font-black bg-${color}-100 text-${color}-600 whitespace-nowrap inline-block shadow-sm">${label}</span>
             </td>
             <td class="px-4 py-3">
                 <div class="flex flex-col gap-0.5">
-                    <span class="text-sm font-bold text-slate-700 uppercase">${m.descripcion || 'OPERACIÓN'}</span>
-                    ${m.placa && m.placa !== '---' ? `<span class="text-[9px] text-slate-400 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
-                    ${m.cliente_nombre ? `<span class="text-[9px] text-slate-500 font-bold uppercase">CLIENTE: ${m.cliente_nombre}</span>` : ''}
-                    ${m.proveedor_nombre ? `<span class="text-[9px] text-slate-500 font-bold uppercase">PROV: ${m.proveedor_nombre}</span>` : ''}
-                    ${m.empleado_nombre ? `<span class="text-[9px] text-slate-500 font-bold uppercase">EMPLEADO: ${m.empleado_nombre}</span>` : ''}
+                    <span class="text-base font-bold text-slate-800 uppercase leading-tight">${m.descripcion || 'OPERACIÓN'}</span>
+                    ${m.placa && m.placa !== '---' ? `<span class="text-xs text-slate-500 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
+                    ${m.cliente_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">CLIENTE: ${m.cliente_nombre}</span>` : ''}
+                    ${m.proveedor_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">PROV: ${m.proveedor_nombre}</span>` : ''}
+                    ${m.empleado_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">EMPLEADO: ${m.empleado_nombre}</span>` : ''}
                 </div>
             </td>
             <td class="px-4 py-3 text-right w-36">
-                <span class="text-base font-black text-${color}-600 tracking-tight">
+                <span class="text-lg font-black text-${color}-600 tracking-tighter">
                     ${isIngreso ? '+' : '-'}${AppUtils.formatCurrency(Math.abs(parseFloat(m.monto_pagado || 0)))}
                 </span>
             </td>
@@ -97,12 +97,12 @@ window.cargarReporteDetallado = async () => {
             if (contCompras && rawAuditData.compras) {
                 contCompras.innerHTML = (rawAuditData.compras || []).length ? rawAuditData.compras.map(c => `
                     <tr class="hover:bg-slate-50 border-b border-slate-100">
-                        <td class="p-3 text-[10px] font-bold text-slate-400 uppercase">${new Date(c.fecha).toLocaleDateString()}</td>
-                        <td class="p-3 text-xs font-black text-rose-600 uppercase">${c.proveedor}</td>
-                        <td class="p-3 text-xs font-bold text-slate-600 uppercase">${c.descripcion}</td>
-                        <td class="p-3 text-center text-xs font-bold text-slate-500">${c.cantidad}</td>
-                        <td class="p-3 text-right text-xs font-bold text-slate-500">${AppUtils.formatCurrency(c.costo_unitario)}</td>
-                        <td class="p-3 text-right text-sm font-black text-rose-600">${AppUtils.formatCurrency(c.cantidad * c.costo_unitario)}</td>
+                        <td class="p-3 text-xs font-bold text-slate-400 uppercase">${new Date(c.fecha).toLocaleDateString()}</td>
+                        <td class="p-3 text-sm font-black text-rose-600 uppercase">${c.proveedor}</td>
+                        <td class="p-3 text-sm font-bold text-slate-600 uppercase">${c.descripcion}</td>
+                        <td class="p-3 text-center text-sm font-bold text-slate-500">${c.cantidad}</td>
+                        <td class="p-3 text-right text-sm font-bold text-slate-500">${AppUtils.formatCurrency(c.costo_unitario)}</td>
+                        <td class="p-3 text-right text-base font-black text-rose-600">${AppUtils.formatCurrency(c.cantidad * c.costo_unitario)}</td>
                     </tr>`).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">No hay compras registradas</td></tr>';
             }
 
@@ -110,11 +110,11 @@ window.cargarReporteDetallado = async () => {
             if (contGastos && rawAuditData.gastos) {
                 contGastos.innerHTML = (rawAuditData.gastos || []).length ? rawAuditData.gastos.map(g => `
                     <tr class="hover:bg-slate-50 border-b border-slate-100">
-                        <td class="p-3 text-[10px] font-bold text-slate-400 uppercase">${new Date(g.fecha).toLocaleDateString()}</td>
+                        <td class="p-3 text-xs font-bold text-slate-400 uppercase">${new Date(g.fecha).toLocaleDateString()}</td>
                         <td class="p-3"><span class="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-500 uppercase">${g.categoria}</span></td>
-                        <td class="p-3 text-xs font-bold text-slate-700 uppercase">${g.descripcion}</td>
-                        <td class="p-3 text-xs font-bold text-slate-600 uppercase">${g.metodo_pago || 'EFECTIVO'}</td>
-                        <td class="p-3 text-right text-sm font-black text-rose-600">${AppUtils.formatCurrency(g.monto)}</td>
+                        <td class="p-3 text-sm font-bold text-slate-700 uppercase">${g.descripcion}</td>
+                        <td class="p-3 text-sm font-bold text-slate-600 uppercase">${g.metodo_pago || 'EFECTIVO'}</td>
+                        <td class="p-3 text-right text-base font-black text-rose-600">${AppUtils.formatCurrency(g.monto)}</td>
                     </tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400 italic">No hay gastos registrados</td></tr>';
             }
         } else {
