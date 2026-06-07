@@ -163,6 +163,7 @@ CREATE TABLE `table_ordenes_servicio` (
   `observaciones` text,
   `estado` enum('RECIBIDO', 'DIAGNOSTICO', 'EN_REPARACION', 'LISTO', 'ENTREGADO', 'CANCELADO') DEFAULT 'RECIBIDO',
   `fecha_ingreso` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `fecha_entrega_estimada` datetime DEFAULT NULL,
   FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes`(`id`),
   FOREIGN KEY (`placa`) REFERENCES `table_vehiculos`(`placa`),
   FOREIGN KEY (`mecanico_id`) REFERENCES `table_staff`(`id`),

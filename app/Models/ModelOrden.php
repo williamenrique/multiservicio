@@ -7,8 +7,8 @@ class ModelOrden {
     }
 
     public function crear($data) {
-        $this->db->query("INSERT INTO table_ordenes_servicio (cliente_id, placa, mecanico_id, kilometraje, nivel_combustible, diagnostico_entrada, observaciones) 
-                          VALUES (:cid, :placa, :mid, :km, :comb, :diag, :obs)");
+        $this->db->query("INSERT INTO table_ordenes_servicio (cliente_id, placa, mecanico_id, kilometraje, nivel_combustible, diagnostico_entrada, observaciones, fecha_entrega_estimada) 
+                          VALUES (:cid, :placa, :mid, :km, :comb, :diag, :obs, :f_entrega)");
         $this->db->bind(':cid', $data['cliente_id']);
         $this->db->bind(':placa', $data['placa']);
         $this->db->bind(':mid', !empty($data['mecanico_id']) ? $data['mecanico_id'] : null);
@@ -16,6 +16,7 @@ class ModelOrden {
         $this->db->bind(':comb', $data['nivel_combustible']);
         $this->db->bind(':diag', mb_strtoupper($data['observaciones_entrada'] ?? '', 'UTF-8'));
         $this->db->bind(':obs', mb_strtoupper($data['observaciones'] ?? '', 'UTF-8'));
+        $this->db->bind(':f_entrega', !empty($data['fecha_entrega']) ? $data['fecha_entrega'] : null);
         
         if($this->db->execute()) {
             return $this->db->lastInsertId();
@@ -75,7 +76,8 @@ class ModelOrden {
     }
 
     public function obtenerOrdenesActivas() {
-        $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, s.nombre as mecanico_nombre 
+        $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, s.nombre as mecanico_nombre,
+                          TIMESTAMPDIFF(MINUTE, NOW(), os.fecha_entrega_estimada) as minutos_restantes
                           FROM table_ordenes_servicio os
                           INNER JOIN table_vehiculos v ON os.placa = v.placa
                           LEFT JOIN table_staff s ON os.mecanico_id = s.id

@@ -97,6 +97,29 @@ class ControllerTaller extends Controller {
     }
 
     /**
+     * API para obtener alertas de entregas (Tarde/Próximo)
+     */
+    public function obtenerAlertas() {
+        $ordenes = $this->ordenModel->obtenerOrdenesActivas();
+        $alertas = array_filter($ordenes, function($o) {
+            // Filtrar solo las que tienen fecha de entrega y no están listas/entregadas
+            return !empty($o->fecha_entrega_estimada) && !in_array($o->estado, ['LISTO', 'ENTREGADO']);
+        });
+
+        $data = array_map(function($o) {
+            return [
+                'id' => $o->id,
+                'placa' => $o->placa,
+                'tiempo' => $o->minutos_restantes,
+                'es_tarde' => $o->minutos_restantes < 0,
+                'es_proximo' => $o->minutos_restantes >= 0 && $o->minutos_restantes <= 120 // 2 horas
+            ];
+        }, array_values($alertas));
+
+        return $this->jsonResponse(['success' => true, 'alertas' => $data]);
+    }
+
+    /**
      * Genera el PDF de la Orden de Servicio
      */
     public function imprimir($id = null) {

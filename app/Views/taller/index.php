@@ -1,4 +1,7 @@
 <div class="space-y-6">
+    <!-- Contenedor de Alertas Críticas -->
+    <div id="alertasEntrega" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden"></div>
+
     <!-- Encabezado y Buscador -->
     <div class="bg-navy-blue p-6 rounded-xl border border-gray-800 shadow-lg">
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -38,6 +41,7 @@
                         <th class="px-6 py-4 font-bold">Orden #</th>
                         <th class="px-6 py-4 font-bold">Vehículo</th>
                         <th class="px-6 py-4 font-bold">Estado</th>
+                        <th class="px-6 py-4 font-bold text-center">Entrega Estimada</th>
                         <th class="px-6 py-4 font-bold">Mecánico</th>
                         <th class="px-6 py-4 font-bold text-right">Acciones</th>
                     </tr>
@@ -65,6 +69,22 @@
                                 <option value="EN_REPARACION" <?php echo $o->estado == 'EN_REPARACION' ? 'selected' : ''; ?>>EN REPARACIÓN</option>
                                 <option value="LISTO" <?php echo $o->estado == 'LISTO' ? 'selected' : ''; ?>>LISTO PARA ENTREGA</option>
                             </select>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <?php if($o->fecha_entrega_estimada): ?>
+                                <div class="flex flex-col items-center">
+                                    <span class="text-xs font-mono font-bold <?php echo $o->minutos_restantes < 0 ? 'text-rose-500' : ($o->minutos_restantes < 120 ? 'text-amber-500' : 'text-slate-600'); ?>">
+                                        <?php echo date('d/m H:i', strtotime($o->fecha_entrega_estimada)); ?>
+                                    </span>
+                                    <?php if($o->minutos_restantes < 0): ?>
+                                        <span class="text-[9px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded uppercase alert-shake">¡RETRASADO!</span>
+                                    <?php elseif($o->minutos_restantes < 120): ?>
+                                        <span class="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded uppercase animate-pulse">Cerca</span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php else: ?>
+                                <span class="text-slate-300 italic text-xs">Sin fecha</span>
+                            <?php endif; ?>
                         </td>
                         <td class="px-6 py-4 text-sm text-slate-600">
                             <?php if (empty($o->mecanico_nombre)): ?>
