@@ -27,14 +27,13 @@ class ModelVehiculo {
         return $this->db->execute();
     }
 
-    public function obtenerHistorial($vehiculo_id) {
+    public function obtenerHistorial($placa) {
         $this->db->query("SELECT os.*, s.nombre as mecanico_nombre 
                           FROM table_ordenes_servicio os
-                          INNER JOIN table_usuarios u ON os.usuario_id = u.id
-                          INNER JOIN table_staff s ON u.staff_id = s.id
-                          WHERE os.vehiculo_id = :vid 
+                          LEFT JOIN table_staff s ON os.mecanico_id = s.id
+                          WHERE os.placa = :placa 
                           ORDER BY os.fecha_entrada DESC");
-        $this->db->bind(':vid', $vehiculo_id);
+        $this->db->bind(':placa', $placa);
         return $this->db->resultSet();
     }
 

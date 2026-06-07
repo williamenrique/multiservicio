@@ -28,7 +28,7 @@ class ControllerTaller extends Controller {
      */
     public function historial($placa = '') {
         $vehiculo = $this->vehiculoModel->buscarPorPlaca($placa);
-        $historial = $vehiculo ? $this->vehiculoModel->obtenerHistorial($vehiculo->id) : [];
+        $historial = $vehiculo ? $this->vehiculoModel->obtenerHistorial($vehiculo->placa) : [];
 
         $this->view('taller/vehiculos/historial', [
             'titulo' => 'Hoja de Vida: ' . strtoupper($placa),
@@ -44,6 +44,11 @@ class ControllerTaller extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
             
+            // Si el usuario es mecánico, auto-asignarlo como responsable de la orden
+            if ($_SESSION['user_role'] === 'MECANICO') {
+                $input['mecanico_id'] = $_SESSION['user_staff_id'];
+            }
+
             // Lógica: Si el vehículo no existe, se registra primero
             $vehiculo = $this->vehiculoModel->buscarPorPlaca($input['placa']);
             
@@ -53,23 +58,22 @@ class ControllerTaller extends Controller {
                 if (!$clienteModel->obtenerPorId($input['cliente_id'])) {
                     return $this->jsonResponse(['success' => false, 'error' => "El cliente con ID {$input['cliente_id']} no existe. Por favor, regístrelo primero en el módulo de Clientes."], 404);
                 }
-                $vehiculoId = $this->vehiculoModel->registrar($input);
-            } else {
-                $vehiculoId = $vehiculo->id;
+                if (!$this->vehiculoModel->registrar($input)) {
+                    return $this->jsonResponse(['success' => false, 'error' => "Error al registrar el vehículo."]);
+                }
             }
 
-            if ($vehiculoId) {
-                $input['vehiculo_id'] = $vehiculoId;
-                $ordenId = $this->ordenModel->crear($input);
-                
-                if ($ordenId) {
-                    // Guardar Checklist de entrada
-                    if (!empty($input['checklist'])) {
-                        $this->ordenModel->guardarChecklist($ordenId, $input['checklist']);
-                    }
-                    logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
-                    return $this->jsonResponse(['success' => true, 'id' => $ordenId, 'mensaje' => 'Orden creada correctamente']);
+            // En el esquema 2.0 la relación es por PLACA, no por un ID numérico
+            $input['placa'] = strtoupper(trim($input['placa']));
+            $ordenId = $this->ordenModel->crear($input);
+            
+            if ($ordenId) {
+                // Guardar Checklist de entrada
+                if (!empty($input['checklist'])) {
+                    $this->ordenModel->guardarChecklist($ordenId, $input['checklist']);
                 }
+                logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
+                return $this->jsonResponse(['success' => true, 'id' => $ordenId, 'mensaje' => 'Orden creada correctamente']);
             }
             return $this->jsonResponse(['success' => false, 'error' => 'No se pudo crear la orden']);
         }
