@@ -14,10 +14,14 @@ const AppUtils = {
             title,
             text,
             icon,
-            background: '#ffffff',
-            color: '#1e293b',
+            background: '#000000',
+            color: '#ffffff',
             confirmButtonColor: '#39FF14',
-            confirmButtonText: '<span style="color: #000">Aceptar</span>'
+            confirmButtonText: '<span style="color: #000; font-weight: 900; text-transform: uppercase;">Aceptar</span>',
+            customClass: {
+                popup: 'rounded-3xl border border-slate-800 shadow-[0_0_20px_rgba(57,255,20,0.2)]',
+                title: 'text-white'
+            }
         });
     },
 
@@ -36,8 +40,12 @@ const AppUtils = {
                 style: {
                     background: '#000000',
                     color: '#ffffff',
-                    borderRadius: '8px',
-                    fontWeight: 'bold'
+                    borderRadius: '12px',
+                    fontWeight: '900',
+                    fontSize: '13px',
+                    boxShadow: '0 0 20px rgba(57, 255, 20, 0.4)',
+                    border: '1px solid rgba(57, 255, 20, 0.3)',
+                    textTransform: 'uppercase'
                 }
             }).showToast();
         } else {
@@ -49,7 +57,14 @@ const AppUtils = {
                 timer: 3000,
                 timerProgressBar: true,
                 icon: type,
-                title: msg
+                title: msg,
+                background: '#000000',
+                color: '#ffffff',
+                didOpen: (toast) => {
+                    toast.style.borderRadius = "12px";
+                    toast.style.boxShadow = "0 0 20px rgba(57, 255, 20, 0.4)";
+                    toast.style.border = "1px solid rgba(57, 255, 20, 0.2)";
+                }
             });
         }
     },
@@ -69,10 +84,15 @@ const AppUtils = {
             title,
             text,
             icon,
+            background: '#000000',
+            color: '#ffffff',
             showCancelButton: true,
-            confirmButtonColor: confirmColor,
+            confirmButtonColor: confirmColor || '#ef4444',
             confirmButtonText: confirmText,
-            cancelButtonText: cancelText
+            cancelButtonText: cancelText,
+            customClass: {
+                popup: 'rounded-3xl border border-slate-800 shadow-[0_0_20px_rgba(57,255,20,0.2)]'
+            }
         }).then((result) => {
             if (result.isConfirmed) onConfirm();
         });
@@ -103,8 +123,11 @@ const AppUtils = {
             imageAlt: title,
             showCloseButton: true,
             showConfirmButton: false,
-            background: '#ffffff',
-            color: '#1e293b'
+            background: '#000000',
+            color: '#ffffff',
+            customClass: {
+                popup: 'rounded-3xl border border-slate-800 shadow-2xl'
+            }
         });
     },
 
@@ -114,6 +137,8 @@ const AppUtils = {
     showLoading: (msg = 'Cargando...') => {
         Swal.fire({
             title: msg,
+            background: '#000000',
+            color: '#ffffff',
             allowOutsideClick: false,
             showConfirmButton: false,
             didOpen: () => { Swal.showLoading(); }

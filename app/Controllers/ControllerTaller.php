@@ -101,22 +101,44 @@ class ControllerTaller extends Controller {
      */
     public function obtenerAlertas() {
         $ordenes = $this->ordenModel->obtenerOrdenesActivas();
-        $alertas = array_filter($ordenes, function($o) {
-            // Filtrar solo las que tienen fecha de entrega y no están listas/entregadas
-            return !empty($o->fecha_entrega_estimada) && !in_array($o->estado, ['LISTO', 'ENTREGADO']);
-        });
+        
+        $alertas = [];
+        $sinMecanico = [];
 
-        $data = array_map(function($o) {
-            return [
-                'id' => $o->id,
-                'placa' => $o->placa,
-                'tiempo' => $o->minutos_restantes,
-                'es_tarde' => $o->minutos_restantes < 0,
-                'es_proximo' => $o->minutos_restantes >= 0 && $o->minutos_restantes <= 120 // 2 horas
-            ];
-        }, array_values($alertas));
+        foreach ($ordenes as $o) {
+            // 1. Detectar órdenes sin mecánico (Prioridad inmediata para el Admin)
+            if (!isset($o->mecanico_id) || empty($o->mecanico_id)) {
+                $sinMecanico[] = [
+                    'id' => $o->id,
+                    'placa' => $o->placa
+                ];
+                continue; // Si no tiene mecánico, no evaluamos tiempo aún para no duplicar en el badge si no es necesario
+            }
 
-        return $this->jsonResponse(['success' => true, 'alertas' => $data]);
+            // 2. Detectar alertas de tiempo solo para órdenes que NO estén terminadas
+            $estadoActual = strtoupper($o->estado ?? '');
+            if (!empty($o->fecha_entrega_estimada) && !in_array($estadoActual, ['LISTO', 'ENTREGADO', 'CANCELADO'])) {
+                $minutos = isset($o->minutos_restantes) ? (int)$o->minutos_restantes : 0;
+                $esTarde = $minutos < 0;
+                $esProximo = ($minutos >= 0 && $minutos <= 120); // Próximas 2 Horas
+
+                if ($esTarde || $esProximo) {
+                    $alertas[] = [
+                        'id' => $o->id,
+                        'placa' => $o->placa,
+                        'tiempo' => $minutos,
+                        'es_tarde' => $esTarde,
+                        'es_proximo' => $esProximo
+                    ];
+                }
+            }
+        }
+
+        return $this->jsonResponse([
+            'success' => true, 
+            'alertas' => $alertas,
+            'sin_mecanico' => $sinMecanico
+        ]);
     }
 
     /**
