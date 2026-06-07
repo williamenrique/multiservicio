@@ -24,7 +24,7 @@ window.renderFlujoRow = (m) => {
             <td class="px-4 py-3">
                 <div class="flex flex-col gap-0.5">
                     <span class="text-base font-bold text-slate-800 uppercase leading-tight">${m.descripcion || 'OPERACIÓN'}</span>
-                    ${m.placa && m.placa !== '---' ? `<span class="text-xs text-slate-500 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
+                    ${m.placa && m.placa !== '---' ? `<span class="text-xs text-slate-600 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
                     ${m.cliente_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">CLIENTE: ${m.cliente_nombre}</span>` : ''}
                     ${m.proveedor_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">PROV: ${m.proveedor_nombre}</span>` : ''}
                     ${m.empleado_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">EMPLEADO: ${m.empleado_nombre}</span>` : ''}

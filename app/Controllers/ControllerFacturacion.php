@@ -2,14 +2,12 @@
 class ControllerFacturacion extends Controller {
     private $facturaModel;
     private $empresaModel;
-    private $cajaModel;
     private $billingService;
 
     public function __construct() {
         AuthGuard::handle();
         $this->facturaModel = $this->model('Facturacion');
         $this->empresaModel = $this->model('Empresa');
-        $this->cajaModel = $this->model('Caja');
         $this->billingService = new BillingService();
     }
 
