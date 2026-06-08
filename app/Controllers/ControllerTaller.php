@@ -142,15 +142,16 @@ class ControllerTaller extends Controller {
             }
 
             foreach ($itemsArr as $item) {
+                $esProducto = (strtoupper($item['tipo'] ?? '') === 'PRODUCTO');
                 $db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
                             VALUES (:fid, :pid, :mid, :desc, :cant, :pre, :costo)");
                 $db->bind(':fid', $ventaId);
-                $db->bind(':pid', (strtoupper($item['tipo'] ?? '') === 'PRODUCTO') ? $item['id'] : null);
+                $db->bind(':pid', $esProducto ? $item['id'] : null);
                 $db->bind(':mid', $input['mecanico_id'] ?? null);
                 $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
                 $db->bind(':cant', $item['cantidad']);
                 $db->bind(':pre', $item['precio']);
-                $db->bind(':costo', ($item['tipo'] === 'PRODUCTO') ? ($item['costo_promedio'] ?? 0) : 0);
+                $db->bind(':costo', $esProducto ? ($item['costo_promedio'] ?? $item['costo'] ?? 0) : 0);
                 $db->execute();
             }
         } catch (Exception $e) {
@@ -227,6 +228,24 @@ class ControllerTaller extends Controller {
     public function obtenerChecklist($id) {
         $checklist = $this->ordenModel->obtenerChecklist($id);
         return $this->jsonResponse(['success' => true, 'data' => $checklist]);
+    }
+
+    /**
+     * Procesa el cambio de estado de una orden desde la tabla (AJAX)
+     */
+    public function cambiarEstado() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            if (empty($input['id']) || empty($input['estado'])) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Datos incompletos'], 400);
+            }
+
+            if ($this->ordenModel->actualizarEstado($input['id'], $input['estado'], 'Cambio de estado desde el panel de taller')) {
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Estado actualizado correctamente']);
+            }
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al actualizar el estado']);
+        }
     }
 
     /**

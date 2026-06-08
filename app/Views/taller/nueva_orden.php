@@ -190,7 +190,25 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
         
         if (res.success) {
             AppUtils.showToast(res.mensaje, 'success');
-            setTimeout(() => window.location.href = `${URLROOT}/taller`, 1500);
+            
+            // Mejora: Limpiar formulario y resetear interfaz sin redirigir
+            this.reset();
+            
+            // Limpiar checklist
+            const container = document.getElementById('checklist-container');
+            if(container) container.innerHTML = '<div class="text-center py-4 text-slate-400 text-xs italic" id="empty-checklist-msg">No hay items agregados</div>';
+            
+            // Resetear estilos de cliente
+            const inputNombre = document.getElementById('cliente_nombre');
+            if(inputNombre) {
+                inputNombre.value = '';
+                inputNombre.classList.remove('bg-green-50');
+                inputNombre.classList.add('bg-slate-100');
+            }
+
+            // Re-habilitar botón
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalContent;
         } else {
             AppUtils.showToast(res.error || 'Error al guardar', 'error');
             // Re-habilitar el botón en caso de error del servidor

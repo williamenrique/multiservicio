@@ -181,6 +181,20 @@ CREATE TABLE `table_orden_checklist` (
   FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Historial de estados de la orden
+CREATE TABLE `table_orden_estados_log` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `orden_id` int(11) NOT NULL,
+  `estado_anterior` varchar(50),
+  `estado_nuevo` varchar(50) NOT NULL,
+  `usuario_id` int(11),
+  `comentario` text,
+  `fecha` timestamp DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
 -- =============================================================================
 -- BLOQUE 5: FINANZAS Y FACTURACION (CONTABLE)
 -- =============================================================================

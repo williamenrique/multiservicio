@@ -127,8 +127,11 @@ function buscarHistorial() {
 async function cambiarEstado(id, estado) {
     try {
         const response = await fetch(`${URLROOT}/taller/cambiarEstado`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', // Aseguramos que sea POST
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF_TOKEN // Añadimos el token CSRF aquí
+            },
             body: JSON.stringify({ id, estado })
         });
         const result = await response.json();
