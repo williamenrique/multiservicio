@@ -98,6 +98,17 @@ class ControllerFacturacion extends Controller {
 
                 $ventaId = $this->billingService->procesarVentaCompleta($datos, $_SESSION['user_id']);
 
+                // TRANSICIÓN DE ESTADO: Solo si la venta se completó (o se generó el crédito),
+                // procedemos a marcar la Orden de Servicio como ENTREGADO para permitir la salida del vehículo.
+                if (!empty($datos['orden_id'])) {
+                    $db = new Database();
+                    $db->query("UPDATE table_ordenes_servicio SET estado = 'ENTREGADO', fecha_entrega_real = NOW() WHERE id = :oid");
+                    $db->bind(':oid', $datos['orden_id']);
+                    $db->execute();
+                    
+                    logAction('TALLER', 'FINALIZAR_ORDEN', "O.S. #{$datos['orden_id']} marcada como ENTREGADA mediante Factura #{$ventaId}");
+                }
+
                 return $this->jsonResponse([
                     'success' => true,
                     'mensaje' => 'Venta realizada con éxito',

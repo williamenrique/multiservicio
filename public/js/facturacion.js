@@ -177,12 +177,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const initNewInvoice = async (forceSave = false) => {
-        // 1. Limpiar inputs físicamente ANTES de crear el objeto para no heredar datos
-        inputPlaca.value = '';
-        inputModelo.value = '';
-        inputCliente.value = '';
+        // Detectar datos inyectados por PHP (desde Orden de Servicio) antes de cualquier limpieza
+        const domPlaca = inputPlaca.value;
+        const domModelo = inputModelo.value;
+        const domClienteId = inputCliente.value;
+        const domClienteNombre = clientSearchInput ? clientSearchInput.value : '';
+        const domMecanicoId = inputMecanico.value;
+        const domObservaciones = document.getElementById('pos-observaciones')?.value || '';
+
+        // 1. Solo limpiar inputs físicamente si es una factura nueva manual (clic en "Nueva Factura")
+        if (forceSave) {
+            inputPlaca.value = '';
+            inputModelo.value = '';
+            inputCliente.value = '';
+            if (clientSearchInput) clientSearchInput.value = '';
+            const obsField = document.getElementById('pos-observaciones');
+            if (obsField) obsField.value = '';
+        }
+
         selectedItemFromSearch = null;
-        searchInput.value = '';
+        if (searchInput) searchInput.value = '';
 
         const userName = currentLoggedInUser ? currentLoggedInUser.staffName : '---';
         const isMechanic = currentLoggedInUser && (parseInt(currentLoggedInUser.roleId) === 2 || currentLoggedInUser.role.toUpperCase() === 'MECANICO');
@@ -194,11 +208,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const invData = {
             id: 'PROV-' + Math.floor(Math.random() * 9000 + 1000),
             id_db: null,
-            orden_id: ordenIdFromDom,
-            placa: inputPlaca.value || '',
-            modelo: inputModelo.value || '',
-            cliente_id: '',
-            mecanico_id: isMechanic ? staffId : '',
+            orden_id: forceSave ? null : ordenIdFromDom,
+            placa: forceSave ? '' : domPlaca,
+            modelo: forceSave ? '' : domModelo,
+            cliente_id: forceSave ? '' : domClienteId,
+            mecanico_id: forceSave ? (isMechanic ? staffId : '') : (domMecanicoId || (isMechanic ? staffId : '')),
             iva_activo: false,
             pago_efectivo: 0,
             pago_transferencia: 0,
@@ -206,9 +220,9 @@ document.addEventListener('DOMContentLoaded', () => {
             items: [],
             usuario_id: currentLoggedInUser ? currentLoggedInUser.id : null,
             usuario_nombre: userName,
-            cliente_nombre: '',
-            tipo_procedencia: ordenIdFromDom ? 'TALLER' : 'MOSTRADOR',
-            observaciones: document.getElementById('pos-observaciones')?.value || ''
+            cliente_nombre: forceSave ? '' : domClienteNombre,
+            tipo_procedencia: (forceSave || !ordenIdFromDom) ? 'MOSTRADOR' : 'TALLER',
+            observaciones: forceSave ? '' : domObservaciones
         };
 
         // Si no es un guardado forzado (clic en "Nueva Factura"), solo creamos el objeto localmente.
@@ -481,6 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
             inv.modelo = inputModelo.value.trim();
             inv.mecanico_id = inputMecanico.value;
             inv.cliente_id = inputCliente.value;
+            inv.cliente_nombre = clientSearchInput ? clientSearchInput.value : '';
             inv.observaciones = document.getElementById('pos-observaciones')?.value || '';
             inv.orden_id = displayFacturaId.dataset.ordenId || null;
         }
@@ -623,6 +638,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeInvoice) return;
 
         displayFacturaId.textContent = activeInvoice.id;
+        // Sincronizar el orden_id en el DOM para asegurar que el proceso final use el ID correcto
+        displayFacturaId.dataset.ordenId = activeInvoice.orden_id || '';
+
         inputPlaca.value = activeInvoice.placa;
         inputModelo.value = activeInvoice.modelo;
         inputMecanico.value = activeInvoice.mecanico_id || '';
@@ -740,6 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.modelo = inputModelo.value;
             activeInvoice.cliente_id = inputCliente.value;
             activeInvoice.mecanico_id = inputMecanico.value;
+            activeInvoice.cliente_nombre = clientSearchInput ? clientSearchInput.value : '';
             activeInvoice.observaciones = document.getElementById('pos-observaciones')?.value || '';
             activeInvoice.orden_id = displayFacturaId.dataset.ordenId || null;
 
@@ -884,24 +903,28 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function verificarOrdenInicial() {
         const urlParams = new URLSearchParams(window.location.search);
-        const ordenId = urlParams.get('orden_id');
+        const ordenId = urlParams.get('orden_id') || displayFacturaId.dataset.ordenId;
 
         if (ordenId) {
+            // Notificamos inmediatamente que la integración con el taller fue exitosa
+            AppUtils.showToast('ORDEN LISTA PARA FACTURAR', 'success');
+
             try {
-                AppUtils.showLoading('Cargando datos de la Orden #' + ordenId);
                 const resp = await fetch(`${URLROOT}/facturacion/obtenerPorOrden/${ordenId}`);
+
+                // Si el servidor responde 404 o error, significa que no hay borrador previo.
+                // En este caso, no hacemos nada y dejamos que initNewInvoice use los datos del DOM.
+                if (!resp.ok) return;
+
                 const res = await resp.json();
-                AppUtils.hideLoading();
 
                 if (res.success && res.data) {
                     // Al detectar la orden, seleccionamos automáticamente su borrador en el POS
                     activeInvoiceId = 'FAC-' + String(res.data.id).padStart(3, '0');
                     await loadInvoicesFromServer(); // Sincronizar para asegurar visibilidad inmediata
-                    AppUtils.showToast('Orden cargada correctamente');
                 }
             } catch (e) {
                 console.error("Error al cargar orden inicial:", e);
-                AppUtils.hideLoading();
             }
         }
     }
