@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const initNewInvoice = async (forceSave = false) => {
-        // Detectar datos inyectados por PHP (desde Orden de Servicio) antes de cualquier limpieza
+        // Capturar datos inyectados por PHP (Orden de Servicio) antes de limpiar nada
         const domPlaca = inputPlaca.value;
         const domModelo = inputModelo.value;
         const domClienteId = inputCliente.value;
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const domMecanicoId = inputMecanico.value;
         const domObservaciones = document.getElementById('pos-observaciones')?.value || '';
 
-        // 1. Solo limpiar inputs físicamente si es una factura nueva manual (clic en "Nueva Factura")
+        // Solo limpiar inputs si es una factura nueva manual, no si viene de una orden cargada
         if (forceSave) {
             inputPlaca.value = '';
             inputModelo.value = '';
@@ -495,7 +495,6 @@ document.addEventListener('DOMContentLoaded', () => {
             inv.modelo = inputModelo.value.trim();
             inv.mecanico_id = inputMecanico.value;
             inv.cliente_id = inputCliente.value;
-            inv.cliente_nombre = clientSearchInput ? clientSearchInput.value : '';
             inv.observaciones = document.getElementById('pos-observaciones')?.value || '';
             inv.orden_id = displayFacturaId.dataset.ordenId || null;
         }
@@ -638,9 +637,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeInvoice) return;
 
         displayFacturaId.textContent = activeInvoice.id;
-        // Sincronizar el orden_id en el DOM para asegurar que el proceso final use el ID correcto
-        displayFacturaId.dataset.ordenId = activeInvoice.orden_id || '';
-
         inputPlaca.value = activeInvoice.placa;
         inputModelo.value = activeInvoice.modelo;
         inputMecanico.value = activeInvoice.mecanico_id || '';
@@ -662,7 +658,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         inputCliente.value = activeInvoice.cliente_id || '';
 
-        if (clientSearchInput) {
+        // SOLO sobreescribir el nombre del cliente si el objeto tiene uno válido 
+        // o si el campo está vacío, para evitar borrar lo que PHP cargó inicialmente.
+        if (clientSearchInput && (activeInvoice.cliente_nombre || clientSearchInput.value === '')) {
             clientSearchInput.value = activeInvoice.cliente_nombre || '';
         }
 
@@ -758,7 +756,6 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.modelo = inputModelo.value;
             activeInvoice.cliente_id = inputCliente.value;
             activeInvoice.mecanico_id = inputMecanico.value;
-            activeInvoice.cliente_nombre = clientSearchInput ? clientSearchInput.value : '';
             activeInvoice.observaciones = document.getElementById('pos-observaciones')?.value || '';
             activeInvoice.orden_id = displayFacturaId.dataset.ordenId || null;
 

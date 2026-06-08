@@ -175,7 +175,7 @@ class ModelFacturacion {
             $this->db->bind(':ptra', $datos['pago_transferencia']);
             $this->db->bind(':spend', $totales['saldo']);
             $this->db->bind(':status', $status);
-            $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? '', 'UTF-8'));
+            $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? ($datos['diagnostico_entrada'] ?? ''), 'UTF-8'));
             $this->db->execute();
             return $ventaId ?: $this->db->lastInsertId();
         } catch (Exception $e) {

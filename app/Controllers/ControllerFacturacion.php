@@ -28,6 +28,8 @@ class ControllerFacturacion extends Controller {
             $ordenModel = $this->model('Orden');
             $orden = $ordenModel->obtenerDetalleOrden($_GET['orden_id']);
             if ($orden) {
+                // Asegurar que el ID del cliente sea una cadena limpia para el selector
+                $orden->cliente_id = trim($orden->cliente_id);
                 $data['orden'] = $orden;
             }
         }

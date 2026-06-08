@@ -1,3 +1,8 @@
+ALTER TABLE table_facturas 
+ADD COLUMN observaciones TEXT NULL AFTER status;
+ALTER TABLE table_ordenes_servicio 
+ADD COLUMN fecha_entrega_real datetime DEFAULT NULL AFTER fecha_entrega_estimada;
+
 revisar orden de servicio 
 1- no guarda item
 2- no se puede ver detaller de orden
