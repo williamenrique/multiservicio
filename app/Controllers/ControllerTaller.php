@@ -84,6 +84,46 @@ class ControllerTaller extends Controller {
     }
 
     /**
+     * API para obtener el detalle completo de una orden (AJAX)
+     */
+    public function obtenerDetalle($id) {
+        $orden = $this->ordenModel->obtenerDetalleOrden($id);
+        if (!$orden) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Orden no encontrada'], 404);
+        }
+        
+        $reportModel = $this->model('Reportes');
+        $staff = $reportModel->obtenerStaffSimple();
+
+        return $this->jsonResponse([
+            'success' => true, 
+            'data' => $orden,
+            'staff' => $staff
+        ]);
+    }
+
+    /**
+     * API para asignar o cambiar el mecánico de una orden
+     */
+    public function asignarMecanico() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            if (empty($input['id'])) {
+                return $this->jsonResponse(['success' => false, 'error' => 'ID de orden requerido'], 400);
+            }
+
+            $res = $this->ordenModel->actualizarMecanico($input['id'], $input['mecanico_id'] ?: null);
+            
+            if ($res) {
+                logAction('TALLER', 'UPDATE_MECHANIC', "Se actualizó el mecánico de la O.S. #{$input['id']}");
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Asignación actualizada correctamente']);
+            }
+            return $this->jsonResponse(['success' => false, 'error' => 'Error al actualizar la asignación']);
+        }
+    }
+
+    /**
      * Actualiza el estado del ciclo de vida (API)
      */
     public function cambiarEstado() {
