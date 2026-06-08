@@ -107,9 +107,11 @@
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end gap-1">
                                 <?php if($o->estado == 'LISTO'): ?>
-                                    <button onclick="entregarVehiculo(<?php echo $o->id; ?>)" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all" title="Marcar como Entregado">
-                                        <i data-lucide="check-square" class="w-5 h-5"></i>
-                                    </button>
+                                    <?php if ($o->factura_status !== 'PENDIENTE'): ?>
+                                        <button onclick="entregarVehiculo(<?php echo $o->id; ?>)" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all" title="Confirmar Entrega Técnica">
+                                            <i data-lucide="check-square" class="w-5 h-5"></i>
+                                        </button>
+                                    <?php endif; ?>
                                     <?php if (!empty($o->mecanico_id)): ?>
                                         <a href="<?php echo URLROOT; ?>/facturacion?orden_id=<?php echo $o->id; ?>" class="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-all" title="Facturar Orden">
                                             <i data-lucide="receipt" class="w-5 h-5"></i>

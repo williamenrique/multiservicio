@@ -25,9 +25,11 @@ class ModelReportes {
                            ELSE 'rose' 
                        END as tipo_color,
                        CASE 
-                           WHEN t.categoria = 'VENTA' AND f.orden_id IS NULL AND f.placa IS NULL THEN 'VENTA MOSTRADOR'
+                           WHEN t.categoria = 'VENTA' AND f.orden_id IS NOT NULL THEN CONCAT('VENTA O.S. #', f.orden_id)
+                           WHEN t.categoria = 'VENTA' AND f.placa IS NULL THEN 'VENTA MOSTRADOR'
                            WHEN t.categoria = 'VENTA' THEN 'VENTA SERVICIO'
-                           WHEN t.categoria = 'ABONO_CLIENTE' AND f.orden_id IS NULL AND f.placa IS NULL THEN 'ABONO MOSTRADOR'
+                           WHEN t.categoria = 'ABONO_CLIENTE' AND f.orden_id IS NOT NULL THEN CONCAT('ABONO O.S. #', f.orden_id)
+                           WHEN t.categoria = 'ABONO_CLIENTE' AND f.placa IS NULL THEN 'ABONO MOSTRADOR'
                            WHEN t.categoria = 'ABONO_CLIENTE' THEN 'ABONO SERVICIO'
                            WHEN t.categoria = 'GASTO' THEN 'GASTO TALLER'
                            WHEN t.categoria = 'COMPRA_PROVEEDOR' THEN 'COMPRA REPUESTOS'

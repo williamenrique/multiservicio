@@ -96,7 +96,8 @@ class ModelOrden {
 
     public function obtenerOrdenesActivas() {
         $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, s.nombre as mecanico_nombre,
-                          TIMESTAMPDIFF(MINUTE, NOW(), os.fecha_entrega_estimada) as minutos_restantes
+                          TIMESTAMPDIFF(MINUTE, NOW(), os.fecha_entrega_estimada) as minutos_restantes,
+                          (SELECT status FROM table_facturas WHERE orden_id = os.id AND status != 'ANULADO' ORDER BY id DESC LIMIT 1) as factura_status
                           FROM table_ordenes_servicio os
                           INNER JOIN table_vehiculos v ON os.placa = v.placa
                           LEFT JOIN table_staff s ON os.mecanico_id = s.id
