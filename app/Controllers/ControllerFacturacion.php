@@ -47,6 +47,19 @@ class ControllerFacturacion extends Controller {
     }
 
     /**
+     * API para obtener un borrador por ID de Orden (AJAX)
+     */
+    public function obtenerPorOrden($id) {
+        try {
+            $borrador = $this->facturaModel->obtenerBorradorPorOrden($id);
+            if (!$borrador) return $this->jsonResponse(['success' => false, 'mensaje' => 'No hay borrador para esta orden'], 404);
+            return $this->jsonResponse(['success' => true, 'data' => $borrador]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Procesa el guardado de la venta
      */
     public function procesar() {

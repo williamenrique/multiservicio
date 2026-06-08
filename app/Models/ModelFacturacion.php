@@ -100,6 +100,45 @@ class ModelFacturacion {
     }
 
     /**
+     * Busca un borrador pendiente vinculado a una Orden de Servicio específica.
+     */
+    public function obtenerBorradorPorOrden($ordenId) {
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
+                                 COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                                 os.mecanico_id
+                          FROM table_facturas v 
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.orden_id = :oid AND v.status = 'PENDIENTE' LIMIT 1");
+        $this->db->bind(':oid', $ordenId);
+        $venta = $this->db->single();
+
+        if ($venta) {
+            $this->db->query("SELECT vd.*, i.id as prod_id
+                              FROM table_facturas_detalle vd 
+                              LEFT JOIN table_inventario i ON vd.producto_id = i.id
+                              WHERE vd.factura_id = :vid");
+            $this->db->bind(':vid', $venta->id);
+            $items = $this->db->resultSet();
+            
+            // Mapeo al formato que el POS de facturacion.js requiere
+            $venta->items = array_map(function($it) {
+                return [
+                    'id' => $it->producto_id,
+                    'nombre' => $it->descripcion,
+                    'precio' => (float)$it->precio_unitario,
+                    'costo_promedio' => (float)($it->costo_unitario ?? 0),
+                    'cantidad' => (int)$it->cantidad,
+                    'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO',
+                    'temp_id' => bin2hex(random_bytes(4)) // ID único para el manejo en el DOM del POS
+                ];
+            }, $items);
+        }
+        return $venta;
+    }
+
+    /**
      * Registra o actualiza la cabecera de una venta.
      * Los cálculos deben venir ya procesados desde el BillingService.
      * @param array $datos Datos de la venta
