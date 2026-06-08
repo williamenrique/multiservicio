@@ -1,3 +1,11 @@
+revisar orden de servicio 
+1- no guarda item
+2- no se puede ver detaller de orden
+3- no se le puede asignar mecanico a la orden de Servicio
+4- ejecutar la tabla de orden de servicio
+
+Despues de todo este funcionando empezar con los PDF reestructurados para adaptarlo al 2.0
+
 
 C. Experiencia del Cliente (Fidelización)
 Notificaciones Automáticas vía WhatsApp/Email: Integrar una API para notificar al cliente automáticamente cuando su vehículo pase de "En Reparación" a "Listo para Entrega".
