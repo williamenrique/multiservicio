@@ -1163,6 +1163,16 @@ window.verDetalleOrdenTaller = async (id) => {
         // Usar variables globales del header para mayor rapidez y fiabilidad
         const isAdmin = (parseInt(window.USER_ROLE_ID || 0) === 1 || (window.USER_ROLE || "").toUpperCase() === 'ADMINISTRADOR');
 
+        // Mapeo de colores para el badge de estado en el detalle
+        const statusColors = {
+            'RECIBIDO': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+            'DIAGNOSTICANDO': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+            'EN_REPARACION': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+            'LISTO': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+            'ENTREGADO': 'bg-navy-blue/10 text-navy-blue border-navy-blue/20'
+        };
+        const statusClass = statusColors[orden.estado] || 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+
         const { value: formValues } = await Swal.fire({
             title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Gestión Operativa</span><br><span class="text-white">ORDEN #${orden.id}</span>`,
             html: `
@@ -1174,7 +1184,7 @@ window.verDetalleOrdenTaller = async (id) => {
                         </div>
                         <div class="space-y-1 text-right">
                             <p class="text-[9px] font-black text-slate-500 uppercase">Estado</p>
-                            <span class="px-2 py-0.5 rounded text-[9px] font-black bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase">${orden.estado}</span>
+                            <span class="px-2 py-1 rounded text-[10px] font-black border uppercase ${statusClass}">${orden.estado}</span>
                         </div>
                         <div class="col-span-2 space-y-1">
                             <p class="text-[9px] font-black text-slate-500 uppercase">Cliente / Propietario</p>

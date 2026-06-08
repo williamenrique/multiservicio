@@ -62,8 +62,13 @@
                             </div>
                         </td>
                         <td class="px-6 py-4">
-                            <select onchange="cambiarEstado(<?php echo $o->id; ?>, this.value)" 
-                                    class="text-xs border rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-neon-green outline-none">
+                            <select onchange="cambiarEstado(<?php echo $o->id; ?>, this)" 
+                                    class="status-select text-[10px] font-bold border rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-neon-green outline-none transition-all <?php 
+                                        echo $o->estado == 'RECIBIDO' ? 'text-slate-500 border-slate-200' : 
+                                            ($o->estado == 'DIAGNOSTICANDO' ? 'text-amber-600 border-amber-200' : 
+                                            ($o->estado == 'EN_REPARACION' ? 'text-blue-600 border-blue-200' : 
+                                            ($o->estado == 'LISTO' ? 'text-emerald-600 border-emerald-400' : ''))); 
+                                    ?>">
                                 <option value="RECIBIDO" <?php echo $o->estado == 'RECIBIDO' ? 'selected' : ''; ?>>RECIBIDO</option>
                                 <option value="DIAGNOSTICANDO" <?php echo $o->estado == 'DIAGNOSTICANDO' ? 'selected' : ''; ?>>DIAGNOSTICANDO</option>
                                 <option value="EN_REPARACION" <?php echo $o->estado == 'EN_REPARACION' ? 'selected' : ''; ?>>EN REPARACIÓN</option>
@@ -124,7 +129,8 @@ function buscarHistorial() {
 /**
  * Actualiza el estado de la orden en la base de datos
  */
-async function cambiarEstado(id, estado) {
+async function cambiarEstado(id, selectEl) {
+    const estado = selectEl.value;
     try {
         const response = await fetch(`${URLROOT}/taller/cambiarEstado`, {
             method: 'POST', // Aseguramos que sea POST
@@ -138,6 +144,18 @@ async function cambiarEstado(id, estado) {
         
         if (result.success) {
             AppUtils.showToast(result.mensaje, 'success');
+            
+            // Actualizar colores dinámicamente
+            selectEl.classList.remove('text-slate-500', 'text-amber-600', 'text-blue-600', 'text-emerald-600', 'border-slate-200', 'border-amber-200', 'border-blue-200', 'border-emerald-400');
+            
+            const colors = {
+                'RECIBIDO': ['text-slate-500', 'border-slate-200'],
+                'DIAGNOSTICANDO': ['text-amber-600', 'border-amber-200'],
+                'EN_REPARACION': ['text-blue-600', 'border-blue-200'],
+                'LISTO': ['text-emerald-600', 'border-emerald-400']
+            };
+            
+            if (colors[estado]) selectEl.classList.add(...colors[estado]);
         } else {
             AppUtils.showToast(result.mensaje || 'Error al actualizar', 'error');
         }
