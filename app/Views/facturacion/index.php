@@ -20,11 +20,11 @@
             <div class="glass-card p-6 rounded-xl space-y-4 relative z-30">
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Descripción / Vehículo</label>
-                    <input type="text" id="pos-modelo" placeholder="Ej: CORSA BLANCO" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-sm">
+                    <input type="text" id="pos-modelo" placeholder="Ej: CORSA BLANCO" value="<?php echo isset($data['orden']) ? $data['orden']->marca . ' ' . $data['orden']->modelo : ''; ?>" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-sm">
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Placa</label>
-                    <input type="text" id="pos-placa" placeholder="EJ: ABC123" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-sm">
+                    <input type="text" id="pos-placa" placeholder="EJ: ABC123" value="<?php echo $data['orden']->placa ?? ''; ?>" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-sm">
                 </div>
                 <div class="<?php echo ($data['user_role'] === 'MECANICO') ? 'hidden' : ''; ?>">
                     <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Mecánico Responsable</label>
@@ -32,7 +32,11 @@
                         <?php echo ($data['user_role'] !== 'ADMINISTRADOR') ? 'disabled' : ''; ?>>
                         <option value="" disabled selected>-- SELECCIONAR MECÁNICO --</option>
                         <?php foreach ($data['staff'] as $m): ?>
-                            <option value="<?php echo $m->id; ?>" <?php echo ($data['user_staff_id'] == $m->id) ? 'selected' : ''; ?>>
+                            <?php 
+                                $isSelected = (isset($data['orden']) && $data['orden']->mecanico_id == $m->id) || 
+                                              (!isset($data['orden']) && $data['user_staff_id'] == $m->id);
+                            ?>
+                            <option value="<?php echo $m->id; ?>" <?php echo $isSelected ? 'selected' : ''; ?>>
                                 <?php echo $m->nombre; ?> (<?php echo $m->cargo; ?>)
                             </option>
                         <?php endforeach; ?>
@@ -48,11 +52,14 @@
                     <div class="relative">
                         <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-300 w-4 h-4"></i>
                         <input type="text" id="pos-client-search" placeholder="Escriba para buscar..." 
+                               value="<?php echo $data['orden']->cliente_nombre ?? ''; ?>"
                                class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-neon-green outline-none shadow-sm transition-all uppercase">
                     </div>
                     <div id="pos-client-results" class="absolute z-[110] left-0 right-0 mt-1 bg-white border border-slate-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto hidden"></div>
                     <select id="pos-cliente-id" class="hidden">
-                        <option value="">SIN CLIENTE</option>
+                        <?php if(isset($data['orden'])): ?>
+                            <option value="<?php echo $data['orden']->cliente_id; ?>" selected><?php echo $data['orden']->cliente_nombre; ?></option>
+                        <?php endif; ?>
                     </select>
                 </div>
             </div>
@@ -105,10 +112,10 @@
                         <h3 class="text-sm font-black text-navy-blue uppercase flex items-center gap-2">
                             <i data-lucide="file-text"></i> Detalle de Factura
                         </h3>
-                        <span class="text-[11px] text-slate-400 font-bold uppercase">Responsable: <span id="pos-user-name" class="text-navy-blue">---</span></span>
+                        <span class="text-[11px] text-slate-400 font-bold uppercase">Responsable: <span id="pos-user-name" class="text-navy-blue"><?php echo $data['orden']->mecanico_nombre ?? '---'; ?></span></span>
                     </div>
                     <span class="text-xs font-mono font-bold bg-navy-blue text-white px-2 py-1 rounded">
-                        ID: <span id="pos-factura-id">---</span>
+                        ID: <span id="pos-factura-id"><?php echo isset($data['orden']) ? 'OS-' . $data['orden']->id : '---'; ?></span>
                     </span>
                 </div>
 

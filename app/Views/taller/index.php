@@ -110,9 +110,15 @@
                                     <button onclick="entregarVehiculo(<?php echo $o->id; ?>)" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all" title="Marcar como Entregado">
                                         <i data-lucide="check-square" class="w-5 h-5"></i>
                                     </button>
-                                    <a href="<?php echo URLROOT; ?>/facturacion?orden_id=<?php echo $o->id; ?>" class="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-all" title="Facturar Orden">
-                                        <i data-lucide="receipt" class="w-5 h-5"></i>
-                                    </a>
+                                    <?php if (!empty($o->mecanico_id)): ?>
+                                        <a href="<?php echo URLROOT; ?>/facturacion?orden_id=<?php echo $o->id; ?>" class="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-all" title="Facturar Orden">
+                                            <i data-lucide="receipt" class="w-5 h-5"></i>
+                                        </a>
+                                    <?php else: ?>
+                                        <button onclick="AppUtils.showToast('Debe asignar un mecánico antes de facturar', 'warning')" class="text-slate-300 p-2 rounded-lg cursor-not-allowed" title="Sin Mecánico">
+                                            <i data-lucide="receipt" class="w-5 h-5"></i>
+                                        </button>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                                 <button onclick="verDetalle(<?php echo $o->id; ?>)" class="text-navy-blue hover:bg-slate-100 p-2 rounded-lg transition-all" title="Detalles">
                                     <i data-lucide="external-link" class="w-5 h-5"></i>

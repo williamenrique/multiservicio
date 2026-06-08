@@ -134,6 +134,9 @@ function agregarFilaChecklist() {
     container.appendChild(div);
     if(window.lucide) lucide.createIcons();
     
+    // Autofocus al input de nombre del item para escritura rápida
+    div.querySelector('.checklist-item-name').focus();
+    
     // Hacer scroll al final para ver el nuevo item
     container.scrollTop = container.scrollHeight;
 }
@@ -178,7 +181,7 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
         nivel_combustible: formData.get('nivel_combustible'),
         observaciones_entrada: formData.get('observaciones_entrada'),
         checklist: checklist,
-        items: [] // Aseguramos que items viaje siempre como array, aunque esté vacío
+        items: checklist // Sincronizamos con items para que el controlador procese los detalles de la orden
     };
 
     try {

@@ -117,9 +117,15 @@
                                 <i data-lucide="eye" class="w-4 h-4 mx-auto"></i>
                             </button>
                             <?php if($h->estado === 'LISTO'): ?>
-                                <a href="<?php echo URLROOT; ?>/facturacion?orden_id=<?php echo $h->id; ?>" class="flex-1 md:flex-none bg-emerald-50 text-emerald-600 p-2 rounded-xl hover:bg-emerald-600 hover:text-white transition-all text-center" title="Facturar y Cobrar">
-                                    <i data-lucide="receipt" class="w-4 h-4 mx-auto"></i>
-                                </a>
+                                <?php if (!empty($h->mecanico_id)): ?>
+                                    <a href="<?php echo URLROOT; ?>/facturacion?orden_id=<?php echo $h->id; ?>" class="flex-1 md:flex-none bg-emerald-50 text-emerald-600 p-2 rounded-xl hover:bg-emerald-600 hover:text-white transition-all text-center" title="Facturar y Cobrar">
+                                        <i data-lucide="receipt" class="w-4 h-4 mx-auto"></i>
+                                    </a>
+                                <?php else: ?>
+                                    <button onclick="AppUtils.showToast('Debe asignar un mecánico antes de facturar', 'warning')" class="flex-1 md:flex-none bg-slate-50 text-slate-300 p-2 rounded-xl cursor-not-allowed" title="Sin Mecánico">
+                                        <i data-lucide="receipt" class="w-4 h-4 mx-auto"></i>
+                                    </button>
+                                <?php endif; ?>
                             <?php endif; ?>
                             <button onclick="imprimirOrden(<?php echo $h->id; ?>)" class="flex-1 md:flex-none bg-slate-50 text-slate-400 p-2 rounded-xl hover:text-blue-600 transition-all text-center">
                                 <i data-lucide="printer" class="w-4 h-4 mx-auto"></i>
