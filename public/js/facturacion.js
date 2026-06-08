@@ -188,11 +188,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMechanic = currentLoggedInUser && (parseInt(currentLoggedInUser.roleId) === 2 || currentLoggedInUser.role.toUpperCase() === 'MECANICO');
         const staffId = currentLoggedInUser ? (currentLoggedInUser.staffId || currentLoggedInUser.staff_id) : '';
 
+        // Detectar si hay una Orden de Servicio cargada en el DOM por PHP
+        const ordenIdFromDom = displayFacturaId.dataset.ordenId || null;
+
         const invData = {
             id: 'PROV-' + Math.floor(Math.random() * 9000 + 1000),
             id_db: null,
-            placa: '',
-            modelo: '',
+            orden_id: ordenIdFromDom,
+            placa: inputPlaca.value || '',
+            modelo: inputModelo.value || '',
             cliente_id: '',
             mecanico_id: isMechanic ? staffId : '',
             iva_activo: false,
@@ -203,7 +207,8 @@ document.addEventListener('DOMContentLoaded', () => {
             usuario_id: currentLoggedInUser ? currentLoggedInUser.id : null,
             usuario_nombre: userName,
             cliente_nombre: '',
-            tipo_procedencia: 'MOSTRADOR'
+            tipo_procedencia: ordenIdFromDom ? 'TALLER' : 'MOSTRADOR',
+            observaciones: document.getElementById('pos-observaciones')?.value || ''
         };
 
         // Si no es un guardado forzado (clic en "Nueva Factura"), solo creamos el objeto localmente.
@@ -476,6 +481,8 @@ document.addEventListener('DOMContentLoaded', () => {
             inv.modelo = inputModelo.value.trim();
             inv.mecanico_id = inputMecanico.value;
             inv.cliente_id = inputCliente.value;
+            inv.observaciones = document.getElementById('pos-observaciones')?.value || '';
+            inv.orden_id = displayFacturaId.dataset.ordenId || null;
         }
 
         // Calcular totales para asegurar persistencia de IVA 0 si el switch está apagado
@@ -733,6 +740,8 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.modelo = inputModelo.value;
             activeInvoice.cliente_id = inputCliente.value;
             activeInvoice.mecanico_id = inputMecanico.value;
+            activeInvoice.observaciones = document.getElementById('pos-observaciones')?.value || '';
+            activeInvoice.orden_id = displayFacturaId.dataset.ordenId || null;
 
             // En Venta de Repuestos (sin placa), el mecánico es opcional
             if (activeInvoice.placa && activeInvoice.placa.trim() !== "") {

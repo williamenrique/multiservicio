@@ -155,13 +155,13 @@ class ModelFacturacion {
                                   cliente_id = :cid, orden_id = :oid, placa = :placa, modelo_vehiculo = :modelo,
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
                                   pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
-                                  status = :status
+                                  status = :status, observaciones = :obs
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
             } else {
                 $this->db->query("INSERT INTO table_facturas (cliente_id, orden_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
-                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status) 
-                                  VALUES (:cid, :oid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status)");
+                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status, observaciones) 
+                                  VALUES (:cid, :oid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status, :obs)");
                 $this->db->bind(':uid', $usuarioId);
             }
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
@@ -175,6 +175,7 @@ class ModelFacturacion {
             $this->db->bind(':ptra', $datos['pago_transferencia']);
             $this->db->bind(':spend', $totales['saldo']);
             $this->db->bind(':status', $status);
+            $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? '', 'UTF-8'));
             $this->db->execute();
             return $ventaId ?: $this->db->lastInsertId();
         } catch (Exception $e) {

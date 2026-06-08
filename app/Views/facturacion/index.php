@@ -62,6 +62,11 @@
                         <?php endif; ?>
                     </select>
                 </div>
+                <div class="pt-2 border-t border-slate-100">
+                    <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Observaciones / Detalles del Trabajo</label>
+                    <textarea id="pos-observaciones" rows="3" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-xs font-bold text-navy-blue" 
+                              placeholder="EJ: SE REALIZÓ MANTENIMIENTO PREVENTIVO..."><?php echo isset($data['orden']) ? $data['orden']->diagnostico_entrada : ''; ?></textarea>
+                </div>
             </div>
 
             <!-- Buscador Estilo Select -->
@@ -115,8 +120,13 @@
                         <span class="text-[11px] text-slate-400 font-bold uppercase">Responsable: <span id="pos-user-name" class="text-navy-blue"><?php echo $data['orden']->mecanico_nombre ?? '---'; ?></span></span>
                     </div>
                     <span class="text-xs font-mono font-bold bg-navy-blue text-white px-2 py-1 rounded">
-                        ID: <span id="pos-factura-id"><?php echo isset($data['orden']) ? 'OS-' . $data['orden']->id : '---'; ?></span>
+                        REF: <span id="pos-factura-id" data-orden-id="<?php echo $data['orden']->id ?? ''; ?>"><?php echo isset($data['orden']) ? 'ORDEN #' . $data['orden']->id : 'VENTA DIRECTA'; ?></span>
                     </span>
+                </div>
+
+                <!-- Vista previa de observaciones adicionales -->
+                <div id="pos-obs-preview" class="px-4 py-2 bg-amber-50 border-b border-amber-100 text-[10px] text-amber-800 italic font-medium uppercase hidden">
+                    <span class="font-black">NOTA EN FACTURA:</span> <span id="pos-obs-text"></span>
                 </div>
 
                 <!-- Cuerpo: Lista de Items -->
@@ -202,5 +212,25 @@
             const name = this.options[this.selectedIndex].text.split('(')[0].trim();
             document.getElementById('pos-user-name').innerText = name;
         });
+    }
+
+    // Sincronizar observaciones con la vista previa en la factura
+    const obsInput = document.getElementById('pos-observaciones');
+    const obsPreview = document.getElementById('pos-obs-preview');
+    const obsText = document.getElementById('pos-obs-text');
+
+    function updateObsPreview() {
+        const val = obsInput.value.trim();
+        if (val) {
+            obsText.innerText = val;
+            obsPreview.classList.remove('hidden');
+        } else {
+            obsPreview.classList.add('hidden');
+        }
+    }
+
+    if(obsInput) {
+        obsInput.addEventListener('input', updateObsPreview);
+        updateObsPreview(); // Ejecutar al cargar por si viene de O.S.
     }
 </script>

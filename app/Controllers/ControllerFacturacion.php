@@ -23,6 +23,15 @@ class ControllerFacturacion extends Controller {
             'staff' => $reportModel->obtenerStaffSimple()
         ];
 
+        // Si recibimos una Orden de Servicio, cargamos sus datos para la factura
+        if (isset($_GET['orden_id'])) {
+            $ordenModel = $this->model('Orden');
+            $orden = $ordenModel->obtenerDetalleOrden($_GET['orden_id']);
+            if ($orden) {
+                $data['orden'] = $orden;
+            }
+        }
+
         $this->view('facturacion/index', $data);
     }
 
