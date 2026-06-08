@@ -153,11 +153,14 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
     const checklist = [];
     
     document.querySelectorAll('#checklist-container > div').forEach((row) => {
-        const item = row.querySelector('.checklist-item-name').value.trim();
-        if (item) {
+        // Validación de seguridad: verificamos que el input exista antes de leer su valor
+        const itemInput = row.querySelector('.checklist-item-name');
+        if (itemInput && itemInput.value.trim()) {
+            const item = itemInput.value.trim();
+            const noteInput = row.querySelector('.checklist-item-note');
             checklist.push({
                 item: item,
-                nota: row.querySelector('.checklist-item-note').value.trim()
+                nota: noteInput ? noteInput.value.trim() : ''
             });
         }
     });
@@ -174,7 +177,8 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
         kilometraje: formData.get('kilometraje'),
         nivel_combustible: formData.get('nivel_combustible'),
         observaciones_entrada: formData.get('observaciones_entrada'),
-        checklist: checklist
+        checklist: checklist,
+        items: [] // Aseguramos que items viaje siempre como array, aunque esté vacío
     };
 
     try {
