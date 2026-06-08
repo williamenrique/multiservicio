@@ -12,13 +12,14 @@
                 <p class="text-gray-400">Control de órdenes de servicio y hoja de vida vehicular.</p>
             </div>
             <div class="flex flex-wrap gap-3 w-full md:w-auto">
-                <div class="relative flex-1 md:min-w-[300px]">
-                    <input type="text" id="busquedaPlaca" placeholder="Placa del vehículo..." 
-                           class="w-full bg-slate-900 border border-gray-700 text-white px-4 py-2 rounded-lg focus:ring-2 focus:ring-neon-green outline-none">
+                <div class="relative flex-1 md:min-w-[400px]">
+                    <div class="relative">
+                        <input type="text" id="inputBusquedaTaller" placeholder="Buscar placa, cliente, mecánico u orden..." 
+                               class="w-full bg-slate-900 border border-gray-700 text-white px-10 py-2 rounded-lg focus:ring-2 focus:ring-neon-green outline-none">
+                        <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-500"></i>
+                    </div>
+                    <div id="resultadosTaller" class="absolute top-full left-0 w-full mt-2 bg-white rounded-xl shadow-2xl border border-slate-100 hidden z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"></div>
                 </div>
-                <button onclick="buscarHistorial()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-                    <i data-lucide="search" class="w-4 h-4"></i> Consultar
-                </button>
                 <a href="<?php echo URLROOT; ?>/taller/nuevaOrden" class="bg-neon-green hover:bg-opacity-80 text-navy-blue font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i> NUEVA O.S.
                 </a>
@@ -120,11 +121,52 @@
 </div>
 
 <script>
-function buscarHistorial() {
-    const placa = document.getElementById('busquedaPlaca').value;
-    if(placa) window.location.href = `<?php echo URLROOT; ?>/taller/historial/${placa}`;
-    else AppUtils.showToast('Ingresa una placa', 'warning');
-}
+const inputBusqueda = document.getElementById('inputBusquedaTaller');
+const resultadosContainer = document.getElementById('resultadosTaller');
+let searchTimer;
+
+inputBusqueda.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    const term = inputBusqueda.value.trim();
+
+    if (term.length < 2) {
+        resultadosContainer.classList.add('hidden');
+        return;
+    }
+
+    searchTimer = setTimeout(async () => {
+        try {
+            const resp = await fetch(`${URLROOT}/taller/buscar?q=${encodeURIComponent(term)}`);
+            const data = await resp.json();
+            
+            if (data.success && data.results.length > 0) {
+                resultadosContainer.innerHTML = data.results.map(res => `
+                    <div onclick="window.location.href='${URLROOT}/taller/historial/${res.tipo}/${res.id}'" class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex items-center gap-3 group">
+                        <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-navy-blue group-hover:bg-neon-green transition-colors">
+                            <i data-lucide="${res.icon || 'circle'}" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-black text-navy-blue uppercase">${res.title}</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">${res.subtitle}</p>
+                        </div>
+                    </div>
+                `).join('');
+                resultadosContainer.classList.remove('hidden');
+                if(window.lucide) lucide.createIcons();
+            } else {
+                resultadosContainer.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron coincidencias</div>';
+                resultadosContainer.classList.remove('hidden');
+            }
+        } catch (e) { console.error("Search error", e); }
+    }, 400);
+});
+
+// Cerrar resultados al click fuera
+document.addEventListener('click', (e) => {
+    if (!resultadosContainer.contains(e.target) && e.target !== inputBusqueda) {
+        resultadosContainer.classList.add('hidden');
+    }
+});
 
 /**
  * Actualiza el estado de la orden en la base de datos

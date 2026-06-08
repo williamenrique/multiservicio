@@ -30,15 +30,98 @@ class ControllerTaller extends Controller {
     /**
      * Muestra la hoja de vida de un vehículo por placa
      */
-    public function historial($placa = '') {
-        $vehiculo = $this->vehiculoModel->buscarPorPlaca($placa);
-        $historial = $vehiculo ? $this->vehiculoModel->obtenerHistorial($vehiculo->placa) : [];
+    public function historial($tipo = 'placa', $valor = '') {
+        // Compatibilidad: si solo llega un parámetro, es la placa
+        if (empty($valor)) {
+            $valor = $tipo;
+            $tipo = 'placa';
+        }
 
-        $this->view('taller/vehiculos/historial', [
-            'titulo' => 'Hoja de Vida: ' . strtoupper($placa),
+        $titulo = "Historial";
+        $vehiculo = null;
+        $entidad = null;
+        $historial = [];
+
+        switch (strtoupper($tipo)) {
+            case 'MECANICO':
+                $staffModel = $this->model('Personal');
+                $entidad = $staffModel->obtenerPorId($valor);
+                $historial = $this->ordenModel->obtenerHistorialExtendido('MECANICO', $valor);
+                $titulo = "Órdenes del Técnico: " . ($entidad->nombre ?? 'Desconocido');
+                break;
+
+            case 'CLIENTE':
+                $clienteModel = $this->model('Cliente');
+                $entidad = $clienteModel->obtenerPorId($valor);
+                $historial = $this->ordenModel->obtenerHistorialExtendido('CLIENTE', $valor);
+                $titulo = "Historial del Cliente: " . ($entidad->nombre ?? 'Desconocido');
+                break;
+
+            case 'ORDEN':
+                // Si busca una orden específica, encontramos su placa y mostramos el historial de ese vehículo
+                $db = new Database();
+                $db->query("SELECT placa FROM table_ordenes_servicio WHERE id = :id");
+                $db->bind(':id', $valor);
+                $res = $db->single();
+                if ($res) redirect("taller/historial/placa/{$res->placa}");
+                break;
+
+            default: // PLACA
+                $vehiculo = $this->vehiculoModel->buscarPorPlaca($valor);
+                $historial = $vehiculo ? $this->vehiculoModel->obtenerHistorial($vehiculo->placa) : [];
+                $titulo = "Hoja de Vida: " . strtoupper($valor);
+                break;
+        }
+
+        // CORRECCIÓN: La vista está en taller/historial.php directamente
+        $this->view('taller/historial', [
+            'titulo' => $titulo,
             'vehiculo' => $vehiculo,
-            'historial' => $historial
+            'entidad' => $entidad,
+            'historial' => $historial,
+            'tipo' => strtoupper($tipo)
         ]);
+    }
+
+    /**
+     * API para búsqueda dinámica en el panel de taller (AJAX)
+     */
+    public function buscar() {
+        $term = trim($_GET['q'] ?? '');
+        if (strlen($term) < 2) return $this->jsonResponse(['success' => true, 'results' => []]);
+
+        $db = new Database();
+        $results = [];
+
+        // 1. Buscar Órdenes
+        $db->query("SELECT id, placa FROM table_ordenes_servicio WHERE id LIKE :term OR placa LIKE :term LIMIT 3");
+        $db->bind(':term', "%$term%");
+        foreach($db->resultSet() as $r) {
+            $results[] = ['id' => $r->id, 'tipo' => 'orden', 'title' => "Orden #{$r->id}", 'subtitle' => "Placa vinculada: {$r->placa}", 'icon' => 'file-text'];
+        }
+
+        // 2. Buscar Clientes
+        $db->query("SELECT id, nombre FROM table_clientes WHERE nombre LIKE :term OR id LIKE :term LIMIT 3");
+        $db->bind(':term', "%$term%");
+        foreach($db->resultSet() as $r) {
+            $results[] = ['id' => $r->id, 'tipo' => 'cliente', 'title' => $r->nombre, 'subtitle' => "Cliente ID: {$r->id}", 'icon' => 'user'];
+        }
+
+        // 3. Buscar Mecánicos
+        $db->query("SELECT id, nombre FROM table_staff WHERE cargo LIKE '%MECANICO%' AND (nombre LIKE :term OR id LIKE :term) LIMIT 3");
+        $db->bind(':term', "%$term%");
+        foreach($db->resultSet() as $r) {
+            $results[] = ['id' => $r->id, 'tipo' => 'mecanico', 'title' => $r->nombre, 'subtitle' => "Técnico Especialista", 'icon' => 'wrench'];
+        }
+
+        // 4. Buscar Placas
+        $db->query("SELECT placa, marca, modelo FROM table_vehiculos WHERE placa LIKE :term LIMIT 3");
+        $db->bind(':term', "%$term%");
+        foreach($db->resultSet() as $r) {
+            $results[] = ['id' => $r->placa, 'tipo' => 'placa', 'title' => $r->placa, 'subtitle' => "{$r->marca} {$r->modelo}", 'icon' => 'truck'];
+        }
+
+        return $this->jsonResponse(['success' => true, 'results' => $results]);
     }
 
     /**

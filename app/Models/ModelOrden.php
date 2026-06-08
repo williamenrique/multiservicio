@@ -117,4 +117,25 @@ class ModelOrden {
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
+
+    public function obtenerHistorialExtendido($tipo, $valor) {
+        $sql = "SELECT os.*, v.marca, v.modelo, s.nombre as mecanico_nombre, c.nombre as cliente_nombre
+                FROM table_ordenes_servicio os
+                INNER JOIN table_vehiculos v ON os.placa = v.placa
+                INNER JOIN table_clientes c ON v.cliente_id = c.id
+                LEFT JOIN table_staff s ON os.mecanico_id = s.id ";
+        
+        if (strtoupper($tipo) === 'MECANICO') {
+            $sql .= "WHERE os.mecanico_id = :val ";
+        } elseif (strtoupper($tipo) === 'CLIENTE') {
+            $sql .= "WHERE os.cliente_id = :val ";
+        } else {
+            $sql .= "WHERE os.placa = :val ";
+        }
+        
+        $sql .= "ORDER BY os.fecha_ingreso DESC";
+        $this->db->query($sql);
+        $this->db->bind(':val', $valor);
+        return $this->db->resultSet();
+    }
 }
