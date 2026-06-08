@@ -161,7 +161,7 @@ CREATE TABLE `table_ordenes_servicio` (
   `nivel_combustible` varchar(20),
   `diagnostico_entrada` text,
   `observaciones` text,
-  `estado` enum('RECIBIDO', 'DIAGNOSTICO', 'EN_REPARACION', 'LISTO', 'ENTREGADO', 'CANCELADO') DEFAULT 'RECIBIDO',
+  `estado` enum('RECIBIDO', 'DIAGNOSTICANDO', 'EN_REPARACION', 'LISTO', 'ENTREGADO', 'CANCELADO') DEFAULT 'RECIBIDO',
   `fecha_ingreso` timestamp DEFAULT CURRENT_TIMESTAMP,
   `fecha_entrega_estimada` datetime DEFAULT NULL,
   FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes`(`id`),

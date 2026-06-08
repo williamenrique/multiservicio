@@ -48,7 +48,7 @@ class ModelOrden {
         $this->db->query("SELECT 
             COUNT(*) as total,
             SUM(CASE WHEN estado = 'RECIBIDO' THEN 1 ELSE 0 END) as recibidos,
-            SUM(CASE WHEN estado = 'EN_REPARACION' THEN 1 ELSE 0 END) as reparacion,
+            SUM(CASE WHEN estado IN ('DIAGNOSTICANDO', 'EN_REPARACION') THEN 1 ELSE 0 END) as reparacion,
             SUM(CASE WHEN estado = 'LISTO' THEN 1 ELSE 0 END) as listos,
             SUM(CASE WHEN mecanico_id IS NULL THEN 1 ELSE 0 END) as sin_mecanico,
             SUM(CASE WHEN fecha_entrega_estimada < NOW() AND estado NOT IN ('LISTO', 'ENTREGADO') THEN 1 ELSE 0 END) as vencidas
