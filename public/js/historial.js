@@ -13,15 +13,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 ${isCredit ? 'bg-red-50/50' : ''}">
                     <td class="px-8 py-5 font-mono text-xs text-slate-500">#${venta.id}</td>
                     <td class="px-8 py-5">${new Date(venta.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td class="px-8 py-5 font-mono text-sm font-bold text-slate-400 text-center">#${venta.id}</td>
+                    <td class="px-8 py-5 text-base font-bold text-slate-600 uppercase text-center">${new Date(venta.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                     <td class="px-8 py-5">
                         <div class="font-bold text-slate-700 uppercase flex items-center gap-2">
+                        <div class="font-bold text-base text-slate-800 uppercase flex items-center gap-2 leading-tight">
                             ${venta.modelo_vehiculo || 'N/A'}
                             ${isCredit ? '<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>' : ''}
                         </div>
                         <div class="text-[10px] font-black ${venta.placa ? 'text-slate-400' : 'text-blue-500'}">${venta.placa ? 'PLACA: ' + venta.placa : 'VENTA MOSTRADOR'}</div>
+                        <div class="text-xs font-black ${venta.placa ? 'text-slate-500' : 'text-blue-600'} uppercase tracking-tight">${venta.placa ? 'PLACA: ' + venta.placa : 'VENTA MOSTRADOR'}</div>
                     </td>
                     <td class="px-8 py-5">${venta.cliente_nombre || 'Sin Cliente'}</td>
                     <td class="px-8 py-5 font-bold text-navy-blue">${AppUtils.formatCurrency(venta.total)}</td>
+                    <td class="px-8 py-5 text-base font-bold text-slate-700 uppercase">${venta.cliente_nombre || 'Sin Cliente'}</td>
+                    <td class="px-8 py-5 font-black text-lg text-navy-blue">${AppUtils.formatCurrency(venta.total)}</td>
                     <td class="px-8 py-5 text-right">
                         <button onclick="openSaleDetailModal(${venta.id})" class="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all" title="Ver Detalles"><i data-lucide="eye" class="w-4 h-4"></i></button>
                     </td>

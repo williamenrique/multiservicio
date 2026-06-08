@@ -14,7 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const fetchClients = async () => {
             try {
                 const res = await fetch(`${URLROOT}/clientes/listar`);
-                allClients = await res.json();
+                const result = await res.json();
+                allClients = result.data || result;
             } catch (e) {
                 console.error("Error cargando clientes:", e);
             }
@@ -30,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (term.length === 0) inputNombre.value = '';
                 return;
             }
+
+            if (!Array.isArray(allClients)) return;
 
             searchTimeout = setTimeout(() => {
                 const filtered = allClients.filter(c =>
@@ -115,7 +118,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (window.AppUtils) AppUtils.showToast('Cliente registrado con éxito');
                     // Recargar lista local para futuras búsquedas
                     const res = await fetch(`${URLROOT}/clientes/listar`);
-                    allClients = await res.json();
+                    const result = await res.json();
+                    allClients = result.data || result;
                 }
             } catch (error) {
                 console.error("Error al registrar cliente:", error);

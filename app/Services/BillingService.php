@@ -80,12 +80,13 @@ class BillingService {
             }
 
             // 4. Registrar movimiento en el Libro Mayor (table_transacciones)
-            if ($pagoEfe > 0 && $status !== 'PENDIENTE') {
+            $totalPagadoHoy = $pagoEfe + $pagoTra;
+            if ($totalPagadoHoy > 0 && $status !== 'PENDIENTE') {
                 $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
                                   VALUES (1, 'INGRESO', 'VENTA', :monto, :ref, :desc, :uid)");
-                $this->db->bind(':monto', $pagoEfe);
+                $this->db->bind(':monto', $totalPagadoHoy);
                 $this->db->bind(':ref', $ventaId);
-                $this->db->bind(':desc', "VENTA FACTURA #$ventaId");
+                $this->db->bind(':desc', "VENTA FACTURA #$ventaId (EFE: $pagoEfe, TRA: $pagoTra)");
                 $this->db->bind(':uid', $usuarioId);
                 $this->db->execute();
             }

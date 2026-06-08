@@ -1,12 +1,10 @@
 <?php
 class ControllerGastos extends Controller {
     private $gastoModel;
-    private $cajaModel;
 
     public function __construct() {
         AuthGuard::handle();
         $this->gastoModel = $this->model('Gasto');
-        $this->cajaModel = $this->model('Caja');
     }
 
     public function index() {
@@ -37,22 +35,8 @@ class ControllerGastos extends Controller {
             $input = json_decode(file_get_contents('php://input'), true);
             
             try {
-                // Si el gasto es en EFECTIVO, debe haber una caja abierta
-                $metodo = $input['metodo_pago'] ?? 'EFECTIVO';
-
                 $idGasto = $this->gastoModel->crear($input);
-                
-                if ($idGasto !== false && $metodo === 'EFECTIVO') {
-                    $this->cajaModel->registrarMovimiento([
-                        'tipo' => 'EGRESO',
-                        'monto' => $input['monto'],
-                        'metodo_pago' => 'EFECTIVO',
-                        'referencia_id' => $idGasto,
-                        'concepto' => "GASTO: " . $input['descripcion']
-                    ]);
-                }
-
-                return $this->jsonResponse(['success' => true]);
+                return $this->jsonResponse(['success' => $idGasto !== false]);
             } catch (Exception $e) {
                 return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 400);
             }

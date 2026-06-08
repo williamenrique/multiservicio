@@ -90,11 +90,11 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRow: (item) => {
             return `
                 <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300">
-                    <td class="px-8 py-5 font-mono text-xs font-bold text-slate-400 align-middle">${item.id}</td>
-                    <td class="px-8 py-5 font-bold text-slate-700 uppercase tracking-tight align-middle">${item.nombre}</td>
+                    <td class="px-8 py-5 font-mono text-sm font-black text-slate-400 align-middle">${item.id}</td>
+                    <td class="px-8 py-5 font-black text-base text-slate-700 uppercase tracking-tight align-middle">${item.nombre}</td>
                     <td class="px-8 py-5 align-middle">
                         <div class="flex flex-col">
-                            <span class="text-xs font-bold text-slate-600">${item.telefono || '---'}</span>
+                            <span class="text-sm font-bold text-slate-600">${item.telefono || '---'}</span>
                             <span class="text-[10px] text-slate-400 lowercase">${item.email || '---'}</span>
                         </div>
                     </td>
@@ -277,9 +277,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-50 border-b border-slate-100';
             row.innerHTML = `
-                <td class="px-8 py-5 font-bold text-slate-700 align-middle uppercase">${d.nombre}</td>
-                <td class="px-8 py-5 text-center font-mono">${d.facturas_pendientes}</td>
-                <td class="px-8 py-5 font-black text-rose-500">${AppUtils.formatCurrency(d.saldo_pendiente)}</td>
+                <td class="px-8 py-5 font-black text-base text-slate-700 align-middle uppercase">${d.nombre}</td>
+                <td class="px-8 py-5 text-center font-mono text-base font-bold">${d.facturas_pendientes}</td>
+                <td class="px-8 py-5 font-black text-lg text-rose-600">${AppUtils.formatCurrency(d.saldo_pendiente)}</td>
                 <td class="px-8 py-5 align-middle">
                     <span class="text-[10px] font-black bg-rose-50 text-rose-600 px-2 py-1 rounded italic">
                         ${d.proximo_vencimiento ? new Date(d.proximo_vencimiento).toLocaleDateString() : 'SIN FECHA'}

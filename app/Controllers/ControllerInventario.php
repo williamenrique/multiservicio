@@ -235,11 +235,12 @@ class ControllerInventario extends Controller {
     }
 
     /**
-     * Elimina un producto del inventario
+     * Inactiva un producto del inventario (Borrado lógico)
+     * Se cambia el estado a 'INACTIVO' para preservar el historial contable.
      */
     public function eliminar($id) {
         RoleGuard::isAdmin();
         $res = $this->inventarioModel->eliminar($id);
-        return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Producto eliminado' : 'Error al eliminar']);
+        return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Producto inactivado correctamente' : 'Error al procesar la solicitud']);
     }
 } 

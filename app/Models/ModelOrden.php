@@ -7,14 +7,16 @@ class ModelOrden {
     }
 
     public function crear($data) {
-        $this->db->query("INSERT INTO table_ordenes_servicio (vehiculo_id, usuario_id, kilometraje, nivel_combustible, observaciones_entrada, fecha_entrega_estimada) 
-                          VALUES (:vid, :uid, :km, :comb, :obs, :fecha_e)");
-        $this->db->bind(':vid', $data['vehiculo_id']);
-        $this->db->bind(':uid', $_SESSION['user_id']);
+        $this->db->query("INSERT INTO table_ordenes_servicio (cliente_id, placa, mecanico_id, kilometraje, nivel_combustible, diagnostico_entrada, observaciones, fecha_entrega_estimada) 
+                          VALUES (:cid, :placa, :mid, :km, :comb, :diag, :obs, :f_entrega)");
+        $this->db->bind(':cid', $data['cliente_id']);
+        $this->db->bind(':placa', $data['placa']);
+        $this->db->bind(':mid', !empty($data['mecanico_id']) ? $data['mecanico_id'] : null);
         $this->db->bind(':km', $data['kilometraje']);
         $this->db->bind(':comb', $data['nivel_combustible']);
-        $this->db->bind(':obs', mb_strtoupper($data['observaciones_entrada'], 'UTF-8'));
-        $this->db->bind(':fecha_e', $data['fecha_entrega']);
+        $this->db->bind(':diag', mb_strtoupper($data['observaciones_entrada'] ?? '', 'UTF-8'));
+        $this->db->bind(':obs', mb_strtoupper($data['observaciones'] ?? '', 'UTF-8'));
+        $this->db->bind(':f_entrega', !empty($data['fecha_entrega']) ? $data['fecha_entrega'] : null);
         
         if($this->db->execute()) {
             return $this->db->lastInsertId();
@@ -27,10 +29,10 @@ class ModelOrden {
             $this->db->query("INSERT INTO table_orden_checklist (orden_id, item, estado, observacion) 
                               VALUES (:oid, :item, :estado, :obs)");
             $this->db->bind(':oid', $ordenId);
-            $this->db->bind(':item', $item['item']);
+            $this->db->bind(':item', mb_strtoupper($item['item'], 'UTF-8'));
             // Si el ítem llega en el array es porque se marcó el checkbox en el formulario
             $this->db->bind(':estado', 1); 
-            $this->db->bind(':obs', $item['nota'] ?? '');
+            $this->db->bind(':obs', mb_strtoupper($item['nota'] ?? '', 'UTF-8'));
             $this->db->execute();
         }
         return true;
@@ -74,22 +76,24 @@ class ModelOrden {
     }
 
     public function obtenerOrdenesActivas() {
-        $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, s.nombre as mecanico_nombre 
+        $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, s.nombre as mecanico_nombre,
+                          TIMESTAMPDIFF(MINUTE, NOW(), os.fecha_entrega_estimada) as minutos_restantes
                           FROM table_ordenes_servicio os
-                          INNER JOIN table_vehiculos v ON os.vehiculo_id = v.id
-                          INNER JOIN table_usuarios u ON os.usuario_id = u.id
-                          INNER JOIN table_staff s ON u.staff_id = s.id
+                          INNER JOIN table_vehiculos v ON os.placa = v.placa
+                          LEFT JOIN table_staff s ON os.mecanico_id = s.id
                           WHERE os.estado NOT IN ('ENTREGADO')
-                          ORDER BY os.fecha_entrada DESC");
+                          ORDER BY os.fecha_ingreso DESC");
         return $this->db->resultSet();
     }
 
     public function obtenerDetalleOrden($id) {
         $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, v.color, v.anio, 
-                          c.nombre as cliente_nombre, c.telefono as cliente_telefono
+                          c.nombre as cliente_nombre, c.telefono as cliente_telefono,
+                          s.nombre as mecanico_nombre
                           FROM table_ordenes_servicio os
-                          INNER JOIN table_vehiculos v ON os.vehiculo_id = v.id
+                          INNER JOIN table_vehiculos v ON os.placa = v.placa
                           INNER JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_staff s ON os.mecanico_id = s.id
                           WHERE os.id = :id");
         $this->db->bind(':id', $id);
         return $this->db->single();

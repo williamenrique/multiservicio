@@ -18,8 +18,10 @@ class ControllerTaller extends Controller {
     }
 
     public function nuevaOrden() {
+        $reportModel = $this->model('Reportes');
         $this->view('taller/nueva_orden', [
-            'titulo' => 'Nueva Orden de Servicio'
+            'titulo' => 'Nueva Orden de Servicio',
+            'staff' => $reportModel->obtenerStaffSimple()
         ]);
     }
 
@@ -28,7 +30,7 @@ class ControllerTaller extends Controller {
      */
     public function historial($placa = '') {
         $vehiculo = $this->vehiculoModel->buscarPorPlaca($placa);
-        $historial = $vehiculo ? $this->vehiculoModel->obtenerHistorial($vehiculo->id) : [];
+        $historial = $vehiculo ? $this->vehiculoModel->obtenerHistorial($vehiculo->placa) : [];
 
         $this->view('taller/vehiculos/historial', [
             'titulo' => 'Hoja de Vida: ' . strtoupper($placa),
@@ -44,6 +46,11 @@ class ControllerTaller extends Controller {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
             
+            // Si el usuario es mecánico, auto-asignarlo como responsable de la orden
+            if ($_SESSION['user_role'] === 'MECANICO') {
+                $input['mecanico_id'] = $_SESSION['user_staff_id'];
+            }
+
             // Lógica: Si el vehículo no existe, se registra primero
             $vehiculo = $this->vehiculoModel->buscarPorPlaca($input['placa']);
             
@@ -53,25 +60,66 @@ class ControllerTaller extends Controller {
                 if (!$clienteModel->obtenerPorId($input['cliente_id'])) {
                     return $this->jsonResponse(['success' => false, 'error' => "El cliente con ID {$input['cliente_id']} no existe. Por favor, regístrelo primero en el módulo de Clientes."], 404);
                 }
-                $vehiculoId = $this->vehiculoModel->registrar($input);
+                if (!$this->vehiculoModel->registrar($input)) {
+                    return $this->jsonResponse(['success' => false, 'error' => "Error al registrar el vehículo."]);
+                }
             } else {
-                $vehiculoId = $vehiculo->id;
+                $input['cliente_id'] = $vehiculo->cliente_id;
             }
 
-            if ($vehiculoId) {
-                $input['vehiculo_id'] = $vehiculoId;
-                $ordenId = $this->ordenModel->crear($input);
-                
-                if ($ordenId) {
-                    // Guardar Checklist de entrada
-                    if (!empty($input['checklist'])) {
-                        $this->ordenModel->guardarChecklist($ordenId, $input['checklist']);
-                    }
-                    logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
-                    return $this->jsonResponse(['success' => true, 'id' => $ordenId, 'mensaje' => 'Orden creada correctamente']);
+            // En el esquema 2.0 la relación es por PLACA, no por un ID numérico
+            $input['placa'] = strtoupper(trim($input['placa']));
+            $ordenId = $this->ordenModel->crear($input);
+            
+            if ($ordenId) {
+                // Guardar Checklist de entrada
+                if (!empty($input['checklist'])) {
+                    $this->ordenModel->guardarChecklist($ordenId, $input['checklist']);
                 }
+                logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
+                return $this->jsonResponse(['success' => true, 'id' => $ordenId, 'mensaje' => 'Orden creada correctamente']);
             }
             return $this->jsonResponse(['success' => false, 'error' => 'No se pudo crear la orden']);
+        }
+    }
+
+    /**
+     * API para obtener el detalle completo de una orden (AJAX)
+     */
+    public function obtenerDetalle($id) {
+        $orden = $this->ordenModel->obtenerDetalleOrden($id);
+        if (!$orden) {
+            return $this->jsonResponse(['success' => false, 'error' => 'Orden no encontrada'], 404);
+        }
+        
+        $reportModel = $this->model('Reportes');
+        $staff = $reportModel->obtenerStaffSimple();
+
+        return $this->jsonResponse([
+            'success' => true, 
+            'data' => $orden,
+            'staff' => $staff
+        ]);
+    }
+
+    /**
+     * API para asignar o cambiar el mecánico de una orden
+     */
+    public function asignarMecanico() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            if (empty($input['id'])) {
+                return $this->jsonResponse(['success' => false, 'error' => 'ID de orden requerido'], 400);
+            }
+
+            $res = $this->ordenModel->actualizarMecanico($input['id'], $input['mecanico_id'] ?: null);
+            
+            if ($res) {
+                logAction('TALLER', 'UPDATE_MECHANIC', "Se actualizó el mecánico de la O.S. #{$input['id']}");
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Asignación actualizada correctamente']);
+            }
+            return $this->jsonResponse(['success' => false, 'error' => 'Error al actualizar la asignación']);
         }
     }
 
@@ -85,6 +133,51 @@ class ControllerTaller extends Controller {
         return $this->jsonResponse([
             'success' => $res, 
             'mensaje' => $res ? 'Estado actualizado' : 'Error al actualizar'
+        ]);
+    }
+
+    /**
+     * API para obtener alertas de entregas (Tarde/Próximo)
+     */
+    public function obtenerAlertas() {
+        $ordenes = $this->ordenModel->obtenerOrdenesActivas();
+        
+        $alertas = [];
+        $sinMecanico = [];
+
+        foreach ($ordenes as $o) {
+            // 1. Detectar órdenes sin mecánico (Prioridad inmediata para el Admin)
+            if (!isset($o->mecanico_id) || empty($o->mecanico_id)) {
+                $sinMecanico[] = [
+                    'id' => $o->id,
+                    'placa' => $o->placa
+                ];
+                continue; // Si no tiene mecánico, no evaluamos tiempo aún para no duplicar en el badge si no es necesario
+            }
+
+            // 2. Detectar alertas de tiempo solo para órdenes que NO estén terminadas
+            $estadoActual = strtoupper($o->estado ?? '');
+            if (!empty($o->fecha_entrega_estimada) && !in_array($estadoActual, ['LISTO', 'ENTREGADO', 'CANCELADO'])) {
+                $minutos = isset($o->minutos_restantes) ? (int)$o->minutos_restantes : 0;
+                $esTarde = $minutos < 0;
+                $esProximo = ($minutos >= 0 && $minutos <= 120); // Próximas 2 Horas
+
+                if ($esTarde || $esProximo) {
+                    $alertas[] = [
+                        'id' => $o->id,
+                        'placa' => $o->placa,
+                        'tiempo' => $minutos,
+                        'es_tarde' => $esTarde,
+                        'es_proximo' => $esProximo
+                    ];
+                }
+            }
+        }
+
+        return $this->jsonResponse([
+            'success' => true, 
+            'alertas' => $alertas,
+            'sin_mecanico' => $sinMecanico
         ]);
     }
 

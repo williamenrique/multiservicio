@@ -15,7 +15,7 @@ class ModelHistorial {
                 c.nombre as cliente_nombre, s.nombre as usuario_nombre
                 FROM table_facturas v
                 LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id
                 LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
@@ -44,7 +44,7 @@ class ModelHistorial {
         $sql = "SELECT COUNT(*) as total 
                 FROM table_facturas v 
                 LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id WHERE v.status IN ('COMPLETADO', 'CREDITO')";
         if ($search) $sql .= " AND (v.id LIKE :search OR vh.placa LIKE :search OR v.placa LIKE :search OR c.nombre LIKE :search)";
         $this->db->query($sql);
@@ -66,7 +66,7 @@ class ModelHistorial {
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
-                          LEFT JOIN table_vehiculos vh ON os.vehiculo_id = vh.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id

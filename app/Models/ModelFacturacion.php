@@ -252,18 +252,22 @@ class ModelFacturacion {
     public function obtenerAuditoriaTrabajos($limit = 10, $offset = 0) {
         // 1. Resumen de Deudores (Monto total y cantidad de CLIENTES únicos con saldo pendiente)
         $this->db->query("SELECT SUM(saldo_pendiente) as total_deuda, COUNT(DISTINCT cliente_id) as cantidad_deudores 
-                          FROM table_facturas WHERE status = 'CREDITO' AND saldo_pendiente > 0.05");
+                          FROM table_facturas WHERE status = 'CREDITO' AND saldo_pendiente > 0.05 AND (orden_id IS NOT NULL OR placa IS NOT NULL)");
         $resumen = $this->db->single();
 
         // 2. Conteo total para paginación
-        $this->db->query("SELECT COUNT(*) as total FROM table_facturas WHERE status IN ('COMPLETADO', 'CREDITO')");
+        $this->db->query("SELECT COUNT(*) as total FROM table_facturas WHERE status IN ('COMPLETADO', 'CREDITO', 'PENDIENTE') AND (orden_id IS NOT NULL OR placa IS NOT NULL)");
         $total = $this->db->single()->total;
 
         // 3. Lista de trabajos con paginación
         $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  v.fecha, v.total, v.saldo_pendiente, v.status,
-                                 c.nombre as cliente_nombre, sv.nombre as vendedor_nombre, 
-                                 COALESCE(sm.nombre, sv.nombre, 'ADMIN') as responsable_nombre,
+                                 c.nombre as cliente_nombre, c.telefono as cliente_telefono, sv.nombre as vendedor_nombre, 
+                                 COALESCE(
+                                     sm.nombre, 
+                                     (SELECT st2.nombre FROM table_facturas_detalle vd2 JOIN table_staff st2 ON vd2.mecanico_id = st2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1),
+                                     sv.nombre, 
+                                     'ADMIN') as responsable_nombre,
                                  COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
                                  IF(v.orden_id IS NULL AND v.placa IS NULL, 'MOSTRADOR', 'TALLER') as tipo_procedencia
@@ -274,7 +278,7 @@ class ModelFacturacion {
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                           LEFT JOIN table_staff sv ON u.staff_id = sv.id
                           LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
-                          WHERE v.status IN ('COMPLETADO', 'CREDITO')
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO', 'PENDIENTE') AND (v.orden_id IS NOT NULL OR v.placa IS NOT NULL)
                           ORDER BY v.fecha DESC
                           LIMIT :limit OFFSET :offset");
         $this->db->bind(':limit', (int)$limit);
@@ -461,6 +465,15 @@ class ModelFacturacion {
             $this->db->bind(':ptra', $nuevoPagoTra);
             $this->db->bind(':saldo', $nuevoSaldo > 0 ? $nuevoSaldo : 0);
             $this->db->bind(':vid', $ventaId);
+            $this->db->execute();
+
+            // REGISTRAR EN LIBRO MAYOR (EGRESO POR DEVOLUCIÓN)
+            $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                              VALUES (1, 'EGRESO', 'DEVOLUCION', :monto, :ref, :desc, :uid)");
+            $this->db->bind(':monto', $totalARestar);
+            $this->db->bind(':ref', $ventaId);
+            $this->db->bind(':desc', "DEVOLUCION ITEM: " . mb_strtoupper($item->descripcion, 'UTF-8'));
+            $this->db->bind(':uid', $_SESSION['user_id']);
             $this->db->execute();
 
             // 5. Eliminar el detalle de la factura original
