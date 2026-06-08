@@ -869,4 +869,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Polling: Actualizar cola de facturas cada 10 segundos para ver lo de otros usuarios
     setInterval(loadInvoicesFromServer, 10000);
+
+    /**
+     * Verifica si se ha pasado un ID de orden por URL para cargarla automáticamente
+     */
+    async function verificarOrdenInicial() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const ordenId = urlParams.get('orden_id');
+
+        if (ordenId) {
+            try {
+                AppUtils.showLoading('Cargando datos de la Orden #' + ordenId);
+                const resp = await fetch(`${URLROOT}/facturacion/obtenerPorOrden/${ordenId}`);
+                const res = await resp.json();
+                AppUtils.hideLoading();
+
+                if (res.success && res.data) {
+                    // Al detectar la orden, seleccionamos automáticamente su borrador en el POS
+                    activeInvoiceId = 'FAC-' + String(res.data.id).padStart(3, '0');
+                    await loadInvoicesFromServer(); // Sincronizar para asegurar visibilidad inmediata
+                    AppUtils.showToast('Orden cargada correctamente');
+                }
+            } catch (e) {
+                console.error("Error al cargar orden inicial:", e);
+                AppUtils.hideLoading();
+            }
+        }
+    }
+
+    verificarOrdenInicial();
 });
