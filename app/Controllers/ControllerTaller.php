@@ -11,9 +11,11 @@ class ControllerTaller extends Controller {
 
     public function index() {
         $ordenesActivas = $this->ordenModel->obtenerOrdenesActivas();
+        $resumen = $this->ordenModel->obtenerResumenTaller();
         $this->view('taller/index', [
             'titulo' => 'Panel Operativo del Taller',
-            'ordenes' => $ordenesActivas
+            'ordenes' => $ordenesActivas,
+            'stats' => $resumen
         ]);
     }
 
@@ -45,9 +47,10 @@ class ControllerTaller extends Controller {
     public function guardarOrden() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
-            
-            // Si el usuario es mecánico, auto-asignarlo como responsable de la orden
-            if ($_SESSION['user_role'] === 'MECANICO') {
+
+            // Punto 3: Asignación de mecánico. Se respeta si viene del input (asignado por Admin/Cajero).
+            // Si está vacío y el usuario es mecánico, se auto-asigna como responsable.
+            if (empty($input['mecanico_id']) && $_SESSION['user_role'] === 'MECANICO') {
                 $input['mecanico_id'] = $_SESSION['user_staff_id'];
             }
 
@@ -76,6 +79,14 @@ class ControllerTaller extends Controller {
                 if (!empty($input['checklist'])) {
                     $this->ordenModel->guardarChecklist($ordenId, $input['checklist']);
                 }
+
+                // Punto 1: Guardar ítems dinámicos.
+                // En el esquema 2.0, los ítems (repuestos/servicios) de una O.S. se persisten como 
+                // un borrador de factura vinculado para reservar stock y preparar el cobro.
+                if (!empty($input['items'])) {
+                    $this->sincronizarItemsOrden($ordenId, $input);
+                }
+
                 logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
                 return $this->jsonResponse(['success' => true, 'id' => $ordenId, 'mensaje' => 'Orden creada correctamente']);
             }
@@ -84,121 +95,206 @@ class ControllerTaller extends Controller {
     }
 
     /**
+     * Helper para persistir ítems dinámicos vinculados a la OS en la tabla de facturación (Borrador).
+     */
+    private function sincronizarItemsOrden($ordenId, $input) {
+        try {
+            $modelFacturacion = $this->model('Facturacion');
+            
+            // En el esquema 2.0, si ya existe un borrador para esta orden, lo reutilizamos
+            $db = new Database();
+            $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status = 'PENDIENTE' LIMIT 1");
+            $db->bind(':oid', $ordenId);
+            $borradorExistente = $db->single();
+            $facturaId = $borradorExistente ? $borradorExistente->id : null;
+            
+            $subtotal = 0;
+            $itemsArr = $input['items'] ?? [];
+            foreach ($itemsArr as $item) {
+                $subtotal += ($item['precio'] * $item['cantidad']);
+            }
+
+            $datosFactura = [
+                'id_db' => $facturaId,
+                'orden_id' => $ordenId,
+                'cliente_id' => $input['cliente_id'],
+                'placa' => $input['placa'],
+                'modelo' => $input['modelo'] ?? '',
+                'pago_efectivo' => 0,
+                'pago_transferencia' => 0,
+                'mecanico_id' => $input['mecanico_id'] ?? null
+            ];
+
+            $totales = [
+                'subtotal' => $subtotal,
+                'iva' => 0,
+                'total' => $subtotal,
+                'saldo' => $subtotal
+            ];
+
+            $ventaId = $modelFacturacion->guardarCabeceraVenta($datosFactura, 'PENDIENTE', $totales, $_SESSION['user_id']);
+
+            // Limpiamos items previos si es una actualización de borrador
+            if ($facturaId) {
+                $db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :fid");
+                $db->bind(':fid', $ventaId);
+                $db->execute();
+            }
+
+            foreach ($itemsArr as $item) {
+                $db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                            VALUES (:fid, :pid, :mid, :desc, :cant, :pre, :costo)");
+                $db->bind(':fid', $ventaId);
+                $db->bind(':pid', (strtoupper($item['tipo'] ?? '') === 'PRODUCTO') ? $item['id'] : null);
+                $db->bind(':mid', $input['mecanico_id'] ?? null);
+                $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
+                $db->bind(':cant', $item['cantidad']);
+                $db->bind(':pre', $item['precio']);
+                $db->bind(':costo', ($item['tipo'] === 'PRODUCTO') ? ($item['costo_promedio'] ?? 0) : 0);
+                $db->execute();
+            }
+        } catch (Exception $e) {
+            error_log("Error sincronizando items de OS: " . $e->getMessage());
+        }
+    }
+
+    /**
      * API para obtener el detalle completo de una orden (AJAX)
      */
     public function obtenerDetalle($id) {
-        $orden = $this->ordenModel->obtenerDetalleOrden($id);
-        if (!$orden) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Orden no encontrada'], 404);
-        }
-        
-        $reportModel = $this->model('Reportes');
-        $staff = $reportModel->obtenerStaffSimple();
+        try {
+            $orden = $this->ordenModel->obtenerDetalleOrden($id);
+            if (!$orden) {
+                return $this->jsonResponse(['success' => false, 'error' => 'Orden no encontrada'], 404);
+            }
+            
+            $reportModel = $this->model('Reportes');
+            $staff = $reportModel->obtenerStaffSimple();
+            
+            // Punto 2: Carga de items desde el borrador vinculado
+            $db = new Database();
+            $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status = 'PENDIENTE' LIMIT 1");
+            $db->bind(':oid', $id);
+            $borrador = $db->single();
+            
+            $items = [];
+            if ($borrador) {
+                $facturaModel = $this->model('Facturacion');
+                $venta = $facturaModel->obtenerVentaCompleta($borrador->id);
+                if ($venta && !empty($venta->items)) {
+                    // Mapeo de compatibilidad: El frontend espera 'nombre' 
+                    // pero la DB de facturación guarda 'descripcion'
+                    $items = array_map(function($it) {
+                        return [
+                            'id' => $it->producto_id,
+                            'nombre' => $it->descripcion,
+                            'precio' => (float)$it->precio_unitario,
+                            'cantidad' => (int)$it->cantidad,
+                            'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO'
+                        ];
+                    }, $venta->items);
+                }
+            }
 
+            // Información técnica adicional requerida por el modal
+            $logs = $this->ordenModel->obtenerLogsEstado($id);
+            $checklist = $this->ordenModel->obtenerChecklist($id);
+
+            return $this->jsonResponse([
+                'success' => true, 
+                'data' => $orden,
+                'items' => $items,
+                'staff' => $staff,
+                'logs' => $logs,
+                'checklist' => $checklist
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Endpoint para obtener el historial de estados de una orden (AJAX)
+     */
+    public function obtenerLogs($id) {
+        $logs = $this->ordenModel->obtenerLogsEstado($id);
+        return $this->jsonResponse(['success' => true, 'data' => $logs]);
+    }
+
+    /**
+     * Endpoint para obtener el checklist detallado de la orden (AJAX)
+     */
+    public function obtenerChecklist($id) {
+        $checklist = $this->ordenModel->obtenerChecklist($id);
+        return $this->jsonResponse(['success' => true, 'data' => $checklist]);
+    }
+
+    /**
+     * Punto 4: Disparador de notificaciones (Icono de la Llave)
+     * Obtiene todas las órdenes activas para mostrar en el contador del header.
+     */
+    public function obtenerAlertas() {
+        $db = new Database();
+        // Punto 4: Consulta inteligente para el dropdown de notificaciones (Llave)
+        // Categorizamos las alertas para que el frontend distinga entre órdenes sin mecánico, vencidas o estancadas.
+        $db->query("SELECT os.id, os.placa, os.estado, os.mecanico_id, os.fecha_entrega_estimada, os.fecha_ingreso,
+                          TIMESTAMPDIFF(MINUTE, NOW(), os.fecha_entrega_estimada) as minutos_restantes,
+                          v.marca, v.modelo,
+                          CASE 
+                            WHEN os.mecanico_id IS NULL THEN 'SIN_MECANICO'
+                            WHEN os.fecha_entrega_estimada < NOW() THEN 'VENCIDA'
+                            WHEN os.estado = 'RECIBIDO' AND DATEDIFF(NOW(), os.fecha_ingreso) >= 1 THEN 'ESTANCADA'
+                            ELSE 'PENDIENTE'
+                          END as tipo_alerta,
+                          CASE 
+                            WHEN os.mecanico_id IS NULL THEN 'Pendiente de asignar técnico'
+                            WHEN os.fecha_entrega_estimada < NOW() THEN 'Entrega fuera de tiempo'
+                            WHEN os.estado = 'RECIBIDO' AND DATEDIFF(NOW(), os.fecha_ingreso) >= 1 THEN 'Sin seguimiento (24h+)'
+                            ELSE 'En tiempo'
+                          END as descripcion_alerta
+                    FROM table_ordenes_servicio os
+                    INNER JOIN table_vehiculos v ON os.placa = v.placa
+                    WHERE os.estado NOT IN ('ENTREGADO', 'ANULADO', 'LISTO')
+                    ORDER BY (os.mecanico_id IS NULL) DESC, os.fecha_entrega_estimada ASC");
+        
+        $ordenes = $db->resultSet();
+        
         return $this->jsonResponse([
-            'success' => true, 
-            'data' => $orden,
-            'staff' => $staff
+            'success' => true,
+            'total' => count($ordenes),
+            'data' => $ordenes
         ]);
     }
 
     /**
-     * API para asignar o cambiar el mecánico de una orden
+     * Punto 3: Asignar o actualizar mecánico de la orden (API)
+     * Requerido por la interfaz de gestión operativa en app.min.js
      */
     public function asignarMecanico() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
             
-            if (empty($input['id'])) {
-                return $this->jsonResponse(['success' => false, 'error' => 'ID de orden requerido'], 400);
+            if (empty($input['id']) || empty($input['mecanico_id'])) {
+                return $this->jsonResponse(['success' => false, 'error' => 'ID de orden y técnico son obligatorios'], 400);
             }
 
-            $res = $this->ordenModel->actualizarMecanico($input['id'], $input['mecanico_id'] ?: null);
+            // 1. Actualizar en la tabla de ordenes
+            $db = new Database();
+            $db->query("UPDATE table_ordenes_servicio SET mecanico_id = :mid WHERE id = :id");
+            $db->bind(':mid', $input['mecanico_id']);
+            $db->bind(':id', $input['id']);
             
-            if ($res) {
-                logAction('TALLER', 'UPDATE_MECHANIC', "Se actualizó el mecánico de la O.S. #{$input['id']}");
-                return $this->jsonResponse(['success' => true, 'mensaje' => 'Asignación actualizada correctamente']);
+            if ($db->execute()) {
+                // 2. Sincronizar mecánico en los items del borrador de factura vinculado para reporte de nómina posterior
+                $db->query("UPDATE table_facturas_detalle SET mecanico_id = :mid 
+                            WHERE factura_id IN (SELECT id FROM table_facturas WHERE orden_id = :oid AND status = 'PENDIENTE')");
+                $db->bind(':mid', $input['mecanico_id']);
+                $db->bind(':oid', $input['id']);
+                $db->execute();
+
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Mecánico asignado correctamente']);
             }
-            return $this->jsonResponse(['success' => false, 'error' => 'Error al actualizar la asignación']);
+            return $this->jsonResponse(['success' => false, 'error' => 'No se pudo actualizar el registro']);
         }
-    }
-
-    /**
-     * Actualiza el estado del ciclo de vida (API)
-     */
-    public function cambiarEstado() {
-        $input = json_decode(file_get_contents('php://input'), true);
-        $res = $this->ordenModel->actualizarEstado($input['id'], $input['estado'], $input['comentario'] ?? '');
-        
-        return $this->jsonResponse([
-            'success' => $res, 
-            'mensaje' => $res ? 'Estado actualizado' : 'Error al actualizar'
-        ]);
-    }
-
-    /**
-     * API para obtener alertas de entregas (Tarde/Próximo)
-     */
-    public function obtenerAlertas() {
-        $ordenes = $this->ordenModel->obtenerOrdenesActivas();
-        
-        $alertas = [];
-        $sinMecanico = [];
-
-        foreach ($ordenes as $o) {
-            // 1. Detectar órdenes sin mecánico (Prioridad inmediata para el Admin)
-            if (!isset($o->mecanico_id) || empty($o->mecanico_id)) {
-                $sinMecanico[] = [
-                    'id' => $o->id,
-                    'placa' => $o->placa
-                ];
-                continue; // Si no tiene mecánico, no evaluamos tiempo aún para no duplicar en el badge si no es necesario
-            }
-
-            // 2. Detectar alertas de tiempo solo para órdenes que NO estén terminadas
-            $estadoActual = strtoupper($o->estado ?? '');
-            if (!empty($o->fecha_entrega_estimada) && !in_array($estadoActual, ['LISTO', 'ENTREGADO', 'CANCELADO'])) {
-                $minutos = isset($o->minutos_restantes) ? (int)$o->minutos_restantes : 0;
-                $esTarde = $minutos < 0;
-                $esProximo = ($minutos >= 0 && $minutos <= 120); // Próximas 2 Horas
-
-                if ($esTarde || $esProximo) {
-                    $alertas[] = [
-                        'id' => $o->id,
-                        'placa' => $o->placa,
-                        'tiempo' => $minutos,
-                        'es_tarde' => $esTarde,
-                        'es_proximo' => $esProximo
-                    ];
-                }
-            }
-        }
-
-        return $this->jsonResponse([
-            'success' => true, 
-            'alertas' => $alertas,
-            'sin_mecanico' => $sinMecanico
-        ]);
-    }
-
-    /**
-     * Genera el PDF de la Orden de Servicio
-     */
-    public function imprimir($id = null) {
-        if (!$id) {
-            redirect('taller');
-        }
-
-        $orden = $this->ordenModel->obtenerDetalleOrden($id);
-        if (!$orden) {
-            die("La orden de servicio #$id no existe.");
-        }
-
-        $pdf = new PdfService();
-        $pdf->generarDocumento('orden', [
-            'titulo_documento' => 'Orden de Servicio',
-            'documento_id' => $orden->id,
-            'orden' => $orden
-        ], 'OrdenServicio_' . $id . '.pdf');
     }
 }

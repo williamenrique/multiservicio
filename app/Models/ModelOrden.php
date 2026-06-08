@@ -38,6 +38,25 @@ class ModelOrden {
         return true;
     }
 
+    public function obtenerChecklist($ordenId) {
+        $this->db->query("SELECT * FROM table_orden_checklist WHERE orden_id = :oid");
+        $this->db->bind(':oid', $ordenId);
+        return $this->db->resultSet();
+    }
+
+    public function obtenerResumenTaller() {
+        $this->db->query("SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN estado = 'RECIBIDO' THEN 1 ELSE 0 END) as recibidos,
+            SUM(CASE WHEN estado = 'EN_REPARACION' THEN 1 ELSE 0 END) as reparacion,
+            SUM(CASE WHEN estado = 'LISTO' THEN 1 ELSE 0 END) as listos,
+            SUM(CASE WHEN mecanico_id IS NULL THEN 1 ELSE 0 END) as sin_mecanico,
+            SUM(CASE WHEN fecha_entrega_estimada < NOW() AND estado NOT IN ('LISTO', 'ENTREGADO') THEN 1 ELSE 0 END) as vencidas
+            FROM table_ordenes_servicio 
+            WHERE estado NOT IN ('ENTREGADO', 'ANULADO')");
+        return $this->db->single();
+    }
+
     public function actualizarEstado($id, $nuevoEstado, $comentario = '') {
         try {
             $this->db->beginTransaction();

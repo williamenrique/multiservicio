@@ -143,9 +143,14 @@ async function cambiarEstado(id, estado) {
     }
 }
 
-function verDetalle(id) {
-    // Por ahora redirigimos al flujo de trabajo o mostramos un aviso informativo
-    AppUtils.showToast('Cargando detalles técnicos de la Orden #' + id, 'info');
+async function verDetalle(id) {
+    // Si existe la función en app.min.js la llamamos, si no, usamos el fetch manual
+    if (typeof window.abrirModalDetalleOrden === 'function') {
+        window.abrirModalDetalleOrden(id);
+    } else {
+        AppUtils.showToast('Cargando detalles técnicos de la Orden #' + id, 'info');
+        // El script app.min.js debería estar escuchando este evento o tener una función global
+    }
 }
 
 function imprimirOrden(id) {

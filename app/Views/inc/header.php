@@ -105,10 +105,40 @@
                         <div id="globalSearchResults" class="absolute top-full right-0 mt-2 w-80 bg-white shadow-2xl rounded-xl border border-slate-100 hidden z-[100] overflow-hidden"></div>
                     </div>
                     <!-- Contenedor dinámico para la campana de recuperación -->
-                    <div id="recovery-bell-container"></div>
-                    <div id="low-stock-notifications-container"></div>
-                    <div id="credit-notifications-container"></div>
-                    <div id="notifications-area"></div>
+                    <div id="recovery-bell-container" class="hidden"></div>
+                    <div id="low-stock-notifications-container" class="hidden"></div>
+                    <div id="credit-notifications-container" class="hidden"></div>
+                    <div id="notifications-area" class="hidden"></div>
+                    <!-- Notificaciones de Taller (Icono de Llave) -->
+                    <div id="workshop-bell-container" class="relative group hidden">
+                        <button id="btn-notificaciones-taller" class="p-2 bg-slate-800/50 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-neon-green transition-all relative">
+                            <i data-lucide="wrench" class="w-5 h-5"></i>
+                            <!-- El badge se muestra automáticamente cuando hay órdenes pendientes -->
+                            <span id="taller-notif-badge" class="absolute -top-1 -right-1 bg-rose-600 text-white text-[10px] font-black px-1.5 rounded-full border-2 border-navy-blue hidden">0</span>
+                        </button>
+                        
+                        <!-- Dropdown Desplegable -->
+                        <div class="absolute right-0 mt-2 w-80 bg-black rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-800 hidden group-hover:block z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div class="p-4 border-b border-slate-800 bg-slate-900/50">
+                                <h3 class="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                                    <i data-lucide="wrench" class="w-4 h-4 text-neon-green"></i> Monitor de Taller
+                                </h3>
+                            </div>
+                            
+                            <!-- Lista de Alertas (Se llena vía app.js) -->
+                            <div id="taller-notif-list" class="max-h-96 overflow-y-auto custom-scrollbar bg-black">
+                                <div class="p-8 text-center text-slate-500 italic text-xs uppercase font-bold tracking-widest">
+                                    Sincronizando...
+                                </div>
+                            </div>
+                            
+                            <div class="p-3 bg-slate-900/80 border-t border-slate-800">
+                                <a href="<?php echo URLROOT; ?>/taller" class="block text-center text-[10px] font-black text-neon-green uppercase hover:underline tracking-tighter">
+                                    Gestionar Todas las Órdenes
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="relative group">

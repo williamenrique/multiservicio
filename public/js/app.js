@@ -202,6 +202,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (user && (parseInt(user.roleId) === 1 || user.role.toUpperCase() === "ADMINISTRADOR")) {
         initRecoveryNotifications();
         setInterval(initRecoveryNotifications, 30000); // Polling cada 30 segundos
+        initWorkshopAlerts();
+        setInterval(initWorkshopAlerts, 60000); // Chequeo de taller cada minuto
         initCreditNotifications();
         setInterval(initCreditNotifications, 60000); // Chequeo de cartera cada minuto
         initDebtorsCard();
@@ -210,8 +212,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         setInterval(initLowStockNotifications, 120000); // Chequeo de stock cada 2 minutos
         initProfitabilityCard();
         setInterval(initProfitabilityCard, 600000); // Polling cada 10 minutos
+    }
+
+    if (user && user.role.toUpperCase() === "MECANICO") {
         initWorkshopAlerts();
-        setInterval(initWorkshopAlerts, 60000); // Chequeo de entregas cada minuto
+        setInterval(initWorkshopAlerts, 60000); // Chequeo de taller cada minuto
     }
 
     renderTopBarUserInfo(); // Actualiza nombre y rol en la UI
@@ -381,6 +386,7 @@ async function initRecoveryNotifications() {
 
             const result = await response.json();
             if (result.success && result.data.length > 0) {
+                bellContainer.classList.remove('hidden');
                 bellContainer.innerHTML = `
                 <div class="relative group">
                     <button onclick="window.location.href='${URLROOT}/recuperar'" class="p-2 bg-amber-500/10 text-amber-500 rounded-lg alert-shake border border-amber-500/20">
@@ -402,7 +408,10 @@ async function initRecoveryNotifications() {
                     </div>
                 </div>`;
                 window.lucide && lucide.createIcons();
-            } else bellContainer.innerHTML = "";
+            } else {
+                bellContainer.innerHTML = "";
+                bellContainer.classList.add('hidden');
+            }
         } catch (error) {
             console.error("Error en notificaciones:", error);
         }
@@ -423,6 +432,7 @@ async function initCreditNotifications() {
 
         const result = await response.json();
         if (result.success && result.data.length > 0) {
+            container.classList.remove('hidden');
             container.innerHTML = `
             <div class="relative group">
                 <button class="p-2 bg-rose-500/10 text-rose-500 rounded-lg alert-shake border border-rose-500/20" title="Créditos Vencidos">
@@ -469,6 +479,7 @@ async function initCreditNotifications() {
             window.lucide && lucide.createIcons();
         } else {
             container.innerHTML = "";
+            container.classList.add('hidden');
             const dashContainer = document.getElementById("dashboard-overdue-alert");
             if (dashContainer) dashContainer.innerHTML = "";
         }
@@ -496,6 +507,7 @@ async function initLowStockNotifications() {
 
         if (container && window.currentLoggedInUser && (parseInt(window.currentLoggedInUser.roleId) === 1 || window.currentLoggedInUser.role.toUpperCase() === "ADMINISTRADOR")) {
             if (lowStock.length > 0) {
+                container.classList.remove('hidden');
                 container.innerHTML = `
                 <div class="relative group">
                     <button class="p-2 bg-amber-500/10 text-amber-500 rounded-lg alert-shake border border-amber-500/20" title="Stock Bajo">
@@ -512,7 +524,10 @@ async function initLowStockNotifications() {
                         </div>
                     </div>
                 </div>`;
-            } else container.innerHTML = "";
+            } else {
+                container.innerHTML = "";
+                container.classList.add('hidden');
+            }
         }
 
         if (dashContainer) {
@@ -1046,104 +1061,80 @@ const AppNotifications = {
  * Gestiona las notificaciones de entregas próximas o atrasadas en el taller.
  */
 async function initWorkshopAlerts() {
+    const btnLlave = document.getElementById('btn-notificaciones-taller');
+    const containerBell = document.getElementById('workshop-bell-container');
+    const badge = document.getElementById('taller-notif-badge');
+    const lista = document.getElementById('taller-notif-list');
     const containerIndex = document.getElementById('alertasEntrega');
-    let containerHeader = document.getElementById('workshop-notifications-container');
 
-    // Si no existe el contenedor específico, intentamos crearlo dentro del área global de notificaciones
-    if (!containerHeader) {
-        const navArea = document.getElementById('notifications-area');
-        if (navArea) {
-            containerHeader = document.createElement('div');
-            containerHeader.id = 'workshop-notifications-container';
-            navArea.appendChild(containerHeader);
-        }
-    }
-
-    if (!containerIndex && !containerHeader) return;
+    if (!containerBell && !containerIndex) return;
 
     try {
         const res = await fetch(`${URLROOT}/taller/obtenerAlertas`);
         if (!res.ok) return;
-
         const result = await res.json();
-        const alertasFechas = result.alertas || [];
-        const sinMecanico = result.sin_mecanico || [];
 
-        const tarde = alertasFechas.filter(a => a.es_tarde);
-        const proximas = alertasFechas.filter(a => a.es_proximo);
+        if (result.success) {
+            const data = result.data || [];
 
-        const totalAlerts = alertasFechas.length + sinMecanico.length;
-        const hasCritical = tarde.length > 0 || sinMecanico.length > 0;
+            // 1. Mostrar contenedor y actualizar Badge
+            if (containerBell) {
+                if (result.total > 0) {
+                    containerBell.classList.remove('hidden');
+                } else {
+                    containerBell.classList.add('hidden');
+                }
+            }
 
-        // 1. Renderizado en el Index de Taller (Versión Compacta - Píldoras)
-        if (containerIndex) {
-            if (totalAlerts > 0) {
+            if (badge) {
+                if (result.total > 0) {
+                    badge.textContent = result.total;
+                    badge.classList.remove('hidden');
+                    if (btnLlave) btnLlave.classList.add('animate-pulse');
+                } else {
+                    badge.classList.add('hidden');
+                    if (btnLlave) btnLlave.classList.remove('animate-pulse');
+                }
+            }
+
+            // 2. Llenar lista desplegable del Header
+            if (lista) {
+                lista.innerHTML = data.length === 0
+                    ? '<div class="p-8 text-center text-slate-600 italic text-xs">No hay alertas activas</div>'
+                    : data.map(item => {
+                        const colorCls = item.tipo_alerta === 'SIN_MECANICO' ? 'bg-rose-500' : (item.tipo_alerta === 'VENCIDA' ? 'bg-amber-500' : 'bg-blue-500');
+                        return `
+                            <a href="${URLROOT}/taller" class="flex items-center gap-4 p-4 hover:bg-slate-900 border-b border-slate-800/50 transition-colors">
+                                <div class="w-1.5 h-10 ${colorCls} rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)]"></div>
+                                <div class="flex-1">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-black text-white text-xs tracking-tighter">${item.placa}</span>
+                                        <span class="text-[10px] text-gray-400 font-mono">${item.estado}</span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-300 font-bold leading-tight mt-1 uppercase">${item.descripcion_alerta}</p>
+                                    <p class="text-[9px] text-slate-500 mt-0.5 font-medium">${item.marca} ${item.modelo}</p>
+                                </div>
+                            </a>`;
+                    }).join('');
+            }
+
+            // 3. Renderizado en el Index de Taller (Píldoras críticas)
+            if (containerIndex) {
                 containerIndex.classList.remove('hidden');
                 containerIndex.innerHTML = `
                     <div class="col-span-full flex flex-wrap gap-2 mb-4">
-                        ${sinMecanico.map(a => `
-                            <div class="flex-1 min-w-[180px] bg-slate-900 text-amber-400 px-3 py-1.5 rounded-lg shadow-sm flex items-center justify-between border border-amber-500/30">
+                        ${data.filter(a => a.tipo_alerta !== 'PENDIENTE').map(a => `
+                            <div class="flex-1 min-w-[200px] ${a.tipo_alerta === 'VENCIDA' ? 'bg-rose-600' : 'bg-slate-900'} text-white px-3 py-1.5 rounded-lg shadow-sm flex items-center justify-between border border-white/10">
                                 <div class="flex items-center gap-2">
-                                    <i data-lucide="user-x" class="w-3.5 h-3.5"></i>
-                                    <span class="text-[10px] font-black uppercase tracking-tighter">SIN MECÁNICO: ${a.placa}</span>
+                                    <i data-lucide="${a.tipo_alerta === 'SIN_MECANICO' ? 'user-x' : 'alert-circle'}" class="w-3.5 h-3.5"></i>
+                                    <span class="text-[10px] font-black uppercase tracking-tighter">${a.descripcion_alerta}: ${a.placa}</span>
                                 </div>
                                 <span class="text-[9px] font-bold bg-amber-400/10 px-1.5 rounded">ORD #${a.id}</span>
                             </div>
                         `).join('')}
-                        ${tarde.map(a => `
-                            <div class="flex-1 min-w-[180px] bg-rose-600 text-white px-3 py-1.5 rounded-lg shadow-sm flex items-center justify-between border border-rose-400">
-                                <div class="flex items-center gap-2">
-                                    <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
-                                    <span class="text-[10px] font-black uppercase tracking-tighter">ATRASADO: ${a.placa}</span>
-                                </div>
-                                <span class="text-[9px] font-bold bg-white/20 px-1.5 rounded">ORD #${a.id}</span>
-                            </div>
-                        `).join('')}
-                        ${proximas.map(a => `
-                            <div class="flex-1 min-w-[180px] bg-amber-400 text-navy-blue px-3 py-1.5 rounded-lg shadow-sm animate-pulse flex items-center justify-between border border-amber-500">
-                                <div class="flex items-center gap-2">
-                                    <i data-lucide="timer" class="w-3.5 h-3.5"></i>
-                                    <span class="text-[10px] font-black uppercase tracking-tighter">PRÓXIMO: ${a.placa}</span>
-                                </div>
-                                <span class="text-[9px] font-bold bg-black/10 px-1.5 rounded">${Math.round(a.tiempo)}m</span>
-                            </div>
-                        `).join('')}
                     </div>`;
-            } else {
-                containerIndex.classList.add('hidden');
-                containerIndex.innerHTML = "";
             }
         }
-
-        // 2. Renderizado en el Header (Icono con Desplegable)
-        if (containerHeader) {
-            if (totalAlerts > 0) {
-                // Si hay atrasos o falta mecánico, color rojo y vibración intensa. Si no, ámbar.
-                const colorClass = hasCritical ? 'text-rose-500 bg-rose-500/10 border-rose-500/20' : 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-
-                containerHeader.innerHTML = `
-                <div class="relative group">
-                    <button class="p-2 ${colorClass} rounded-lg border-2 ${hasCritical ? 'alert-shake' : 'animate-pulse'}" title="Alertas Críticas del Taller">
-                        <i data-lucide="wrench" class="w-5 h-5"></i>
-                        <span class="absolute -top-1.5 -right-1.5 ${hasCritical ? 'bg-rose-600' : 'bg-amber-600'} text-white text-[10px] font-black px-1.5 rounded-full border-2 border-black">${totalAlerts}</span>
-                    </button>
-                    <div class="hidden group-hover:block absolute top-full right-0 w-72 pt-2 z-50">
-                        <div class="bg-black shadow-[0_10px_40px_rgba(0,0,0,0.8)] rounded-xl p-4 border border-slate-800 text-left">
-                            <p class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest border-b border-slate-800 pb-2">Estado Operativo</p>
-                            <div class="max-h-64 overflow-y-auto space-y-3 custom-scrollbar">
-                                ${sinMecanico.map(a => `<div class="border-b border-slate-900 pb-2"><p class="text-amber-500 font-black text-[9px] uppercase flex items-center gap-1"><i data-lucide="user-x" class="w-3 h-3"></i> Sin Mecánico</p><p class="text-white font-bold uppercase text-[10px]">Orden #${a.id} • ${a.placa}</p></div>`).join('')}
-                                ${tarde.map(a => `<div class="border-b border-slate-900 pb-2"><p class="text-rose-500 font-black text-[9px] uppercase flex items-center gap-1"><i data-lucide="alert-octagon" class="w-3 h-3"></i> Entrega Atrasada</p><p class="text-white font-bold uppercase text-[10px]">Orden #${a.id} • ${a.placa}</p></div>`).join('')}
-                                ${proximas.map(a => `<div class="border-b border-slate-900 pb-2"><p class="text-blue-400 font-black text-[9px] uppercase flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> Próxima Entrega</p><p class="text-white font-bold uppercase text-[10px]">Orden #${a.id} (${Math.round(a.tiempo)} min)</p></div>`).join('')}
-                            </div>
-                            <a href="${URLROOT}/taller" class="block text-center text-[10px] font-black text-neon-green mt-4 uppercase hover:underline tracking-tighter border-t border-slate-800 pt-3">Abrir Panel de Taller</a>
-                        </div>
-                    </div>
-                </div>`;
-            } else {
-                containerHeader.innerHTML = "";
-            }
-        }
-
         if (window.lucide) lucide.createIcons();
     } catch (e) { console.error("Error workshop alerts:", e); }
 }
@@ -1249,3 +1240,8 @@ window.verDetalleOrdenTaller = async (id) => {
         AppUtils.showToast('Error de comunicación', 'error');
     }
 };
+
+/**
+ * Alias global para disparar el detalle desde cualquier tabla (Ej: taller/index.php)
+ */
+window.abrirModalDetalleOrden = window.verDetalleOrdenTaller;
