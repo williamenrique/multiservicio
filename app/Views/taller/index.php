@@ -105,12 +105,19 @@
                             <?php endif; ?>
                         </td>
                         <td class="px-6 py-4 text-right">
-                            <button onclick="imprimirOrden(<?php echo $o->id; ?>)" class="text-slate-400 hover:text-blue-600 p-2 transition-colors" title="Imprimir Orden">
-                                <i data-lucide="printer" class="w-5 h-5"></i>
-                            </button>
-                            <button onclick="verDetalle(<?php echo $o->id; ?>)" class="text-navy-blue hover:text-neon-green p-2 transition-colors" title="Ver Detalles">
-                                <i data-lucide="external-link" class="w-5 h-5"></i>
-                            </button>
+                            <div class="flex justify-end gap-1">
+                                <?php if($o->estado == 'LISTO'): ?>
+                                    <button onclick="entregarVehiculo(<?php echo $o->id; ?>)" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all" title="Marcar como Entregado">
+                                        <i data-lucide="check-square" class="w-5 h-5"></i>
+                                    </button>
+                                    <a href="<?php echo URLROOT; ?>/facturacion?orden_id=<?php echo $o->id; ?>" class="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-all" title="Facturar Orden">
+                                        <i data-lucide="receipt" class="w-5 h-5"></i>
+                                    </a>
+                                <?php endif; ?>
+                                <button onclick="verDetalle(<?php echo $o->id; ?>)" class="text-navy-blue hover:bg-slate-100 p-2 rounded-lg transition-all" title="Detalles">
+                                    <i data-lucide="external-link" class="w-5 h-5"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -203,6 +210,37 @@ async function cambiarEstado(id, selectEl) {
         }
     } catch (error) {
         AppUtils.showToast('Error de comunicación con el servidor', 'error');
+    }
+}
+
+/**
+ * Procesa la entrega final del vehículo
+ */
+async function entregarVehiculo(id) {
+    const { value: nota } = await Swal.fire({
+        title: 'ENTREGA DE VEHÍCULO',
+        input: 'textarea',
+        inputLabel: 'Nota de entrega o conformidad del cliente',
+        inputPlaceholder: 'Ej: Se entrega vehículo lavado, cliente satisfecho...',
+        showCancelButton: true,
+        confirmButtonText: 'CONFIRMAR ENTREGA',
+        confirmButtonColor: '#10b981'
+    });
+
+    if (nota !== undefined) {
+        AppUtils.showLoading('Procesando salida...');
+        const res = await fetch(`${URLROOT}/taller/entregarOrden`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            body: JSON.stringify({ id, comentario: nota })
+        });
+        const result = await res.json();
+        AppUtils.hideLoading();
+
+        if (result.success) {
+            AppUtils.showToast('Vehículo entregado. Orden finalizada.');
+            setTimeout(() => location.reload(), 1000); // Recarga para limpiar la tabla
+        }
     }
 }
 

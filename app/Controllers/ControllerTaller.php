@@ -332,6 +332,25 @@ class ControllerTaller extends Controller {
     }
 
     /**
+     * Finaliza una orden de servicio marcándola como ENTREGADO (AJAX)
+     */
+    public function entregarOrden() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            if (empty($input['id'])) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de orden requerido'], 400);
+            }
+
+            $comentario = !empty($input['comentario']) ? $input['comentario'] : 'Vehículo entregado al cliente.';
+            if ($this->ordenModel->actualizarEstado($input['id'], 'ENTREGADO', $comentario)) {
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Orden finalizada correctamente']);
+            }
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al procesar la entrega']);
+        }
+    }
+
+    /**
      * Punto 4: Disparador de notificaciones (Icono de la Llave)
      * Obtiene todas las órdenes activas para mostrar en el contador del header.
      */

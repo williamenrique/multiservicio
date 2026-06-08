@@ -1,78 +1,134 @@
 <div class="space-y-6">
-    <?php if (!$vehiculo && !$entidad): ?>
-        <div class="bg-red-50 border-l-4 border-red-500 p-6 rounded-xl shadow-sm flex items-center gap-4 text-red-700">
-            <i data-lucide="alert-circle" class="w-8 h-8"></i>
-            <div>
-                <h3 class="font-bold">Información no encontrada</h3>
-                <p>No se encontraron registros para la consulta realizada.</p>
-            </div>
+    <div class="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+        <div class="flex items-center gap-4">
+            <a href="<?php echo URLROOT; ?>/taller" class="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                <i data-lucide="arrow-left" class="text-slate-400"></i>
+            </a>
+            <h2 class="text-xl font-black text-navy-blue uppercase tracking-tighter">Expediente Técnico</h2>
         </div>
-    <?php else: ?>
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Info Vehículo -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden h-fit">
-                <div class="bg-navy-blue p-6 text-center">
-                    <?php if($vehiculo): ?>
-                    <h2 class="text-3xl font-black text-neon-green tracking-tighter"><?php echo $vehiculo->placa; ?></h2>
-                    <p class="text-gray-400 text-sm"><?php echo "$vehiculo->marca $vehiculo->modelo"; ?></p>
-                    <?php else: ?>
-                    <h2 class="text-xl font-black text-neon-green tracking-tighter uppercase"><?php echo $entidad->nombre; ?></h2>
-                    <p class="text-gray-400 text-sm italic"><?php echo $tipo === 'MECANICO' ? 'Técnico Especialista' : 'Cliente Registrado'; ?></p>
-                    <?php endif; ?>
-                </div>
-                <div class="p-6 space-y-4">
-                    <?php if($vehiculo): ?>
-                    <div class="flex justify-between border-b pb-2">
-                        <span class="text-gray-500 text-sm">Propietario</span>
-                        <span class="font-bold text-slate-800"><?php echo $vehiculo->cliente_nombre; ?></span>
-                    </div>
-                    <div class="flex justify-between border-b pb-2">
-                        <span class="text-gray-500 text-sm">Color</span>
-                        <span class="font-bold text-slate-800"><?php echo $vehiculo->color; ?></span>
-                    </div>
-                    <?php else: ?>
-                    <div class="flex justify-between border-b pb-2">
-                        <span class="text-gray-500 text-sm">Identificación</span>
-                        <span class="font-bold text-slate-800"><?php echo $entidad->cedula ?? $entidad->id; ?></span>
-                    </div>
-                    <div class="flex justify-between border-b pb-2">
-                        <span class="text-gray-500 text-sm">Total Trabajos</span>
-                        <span class="font-bold text-navy-blue"><?php echo count($historial); ?></span>
-                    </div>
-                    <?php endif; ?>
-                </div>
-            </div>
+        <?php if($vehiculo): ?>
+            <a href="<?php echo URLROOT; ?>/taller/nuevaOrden?placa=<?php echo $vehiculo->placa; ?>" class="bg-navy-blue text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-neon-green hover:text-black transition-all flex items-center gap-2">
+                <i data-lucide="plus" class="w-4 h-4"></i> NUEVO INGRESO
+            </a>
+        <?php endif; ?>
+    </div>
 
-            <!-- Línea de Tiempo -->
-            <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h3 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <i data-lucide="history" class="text-navy-blue"></i> Hoja de Vida Vehicular
-                </h3>
-                <div class="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
-                    <?php foreach($historial as $h): ?>
-                        <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 group-hover:bg-neon-green text-slate-500 group-hover:text-navy-blue shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 transition-colors">
-                                <i data-lucide="check-circle" class="w-5 h-5"></i>
-                            </div>
-                            <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-navy-blue transition-all">
-                                <div class="flex items-center justify-between space-x-2 mb-1">
-                                    <div class="font-bold text-slate-800">Orden #<?php echo $h->id; ?></div>
-                                    <time class="font-mono text-xs text-navy-blue font-bold"><?php echo date('d/m/Y', strtotime($h->fecha_ingreso)); ?></time>
-                                </div>
-                                <div class="text-slate-500 text-xs mb-2">
-                                    <?php if($tipo !== 'PLACA'): ?> <span class="font-black text-navy-blue">[<?php echo $h->placa; ?>]</span> | <?php endif; ?>
-                                    KM: <span class="font-bold"><?php echo is_numeric($h->kilometraje) ? number_format($h->kilometraje) : $h->kilometraje; ?></span> | 
-                                    Estado: <span class="uppercase font-bold text-neon-green bg-navy-blue px-2 py-0.5 rounded text-[10px]"><?php echo $h->estado; ?></span>
-                                </div>
-                                <div class="text-slate-600 text-sm italic">"<?php echo $h->diagnostico_entrada; ?>"</div>
-                                <?php if($tipo !== 'MECANICO' && !empty($h->mecanico_nombre)): ?>
-                                <p class="text-[9px] text-slate-400 mt-2 font-bold uppercase">Atendido por: <?php echo $h->mecanico_nombre; ?></p>
-                                <?php endif; ?>
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Columna de Información Fija -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="bg-navy-blue p-8 text-center relative">
+                    <div class="absolute top-4 right-4">
+                         <i data-lucide="shield-check" class="text-neon-green w-5 h-5 opacity-50"></i>
+                    </div>
+                    <?php if($vehiculo): ?>
+                        <h1 class="text-4xl font-black text-white tracking-tighter mb-1"><?php echo $vehiculo->placa; ?></h1>
+                        <span class="bg-neon-green text-black text-[10px] font-black px-3 py-1 rounded-full uppercase"><?php echo $vehiculo->marca; ?></span>
+                    <?php else: ?>
+                        <h1 class="text-xl font-black text-white tracking-tighter uppercase leading-tight"><?php echo $entidad->nombre; ?></h1>
+                        <p class="text-slate-400 text-xs mt-2 uppercase font-bold"><?php echo $tipo; ?></p>
+                    <?php endif; ?>
+                </div>
+                
+                <div class="p-6 space-y-5">
+                    <?php if($vehiculo): ?>
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Modelo / Año</p>
+                            <p class="text-sm font-bold text-navy-blue uppercase"><?php echo $vehiculo->modelo; ?> — <?php echo $vehiculo->anio ?? 'N/A'; ?></p>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Color del Vehículo</p>
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded-full border border-slate-300" style="background-color: <?php echo $vehiculo->color; ?>"></div>
+                                <p class="text-sm font-bold text-navy-blue uppercase"><?php echo $vehiculo->color; ?></p>
                             </div>
                         </div>
-                    <?php endforeach; ?>
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Propietario</p>
+                            <p class="text-sm font-bold text-navy-blue uppercase"><?php echo $vehiculo->cliente_nombre; ?></p>
+                            <p class="text-[10px] text-slate-500 font-medium mt-1"><i data-lucide="phone" class="w-3 h-3 inline"></i> <?php echo $vehiculo->cliente_telefono; ?></p>
+                        </div>
+                    <?php else: ?>
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                            <p class="text-3xl font-black text-navy-blue"><?php echo count($historial); ?></p>
+                            <p class="text-[10px] font-black text-slate-400 uppercase">Órdenes Totales</p>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
-    <?php endif; ?>
+
+        <!-- Columna Cronológica (Historial) -->
+        <div class="lg:col-span-3 space-y-4">
+            <div class="flex items-center justify-between mb-2 px-2">
+                <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="clock-3" class="w-4 h-4"></i> Línea de Tiempo de Servicios
+                </h3>
+            </div>
+
+            <?php if(empty($historial)): ?>
+                <div class="bg-white p-12 rounded-3xl text-center border border-dashed border-slate-200">
+                    <i data-lucide="layers" class="w-12 h-12 text-slate-200 mx-auto mb-4"></i>
+                    <p class="text-slate-400 font-bold uppercase text-xs">No hay registros históricos para mostrar</p>
+                </div>
+            <?php endif; ?>
+
+            <div class="space-y-4">
+                <?php foreach($historial as $h): 
+                    $statusColors = [
+                        'RECIBIDO' => 'bg-slate-100 text-slate-500',
+                        'DIAGNOSTICANDO' => 'bg-amber-100 text-amber-600',
+                        'EN_REPARACION' => 'bg-blue-100 text-blue-600',
+                        'LISTO' => 'bg-emerald-100 text-emerald-600',
+                        'ENTREGADO' => 'bg-navy-blue text-white',
+                        'CANCELADO' => 'bg-rose-100 text-rose-600'
+                    ];
+                    $bgStatus = $statusColors[$h->estado] ?? 'bg-slate-100';
+                ?>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow group">
+                    <div class="flex flex-col md:flex-row justify-between gap-4">
+                        <div class="flex-1 space-y-3">
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs font-black text-navy-blue bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">ORDEN #<?php echo $h->id; ?></span>
+                                <span class="text-[10px] font-black uppercase px-3 py-1 rounded-lg <?php echo $bgStatus; ?> tracking-tighter">
+                                    <?php echo $h->estado; ?>
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-bold"><i data-lucide="calendar" class="w-3 h-3 inline"></i> <?php echo date('d M, Y', strtotime($h->fecha_ingreso)); ?></span>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 py-2 border-y border-slate-50">
+                                <div>
+                                    <p class="text-[9px] font-black text-slate-400 uppercase">Kilometraje</p>
+                                    <p class="text-xs font-bold text-slate-700"><?php echo is_numeric($h->kilometraje) ? number_format($h->kilometraje) : $h->kilometraje; ?> KM</p>
+                                </div>
+                                <div>
+                                    <p class="text-[9px] font-black text-slate-400 uppercase">Técnico</p>
+                                    <p class="text-xs font-bold text-slate-700 uppercase"><?php echo $h->mecanico_nombre ?: 'Sin asignar'; ?></p>
+                                </div>
+                                <div class="col-span-2">
+                                    <p class="text-[9px] font-black text-slate-400 uppercase">Diagnóstico / Motivo</p>
+                                    <p class="text-xs text-slate-600 italic leading-snug">"<?php echo $h->diagnostico_entrada; ?>"</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex md:flex-col justify-end gap-2 border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-5">
+                            <button onclick="verDetalle(<?php echo $h->id; ?>)" class="flex-1 md:flex-none bg-slate-50 text-navy-blue p-2 rounded-xl hover:bg-navy-blue hover:text-white transition-all text-center" title="Ver Detalles Técnicos">
+                                <i data-lucide="eye" class="w-4 h-4 mx-auto"></i>
+                            </button>
+                            <?php if($h->estado === 'LISTO'): ?>
+                                <a href="<?php echo URLROOT; ?>/facturacion?orden_id=<?php echo $h->id; ?>" class="flex-1 md:flex-none bg-emerald-50 text-emerald-600 p-2 rounded-xl hover:bg-emerald-600 hover:text-white transition-all text-center" title="Facturar y Cobrar">
+                                    <i data-lucide="receipt" class="w-4 h-4 mx-auto"></i>
+                                </a>
+                            <?php endif; ?>
+                            <button onclick="imprimirOrden(<?php echo $h->id; ?>)" class="flex-1 md:flex-none bg-slate-50 text-slate-400 p-2 rounded-xl hover:text-blue-600 transition-all text-center">
+                                <i data-lucide="printer" class="w-4 h-4 mx-auto"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
 </div>
