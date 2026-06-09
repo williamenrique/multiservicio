@@ -139,4 +139,44 @@ class ModelOrden {
         $this->db->bind(':val', $valor);
         return $this->db->resultSet();
     }
+
+    /**
+     * Obtiene las órdenes de servicio finalizadas (ENTREGADO) con paginación y búsqueda.
+     */
+    public function obtenerOrdenesCerradas($limit = 10, $offset = 0, $search = null) {
+        $sql = "SELECT os.*, v.marca, v.modelo, s.nombre as mecanico_nombre, c.nombre as cliente_nombre
+                FROM table_ordenes_servicio os
+                INNER JOIN table_vehiculos v ON os.placa = v.placa
+                INNER JOIN table_clientes c ON os.cliente_id = c.id
+                LEFT JOIN table_staff s ON os.mecanico_id = s.id
+                WHERE os.estado = 'ENTREGADO'";
+        
+        if ($search) {
+            $sql .= " AND (os.id LIKE :search OR os.placa LIKE :search OR c.nombre LIKE :search OR s.nombre LIKE :search)";
+        }
+
+        $sql .= " ORDER BY os.fecha_entrega_real DESC LIMIT :limit OFFSET :offset";
+        
+        $this->db->query($sql);
+        if ($search) $this->db->bind(':search', "%$search%");
+        $this->db->bind(':limit', (int)$limit);
+        $this->db->bind(':offset', (int)$offset);
+        
+        return $this->db->resultSet();
+    }
+
+    public function contarCerradas($search = null) {
+        $sql = "SELECT COUNT(*) as total FROM table_ordenes_servicio os
+                INNER JOIN table_clientes c ON os.cliente_id = c.id
+                LEFT JOIN table_staff s ON os.mecanico_id = s.id
+                WHERE os.estado = 'ENTREGADO'";
+        
+        if ($search) {
+            $sql .= " AND (os.id LIKE :search OR os.placa LIKE :search OR c.nombre LIKE :search OR s.nombre LIKE :search)";
+        }
+        
+        $this->db->query($sql);
+        if ($search) $this->db->bind(':search', "%$search%");
+        return (int)$this->db->single()->total;
+    }
 }

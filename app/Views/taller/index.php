@@ -4,15 +4,15 @@
 
     <!-- Encabezado y Buscador -->
     <div class="bg-navy-blue p-6 rounded-xl border border-gray-800 shadow-lg">
-        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex flex-col lg:flex-row justify-between items-center gap-6">
             <div>
                 <h2 class="text-2xl font-bold text-white flex items-center gap-2">
                     <i data-lucide="wrench" class="text-neon-green"></i> Gestión de Taller
                 </h2>
                 <p class="text-gray-400">Control de órdenes de servicio y hoja de vida vehicular.</p>
             </div>
-            <div class="flex flex-wrap gap-3 w-full md:w-auto">
-                <div class="relative flex-1 md:min-w-[400px]">
+            <div class="flex flex-col sm:flex-row flex-wrap gap-3 w-full lg:w-auto items-center">
+                <div class="relative w-full sm:w-auto sm:min-w-[350px]">
                     <div class="relative">
                         <input type="text" id="inputBusquedaTaller" placeholder="Buscar placa, cliente, mecánico u orden..." 
                                class="w-full bg-slate-900 border border-gray-700 text-white px-10 py-2 rounded-lg focus:ring-2 focus:ring-neon-green outline-none">
@@ -20,9 +20,14 @@
                     </div>
                     <div id="resultadosTaller" class="absolute top-full left-0 w-full mt-2 bg-white rounded-xl shadow-2xl border border-slate-100 hidden z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"></div>
                 </div>
-                <a href="<?php echo URLROOT; ?>/taller/nuevaOrden" class="bg-neon-green hover:bg-opacity-80 text-navy-blue font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2">
-                    <i data-lucide="plus-circle" class="w-4 h-4"></i> NUEVA O.S.
-                </a>
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <a href="<?php echo URLROOT; ?>/taller/cerradas" class="flex-1 sm:flex-none justify-center bg-white border border-slate-200 text-navy-blue font-bold px-4 py-2 rounded-lg hover:bg-slate-50 transition-all flex items-center gap-2 uppercase text-xs">
+                        <i data-lucide="archive" class="w-4 h-4"></i> Historial
+                    </a>
+                    <a href="<?php echo URLROOT; ?>/taller/nuevaOrden" class="flex-1 sm:flex-none justify-center bg-neon-green hover:bg-opacity-80 text-navy-blue font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2 uppercase text-xs">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> Nueva O.S.
+                    </a>
+                </div>
             </div>
         </div>
     </div>

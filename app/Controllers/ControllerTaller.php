@@ -28,6 +28,35 @@ class ControllerTaller extends Controller {
     }
 
     /**
+     * Vista del historial de órdenes finalizadas
+     */
+    public function cerradas() {
+        $this->view('taller/cerradas', [
+            'titulo' => 'Historial de Órdenes Finalizadas'
+        ]);
+    }
+
+    /**
+     * API para listar órdenes entregadas (Paginado)
+     */
+    public function listarCerradas() {
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+        $search = $_GET['q'] ?? null;
+
+        $items = $this->ordenModel->obtenerOrdenesCerradas($limit, $offset, $search);
+        $total = $this->ordenModel->contarCerradas();
+        $totalFiltrados = $search ? $this->ordenModel->contarCerradas($search) : $total;
+
+        return $this->jsonResponse([
+            'success' => true,
+            'data' => $items ?: [],
+            'total' => $total,
+            'totalFiltrados' => $totalFiltrados
+        ]);
+    }
+
+    /**
      * Muestra la hoja de vida de un vehículo por placa
      */
     public function historial($tipo = 'placa', $valor = '') {
