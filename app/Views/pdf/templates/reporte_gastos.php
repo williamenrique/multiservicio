@@ -1,13 +1,34 @@
 <style>
-    .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; }
-    .table th { background-color: #fef2f2; text-transform: uppercase; font-weight: bold; color: #b91c1c; }
+    body { font-family: 'Helvetica', sans-serif; color: #1e293b; font-size: 11px; }
+    .report-header { border-bottom: 2px solid #e11d48; padding-bottom: 10px; margin-bottom: 20px; }
+    .report-title { font-size: 18px; font-weight: 900; color: #e11d48; text-transform: uppercase; }
+    .table { width: 100%; border-collapse: collapse; }
+    .table th { background-color: #0f172a; color: white; padding: 10px; text-align: left; text-transform: uppercase; font-size: 9px; }
+    .table td { border-bottom: 1px solid #f1f5f9; padding: 10px; font-size: 10px; }
     .text-right { text-align: right; }
-    .period { font-size: 11px; margin-bottom: 20px; color: #64748b; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
-    .total-row { background-color: #fef2f2; font-weight: bold; }
+    .total-row { background-color: #fff1f2; font-weight: bold; color: #e11d48; }
+    .summary-card { background: #0f172a; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
 </style>
 
-<div class="period">PERIODO: <?php echo date('d/m/Y', strtotime($data['desde'])); ?> AL <?php echo date('d/m/Y', strtotime($data['hasta'])); ?></div>
+<div class="report-header">
+    <div class="report-title">Reporte de Egresos y Gastos</div>
+    <div style="color: #64748b; font-weight: bold;">Periodo: <?php echo date('d/m/Y', strtotime($data['desde'])); ?> al <?php echo date('d/m/Y', strtotime($data['hasta'])); ?></div>
+</div>
+
+<div class="summary-card">
+    <table width="100%">
+        <tr>
+            <td>
+                <span style="font-size: 9px; color: #94a3b8; text-transform: uppercase;">Total Desembolsado</span><br>
+                <span style="font-size: 20px; font-weight: 900; color: #fecaca;">$ <?php echo number_format($data['totales']['egresos'] ?? 0, 2); ?></span>
+            </td>
+            <td class="text-right">
+                <span style="font-size: 9px; color: #94a3b8; text-transform: uppercase;">Estado de Caja</span><br>
+                <span style="font-size: 14px; font-weight: bold;">EGRESO CONSOLIDADO</span>
+            </td>
+        </tr>
+    </table>
+</div>
 
 <table class="table">
     <thead>

@@ -368,6 +368,97 @@
     }
 
     /**
+     * Renderiza la tabla de Cronología de Movimientos (Flujo de Caja)
+     * Agrega botones de impresión dinámicos según el tipo de registro.
+     */
+    window.renderMovimientos = (data) => {
+        const body = document.getElementById('report-body');
+        if (!body) return;
+
+        if (!data || data.length === 0) {
+            body.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
+                        No hay movimientos registrados para el periodo seleccionado
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        body.innerHTML = data.map(mov => {
+            let printUrl = '';
+            let orderPrintUrl = '';
+            let btnClass = 'text-slate-400 hover:text-navy-blue';
+            
+            // Normalizamos los textos para buscar palabras clave
+            const cat = (mov.categoria || '').toUpperCase();
+            const label = (mov.categoria_label || mov.tipo || '').toUpperCase();
+            const desc = (mov.descripcion || '').toUpperCase();
+            
+            // Usamos el referencia_id como prioridad, si no existe usamos el ID del movimiento
+            const refId = mov.referencia_id || mov.id; 
+            const ordenId = mov.orden_id;
+
+            // DETECCIÓN MULTI-CRITERIO
+            const esVenta = cat.includes('VENTA') || label.includes('VENTA') || cat.includes('ABONO') || label.includes('ABONO') || desc.includes('FACTURA');
+            const esGasto = label.includes('GASTO') || cat.includes('GASTO') || cat.includes('COMPRA') || desc.includes('PROVEEDOR');
+            const esNomina = label.includes('NOMINA') || label.includes('PAGO') || cat.includes('NOMINA') || cat.includes('PAGO');
+            const esOrden = label.includes('ORDEN') || cat.includes('ORDEN') || desc.includes('ORDEN') || label.includes('O.S.') || desc.includes('O.S.');
+
+            if (esVenta) {
+                printUrl = `${window.URLROOT}/facturacion/imprimir/${refId}`;
+                btnClass = 'text-blue-500 hover:bg-blue-50';
+                if (ordenId) {
+                    orderPrintUrl = `${window.URLROOT}/taller/imprimir/${ordenId}`;
+                }
+            } else if (esGasto) {
+                printUrl = `${window.URLROOT}/gastos/imprimir/${refId}`;
+                btnClass = 'text-rose-500 hover:bg-rose-50';
+            } else if (esNomina) {
+                printUrl = `${window.URLROOT}/reportes/imprimirRecibo/${refId}`;
+                btnClass = 'text-amber-500 hover:bg-amber-50';
+            } else if (esOrden) {
+                printUrl = `${window.URLROOT}/taller/imprimir/${refId}`;
+                btnClass = 'text-emerald-500 hover:bg-emerald-50';
+            }
+
+            return `
+                <tr class="hover:bg-slate-50/50 transition-colors border-b border-slate-50">
+                    <td class="px-4 py-4 font-mono font-bold text-navy-blue text-xs">#${mov.id}</td>
+                    <td class="px-4 py-4 text-xs font-bold text-slate-500">${mov.fecha}</td>
+                    <td class="px-4 py-4 text-center">
+                        <span class="px-2 py-1 rounded text-[9px] font-black border ${mov.tipo === 'EGRESO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'} uppercase tracking-tighter">
+                            ${mov.categoria_label || mov.tipo}
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 text-xs text-slate-600 uppercase font-medium">${mov.descripcion || 'Sin descripción'}</td>
+                    <td class="px-4 py-4 text-right font-black ${mov.tipo === 'EGRESO' ? 'text-rose-500' : 'text-emerald-600'}">
+                        ${mov.tipo === 'EGRESO' ? '-' : '+'}$${Math.abs(parseFloat(mov.monto_pagado || mov.monto || 0)).toLocaleString('es-CO', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td class="px-4 py-4 text-right">
+                        <div class="flex justify-end gap-1">
+                            ${orderPrintUrl ? `
+                                <a href="${orderPrintUrl}" target="_blank" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all" title="Imprimir Orden Técnica">
+                                    <i data-lucide="wrench" class="w-4 h-4"></i>
+                                </a>
+                            ` : ''}
+                            ${printUrl ? `
+                                <a href="${printUrl}" target="_blank" class="${btnClass} p-2 rounded-lg transition-all" title="Imprimir Comprobante">
+                                    <i data-lucide="printer" class="w-4 h-4"></i>
+                                </a>
+                            ` : ''}
+                            <button onclick="window.location.href='${window.URLROOT}/reportes/detalle/${mov.id}'" class="text-slate-300 hover:text-navy-blue p-2 rounded-lg transition-all" title="Ver Trazabilidad">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+        }).join('');
+
+        if (window.lucide) lucide.createIcons();
+    };
+
+    /**
      * Renderiza la tabla de Devoluciones con manejo de estado vacío.
      */
     window.renderDevoluciones = (data) => {

@@ -1,4 +1,20 @@
 <style>
+    /* Estilos para el botón de impresión (Solo visibles en pantalla) */
+    .no-print { 
+        display: inline-block; 
+        margin-left: 10px; 
+        vertical-align: middle;
+    }
+    @media print { 
+        .no-print { display: none !important; } 
+    }
+    .btn-action { color: white !important; text-decoration: none; padding: 3px 6px; border-radius: 4px; font-size: 8px; font-weight: bold; text-transform: uppercase; border: none; cursor: pointer; white-space: nowrap; display: inline-block; vertical-align: middle; }
+    .btn-invoice { background: #0f172a; }
+    .btn-order { background: #10b981; }
+    .btn-action:hover { opacity: 0.8; }
+
+    .btn-print-report { background: #f59e0b; color: #000 !important; padding: 8px 15px; border-radius: 8px; font-weight: 900; font-size: 11px; float: right; margin-top: -5px; }
+
     .period { font-size: 11px; margin-bottom: 20px; color: #64748b; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
     
     .work-block { margin-bottom: 20px; border: 1px solid #f1f5f9; border-radius: 5px; overflow: hidden; page-break-inside: avoid; }
@@ -19,7 +35,12 @@
     .grand-total-amount { font-size: 20px; font-weight: 900; color: #10b981; }
 </style>
 
-<div class="period">PERIODO DE CONSULTA: <?php echo date('d/m/Y', strtotime($data['desde'])); ?> AL <?php echo date('d/m/Y', strtotime($data['hasta'])); ?></div>
+<div class="period">
+    <span class="no-print">
+        <a href="javascript:window.print()" class="btn-action btn-print-report">IMPRIMIR REPORTE AUDITORÍA</a>
+    </span>
+    PERIODO DE CONSULTA: <?php echo date('d/m/Y', strtotime($data['desde'])); ?> AL <?php echo date('d/m/Y', strtotime($data['hasta'])); ?>
+</div>
 
 <?php 
 $totalGeneral = 0;
@@ -31,6 +52,7 @@ if(!empty($data['ventas'])):
             $ventasAgrupadas[$v->id] = (object)[
                 'id' => $v->id,
                 'fecha' => $v->fecha,
+                'orden_id' => $v->orden_id ?? null,
                 'placa' => $v->placa,
                 'modelo_vehiculo' => $v->modelo_vehiculo,
                 'cliente_nombre' => $v->cliente_nombre,
@@ -49,7 +71,19 @@ if(!empty($data['ventas'])):
         <div class="work-header">
             <table class="work-info">
                 <tr>
-                    <td class="work-title" width="30%">ORDEN #<?php echo $orden->id; ?></td>
+                    <td class="work-title" width="30%">
+                        <?php echo $orden->orden_id ? "ORDEN #$orden->orden_id" : "VENTA #$orden->id"; ?>
+                        <span class="no-print">
+                            <a href="<?php echo URLROOT; ?>/facturacion/imprimir/<?php echo $orden->id; ?>" target="_blank" class="btn-action btn-invoice" title="Imprimir Factura">
+                                Factura
+                            </a>
+                            <?php if($orden->orden_id): ?>
+                                <a href="<?php echo URLROOT; ?>/taller/imprimir/<?php echo $orden->orden_id; ?>" target="_blank" class="btn-action btn-order" title="Imprimir Orden Técnica">
+                                    Orden
+                                </a>
+                            <?php endif; ?>
+                        </span>
+                    </td>
                     <td width="35%"><strong>FECHA:</strong> <?php echo date('d/m/Y', strtotime($orden->fecha)); ?></td>
                     <td width="35%" class="text-right"><strong>PLACA:</strong> <?php echo $orden->placa; ?></td>
                 </tr>
