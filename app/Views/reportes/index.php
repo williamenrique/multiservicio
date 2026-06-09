@@ -394,29 +394,30 @@
             const cat = (mov.categoria || '').toUpperCase();
             const label = (mov.categoria_label || mov.tipo || '').toUpperCase();
             const desc = (mov.descripcion || '').toUpperCase();
+            const tipo = (mov.tipo || '').toUpperCase();
+            const root = window.URLROOT || '<?php echo URLROOT; ?>';
             
             // Usamos el referencia_id como prioridad, si no existe usamos el ID del movimiento
             const refId = mov.referencia_id || mov.id; 
             const ordenId = mov.orden_id;
 
-            // 1. DETECCIÓN DE COMPROBANTE PRINCIPAL (Basado en Categoría Exacta)
-            if (cat === 'VENTA' || cat === 'ABONO_CLIENTE') {
-                printUrl = `${window.URLROOT}/facturacion/imprimir/${refId}`;
+            // 1. DETECCIÓN DE COMPROBANTE (Factura, Gasto o Nómina) - Basado en Tipo y Categoría
+            if (tipo === 'INGRESO' && (cat.includes('VENTA') || cat.includes('ABONO') || desc.includes('FACTURA'))) {
+                printUrl = `${root}/facturacion/imprimir/${refId}`;
                 btnClass = 'text-blue-500 hover:bg-blue-50';
-            } else if (cat === 'NOMINA') {
-                printUrl = `${window.URLROOT}/reportes/imprimirRecibo/${refId}`;
+            } else if (cat.includes('NOMINA') || label.includes('NOMINA') || label.includes('PAGO')) {
+                printUrl = `${root}/reportes/imprimirRecibo/${refId}`;
                 btnClass = 'text-amber-500 hover:bg-amber-50';
-            } else if (cat === 'GASTO' || cat === 'COMPRA' || cat === 'ABONO_PROVEEDOR') {
-                printUrl = `${window.URLROOT}/gastos/imprimir/${refId}`;
+            } else if (tipo === 'EGRESO' || cat.includes('GASTO') || cat.includes('COMPRA') || cat.includes('PROVEEDOR')) {
+                printUrl = `${root}/gastos/imprimir/${refId}`;
                 btnClass = 'text-rose-500 hover:bg-rose-50';
             }
 
-            // 2. DETECCIÓN DE ORDEN TÉCNICA (Independiente)
-            // Si el objeto tiene un orden_id o el label/desc indica que es una O.S.
-            if (ordenId) {
-                orderPrintUrl = `${window.URLROOT}/taller/imprimir/${ordenId}`;
-            } else if (label.includes('O.S.') || desc.includes('ORDEN')) {
-                orderPrintUrl = `${window.URLROOT}/taller/imprimir/${refId}`;
+            // 2. DETECCIÓN DE ORDEN TÉCNICA (Icono de Llave)
+            if (ordenId && ordenId !== 'null' && ordenId !== null) {
+                orderPrintUrl = `${root}/taller/imprimir/${ordenId}`;
+            } else if (label.includes('O.S') || desc.includes('ORDEN') || cat.includes('ORDEN')) {
+                orderPrintUrl = `${root}/taller/imprimir/${refId}`;
             }
 
             return `
@@ -424,7 +425,7 @@
                     <td class="px-4 py-4 font-mono font-bold text-navy-blue text-xs">#${mov.id}</td>
                     <td class="px-4 py-4 text-xs font-bold text-slate-500">${mov.fecha}</td>
                     <td class="px-4 py-4 text-center">
-                        <span class="px-2 py-1 rounded text-[9px] font-black border ${mov.tipo === 'EGRESO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'} uppercase tracking-tighter">
+                        <span class="px-2 py-1 rounded text-[9px] font-black border ${mov.tipo_color === 'rose' || tipo === 'EGRESO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'} uppercase tracking-tighter">
                             ${mov.categoria_label || mov.tipo}
                         </span>
                     </td>
@@ -444,7 +445,7 @@
                                     <i data-lucide="printer" class="w-4 h-4"></i>
                                 </a>
                             ` : ''}
-                            <button onclick="window.location.href='${window.URLROOT}/reportes/detalle/${mov.id}'" class="text-slate-300 hover:text-navy-blue p-2 rounded-lg transition-all" title="Ver Trazabilidad">
+                            <button onclick="window.location.href='${root}/reportes/detalle/${mov.id}'" class="text-slate-300 hover:text-navy-blue p-2 rounded-lg transition-all" title="Ver Trazabilidad">
                                 <i data-lucide="search" class="w-4 h-4"></i>
                             </button>
                         </div>
