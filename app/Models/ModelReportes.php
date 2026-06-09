@@ -363,7 +363,7 @@ class ModelReportes {
  
         $this->db->query("SELECT v.id as venta_id, v.fecha, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
                                  vd.id as detalle_id, vd.descripcion, vd.cantidad, 
-                                 vd.precio_unitario as monto_trabajo, vd.pago_nomina_id,
+                                 vd.precio_unitario as monto_trabajo, vd.pago_nomina_id, COALESCE(NULLIF(vh.modelo, ''), NULLIF(v.modelo_vehiculo, ''), 'N/A') as modelo_vehiculo_display,
                                  CASE WHEN v.orden_id IS NOT NULL THEN 'OS' WHEN v.placa IS NOT NULL THEN 'TALLER' ELSE 'MOSTRADOR' END as tipo_procedencia
                           FROM table_facturas v
                           JOIN table_facturas_detalle vd ON vd.factura_id = v.id
@@ -411,7 +411,7 @@ class ModelReportes {
             // Obtener los trabajos que fueron liquidados en este pago específico con info de vehículo
             $this->db->query("SELECT v.id as venta_id, vd.descripcion, vd.cantidad, vd.precio_unitario, v.fecha, 
                                      COALESCE(vh.placa, v.placa) as placa, 
-                                     COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
+                                     COALESCE(NULLIF(vh.modelo, ''), NULLIF(v.modelo_vehiculo, ''), 'N/A') as modelo_vehiculo,
                                      CASE WHEN v.orden_id IS NOT NULL THEN 'OS' WHEN v.placa IS NOT NULL THEN 'TALLER' ELSE 'MOSTRADOR' END as tipo_procedencia
                               FROM table_facturas_detalle vd
                               JOIN table_facturas v ON vd.factura_id = v.id

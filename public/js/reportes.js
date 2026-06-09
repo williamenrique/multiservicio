@@ -1297,7 +1297,13 @@ window.verDetallePagoHistorial = async (id) => {
                             <table class="w-full text-[10px]">
                                 <thead class="bg-slate-50"><tr><th class="p-2 text-left">Trabajo (Factura)</th><th class="p-2 text-right">Monto</th></tr></thead>
                                 <tbody class="divide-y">
-                                    ${p.trabajos.map(t => `<tr><td class="p-2">${t.descripcion} <span class="text-[9px] text-slate-400 font-bold">(${t.placa} - ${t.modelo_vehiculo})</span> <span class="font-mono text-navy-blue">#${t.venta_id}</span></td><td class="p-2 text-right font-bold">${AppUtils.formatCurrency(t.precio_unitario)}</td></tr>`).join('')}
+                                    ${p.trabajos.map(t => {
+                    const vehicleDetails = [];
+                    if (t.placa) vehicleDetails.push(t.placa);
+                    if (t.modelo_vehiculo && t.modelo_vehiculo !== 'N/A') vehicleDetails.push(t.modelo_vehiculo);
+                    const vehicleDisplay = vehicleDetails.length > 0 ? `(${vehicleDetails.join(' - ')})` : '';
+                    return `<tr><td class="p-2">${t.descripcion} <span class="text-[9px] text-slate-400 font-bold">${vehicleDisplay}</span> <span class="font-mono text-navy-blue">#${t.venta_id}</span></td><td class="p-2 text-right font-bold">${AppUtils.formatCurrency(t.precio_unitario)}</td></tr>`;
+                }).join('')}
                                 </tbody>
                             </table>
                         </div>` : ''}
