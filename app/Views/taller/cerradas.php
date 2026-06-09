@@ -124,6 +124,95 @@
     let limit = 10;
     let totalPages = 0;
 
+    // Function to open the detail modal for a closed order
+    const openDetalleOrdenCerradaModal = async (id) => {
+        const modal = document.getElementById('detalleOrdenCerradaModal');
+        const modalTitle = document.getElementById('modalDetalleTitle');
+        const detalleOrdenId = document.getElementById('detalleOrdenId');
+        const detallePlaca = document.getElementById('detallePlaca');
+        const detalleMarcaModelo = document.getElementById('detalleMarcaModelo');
+        const detalleAnioColor = document.getElementById('detalleAnioColor');
+        const detalleClienteNombre = document.getElementById('detalleClienteNombre');
+        const detalleClienteTelefono = document.getElementById('detalleClienteTelefono');
+        const detalleMecanico = document.getElementById('detalleMecanico');
+        const detalleFechaIngreso = document.getElementById('detalleFechaIngreso');
+        const detalleFechaEstimada = document.getElementById('detalleFechaEstimada');
+        const detalleFechaReal = document.getElementById('detalleFechaReal');
+        const detalleDiagnostico = document.getElementById('detalleDiagnostico');
+        const detalleChecklist = document.getElementById('detalleChecklist');
+        const detalleLogs = document.getElementById('detalleLogs');
+        const btnIrHistorialVehiculo = document.getElementById('btnIrHistorialVehiculo');
+
+        AppUtils.showLoading('Cargando detalles de la orden...');
+
+        try {
+            const res = await fetch(`${URLROOT}/taller/obtenerDetalle/${id}`);
+            const result = await res.json();
+            AppUtils.hideLoading();
+
+            if (result.success) {
+                const o = result.data;
+                const logs = result.logs;
+                const checklist = result.checklist;
+
+                detalleOrdenId.textContent = o.id;
+                detallePlaca.textContent = o.placa;
+                detalleMarcaModelo.textContent = `${o.marca} ${o.modelo}`;
+                detalleAnioColor.textContent = `${o.anio || 'N/A'} / ${o.color || 'N/A'}`;
+                detalleClienteNombre.textContent = o.cliente_nombre;
+                detalleClienteTelefono.textContent = o.cliente_telefono;
+                detalleMecanico.textContent = o.mecanico_nombre || 'Sin Asignar';
+                detalleFechaIngreso.textContent = new Date(o.fecha_ingreso).toLocaleString();
+                detalleFechaEstimada.textContent = o.fecha_entrega_estimada ? new Date(o.fecha_entrega_estimada).toLocaleString() : 'N/A';
+                detalleFechaReal.textContent = o.fecha_entrega_real ? new Date(o.fecha_entrega_real).toLocaleString() : 'N/A';
+                detalleDiagnostico.textContent = o.diagnostico_entrada || 'Sin diagnóstico';
+
+                // Populate checklist
+                detalleChecklist.innerHTML = '';
+                if (checklist && checklist.length > 0) {
+                    checklist.forEach(item => {
+                        const li = document.createElement('li');
+                        li.className = 'flex items-center gap-2';
+                        li.innerHTML = `<i data-lucide="${item.estado == 1 ? 'check-circle' : 'circle'}" class="w-4 h-4 ${item.estado == 1 ? 'text-emerald-500' : 'text-slate-400'}"></i>
+                                        <span>${item.item} ${item.observacion ? `(${item.observacion})` : ''}</span>`;
+                        detalleChecklist.appendChild(li);
+                    });
+                } else {
+                    detalleChecklist.innerHTML = '<li class="text-slate-400 italic">No se registró checklist.</li>';
+                }
+
+                // Populate logs
+                detalleLogs.innerHTML = '';
+                if (logs && logs.length > 0) {
+                    logs.forEach(log => {
+                        const div = document.createElement('div');
+                        div.className = 'text-xs text-slate-600';
+                        div.innerHTML = `<span class="font-bold">${new Date(log.fecha).toLocaleString()}</span>: 
+                                         ${log.usuario_nombre || 'Sistema'} cambió de <span class="font-medium">${log.estado_anterior}</span> a <span class="font-medium">${log.estado_nuevo}</span>.
+                                         ${log.comentario ? `(${log.comentario})` : ''}`;
+                        detalleLogs.appendChild(div);
+                    });
+                } else {
+                    detalleLogs.innerHTML = '<div class="text-xs text-slate-400 italic">No hay historial de estados.</div>';
+                }
+
+                // Update "Ir a Historial del Vehículo" button
+                btnIrHistorialVehiculo.href = `${URLROOT}/taller/historial/placa/${o.placa}`;
+
+                modal.classList.remove('hidden');
+                if(window.lucide) lucide.createIcons();
+            } else {
+                AppUtils.showToast(result.error || 'Error al cargar detalles de la orden.', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión al obtener detalles.', 'error');
+            console.error("Error fetching order details:", e);
+        }
+    };
+
+    window.verDetalle = openDetalleOrdenCerradaModal; // Hacemos la función globalmente accesible
+
     const cargarOrdenesCerradas = async (search = '') => {
         const offset = (currentPage - 1) * limit;
         const url = `${URLROOT}/taller/listarCerradas?limit=${limit}&offset=${offset}&q=${encodeURIComponent(search)}`;
@@ -154,6 +243,9 @@
                     <td class="px-8 py-4 text-xs font-bold text-navy-blue uppercase">${o.mecanico_nombre || 'S/A'}</td>
                     <td class="px-8 py-4 text-right">
                         <div class="flex justify-end gap-2">
+                            <a href="${URLROOT}/taller/historial/placa/${o.placa}" class="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400" title="Ver Hoja de Vida">
+                                <i data-lucide="history" class="w-4 h-4"></i>
+                            </a>
                             <button onclick="window.verDetalle(${o.id})" class="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400" title="Ver Expediente">
                                 <i data-lucide="eye" class="w-4 h-4"></i>
                             </button>
@@ -177,6 +269,15 @@
         currentPage = 1;
         cargarOrdenesCerradas(e.target.value);
     });
+
+    // Event listeners for closing the modal
+    document.getElementById('btnCloseDetalleModal')?.addEventListener('click', () => {
+        document.getElementById('detalleOrdenCerradaModal').classList.add('hidden');
+    });
+    document.getElementById('btnCerrarDetalleModal')?.addEventListener('click', () => {
+        document.getElementById('detalleOrdenCerradaModal').classList.add('hidden');
+    });
+
 
     document.addEventListener('DOMContentLoaded', () => cargarOrdenesCerradas());
 </script>

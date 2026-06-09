@@ -102,6 +102,27 @@ class ControllerTaller extends Controller {
                 break;
         }
 
+        // Enriquecer cada registro del historial con su checklist e ítems facturados
+        if (!empty($historial)) {
+            $facturaModel = $this->model('Facturacion');
+            $db = new Database();
+            foreach ($historial as &$itemH) {
+                // Cargar Checklist
+                $itemH->checklist_data = $this->ordenModel->obtenerChecklist($itemH->id);
+                
+                // Buscar si tiene factura para traer los repuestos/servicios
+                $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status != 'ANULADO' ORDER BY id DESC LIMIT 1");
+                $db->bind(':oid', $itemH->id);
+                $resFac = $db->single();
+                
+                $itemH->items_facturados = [];
+                if ($resFac) {
+                    $vDetalle = $facturaModel->obtenerVentaCompleta($resFac->id);
+                    $itemH->items_facturados = $vDetalle->items ?? [];
+                }
+            }
+        }
+
         // CORRECCIÓN: La vista está en taller/historial.php directamente
         $this->view('taller/historial', [
             'titulo' => $titulo,

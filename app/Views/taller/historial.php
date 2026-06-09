@@ -110,6 +110,37 @@
                                     <p class="text-xs text-slate-600 italic leading-snug">"<?php echo $h->diagnostico_entrada; ?>"</p>
                                 </div>
                             </div>
+
+                            <!-- Nueva sección: Checklist e Items facturados -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-3 pt-3 border-t border-slate-50">
+                                <?php if(!empty($h->checklist_data)): ?>
+                                <div>
+                                    <p class="text-[9px] font-black text-slate-400 uppercase mb-2">Checklist de Entrada</p>
+                                    <div class="flex flex-wrap gap-1">
+                                        <?php foreach($h->checklist_data as $chk): ?>
+                                            <span class="text-[9px] px-2 py-0.5 rounded-full border border-slate-100 bg-slate-50 text-slate-500 flex items-center gap-1">
+                                                <i data-lucide="<?php echo $chk->estado == 1 ? 'check-circle' : 'circle'; ?>" class="w-2.5 h-2.5 <?php echo $chk->estado == 1 ? 'text-emerald-500' : 'text-slate-300'; ?>"></i>
+                                                <?php echo $chk->item; ?> <?php echo !empty($chk->observacion) ? "({$chk->observacion})" : ""; ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+
+                                <?php if(!empty($h->items_facturados)): ?>
+                                <div>
+                                    <p class="text-[9px] font-black text-slate-400 uppercase mb-2">Trabajos y Repuestos Realizados</p>
+                                    <div class="space-y-1">
+                                        <?php foreach($h->items_facturados as $it): ?>
+                                            <div class="flex justify-between items-center text-[10px] bg-blue-50/50 p-1.5 rounded-lg border border-blue-100/50">
+                                                <span class="font-bold text-blue-700 uppercase truncate max-w-[180px]"><?php echo $it->descripcion; ?></span>
+                                                <span class="bg-blue-600 text-white px-1.5 rounded font-black">x<?php echo $it->cantidad; ?></span>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                            </div>
                         </div>
 
                         <div class="flex md:flex-col justify-end gap-2 border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-5">

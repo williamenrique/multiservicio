@@ -116,7 +116,7 @@
 <script src="<?php echo URLROOT; ?>/js/taller_nueva_orden.js"></script>
 
 <script>
-// Lógica para auto-completar datos si existen en la BD
+// Lógica para auto-completar datos si existen en la BD y sugerir registro
 document.addEventListener('DOMContentLoaded', () => {
     const inputPlaca = document.getElementById('inputPlaca');
     const placaResults = document.getElementById('placa_results');
@@ -129,7 +129,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Buscar por Placa
     inputPlaca?.addEventListener('blur', async function() {
         const placa = this.value.trim();
-        if (placa.length < 3) return;
+        if (placa.length < 3) {
+            // Clear vehicle fields
+            document.querySelector('[name="marca"]').value = '';
+            document.querySelector('[name="modelo"]').value = '';
+            document.querySelector('[name="anio"]').value = '';
+            document.querySelector('[name="color"]').value = '';
+            // Clear client fields
+            inputClienteId.value = '';
+            inputClienteNombre.value = '';
+            inputClienteNombre.classList.remove('bg-green-50');
+            return;
+        }
 
         try {
             const resp = await fetch(`${URLROOT}/taller/obtenerVehiculoPorPlaca/${placa}`);
@@ -148,6 +159,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     inputClienteId.value = v.cliente_id;
                     inputClienteNombre.value = v.cliente_nombre || '';
                     inputClienteNombre.classList.add('bg-green-50');
+                } else {
+                    // If vehicle found but no client_id linked (shouldn't happen if DB is consistent)
+                    inputClienteId.value = '';
+                    inputClienteNombre.value = '';
+                    inputClienteNombre.classList.remove('bg-green-50');
                 }
 
                 // NEW: Populate last known mileage
@@ -157,9 +173,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     AppUtils.showToast(`Vehículo encontrado. Último kilometraje: ${res.ultimo_kilometraje}`, 'success');
                 } else {
                     AppUtils.showToast('Vehículo encontrado: Datos cargados', 'success');
-                }
+                }            } else {
+                // Vehicle not found, clear fields and show toast
+                document.querySelector('[name="marca"]').value = '';
+                document.querySelector('[name="modelo"]').value = '';
+                document.querySelector('[name="anio"]').value = '';
+                document.querySelector('[name="color"]').value = '';
+                inputClienteId.value = '';
+                inputClienteNombre.value = '';
+                inputClienteNombre.classList.remove('bg-green-50');
+                AppUtils.showToast(`Vehículo con placa "${placa}" no encontrado.`, 'warning');
             }
-        } catch (e) { console.error("Error buscando placa:", e); }
+        } catch (e) {
+            console.error("Error buscando placa:", e);
+            // Clear fields on error
+            document.querySelector('[name="marca"]').value = '';
+            document.querySelector('[name="modelo"]').value = '';
+            document.querySelector('[name="anio"]').value = '';
+            document.querySelector('[name="color"]').value = '';
+            inputClienteId.value = '';
+            inputClienteNombre.value = '';
+            inputClienteNombre.classList.remove('bg-green-50');
+            AppUtils.showToast('Error de conexión al buscar vehículo.', 'error');
+        }
     });
 
     // Buscar por Cédula/NIT
@@ -177,8 +213,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 AppUtils.showToast('Cliente reconocido', 'success');
             } else {
                 inputClienteNombre.classList.remove('bg-green-50');
+                inputClienteNombre.value = ''; // Clear the name field
+                AppUtils.showToast(`Cliente con ID "${id}" no encontrado. Por favor, regístrelo en el módulo de Clientes.`, 'warning');
             }
-        } catch (e) { console.error("Error buscando cliente:", e); }
+        } catch (e) {
+            console.error("Error buscando cliente:", e);
+            inputClienteNombre.classList.remove('bg-green-50');
+            inputClienteNombre.value = '';
+            AppUtils.showToast('Error de conexión al buscar cliente.', 'error');
+        }
     });
 
     // Búsqueda en tiempo real para Placas
@@ -250,7 +293,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         `).join('');
                         clienteResults.classList.remove('hidden');
                         if(window.lucide) lucide.createIcons();
-                    } else { clienteResults.classList.add('hidden'); }
+                    } else {
+                        clienteResults.classList.add('hidden');
+                        // No clients found, offer to create a new one
+                        clienteResults.innerHTML = `
+                            <div class="p-3 text-center text-slate-400 text-xs italic">
+                                No se encontraron clientes con "${term}".
+                            </div>
+                            <div class="p-3 border-t border-slate-100">
+                                <button type="button" onclick="window.openNewClientModal('${term}')" class="w-full bg-navy-blue text-white px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all uppercase text-xs">
+                                    <i data-lucide="user-plus" class="w-4 h-4"></i> Registrar Nuevo Cliente
+                                </button>
+                            </div>
+                        `;
+                        clienteResults.classList.remove('hidden');
+                        if(window.lucide) lucide.createIcons();
+                    }
                 }
             } catch (e) { console.error("Error searching clients:", e); }
         }, 300);
@@ -261,6 +319,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!placaResults.contains(e.target) && e.target !== inputPlaca) placaResults.classList.add('hidden');
         if (!clienteResults.contains(e.target) && e.target !== inputClienteId) clienteResults.classList.add('hidden');
     });
+
+    // Función para abrir modal de nuevo cliente (o redirigir)
+    window.openNewClientModal = (clientId) => {
+        Swal.fire({
+            title: 'Cliente no encontrado',
+            text: `El cliente con ID "${clientId}" no está registrado. ¿Desea registrarlo ahora?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, Registrar',
+            cancelButtonText: 'No, Cancelar',
+            confirmButtonColor: '#10b981'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = `${URLROOT}/clientes/index?new_client_id=${clientId}`;
+            }
+        });
+        document.getElementById('cliente_results').classList.add('hidden'); // Hide search results after interaction
+    };
 });
 
 function agregarFilaChecklist() {
