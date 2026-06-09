@@ -105,7 +105,8 @@ class ModelFacturacion {
     public function obtenerBorradorPorOrden($ordenId) {
         $this->db->query("SELECT v.*, c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
-                                 os.mecanico_id
+                                 os.mecanico_id,
+                                 'OS' as tipo_procedencia
                           FROM table_facturas v 
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
@@ -371,7 +372,19 @@ class ModelFacturacion {
             $this->db->bind(':status', $nuevoStatus);
             $this->db->bind(':id', $ventaId);
 
-            return $this->db->execute();
+            $this->db->execute();
+
+            // 4. Registrar el abono como un ingreso en table_transacciones
+            // Esto asegura que el flujo de caja refleje el dinero recibido.
+            $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                              VALUES (1, 'INGRESO', 'ABONO_CLIENTE', :monto_abono, :ref_id, :desc_abono, :uid)");
+            $this->db->bind(':monto_abono', $monto);
+            $this->db->bind(':ref_id', $ventaId);
+            $this->db->bind(':desc_abono', "ABONO FACTURA #" . $ventaId . " (" . $metodo . ")");
+            $this->db->bind(':uid', $_SESSION['user_id']);
+            $this->db->execute();
+
+            return true;
         } catch (Exception $e) {
             throw $e;
         }
