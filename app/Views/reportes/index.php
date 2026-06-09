@@ -399,27 +399,24 @@
             const refId = mov.referencia_id || mov.id; 
             const ordenId = mov.orden_id;
 
-            // DETECCIÓN MULTI-CRITERIO
-            const esVenta = cat.includes('VENTA') || label.includes('VENTA') || cat.includes('ABONO') || label.includes('ABONO') || desc.includes('FACTURA');
-            const esGasto = label.includes('GASTO') || cat.includes('GASTO') || cat.includes('COMPRA') || desc.includes('PROVEEDOR');
-            const esNomina = label.includes('NOMINA') || label.includes('PAGO') || cat.includes('NOMINA') || cat.includes('PAGO');
-            const esOrden = label.includes('ORDEN') || cat.includes('ORDEN') || desc.includes('ORDEN') || label.includes('O.S.') || desc.includes('O.S.');
-
-            if (esVenta) {
+            // 1. DETECCIÓN DE COMPROBANTE PRINCIPAL (Basado en Categoría Exacta)
+            if (cat === 'VENTA' || cat === 'ABONO_CLIENTE') {
                 printUrl = `${window.URLROOT}/facturacion/imprimir/${refId}`;
                 btnClass = 'text-blue-500 hover:bg-blue-50';
-                if (ordenId) {
-                    orderPrintUrl = `${window.URLROOT}/taller/imprimir/${ordenId}`;
-                }
-            } else if (esGasto) {
-                printUrl = `${window.URLROOT}/gastos/imprimir/${refId}`;
-                btnClass = 'text-rose-500 hover:bg-rose-50';
-            } else if (esNomina) {
+            } else if (cat === 'NOMINA') {
                 printUrl = `${window.URLROOT}/reportes/imprimirRecibo/${refId}`;
                 btnClass = 'text-amber-500 hover:bg-amber-50';
-            } else if (esOrden) {
-                printUrl = `${window.URLROOT}/taller/imprimir/${refId}`;
-                btnClass = 'text-emerald-500 hover:bg-emerald-50';
+            } else if (cat === 'GASTO' || cat === 'COMPRA' || cat === 'ABONO_PROVEEDOR') {
+                printUrl = `${window.URLROOT}/gastos/imprimir/${refId}`;
+                btnClass = 'text-rose-500 hover:bg-rose-50';
+            }
+
+            // 2. DETECCIÓN DE ORDEN TÉCNICA (Independiente)
+            // Si el objeto tiene un orden_id o el label/desc indica que es una O.S.
+            if (ordenId) {
+                orderPrintUrl = `${window.URLROOT}/taller/imprimir/${ordenId}`;
+            } else if (label.includes('O.S.') || desc.includes('ORDEN')) {
+                orderPrintUrl = `${window.URLROOT}/taller/imprimir/${refId}`;
             }
 
             return `
