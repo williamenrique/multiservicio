@@ -688,6 +688,15 @@ window.verDetalleVenta = async (ventaId) => {
                         </div>
                     </div>
 
+                    ${venta.observaciones ? `
+                        <div class="space-y-1">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Observaciones / Detalles Técnicos</p>
+                            <div class="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-xs font-bold text-amber-800 italic uppercase leading-relaxed shadow-sm">
+                                "${venta.observaciones}"
+                            </div>
+                        </div>
+                    ` : ''}
+
                     <div class="max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-white shadow-inner">
                         <table class="w-full text-sm border-collapse">
                             <thead>
