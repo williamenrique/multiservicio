@@ -1012,7 +1012,7 @@ window.cargarNomina = async function () {
                         <div class="flex flex-col">
                             <span class="text-sm md:text-lg font-black ${isPaid ? 'text-slate-500' : 'text-navy-blue'} uppercase tracking-tight">${t.descripcion}</span>
                             <span class="text-[9px] text-slate-400 font-bold uppercase">
-                                <span class="font-mono text-slate-500">#${t.venta_id}</span> | ${new Date(t.fecha).toLocaleDateString()} | Vehículo: ${t.placa}
+                                <span class="font-mono text-slate-500">#${t.venta_id}</span> | ${new Date(t.fecha).toLocaleDateString()} | ${t.placa} - ${t.modelo_vehiculo}
                             </span>
                         </div>
                     </td>
@@ -1297,7 +1297,7 @@ window.verDetallePagoHistorial = async (id) => {
                             <table class="w-full text-[10px]">
                                 <thead class="bg-slate-50"><tr><th class="p-2 text-left">Trabajo (Factura)</th><th class="p-2 text-right">Monto</th></tr></thead>
                                 <tbody class="divide-y">
-                                    ${p.trabajos.map(t => `<tr><td class="p-2">${t.descripcion} (${t.placa}) <span class="font-mono text-slate-400">#${t.venta_id}</span></td><td class="p-2 text-right font-bold">${AppUtils.formatCurrency(t.precio_unitario)}</td></tr>`).join('')}
+                                    ${p.trabajos.map(t => `<tr><td class="p-2">${t.descripcion} <span class="text-[9px] text-slate-400 font-bold">(${t.placa} - ${t.modelo_vehiculo})</span> <span class="font-mono text-navy-blue">#${t.venta_id}</span></td><td class="p-2 text-right font-bold">${AppUtils.formatCurrency(t.precio_unitario)}</td></tr>`).join('')}
                                 </tbody>
                             </table>
                         </div>` : ''}
