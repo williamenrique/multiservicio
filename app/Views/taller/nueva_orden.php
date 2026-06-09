@@ -24,9 +24,10 @@
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Información del Vehículo</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
+                    <div class="relative">
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Placa *</label>
                         <input type="text" name="placa" id="inputPlaca" required class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none font-bold text-navy-blue" placeholder="ABC-123">
+                        <div id="placa_results" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
                     </div>
                     <div class="relative">
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Identificación Cliente *</label>
@@ -115,6 +116,153 @@
 <script src="<?php echo URLROOT; ?>/js/taller_nueva_orden.js"></script>
 
 <script>
+// Lógica para auto-completar datos si existen en la BD
+document.addEventListener('DOMContentLoaded', () => {
+    const inputPlaca = document.getElementById('inputPlaca');
+    const placaResults = document.getElementById('placa_results');
+    const inputClienteId = document.getElementById('cliente_id');
+    const clienteResults = document.getElementById('cliente_results');
+    const inputClienteNombre = document.getElementById('cliente_nombre');
+    let searchTimerPlaca;
+    let searchTimerCliente;
+
+    // Buscar por Placa
+    inputPlaca?.addEventListener('blur', async function() {
+        const placa = this.value.trim();
+        if (placa.length < 3) return;
+
+        try {
+            const resp = await fetch(`${URLROOT}/taller/obtenerVehiculoPorPlaca/${placa}`);
+            const res = await resp.json();
+            
+            if (res.success && res.data) {
+                const v = res.data;
+                // Llenar campos del vehículo
+                document.querySelector('[name="marca"]').value = v.marca || '';
+                document.querySelector('[name="modelo"]').value = v.modelo || '';
+                document.querySelector('[name="anio"]').value = v.anio || '';
+                document.querySelector('[name="color"]').value = v.color || '';
+                
+                // Llenar datos del cliente asociado
+                if (v.cliente_id) {
+                    inputClienteId.value = v.cliente_id;
+                    inputClienteNombre.value = v.cliente_nombre || '';
+                    inputClienteNombre.classList.add('bg-green-50');
+                }
+
+                // NEW: Populate last known mileage
+                const inputKilometraje = document.querySelector('[name="kilometraje"]');
+                if (inputKilometraje && res.ultimo_kilometraje) {
+                    inputKilometraje.value = res.ultimo_kilometraje;
+                    AppUtils.showToast(`Vehículo encontrado. Último kilometraje: ${res.ultimo_kilometraje}`, 'success');
+                } else {
+                    AppUtils.showToast('Vehículo encontrado: Datos cargados', 'success');
+                }
+            }
+        } catch (e) { console.error("Error buscando placa:", e); }
+    });
+
+    // Buscar por Cédula/NIT
+    inputClienteId?.addEventListener('blur', async function() {
+        const id = this.value.trim();
+        if (id.length < 3) return;
+
+        try {
+            const resp = await fetch(`${URLROOT}/clientes/obtener/${id}`);
+            const data = await resp.json();
+            
+            if (data && data.nombre) {
+                inputClienteNombre.value = data.nombre;
+                inputClienteNombre.classList.add('bg-green-50');
+                AppUtils.showToast('Cliente reconocido', 'success');
+            } else {
+                inputClienteNombre.classList.remove('bg-green-50');
+            }
+        } catch (e) { console.error("Error buscando cliente:", e); }
+    });
+
+    // Búsqueda en tiempo real para Placas
+    inputPlaca?.addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+        const term = this.value.trim();
+
+        clearTimeout(searchTimerPlaca);
+        if (term.length < 2) {
+            placaResults.classList.add('hidden');
+            return;
+        }
+
+        searchTimerPlaca = setTimeout(async () => {
+            try {
+                const resp = await fetch(`${URLROOT}/taller/buscar?q=${encodeURIComponent(term)}`);
+                const data = await resp.json();
+                
+                if (data.success && data.results) {
+                    const vehicles = data.results.filter(r => r.tipo === 'placa');
+                    if (vehicles.length > 0) {
+                        placaResults.innerHTML = vehicles.map(v => `
+                            <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex items-center gap-3 group" onclick="document.getElementById('inputPlaca').value='${v.id}'; document.getElementById('placa_results').classList.add('hidden'); document.getElementById('inputPlaca').dispatchEvent(new Event('blur'));">
+                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-navy-blue group-hover:bg-neon-green transition-colors">
+                                    <i data-lucide="truck" class="w-4 h-4"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-black text-navy-blue uppercase">${v.title}</p>
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">${v.subtitle}</p>
+                                </div>
+                            </div>
+                        `).join('');
+                        placaResults.classList.remove('hidden');
+                        if(window.lucide) lucide.createIcons();
+                    } else { placaResults.classList.add('hidden'); }
+                }
+            } catch (e) { console.error("Error searching plates:", e); }
+        }, 300);
+    });
+
+    // Búsqueda en tiempo real para Identificación/Cédula
+    inputClienteId?.addEventListener('input', function() {
+        const term = this.value.trim();
+
+        clearTimeout(searchTimerCliente);
+        if (term.length < 2) {
+            clienteResults.classList.add('hidden');
+            return;
+        }
+
+        searchTimerCliente = setTimeout(async () => {
+            try {
+                const resp = await fetch(`${URLROOT}/taller/buscar?q=${encodeURIComponent(term)}`);
+                const data = await resp.json();
+                
+                if (data.success && data.results) {
+                    const clients = data.results.filter(r => r.tipo === 'cliente');
+                    if (clients.length > 0) {
+                        clienteResults.innerHTML = clients.map(c => `
+                            <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex items-center gap-3 group" onclick="document.getElementById('cliente_id').value='${c.id}'; document.getElementById('cliente_results').classList.add('hidden'); document.getElementById('cliente_id').dispatchEvent(new Event('blur'));">
+                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-navy-blue group-hover:bg-neon-green transition-colors">
+                                    <i data-lucide="user" class="w-4 h-4"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-black text-navy-blue uppercase">${c.title}</p>
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">${c.subtitle}</p>
+                                </div>
+                            </div>
+                        `).join('');
+                        clienteResults.classList.remove('hidden');
+                        if(window.lucide) lucide.createIcons();
+                    } else { clienteResults.classList.add('hidden'); }
+                }
+            } catch (e) { console.error("Error searching clients:", e); }
+        }, 300);
+    });
+
+    // Cerrar resultados al hacer click fuera
+    document.addEventListener('click', (e) => {
+        if (!placaResults.contains(e.target) && e.target !== inputPlaca) placaResults.classList.add('hidden');
+        if (!clienteResults.contains(e.target) && e.target !== inputClienteId) clienteResults.classList.add('hidden');
+    });
+});
+
 function agregarFilaChecklist() {
     const container = document.getElementById('checklist-container');
     const emptyMsg = document.getElementById('empty-checklist-msg');

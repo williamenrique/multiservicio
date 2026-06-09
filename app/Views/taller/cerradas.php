@@ -54,10 +54,75 @@
     </div>
 </div>
 
+<!-- Modal para Detalles de Orden Cerrada -->
+<div id="detalleOrdenCerradaModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4">
+    <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <h3 id="modalDetalleTitle" class="text-lg font-black text-navy-blue uppercase tracking-tighter">Detalle de Orden #<span id="detalleOrdenId"></span></h3>
+            <button type="button" id="btnCloseDetalleModal" class="text-slate-400 hover:text-red-500 transition-colors">
+                <i data-lucide="x-circle"></i>
+            </button>
+        </div>
+        
+        <div class="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+            <!-- Sección de Información General -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="glass-card p-4">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Vehículo</p>
+                    <p class="text-sm font-bold text-navy-blue uppercase" id="detallePlaca"></p>
+                    <p class="text-xs text-slate-500 uppercase" id="detalleMarcaModelo"></p>
+                    <p class="text-xs text-slate-500 uppercase" id="detalleAnioColor"></p>
+                </div>
+                <div class="glass-card p-4">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Cliente</p>
+                    <p class="text-sm font-bold text-navy-blue uppercase" id="detalleClienteNombre"></p>
+                    <p class="text-xs text-slate-500" id="detalleClienteTelefono"></p>
+                </div>
+                <div class="glass-card p-4">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Mecánico Asignado</p>
+                    <p class="text-sm font-bold text-navy-blue uppercase" id="detalleMecanico"></p>
+                </div>
+                <div class="glass-card p-4">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Fechas</p>
+                    <p class="text-xs text-slate-500">Ingreso: <span class="font-bold" id="detalleFechaIngreso"></span></p>
+                    <p class="text-xs text-slate-500">Entrega Estimada: <span class="font-bold" id="detalleFechaEstimada"></span></p>
+                    <p class="text-xs text-slate-500">Entrega Real: <span class="font-bold" id="detalleFechaReal"></span></p>
+                </div>
+            </div>
+
+            <!-- Sección de Diagnóstico y Observaciones -->
+            <div class="glass-card p-4">
+                <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Diagnóstico de Entrada / Observaciones</p>
+                <p class="text-sm text-slate-700" id="detalleDiagnostico"></p>
+            </div>
+
+            <!-- Sección de Checklist -->
+            <div class="glass-card p-4">
+                <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Checklist de Entrada</p>
+                <ul id="detalleChecklist" class="list-disc list-inside text-sm text-slate-700 space-y-1"></ul>
+            </div>
+
+            <!-- Sección de Historial de Estados -->
+            <div class="glass-card p-4">
+                <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Historial de Estados</p>
+                <div id="detalleLogs" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <div class="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
+            <a id="btnIrHistorialVehiculo" href="#" class="bg-navy-blue text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:opacity-90 transition shadow-lg uppercase text-xs">
+                <i data-lucide="car" class="w-4 h-4"></i> Ir a Historial del Vehículo
+            </a>
+            <button type="button" id="btnCerrarDetalleModal" class="px-4 py-2 border border-slate-200 text-slate-500 font-bold rounded-lg hover:bg-slate-50 transition-all uppercase text-xs">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <script>
     // Lógica de carga dinámica (Debe ir en public/js/taller_cerradas.js si prefieres separar)
     let currentPage = 1;
     let limit = 10;
+    let totalPages = 0;
 
     const cargarOrdenesCerradas = async (search = '') => {
         const offset = (currentPage - 1) * limit;
@@ -65,7 +130,7 @@
         
         try {
             const res = await fetch(url);
-            const { data, total, totalFiltrados } = await res.json();
+            const { data, total, totalFiltrados } = await res.json(); // total is total records, totalFiltrados is after search
             
             const tbody = document.getElementById('tableBodyCerradas');
             if (data.length === 0) {
@@ -89,7 +154,7 @@
                     <td class="px-8 py-4 text-xs font-bold text-navy-blue uppercase">${o.mecanico_nombre || 'S/A'}</td>
                     <td class="px-8 py-4 text-right">
                         <div class="flex justify-end gap-2">
-                            <button onclick="verDetalle(${o.id})" class="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400" title="Ver Expediente">
+                            <button onclick="window.verDetalle(${o.id})" class="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400" title="Ver Expediente">
                                 <i data-lucide="eye" class="w-4 h-4"></i>
                             </button>
                             <button onclick="window.open('${URLROOT}/taller/imprimir/${o.id}', '_blank')" class="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400" title="Imprimir Orden">

@@ -179,4 +179,13 @@ class ModelOrden {
         if ($search) $this->db->bind(':search', "%$search%");
         return (int)$this->db->single()->total;
     }
+
+    /**
+     * Obtiene el último kilometraje registrado para una placa específica.
+     */
+    public function obtenerUltimoKilometrajePorPlaca($placa) {
+        $this->db->query("SELECT kilometraje FROM table_ordenes_servicio WHERE placa = :placa ORDER BY fecha_ingreso DESC LIMIT 1");
+        $this->db->bind(':placa', $placa);
+        return $this->db->single();
+    }
 }

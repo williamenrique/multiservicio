@@ -332,6 +332,23 @@ class ControllerTaller extends Controller {
     }
 
     /**
+     * API para obtener información de un vehículo y su dueño por placa (AJAX)
+     */
+    public function obtenerVehiculoPorPlaca($placa) {
+        $vehiculo = $this->vehiculoModel->buscarPorPlaca($placa);
+        $ultimoKilometraje = null;
+        if ($vehiculo) {
+            $resKilometraje = $this->ordenModel->obtenerUltimoKilometrajePorPlaca($placa);
+            $ultimoKilometraje = $resKilometraje ? $resKilometraje->kilometraje : null;
+        }
+        return $this->jsonResponse([
+            'success' => !!$vehiculo,
+            'data' => $vehiculo,
+            'ultimo_kilometraje' => $ultimoKilometraje
+        ]);
+    }
+
+    /**
      * Endpoint para obtener el historial de estados de una orden (AJAX)
      */
     public function obtenerLogs($id) {
