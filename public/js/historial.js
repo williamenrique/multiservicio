@@ -87,6 +87,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
 
+                    ${venta.observaciones ? `
+                        <div class="space-y-1">
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Observaciones / Detalles Técnicos</p>
+                            <div class="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-xs font-bold text-amber-800 italic uppercase leading-relaxed shadow-sm">
+                                "${venta.observaciones}"
+                            </div>
+                        </div>
+                    ` : ''}
+
                         <hr class="my-4 border-t border-slate-200">
 
                         <p class="text-xs text-slate-500 uppercase font-bold mb-2">Items Vendidos:</p>

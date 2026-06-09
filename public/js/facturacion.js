@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const initNewInvoice = async (forceSave = false) => {
-        // Capturar datos inyectados por PHP (Orden de Servicio) antes de limpiar nada
+        // Detectar datos inyectados por PHP (desde Orden de Servicio) antes de cualquier limpieza
         const domPlaca = inputPlaca.value;
         const domModelo = inputModelo.value;
         const domClienteId = inputCliente.value;
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const domMecanicoId = inputMecanico.value;
         const domObservaciones = document.getElementById('pos-observaciones')?.value || '';
 
-        // Solo limpiar inputs si es una factura nueva manual, no si viene de una orden cargada
+        // 1. Solo limpiar inputs físicamente si es una factura nueva manual (clic en "Nueva Factura")
         if (forceSave) {
             inputPlaca.value = '';
             inputModelo.value = '';
@@ -471,12 +471,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const clearInputs = () => {
         displayFacturaId.textContent = "---";
+        displayFacturaId.dataset.ordenId = "";
         inputPlaca.value = "";
         inputModelo.value = "";
         inputCliente.value = "";
+        if (clientSearchInput) clientSearchInput.value = "";
+
+        const obsField = document.getElementById('pos-observaciones');
+        if (obsField) obsField.value = "";
+
+        const obsPreview = document.getElementById('pos-obs-preview');
+        if (obsPreview) obsPreview.classList.add('hidden');
+
+        if (inputMecanico && !inputMecanico.disabled) inputMecanico.value = "";
+
         cartBody.innerHTML = '<tr><td class="py-32 text-center text-slate-300 uppercase text-xs font-bold tracking-widest opacity-50"><i data-lucide="shopping-cart" class="w-16 h-16 mx-auto mb-4"></i> No hay factura activa</td></tr>';
         document.getElementById('pos-subtotal').textContent = "$0.00";
+        document.getElementById('pos-iva').textContent = "$0.00";
         document.getElementById('pos-total').textContent = "$0.00";
+        document.getElementById('pos-saldo-pendiente').textContent = "$0.00";
         lucide.createIcons();
     };
 
@@ -495,6 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
             inv.modelo = inputModelo.value.trim();
             inv.mecanico_id = inputMecanico.value;
             inv.cliente_id = inputCliente.value;
+            inv.cliente_nombre = clientSearchInput ? clientSearchInput.value : '';
             inv.observaciones = document.getElementById('pos-observaciones')?.value || '';
             inv.orden_id = displayFacturaId.dataset.ordenId || null;
         }
@@ -755,6 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.placa = inputPlaca.value;
             activeInvoice.modelo = inputModelo.value;
             activeInvoice.cliente_id = inputCliente.value;
+            activeInvoice.cliente_nombre = clientSearchInput ? clientSearchInput.value : '';
             activeInvoice.mecanico_id = inputMecanico.value;
             activeInvoice.observaciones = document.getElementById('pos-observaciones')?.value || '';
             activeInvoice.orden_id = displayFacturaId.dataset.ordenId || null;
@@ -815,6 +830,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     openInvoices.splice(index, 1);
                     activeInvoiceId = openInvoices.length > 0 ? openInvoices[0].id : null;
                     if (!activeInvoiceId) clearInputs();
+
+                    // Limpiar parámetros de la URL para evitar que se recargue la O.S. al refrescar
+                    const url = new URL(window.location);
+                    url.searchParams.delete('orden_id');
+                    window.history.replaceState({}, '', url);
+
                     loadInvoicesFromServer();
                 });
             } else {
