@@ -194,7 +194,9 @@ class ControllerTaller extends Controller {
             $subtotal = 0;
             $itemsArr = $input['items'] ?? [];
             foreach ($itemsArr as $item) {
-                $subtotal += ($item['precio'] * $item['cantidad']);
+                // Evitar procesar items vacíos que generen warnings de claves inexistentes
+                if (empty($item['nombre']) && empty($item['id'])) continue;
+                $subtotal += ((float)($item['precio'] ?? 0) * (int)($item['cantidad'] ?? 0));
             }
 
             $datosFactura = [
@@ -225,15 +227,18 @@ class ControllerTaller extends Controller {
             }
 
             foreach ($itemsArr as $item) {
+                // Saltar items que no tengan datos válidos
+                if (empty($item['nombre']) && empty($item['id'])) continue;
+
                 $esProducto = (strtoupper($item['tipo'] ?? '') === 'PRODUCTO');
                 $db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
                             VALUES (:fid, :pid, :mid, :desc, :cant, :pre, :costo)");
                 $db->bind(':fid', $ventaId);
                 $db->bind(':pid', $esProducto ? $item['id'] : null);
                 $db->bind(':mid', $input['mecanico_id'] ?? null);
-                $db->bind(':desc', mb_strtoupper($item['nombre'], 'UTF-8'));
-                $db->bind(':cant', $item['cantidad']);
-                $db->bind(':pre', $item['precio']);
+                $db->bind(':desc', mb_strtoupper($item['nombre'] ?? '', 'UTF-8'));
+                $db->bind(':cant', $item['cantidad'] ?? 0);
+                $db->bind(':pre', $item['precio'] ?? 0);
                 $db->bind(':costo', $esProducto ? ($item['costo_promedio'] ?? $item['costo'] ?? 0) : 0);
                 $db->execute();
             }

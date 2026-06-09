@@ -391,10 +391,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         container.innerHTML = openInvoices.map((inv, index) => {
-            // 'inv' representa el objeto de la factura/borrador
-            const badgeClass = inv.tipo_procedencia === 'TALLER'
-                ? 'bg-blue-100 text-blue-700 border-blue-200'
-                : 'bg-amber-100 text-amber-700 border-amber-200';
+            // Definir color y etiqueta según procedencia
+            let badgeClass = 'bg-amber-100 text-amber-700 border-amber-200'; // Default: MOSTRADOR
+            if (inv.tipo_procedencia === 'OS') {
+                badgeClass = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+            } else if (inv.tipo_procedencia === 'TALLER') {
+                badgeClass = 'bg-blue-100 text-blue-700 border-blue-200';
+            }
 
             const htmlBadge = `
                 <span class="px-1.5 py-0.5 rounded text-[7px] font-bold border ${badgeClass}">
@@ -483,13 +486,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const obsPreview = document.getElementById('pos-obs-preview');
         if (obsPreview) obsPreview.classList.add('hidden');
 
+        // Limpiar campos de pago y saldos (Vista Previa)
+        if (inputPagoEfectivo) inputPagoEfectivo.value = 0;
+        if (inputPagoTransferencia) inputPagoTransferencia.value = 0;
+        if (displaySaldoPendiente) displaySaldoPendiente.textContent = "$0.00";
+
         if (inputMecanico && !inputMecanico.disabled) inputMecanico.value = "";
 
         cartBody.innerHTML = '<tr><td class="py-32 text-center text-slate-300 uppercase text-xs font-bold tracking-widest opacity-50"><i data-lucide="shopping-cart" class="w-16 h-16 mx-auto mb-4"></i> No hay factura activa</td></tr>';
         document.getElementById('pos-subtotal').textContent = "$0.00";
         document.getElementById('pos-iva').textContent = "$0.00";
         document.getElementById('pos-total').textContent = "$0.00";
-        document.getElementById('pos-saldo-pendiente').textContent = "$0.00";
         lucide.createIcons();
     };
 
@@ -828,8 +835,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const index = openInvoices.findIndex(inv => inv.id === activeInvoiceId);
                     openInvoices.splice(index, 1);
+
+                    // Limpiar SIEMPRE el formulario para evitar residuos visuales de OS
+                    clearInputs();
+
                     activeInvoiceId = openInvoices.length > 0 ? openInvoices[0].id : null;
-                    if (!activeInvoiceId) clearInputs();
+                    if (activeInvoiceId) renderInvoice();
 
                     // Limpiar parámetros de la URL para evitar que se recargue la O.S. al refrescar
                     const url = new URL(window.location);

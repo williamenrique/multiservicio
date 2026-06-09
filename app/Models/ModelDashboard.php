@@ -71,7 +71,7 @@ class ModelDashboard {
                        COALESCE(vh.placa, v.placa, '---') as placa, 
                        COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
                        COALESCE(c.nombre, 'CLIENTE MOSTRADOR') as cliente_nombre,
-                       IF(v.orden_id IS NULL AND v.placa IS NULL, 'MOSTRADOR', 'TALLER') as tipo_procedencia,
+                       CASE WHEN v.orden_id IS NOT NULL THEN 'OS' WHEN v.placa IS NOT NULL THEN 'TALLER' ELSE 'MOSTRADOR' END as tipo_procedencia,
                        COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1), su.nombre, u.username) as responsable_nombre 
                           FROM table_facturas v 
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id

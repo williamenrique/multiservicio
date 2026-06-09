@@ -106,22 +106,25 @@
                         </td>
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end gap-1">
-                                <?php if($o->estado == 'LISTO'): ?>
-                                    <?php if ($o->factura_status !== 'PENDIENTE'): ?>
-                                        <button onclick="entregarVehiculo(<?php echo $o->id; ?>)" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all" title="Confirmar Entrega Técnica">
-                                            <i data-lucide="check-square" class="w-5 h-5"></i>
-                                        </button>
-                                    <?php endif; ?>
-                                    <?php if (!empty($o->mecanico_id)): ?>
-                                        <a href="<?php echo URLROOT; ?>/facturacion?orden_id=<?php echo $o->id; ?>" class="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-all" title="Facturar Orden">
-                                            <i data-lucide="receipt" class="w-5 h-5"></i>
-                                        </a>
-                                    <?php else: ?>
-                                        <button onclick="AppUtils.showToast('Debe asignar un mecánico antes de facturar', 'warning')" class="text-slate-300 p-2 rounded-lg cursor-not-allowed" title="Sin Mecánico">
-                                            <i data-lucide="receipt" class="w-5 h-5"></i>
-                                        </button>
-                                    <?php endif; ?>
-                                <?php endif; ?>
+                                <!-- Botones de Acción Dinámicos (Reactivos al estado LISTO) -->
+                                <button onclick="entregarVehiculo(<?php echo $o->id; ?>)" 
+                                        class="btn-entrega text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all <?php echo ($o->estado !== 'LISTO' || $o->factura_status === 'PENDIENTE') ? 'hidden' : ''; ?>" 
+                                        title="Confirmar Entrega Técnica">
+                                    <i data-lucide="check-square" class="w-5 h-5"></i>
+                                </button>
+                                
+                                <a href="<?php echo URLROOT; ?>/facturacion?orden_id=<?php echo $o->id; ?>" 
+                                   class="btn-facturar text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-all <?php echo ($o->estado !== 'LISTO' || empty($o->mecanico_id)) ? 'hidden' : ''; ?>" 
+                                   title="Facturar Orden">
+                                    <i data-lucide="receipt" class="w-5 h-5"></i>
+                                </a>
+
+                                <button onclick="AppUtils.showToast('Debe asignar un mecánico antes de facturar', 'warning')" 
+                                        class="btn-no-mecanico text-slate-300 p-2 rounded-lg cursor-not-allowed <?php echo ($o->estado !== 'LISTO' || !empty($o->mecanico_id)) ? 'hidden' : ''; ?>" 
+                                        title="Sin Mecánico">
+                                    <i data-lucide="receipt" class="w-5 h-5"></i>
+                                </button>
+
                                 <button onclick="verDetalle(<?php echo $o->id; ?>)" class="text-navy-blue hover:bg-slate-100 p-2 rounded-lg transition-all" title="Detalles">
                                     <i data-lucide="external-link" class="w-5 h-5"></i>
                                 </button>
@@ -213,6 +216,28 @@ async function cambiarEstado(id, selectEl) {
             };
             
             if (colors[estado]) selectEl.classList.add(...colors[estado]);
+
+            // Actualizar visibilidad de botones de acción en tiempo real
+            const row = selectEl.closest('tr');
+            const btnEntrega = row.querySelector('.btn-entrega');
+            const btnFacturar = row.querySelector('.btn-facturar');
+            const btnNoMec = row.querySelector('.btn-no-mecanico');
+
+            if (estado === 'LISTO') {
+                btnEntrega?.classList.remove('hidden');
+                const hasMecanico = !row.querySelector('.animate-pulse'); // El label "Sin Asignar" tiene animate-pulse
+                if (hasMecanico) {
+                    btnFacturar?.classList.remove('hidden');
+                    btnNoMec?.classList.add('hidden');
+                } else {
+                    btnFacturar?.classList.add('hidden');
+                    btnNoMec?.classList.remove('hidden');
+                }
+            } else {
+                btnEntrega?.classList.add('hidden');
+                btnFacturar?.classList.add('hidden');
+                btnNoMec?.classList.add('hidden');
+            }
         } else {
             AppUtils.showToast(result.mensaje || 'Error al actualizar', 'error');
         }
