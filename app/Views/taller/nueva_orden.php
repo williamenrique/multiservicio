@@ -6,16 +6,26 @@
 </script>
 
 <div class="space-y-6">
-    <div class="bg-navy-blue p-6 rounded-xl border border-gray-800 shadow-lg flex justify-between items-center">
-        <div>
-            <h2 class="text-2xl font-bold text-white flex items-center gap-2">
-                <i data-lucide="file-plus" class="text-neon-green"></i> Registro de Ingreso
-            </h2>
-            <p class="text-gray-400">Complete los datos para generar la nueva orden de servicio.</p>
+    <div class="bg-navy-blue p-6 rounded-xl border border-gray-800 shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-4">
+            <a href="<?php echo URLROOT; ?>/taller" class="text-gray-400 hover:text-white transition-colors" title="Volver">
+                <i data-lucide="arrow-left" class="w-8 h-8"></i>
+            </a>
+            <div>
+                <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <i data-lucide="file-plus" class="text-neon-green"></i> Registro de Ingreso
+                </h2>
+                <p class="text-gray-400">Complete los datos para generar la nueva orden de servicio.</p>
+            </div>
         </div>
-        <a href="<?php echo URLROOT; ?>/taller" class="text-gray-400 hover:text-white transition-colors">
-            <i data-lucide="x-circle" class="w-8 h-8"></i>
-        </a>
+        <div class="flex gap-2 w-full md:w-auto">
+            <a href="<?php echo URLROOT; ?>/taller" class="flex-1 md:flex-none justify-center bg-white/10 border border-white/20 text-white font-bold px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 uppercase text-[10px]">
+                <i data-lucide="layout-dashboard" class="w-4 h-4 text-neon-green"></i> Taller Activo
+            </a>
+            <a href="<?php echo URLROOT; ?>/taller/cerradas" class="flex-1 md:flex-none justify-center bg-white/10 border border-white/20 text-white font-bold px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 uppercase text-[10px]">
+                <i data-lucide="archive" class="w-4 h-4"></i> Ver Cerradas
+            </a>
+        </div>
     </div>
 
     <form id="formNuevaOrden" class="grid grid-cols-1 lg:grid-cols-3 gap-6">

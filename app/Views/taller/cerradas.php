@@ -1,12 +1,17 @@
 <div class="space-y-6">
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex flex-col lg:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 gap-4 mb-6">
         <div>
             <h2 class="text-2xl font-bold text-slate-800">Historial de Órdenes</h2>
             <p class="text-slate-500">Consulta de servicios finalizados y entregados al cliente</p>
         </div>
-        <a href="<?php echo URLROOT; ?>/taller" class="bg-navy-blue text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:opacity-90 transition shadow-lg">
-            <i data-lucide="arrow-left" class="w-5 h-5"></i> Volver al Taller
-        </a>
+        <div class="flex gap-2 w-full lg:w-auto">
+            <a href="<?php echo URLROOT; ?>/taller" class="flex-1 lg:flex-none justify-center bg-white border border-slate-200 text-navy-blue font-bold px-4 py-2 rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2 uppercase text-xs">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Taller Activo
+            </a>
+            <a href="<?php echo URLROOT; ?>/taller/nuevaOrden" class="flex-1 lg:flex-none justify-center bg-neon-green text-navy-blue font-black px-4 py-2 rounded-xl hover:brightness-110 transition-all flex items-center gap-2 uppercase text-xs">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i> Nueva O.S.
+            </a>
+        </div>
     </div>
 
     <!-- Filtros y Buscador -->

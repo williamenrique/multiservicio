@@ -1,16 +1,22 @@
 <div class="space-y-6">
-    <div class="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+    <div class="flex flex-col lg:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 gap-4 mb-6">
         <div class="flex items-center gap-4">
             <a href="<?php echo URLROOT; ?>/taller" class="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                 <i data-lucide="arrow-left" class="text-slate-400"></i>
             </a>
             <h2 class="text-xl font-black text-navy-blue uppercase tracking-tighter">Expediente Técnico</h2>
         </div>
-        <?php if($vehiculo): ?>
-            <a href="<?php echo URLROOT; ?>/taller/nuevaOrden?placa=<?php echo $vehiculo->placa; ?>" class="bg-navy-blue text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-neon-green hover:text-black transition-all flex items-center gap-2">
-                <i data-lucide="plus" class="w-4 h-4"></i> NUEVO INGRESO
+        <div class="flex gap-2 w-full lg:w-auto">
+            <a href="<?php echo URLROOT; ?>/taller" class="flex-1 lg:flex-none justify-center bg-white border border-slate-200 text-navy-blue font-bold px-4 py-2 rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2 uppercase text-xs">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Taller Activo
             </a>
-        <?php endif; ?>
+            <a href="<?php echo URLROOT; ?>/taller/cerradas" class="flex-1 lg:flex-none justify-center bg-white border border-slate-200 text-navy-blue font-bold px-4 py-2 rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2 uppercase text-xs">
+                <i data-lucide="archive" class="w-4 h-4"></i> Historial Cerradas
+            </a>
+            <a href="<?php echo URLROOT; ?>/taller/nuevaOrden<?php echo $vehiculo ? '?placa='.$vehiculo->placa : ''; ?>" class="flex-1 lg:flex-none justify-center bg-neon-green text-navy-blue font-black px-4 py-2 rounded-xl hover:brightness-110 transition-all flex items-center gap-2 uppercase text-xs">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i> Nueva O.S.
+            </a>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
