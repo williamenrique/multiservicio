@@ -132,12 +132,19 @@ class ControllerProveedores extends Controller {
                 ], 400);
             }
 
-            $res = $this->proveedorModel->guardar($input);
-            
-            return $this->jsonResponse([
-                'success' => $res,
-                'mensaje' => $res ? 'Proveedor guardado correctamente' : 'Error al procesar la solicitud'
-            ]);
+            try {
+                $res = $this->proveedorModel->guardar($input);
+                return $this->jsonResponse([
+                    'success' => $res,
+                    'mensaje' => $res ? 'Proveedor guardado correctamente' : 'Error al procesar la solicitud'
+                ]);
+            } catch (Exception $e) {
+                // Capturar errores de integridad (ej: NIT duplicado)
+                $mensaje = (strpos($e->getMessage(), 'Duplicate entry') !== false) 
+                    ? 'El NIT/ID ingresado ya existe en el sistema' 
+                    : 'Error al guardar: ' . $e->getMessage();
+                return $this->jsonResponse(['success' => false, 'mensaje' => $mensaje], 400);
+            }
         }
     }
 

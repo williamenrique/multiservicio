@@ -244,19 +244,23 @@ class ModelProveedor {
     }
 
     public function guardar($data) {
+        $id = mb_strtoupper(trim($data['id'] ?? ''), 'UTF-8');
+        $nombre = mb_strtoupper(trim($data['nombre'] ?? ''), 'UTF-8');
+        $email = mb_strtolower(trim($data['email'] ?? ''), 'UTF-8');
+        $direccion = mb_strtoupper(trim($data['direccion'] ?? ''), 'UTF-8');
+
         if (!empty($data['id_existente'])) {
-            // Lógica para permitir actualizar el ID (NIT) si es necesario
             $this->db->query("UPDATE table_proveedores SET id = :new_id, nombre = :nom, telefono = :tel, email = :em, direccion = :dir WHERE id = :old_id");
-            $this->db->bind(':new_id', $data['id']);
-            $this->db->bind(':old_id', $data['id_existente']);
+            $this->db->bind(':new_id', $id);
+            $this->db->bind(':old_id', mb_strtoupper(trim($data['id_existente']), 'UTF-8'));
         } else {
             $this->db->query("INSERT INTO table_proveedores (id, nombre, telefono, email, direccion) VALUES (:id, :nom, :tel, :em, :dir)");
-            $this->db->bind(':id', $data['id']);
+            $this->db->bind(':id', $id);
         }
-        $this->db->bind(':nom', mb_strtoupper(trim($data['nombre']), 'UTF-8'));
-        $this->db->bind(':tel', $data['telefono']);
-        $this->db->bind(':em', mb_strtolower(trim($data['email']), 'UTF-8'));
-        $this->db->bind(':dir', mb_strtoupper(trim($data['direccion']), 'UTF-8'));
+        $this->db->bind(':nom', $nombre);
+        $this->db->bind(':tel', $data['telefono'] ?? '');
+        $this->db->bind(':em', $email);
+        $this->db->bind(':dir', $direccion);
         return $this->db->execute();
     }
 
