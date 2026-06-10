@@ -60,7 +60,8 @@ class ModelFacturacion {
      * Obtiene todos los borradores con sus respectivos items cargados
      */
     public function obtenerBorradoresCompleto() {
-        $this->db->query("SELECT v.*, 
+        $this->db->query("SELECT v.*, v.observaciones as observaciones, 
+                                 os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
                                  CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  COALESCE(sm.id, (SELECT vd.mecanico_id FROM table_facturas_detalle vd WHERE vd.factura_id = v.id AND vd.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_id,
                                  COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1), su.nombre, u.username) as usuario_nombre, 
@@ -103,7 +104,9 @@ class ModelFacturacion {
      * Busca un borrador pendiente vinculado a una Orden de Servicio específica.
      */
     public function obtenerBorradorPorOrden($ordenId) {
-        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
+        $this->db->query("SELECT v.*, v.observaciones as observaciones, 
+                                 os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
+                                 c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
                                  os.mecanico_id,
                                  'OS' as tipo_procedencia
@@ -189,14 +192,14 @@ class ModelFacturacion {
      * Obtiene los detalles completos de una venta para su impresión
      */
     public function obtenerVentaCompleta($id) {
-        $this->db->query("SELECT v.*, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+        $this->db->query("SELECT v.*, v.observaciones as observaciones, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
                                  COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
                                  vh.marca as marca_vehiculo,
                                  COALESCE(st_m.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_nombre,
                                  sv.nombre as vendedor_nombre,
-                                 os.kilometraje, os.nivel_combustible, os.diagnostico_entrada
+                                 os.kilometraje, os.nivel_combustible, os.diagnostico_entrada, os.observaciones as observaciones_orden
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_staff st_m ON os.mecanico_id = st_m.id

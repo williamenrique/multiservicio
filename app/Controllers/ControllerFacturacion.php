@@ -29,7 +29,14 @@ class ControllerFacturacion extends Controller {
             $orden = $ordenModel->obtenerDetalleOrden($_GET['orden_id']);
             if ($orden) {
                 // Asegurar que el ID del cliente sea una cadena limpia para el selector
-                $orden->cliente_id = trim($orden->cliente_id);
+                $orden->cliente_id = trim($orden->cliente_id ?? '');
+
+                // IMPORTANTE: Si ya existe un borrador para esta orden, traer las observaciones de la FACTURA (Salida)
+                $borrador = $this->facturaModel->obtenerBorradorPorOrden($_GET['orden_id']);
+                if ($borrador && !empty($borrador->observaciones)) {
+                    $orden->observaciones_factura = $borrador->observaciones;
+                }
+
                 $data['orden'] = $orden;
             }
         }

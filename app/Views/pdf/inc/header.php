@@ -13,7 +13,7 @@
     <tr>
         <td class="company-data" style="width: 55%;">
             <div class="company-name" style="font-size: 22px; font-weight: 900; color: #0f172a; margin-bottom: 0; letter-spacing: -1px;">
-                <?php echo strtoupper($empresa->name ?: 'TALLER PROFESIONAL'); ?>
+                <?php echo strtoupper($empresa->name ?: 'TALLER PROF´´´´ESIONAL'); ?>
             </div>
             <div style="width: 60px; height: 5px; background-color: #10b981; margin-bottom: 8px;"></div>
             <div style="font-size: 9px; color: #475569; line-height: 1.2;">

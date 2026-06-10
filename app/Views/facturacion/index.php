@@ -58,14 +58,23 @@
                     <div id="pos-client-results" class="absolute z-[110] left-0 right-0 mt-1 bg-white border border-slate-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto hidden"></div>
                     <select id="pos-cliente-id" class="hidden">
                         <?php if(isset($data['orden'])): ?>
-                            <option value="<?php echo $data['orden']->cliente_id; ?>" selected><?php echo $data['orden']->cliente_nombre; ?></option>
+                            <option value="<?php echo trim($data['orden']->cliente_id); ?>" selected><?php echo $data['orden']->cliente_nombre; ?></option>
                         <?php endif; ?>
                     </select>
                 </div>
+                
+                <!-- Información de Diagnóstico de Orden (UI Inteligente) -->
+                <div id="container-diag-os" class="p-3 bg-blue-50/50 border border-blue-100 rounded-lg <?php echo !isset($data['orden']) ? 'hidden' : ''; ?>">
+                    <label class="block text-[9px] font-black text-blue-500 mb-1 uppercase tracking-widest">Diagnóstico de Entrada (O.S.)</label>
+                    <p id="text-diag-os" class="text-[10px] text-slate-600 italic leading-tight">
+                        <?php echo isset($data['orden']) ? htmlspecialchars($data['orden']->diagnostico_entrada) : ''; ?>
+                    </p>
+                </div>
+
                 <div class="pt-2 border-t border-slate-100">
-                    <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Observaciones / Detalles del Trabajo</label>
+                    <label id="label-obs" class="block text-[10px] font-bold text-slate-400 mb-1 uppercase"><?php echo isset($data['orden']) ? 'Observaciones de Salida (Factura)' : 'Observaciones / Detalles del Trabajo'; ?></label>
                     <textarea id="pos-observaciones" rows="3" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-neon-green outline-none uppercase text-xs font-bold text-navy-blue" 
-                              placeholder="EJ: SE REALIZÓ MANTENIMIENTO PREVENTIVO..."><?php echo isset($data['orden']) ? $data['orden']->diagnostico_entrada : ''; ?></textarea>
+                              placeholder="EJ: SE REALIZÓ MANTENIMIENTO..."><?php echo $data['orden']->observaciones_factura ?? ''; ?></textarea>
                 </div>
             </div>
 
