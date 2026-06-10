@@ -14,6 +14,46 @@ window.renderFlujoRow = (m) => {
     const color = m.tipo_color || (isIngreso ? 'emerald' : 'rose');
     const label = m.categoria_label || m.categoria || m.tipo;
 
+    // Normalizamos los textos para buscar palabras clave
+    const cat = (m.categoria || '').toUpperCase();
+    const labelUpper = (m.categoria_label || m.tipo || '').toUpperCase();
+    const desc = (m.descripcion || '').toUpperCase();
+    const tipo = (m.tipo || '').toUpperCase();
+    const root = window.URLROOT || '';
+
+    // Usamos el referencia_id como prioridad, si no existe usamos el ID del movimiento
+    const refId = m.referencia_id || m.id;
+    const ordenId = m.orden_id;
+
+    let printUrl = '';
+    let detailUrl = '';
+    let printBtnClass = 'text-slate-400 hover:text-navy-blue'; // Default for print button
+
+    // 1. DETECCIÓN DE COMPROBANTE (Factura, Gasto o Nómina)
+    if (tipo === 'INGRESO' && (cat.includes('VENTA') || cat.includes('ABONO') || desc.includes('FACTURA') || labelUpper.includes('FACTURA'))) {
+        printUrl = `${root}/facturacion/imprimir/${refId}`;
+        detailUrl = `javascript:verDetalleVenta(${refId})`;
+        printBtnClass = 'text-blue-500 hover:bg-blue-50';
+    } else if (cat === 'NOMINA' || labelUpper.includes('NOMINA') || labelUpper.includes('ADELANTO')) {
+        printUrl = `${root}/reportes/imprimirRecibo/${refId}`;
+        detailUrl = `javascript:verDetallePagoHistorial(${refId})`;
+        printBtnClass = 'text-amber-500 hover:bg-amber-50';
+    } else if (tipo === 'EGRESO' || cat.includes('PROVEEDOR') || cat.includes('GASTO') || labelUpper.includes('PAGO') || desc.includes('PAGO') || labelUpper.includes('SERVICIO') || cat.includes('COMPRA')) {
+        printUrl = `${root}/gastos/imprimir/${refId}`;
+        detailUrl = `javascript:verDetalleCompra(${refId})`; // Assuming verDetalleCompra handles general expenses too
+        printBtnClass = 'text-rose-500 hover:bg-rose-50';
+    }
+
+    // 2. DETECCIÓN DE ORDEN TÉCNICA (Icono de Llave)
+    let orderPrintUrl = '';
+    // Si hay un orden_id válido o si la descripción menciona explícitamente una O.S
+    if (ordenId && ordenId !== 'null' && ordenId !== null && ordenId !== '') {
+        orderPrintUrl = `${root}/taller/imprimir/${ordenId}`;
+    } else if (labelUpper.includes('O.S') || desc.includes('ORDEN') || cat.includes('ORDEN')) {
+        // Si no hay ordenId pero la referencia es a una orden de taller
+        orderPrintUrl = `${root}/taller/imprimir/${refId}`; 
+    }
+
     return `
         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 animate-in fade-in duration-300">
             <td class="px-4 py-3 font-mono text-xs font-bold text-slate-400 text-center">#${m.id || '---'}</td>
@@ -24,10 +64,10 @@ window.renderFlujoRow = (m) => {
             <td class="px-4 py-3">
                 <div class="flex flex-col gap-0.5">
                     <span class="text-base font-bold text-slate-800 uppercase leading-tight">${m.descripcion || 'OPERACIÓN'}</span>
-                    ${m.placa && m.placa !== '---' ? `<span class="text-xs text-slate-600 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''}
-                    ${m.cliente_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">CLIENTE: ${m.cliente_nombre}</span>` : ''}
-                    ${m.proveedor_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">PROV: ${m.proveedor_nombre}</span>` : ''}
-                    ${m.empleado_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">EMPLEADO: ${m.empleado_nombre}</span>` : ''}
+                    ${m.placa && m.placa !== '---' ? `<span class="text-xs text-slate-600 font-mono font-bold uppercase">PLACA: ${m.placa}</span>` : ''} 
+                    ${m.cliente_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">CLIENTE: ${m.cliente_nombre}</span>` : ''} 
+                    ${m.proveedor_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">PROV: ${m.proveedor_nombre}</span>` : ''} 
+                    ${m.empleado_nombre ? `<span class="text-xs text-slate-600 font-bold uppercase">EMPLEADO: ${m.empleado_nombre}</span>` : ''} 
                 </div>
             </td>
             <td class="px-4 py-3 text-right w-36">
@@ -35,27 +75,23 @@ window.renderFlujoRow = (m) => {
                     ${isIngreso ? '+' : '-'}${AppUtils.formatCurrency(Math.abs(parseFloat(m.monto_pagado || 0)))}
                 </span>
             </td>
-            <td class="px-4 py-3 text-right w-20">
-                ${m.referencia_id ? `
-                    ${m.categoria === 'VENTA' || m.categoria === 'ABONO_CLIENTE' || m.categoria === 'DEVOLUCION' ?
-                `<button onclick="verDetalleVenta(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
-                    ${m.categoria === 'COMPRA_PROVEEDOR' || m.categoria === 'ABONO_PROVEEDOR' ?
-                `<button onclick="verDetalleCompra(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
-                    ${m.categoria === 'NOMINA' ?
-                `<button onclick="verDetallePagoHistorial(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
-                ` : '---'}
-            <td class="px-4 py-3 text-right w-24">
+            <td class="px-4 py-3 text-right" style="width: 110px; min-width: 110px;">
                 <div class="flex justify-end gap-1">
-                    ${m.referencia_id ? `
-                        ${m.categoria === 'VENTA' || m.categoria === 'ABONO_CLIENTE' || m.categoria === 'DEVOLUCION' ?
-                        `<button onclick="verDetalleVenta(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                         <button onclick="printVenta(${m.referencia_id})" class="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Imprimir PDF"><i data-lucide="printer" class="w-4 h-4"></i></button>` : ''}
-                        ${m.categoria === 'COMPRA_PROVEEDOR' || m.categoria === 'ABONO_PROVEEDOR' ?
-                        `<button onclick="verDetalleCompra(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
-                        ${m.categoria === 'NOMINA' ?
-                        `<button onclick="verDetallePagoHistorial(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                         <button onclick="imprimirReciboPago(${m.referencia_id})" class="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Imprimir Recibo de Pago"><i data-lucide="printer" class="w-4 h-4"></i></button>` : ''}
-                    ` : '---'}
+                    ${orderPrintUrl ? `
+                        <a href="${orderPrintUrl}" target="_blank" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all" title="Imprimir Orden Técnica">
+                            <i data-lucide="wrench" class="w-4 h-4"></i>
+                        </a>
+                    ` : ''}
+                    ${detailUrl ? `
+                        <button onclick="${detailUrl}" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle">
+                            <i data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                    ` : ''}
+                    ${printUrl ? `
+                        <a href="${printUrl}" target="_blank" class="${printBtnClass} p-2 rounded-lg transition-all" title="Imprimir Comprobante">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                        </a>
+                    ` : ''}
                 </div>
             </td>
         </tr>`;
@@ -222,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.data && result.data.length === 0) {
                 body.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
                     <div class="flex flex-col items-center gap-2">
-                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i>
+                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i> 
                         <span>No se encontraron movimientos en este periodo</span>
                     </div>
                 </td></tr>`;
@@ -250,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.data && result.data.length === 0) {
                 body.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
                     <div class="flex flex-col items-center gap-2">
-                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i>
+                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i> 
                         <span>No hay registros de devoluciones para mostrar</span>
                     </div>
                 </td></tr>`;
