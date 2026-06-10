@@ -26,7 +26,8 @@
     
     .company-name { font-size: 18px; font-weight: bold; color: #111827; margin-bottom: 2px; }
     .doc-type { font-size: 14px; font-weight: bold; color: #059669; }
-    .doc-number { font-size: 16px; font-weight: bold; margin-top: 5px; }
+    .doc-number { font-size: 16px; font-weight: bold; margin-left: 5px; }
+    .doc-header-line { display: flex; align-items: baseline; } /* Para mantenerlos en una línea y alineados */
 
     .label-min { font-size: 8px; color: #6b7280; text-transform: uppercase; font-weight: bold; }
     .val-text { font-size: 10px; font-weight: bold; color: #111827; }

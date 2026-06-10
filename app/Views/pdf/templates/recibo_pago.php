@@ -1,3 +1,19 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF - RECIBO DE PAGO NÓMINA - <?php echo strtoupper($pago->staff_nombre); ?></title>
+    <style>
+        @page { margin: 30px 40px; }
+        body { font-family: 'Helvetica', sans-serif; color: #1f2937; font-size: 10px; line-height: 1.3; }
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .items-table th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 8px; text-align: left; font-size: 10px; text-transform: uppercase; }
+        .items-table td { padding: 8px; border-bottom: 1px solid #f1f5f9; font-size: 10px; }
+        .text-right { text-align: right; }
+        .total-box { margin-top: 20px; padding: 15px; background-color: #f8fafc; border-radius: 8px; }
+    </style>
+</head>
+<body>
 <div class="content">
     <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #0f172a;">
         <table style="width: 100%;">
@@ -75,3 +91,5 @@
         </table>
     </div>
 </div>
+</body>
+</html>

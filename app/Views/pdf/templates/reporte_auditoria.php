@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF - REPORTE DE AUDITORÍA DE TRABAJOS</title>
 <style>
     /* Estilos para el botón de impresión (Solo visibles en pantalla) */
     .no-print { 
@@ -34,6 +39,8 @@
     .grand-total-label { font-size: 10px; color: #64748b; font-weight: bold; display: block; text-transform: uppercase; }
     .grand-total-amount { font-size: 20px; font-weight: 900; color: #10b981; }
 </style>
+</head>
+<body>
 
 <div class="period">
     <span class="no-print">
@@ -122,3 +129,5 @@ if(!empty($data['ventas'])):
         </tr>
     </table>
 </div>
+</body>
+</html>

@@ -37,6 +37,37 @@ class ControllerTaller extends Controller {
     }
 
     /**
+     * Genera el comprobante PDF de la Orden de Servicio
+     * URL: /taller/imprimir/ID
+     */
+    public function imprimir($id) {
+        $orden = $this->ordenModel->obtenerDetalleOrden($id);
+        
+        if (!$orden) {
+            die("La orden de servicio #$id no existe.");
+        }
+
+        // Mapeo de datos para compatibilidad con la vista orden.php
+        $orden->fecha_entrada = $orden->fecha_ingreso;
+        $orden->observaciones_entrada = $orden->diagnostico_entrada;
+
+        $empresa = $this->model('Empresa')->obtenerConfiguracion();
+
+        // Datos estandarizados para la cabecera compartida (pdf/inc/header.php)
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('orden', [
+            'titulo_documento' => 'ORDEN DE SERVICIO',
+            'documento_numero' => '#' . $orden->id,
+            'fecha_documento' => date('d/m/Y - h:i A', strtotime($orden->fecha_ingreso)),
+            'status_documento' => $orden->estado,
+            'orden' => $orden,
+            'empresa' => $empresa,
+            'documento_id' => $id
+        ], 'Orden_Servicio_' . $id . '.pdf');
+        exit;
+    }
+
+    /**
      * API para listar órdenes entregadas (Paginado)
      */
     public function listarCerradas() {

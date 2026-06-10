@@ -1,35 +1,39 @@
-<style>
-    .main-header { 
-        border-bottom: 3px solid #0f172a; 
-        padding-bottom: 10px; 
-        margin-bottom: 20px; 
-    }
-    .header-table { width: 100%; border-collapse: collapse; }
-    .company-cell { vertical-align: middle; }
-    .comp-name { font-size: 18px; font-weight: 900; color: #0f172a; text-transform: uppercase; margin: 0; }
-    .comp-nit { font-size: 10px; color: #64748b; font-weight: bold; }
-    .doc-cell { text-align: right; vertical-align: middle; }
-    .doc-label { background: #0f172a; color: #10b981; padding: 4px 10px; font-weight: 900; font-size: 11px; border-radius: 4px; display: inline-block; text-transform: uppercase; }
-    .logo-img { height: 45px; width: auto; margin-right: 15px; }
-</style>
-
-<div class="main-header">
-    <table class="header-table">
-        <tr>
-            <td class="company-cell" width="70%">
-                <table width="100%">
-                    <tr>
-                        <td width="55px"><img src="img/logo.png" class="logo-img"></td>
-                        <td>
-                            <h1 class="comp-name">Taller Pro Multiservicio</h1>
-                            <span class="comp-nit">NIT: 900.123.456-7 | PBX: (123) 456-7890 | Calle Falsa 123</span>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-            <td class="doc-cell">
-                <div class="doc-label"><?php echo $titulo_documento ?? 'Documento Oficial'; ?></div>
-            </td>
-        </tr>
-    </table>
-</div>
+<?php
+// Este archivo es la cabecera compartida para los PDFs.
+// Recibe las siguientes variables:
+// $empresa (objeto con datos de la empresa)
+// $titulo_documento (ej: 'ORDEN DE SERVICIO', 'FACTURA DE VENTA')
+// $documento_numero (ej: '#4', 'FAC-001')
+// $fecha_documento (fecha formateada)
+// $status_documento (opcional, para órdenes)
+// $venta (objeto de venta, para factura)
+// $orden (objeto de orden, para orden)
+?>
+<table class="header-table">
+    <tr>
+        <td class="company-data">
+            <div class="company-name"><?php echo $empresa->name ?: 'TALLER PROFESIONAL'; ?></div>
+            NIT: <?php echo $empresa->nit ?: 'N/A'; ?><br>
+            Dirección: <?php echo $empresa->direccion ?: 'N/A'; ?><br>
+            Teléfono: <?php echo $empresa->telefono ?: 'N/A'; ?>
+        </td>
+        <td class="invoice-data">
+            <div class="doc-header-line">
+                <span class="doc-type"><?php echo $titulo_documento; ?></span>
+                <span class="doc-number"><?php echo $documento_numero; ?></span>
+            </div>
+            <div style="margin-top: 10px;">
+                <span class="label-min">Emisión:</span> <?php echo $fecha_documento; ?><br>
+                <?php if (isset($status_documento)): // Solo para Orden de Servicio ?>
+                    <span class="label-min">Estado:</span> <?php echo $status_documento; ?><br>
+                <?php endif; ?>
+                <?php if (isset($venta) && isset($venta->vendedor_nombre)): ?>
+                    <span class="label-min">Vendedor:</span> <?php echo $venta->vendedor_nombre ?: 'SISTEMA'; ?><br>
+                <?php endif; ?>
+                <?php if (isset($venta) && (isset($venta->mecanico_nombre) && !empty($venta->mecanico_nombre))): ?>
+                    <span class="label-min">Técnico:</span> <?php echo $venta->mecanico_nombre ?: 'N/A'; ?>
+                <?php endif; ?>
+            </div>
+        </td>
+    </tr>
+</table>
