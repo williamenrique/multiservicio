@@ -64,6 +64,11 @@
             <td class="invoice-data">
                 <div class="doc-type">FACTURA DE VENTA</div>
                 <div class="doc-number"><?php echo $venta->id_formateado ?: 'N/A'; ?></div>
+                <?php if ($es_os): ?>
+                    <div style="margin-top: 5px; font-weight: bold; color: #1d4ed8; font-size: 11px; text-transform: uppercase;">
+                        Orden de Servicio N° <?php echo $venta->orden_id; ?>
+                    </div>
+                <?php endif; ?>
                 <div style="margin-top: 10px;">
                     <span class="label-min">Emisión:</span> <?php echo $fecha_elegante; ?><br>
                     <span class="label-min">Vendedor:</span> <?php echo $venta->vendedor_nombre ?: 'SISTEMA'; ?><br>

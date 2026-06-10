@@ -12,7 +12,19 @@ let activeReportTab = 'resumen';
 window.renderFlujoRow = (m) => {
     const isIngreso = m.tipo === 'INGRESO';
     const color = m.tipo_color || (isIngreso ? 'emerald' : 'rose');
-    const label = m.categoria_label || m.categoria || m.tipo;
+    const ordenId = m.orden_id; // Declaración única
+
+    // Restauramos la lógica original para las etiquetas del reporte (Badge)
+    let label = m.categoria_label || m.categoria || m.tipo;
+    const catUpper = (m.categoria || '').toUpperCase();
+    
+    if (isIngreso) {
+        if (catUpper === 'SERVICIOS' || catUpper.includes('SERVICIO')) {
+            label = "FACTURA DE SERVICIO";
+        } else if (catUpper.includes('VENTA') || catUpper.includes('FACTURA') || catUpper.includes('PRODUCTO')) {
+            label = "VENTA DE REPUESTO";
+        }
+    }
 
     // Normalizamos los textos para buscar palabras clave
     const cat = (m.categoria || '').toUpperCase();
@@ -21,10 +33,9 @@ window.renderFlujoRow = (m) => {
     const tipo = (m.tipo || '').toUpperCase();
     const root = window.URLROOT || '';
 
+
     // Usamos el referencia_id como prioridad, si no existe usamos el ID del movimiento
     const refId = m.referencia_id || m.id;
-    const ordenId = m.orden_id;
-
     let printUrl = '';
     let detailUrl = '';
     let printBtnClass = 'text-slate-400 hover:text-navy-blue'; // Default for print button
@@ -51,12 +62,17 @@ window.renderFlujoRow = (m) => {
         orderPrintUrl = `${root}/taller/imprimir/${ordenId}`;
     } else if (labelUpper.includes('O.S') || desc.includes('ORDEN') || cat.includes('ORDEN')) {
         // Si no hay ordenId pero la referencia es a una orden de taller
-        orderPrintUrl = `${root}/taller/imprimir/${refId}`; 
+        orderPrintUrl = `${root}/taller/imprimir/${refId}`;
     }
 
     return `
         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 animate-in fade-in duration-300">
-            <td class="px-4 py-3 font-mono text-xs font-bold text-slate-400 text-center">#${m.id || '---'}</td>
+            <td class="px-4 py-3 font-mono text-[10px] font-black text-slate-400 text-center leading-tight">
+                <div class="flex flex-col">
+                    <span class="text-navy-blue">FAC-${String(refId).padStart(3, '0')}</span>
+                    ${ordenId ? `<span class="text-blue-500">OS-${String(ordenId).padStart(3, '0')}</span>` : ''}
+                </div>
+            </td>
             <td class="px-4 py-3 text-base font-bold text-slate-600 uppercase text-center">${new Date(m.fecha).toLocaleDateString()}</td>
             <td class="px-4 py-3 text-center w-48">
                 <span class="px-4 py-1.5 rounded text-xs font-black bg-${color}-100 text-${color}-600 whitespace-nowrap inline-block shadow-sm">${label}</span>
