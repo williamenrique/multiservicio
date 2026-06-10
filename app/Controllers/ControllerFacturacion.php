@@ -237,10 +237,11 @@ class ControllerFacturacion extends Controller {
 
         try {
             $pdfService = new PdfService();
-            $filename = 'Factura_' . $id . '_' . time() . '.pdf';
+            $doc_name = $venta->id_formateado ?: 'Factura_' . $id;
+            $filename = $doc_name . '_' . time() . '.pdf';
             $filePath = $pdfService->generarDocumento('factura', [
                 'titulo_documento' => 'Factura de Venta',
-                'documento_id' => 'Factura Número: ' . $venta->id,
+                'documento_id' => $doc_name,
                 'venta' => $venta
             ], $filename, false);
 
@@ -276,11 +277,12 @@ class ControllerFacturacion extends Controller {
         }
 
         $pdfService = new PdfService();
+        $doc_name = $venta->id_formateado ?: 'Factura_' . $id;
         $pdfService->generarDocumento('factura', [
             'titulo_documento' => 'Factura de Venta',
-            'documento_id' => 'Factura Número: ' . $venta->id,
+            'documento_id' => $doc_name,
             'venta' => $venta
-        ], 'Factura_' . $id . '.pdf'); // Stream to browser por defecto
+        ], $doc_name . '.pdf'); // Stream to browser por defecto
         exit;
     }
         /**

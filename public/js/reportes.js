@@ -44,6 +44,19 @@ window.renderFlujoRow = (m) => {
                     ${m.categoria === 'NOMINA' ?
                 `<button onclick="verDetallePagoHistorial(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
                 ` : '---'}
+            <td class="px-4 py-3 text-right w-24">
+                <div class="flex justify-end gap-1">
+                    ${m.referencia_id ? `
+                        ${m.categoria === 'VENTA' || m.categoria === 'ABONO_CLIENTE' || m.categoria === 'DEVOLUCION' ?
+                        `<button onclick="verDetalleVenta(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                         <button onclick="printVenta(${m.referencia_id})" class="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Imprimir PDF"><i data-lucide="printer" class="w-4 h-4"></i></button>` : ''}
+                        ${m.categoria === 'COMPRA_PROVEEDOR' || m.categoria === 'ABONO_PROVEEDOR' ?
+                        `<button onclick="verDetalleCompra(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
+                        ${m.categoria === 'NOMINA' ?
+                        `<button onclick="verDetallePagoHistorial(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                         <button onclick="imprimirReciboPago(${m.referencia_id})" class="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Imprimir Recibo de Pago"><i data-lucide="printer" class="w-4 h-4"></i></button>` : ''}
+                    ` : '---'}
+                </div>
             </td>
         </tr>`;
 };
@@ -688,11 +701,16 @@ window.verDetalleVenta = async (ventaId) => {
                         </div>
                     </div>
 
-                    ${venta.observaciones ? `
+                    ${(venta.observaciones || venta.diagnostico_entrada) ? `
                         <div class="space-y-1">
                             <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Observaciones / Detalles Técnicos</p>
                             <div class="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-xs font-bold text-amber-800 italic uppercase leading-relaxed shadow-sm">
-                                "${venta.observaciones}"
+                                ${venta.diagnostico_entrada ? `<div><span class="text-[9px] opacity-60">INGRESO:</span> ${venta.diagnostico_entrada}</div>` : ''}
+                                ${venta.observaciones && (venta.observaciones !== venta.diagnostico_entrada) ? `
+                                    <div class="${venta.diagnostico_entrada ? 'mt-2 pt-2 border-t border-amber-200/50' : ''}">
+                                        <span class="text-[9px] opacity-60">SALIDA:</span> ${venta.observaciones}
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                     ` : ''}

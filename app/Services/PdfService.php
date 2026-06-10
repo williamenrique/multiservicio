@@ -23,15 +23,20 @@ class PdfService {
 
         // Iniciamos el buffer de salida para capturar el HTML
         ob_start();
-        
-        // 1. Encabezado Estándar
-        require APPROOT . '/Views/pdf/inc/header.php';
-        
-        // 2. Cuerpo dinámico (el template solicitado)
+
+        // En el sistema 2.0, la factura maneja su propio layout fijo para Dompdf.
+        // Los demás reportes siguen el flujo secuencial tradicional.
+        $isFactura = ($view === 'factura');
+
+        if (!$isFactura) {
+            require APPROOT . '/Views/pdf/inc/header.php';
+        }
+
         require APPROOT . '/Views/pdf/templates/' . $view . '.php';
         
-        // 3. Pie de página Estándar
-        require APPROOT . '/Views/pdf/inc/footer.php';
+        if (!$isFactura) {
+            require APPROOT . '/Views/pdf/inc/footer.php';
+        }
         
         $html = ob_get_clean();
 
