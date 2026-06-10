@@ -1,6 +1,4 @@
 
-Despues de todo este funcionando empezar con los PDF reestructurados para adaptarlo al 2.0
-
 
 C. Experiencia del Cliente (Fidelización)
 Notificaciones Automáticas vía WhatsApp/Email: Integrar una API para notificar al cliente automáticamente cuando su vehículo pase de "En Reparación" a "Listo para Entrega".
