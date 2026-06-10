@@ -87,11 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
 
-                    ${venta.observaciones ? `
+                    ${(venta.observaciones || venta.diagnostico_entrada) ? `
                         <div class="space-y-1">
                             <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Observaciones / Detalles Técnicos</p>
                             <div class="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-xs font-bold text-amber-800 italic uppercase leading-relaxed shadow-sm">
-                                "${venta.observaciones}"
+                                ${venta.diagnostico_entrada ? `<div><span class="text-[9px] opacity-60">INGRESO:</span> ${venta.diagnostico_entrada}</div>` : ''}
+                                ${venta.observaciones && (venta.observaciones !== venta.diagnostico_entrada) ? `
+                                    <div class="${venta.diagnostico_entrada ? 'mt-2 pt-2 border-t border-amber-200/50' : ''}">
+                                        <span class="text-[9px] opacity-60">SALIDA:</span> ${venta.observaciones}
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                     ` : ''}

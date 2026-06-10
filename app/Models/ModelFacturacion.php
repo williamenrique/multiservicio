@@ -176,7 +176,7 @@ class ModelFacturacion {
             $this->db->bind(':ptra', $datos['pago_transferencia']);
             $this->db->bind(':spend', $totales['saldo']);
             $this->db->bind(':status', $status);
-            $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? ($datos['diagnostico_entrada'] ?? ''), 'UTF-8'));
+            $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? '', 'UTF-8'));
             $this->db->execute();
             return $ventaId ?: $this->db->lastInsertId();
         } catch (Exception $e) {
@@ -193,7 +193,8 @@ class ModelFacturacion {
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
                                  COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
                                  COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_nombre,
-                                 sv.nombre as vendedor_nombre
+                                 sv.nombre as vendedor_nombre,
+                                 os.kilometraje, os.nivel_combustible, os.diagnostico_entrada
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
