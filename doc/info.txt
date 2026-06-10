@@ -1,0 +1,25 @@
+
+Despues de todo este funcionando empezar con los PDF reestructurados para adaptarlo al 2.0
+
+
+C. Experiencia del Cliente (Fidelización)
+Notificaciones Automáticas vía WhatsApp/Email: Integrar una API para notificar al cliente automáticamente cuando su vehículo pase de "En Reparación" a "Listo para Entrega".
+Portal de Consulta Externa: Una página pública (sin login) donde el cliente, solo con su placa y un código, pueda ver el estado actual de su orden de servicio y fotos del progreso.
+
+Escaneo de Código de Barras: Adaptar el buscador de facturación e inventario para que acepte entradas de escáner, acelerando la venta de repuestos en mostrador.
+Gestión de Archivos de Vehículos: Permitir subir fotos del estado en que llega el vehículo (evidencia visual) directamente en la Orden de Servicio.
+
+3. Diagnóstico Técnico Actual
+Punto Fuerte: El uso de transacciones SQL (beginTransaction, commit) en los modelos de proveedores y facturación garantiza que la base de datos nunca quede en un estado inconsistente si algo falla a mitad de proceso.
+Punto a Mejorar: Hay una mezcla de lógica de presentación (generación de HTML vía JS) que se está volviendo extensa. Podríamos considerar una pequeña refactorización de componentes JS para que sean más reutilizables.
+¿Sobre cuál de estos puntos te gustaría profundizar o empezar a trabajar primero? Quedo a la espera de tus instrucciones para proceder con el código cuando lo indiques.
+    
+5 Estado de Cuenta de Cliente: Una funcionalidad para generar un PDF o vista rápida de todos los abonos y saldos pendientes de un cliente específico, facilitando la cobranza.    
+
+
+
+
+
+E. Experiencia de Usuario (UI/UX)
+Buscador Global: El controlador ControllerSearch es una excelente base. Se puede expandir para que el buscador de la cabecera sea el centro de navegación rápida.
+Notificaciones: Integrar un servicio de colas para enviar avisos automáticos de "Orden Lista" por correo o una API de mensajería.
