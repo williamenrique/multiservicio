@@ -98,7 +98,7 @@
                             <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">TIPO</th>
                             <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-left">DESCRIPCIÓN</th>
                             <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">TOTAL</th>
-                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">ACCIONES</th>
+                            <th class="px-4 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right" style="width: 110px; min-width: 110px;">ACCIONES</th> 
                         </tr>
                     </thead>
                     <tbody id="report-body" class="divide-y divide-slate-50 bg-white">
@@ -361,8 +361,13 @@
         </div>
     </div>
 </div>
+
 <script>
-    // Definir URLROOT para que esté disponible en los scripts de reportes
+    /**
+     * IMPORTANTE: Esta lógica en la vista sobreescribe cualquier renderizado
+     * previo para evitar duplicados y asegurar los botones de impresión correctos.
+     */
+
     if (typeof window.URLROOT === 'undefined') {
         window.URLROOT = "<?php echo URLROOT; ?>";
     }
@@ -374,6 +379,7 @@
     window.renderMovimientos = (data) => {
         const body = document.getElementById('report-body');
         if (!body) return;
+        body.innerHTML = ''; // Limpiamos para evitar duplicados de renderizado
 
         if (!data || data.length === 0) {
             body.innerHTML = `
@@ -401,14 +407,14 @@
             const refId = mov.referencia_id || mov.id; 
             const ordenId = mov.orden_id;
 
-            // 1. DETECCIÓN DE COMPROBANTE (Factura, Gasto o Nómina) - Basado en Tipo y Categoría
-            if (tipo === 'INGRESO' && (cat.includes('VENTA') || cat.includes('ABONO') || desc.includes('FACTURA'))) {
+            // 1. DETECCIÓN DE COMPROBANTE (Factura, Gasto o Nómina) - LÓGICA REFORZADA
+            if (tipo === 'INGRESO' && (cat.includes('VENTA') || cat.includes('ABONO') || desc.includes('FACTURA') || label.includes('FACTURA'))) {
                 printUrl = `${root}/facturacion/imprimir/${refId}`;
                 btnClass = 'text-blue-500 hover:bg-blue-50';
-            } else if (cat.includes('NOMINA') || label.includes('NOMINA') || label.includes('PAGO')) {
+            } else if (cat === 'NOMINA' || label.includes('NOMINA') || label.includes('ADELANTO')) {
                 printUrl = `${root}/reportes/imprimirRecibo/${refId}`;
                 btnClass = 'text-amber-500 hover:bg-amber-50';
-            } else if (tipo === 'EGRESO' || cat.includes('GASTO') || cat.includes('COMPRA') || cat.includes('PROVEEDOR')) {
+            } else if (tipo === 'EGRESO' || cat.includes('PROVEEDOR') || cat.includes('GASTO') || label.includes('PAGO') || desc.includes('PAGO') || label.includes('SERVICIO')) {
                 printUrl = `${root}/gastos/imprimir/${refId}`;
                 btnClass = 'text-rose-500 hover:bg-rose-50';
             }
@@ -433,21 +439,18 @@
                     <td class="px-4 py-4 text-right font-black ${mov.tipo === 'EGRESO' ? 'text-rose-500' : 'text-emerald-600'}">
                         ${mov.tipo === 'EGRESO' ? '-' : '+'}$${Math.abs(parseFloat(mov.monto_pagado || mov.monto || 0)).toLocaleString('es-CO', { minimumFractionDigits: 2 })}
                     </td>
-                    <td class="px-4 py-4 text-right">
+                    <td class="px-4 py-4 text-right" style="width: 110px; min-width: 110px;">
                         <div class="flex justify-end gap-1">
                             ${orderPrintUrl ? `
                                 <a href="${orderPrintUrl}" target="_blank" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all" title="Imprimir Orden Técnica">
                                     <i data-lucide="wrench" class="w-4 h-4"></i>
                                 </a>
-                            ` : ''}
+                            ` : ''} 
                             ${printUrl ? `
                                 <a href="${printUrl}" target="_blank" class="${btnClass} p-2 rounded-lg transition-all" title="Imprimir Comprobante">
                                     <i data-lucide="printer" class="w-4 h-4"></i>
                                 </a>
                             ` : ''}
-                            <button onclick="window.location.href='${root}/reportes/detalle/${mov.id}'" class="text-slate-300 hover:text-navy-blue p-2 rounded-lg transition-all" title="Ver Trazabilidad">
-                                <i data-lucide="search" class="w-4 h-4"></i>
-                            </button>
                         </div>
                     </td>
                 </tr>`;
@@ -590,4 +593,7 @@
         if (window.lucide) lucide.createIcons();
     };
 </script>
+<!-- Cargamos el JS externo al final para que las funciones declaradas arriba no sean pisadas -->
+<script src="<?php echo URLROOT; ?>/public/js/reportes.js"></script>
+<!-- Cargamos el JS externo al final para que las funciones declaradas arriba no sean pisadas -->
 <script src="<?php echo URLROOT; ?>/public/js/reportes.js"></script>
