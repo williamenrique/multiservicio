@@ -1122,14 +1122,21 @@ async function initWorkshopAlerts() {
             if (containerIndex) {
                 containerIndex.classList.remove('hidden');
                 containerIndex.innerHTML = `
-                    <div class="col-span-full flex flex-wrap gap-2 mb-4">
+                    <div class="col-span-full flex flex-wrap gap-3 mb-6">
                         ${data.filter(a => a.tipo_alerta !== 'PENDIENTE').map(a => `
-                            <div class="flex-1 min-w-[200px] ${a.tipo_alerta === 'VENCIDA' ? 'bg-rose-600' : 'bg-slate-900'} text-white px-3 py-1.5 rounded-lg shadow-sm flex items-center justify-between border border-white/10">
-                                <div class="flex items-center gap-2">
-                                    <i data-lucide="${a.tipo_alerta === 'SIN_MECANICO' ? 'user-x' : 'alert-circle'}" class="w-3.5 h-3.5"></i>
-                                    <span class="text-[10px] font-black uppercase tracking-tighter">${a.descripcion_alerta}: ${a.placa}</span>
+                            <div class="w-fit min-w-[240px] ${a.tipo_alerta === 'VENCIDA' ? 'bg-rose-600' : 'bg-slate-900'} text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between border border-white/10 animate-in fade-in zoom-in duration-300">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-1.5 bg-white/10 rounded-lg">
+                                        <i data-lucide="${a.tipo_alerta === 'SIN_MECANICO' ? 'user-x' : 'alert-circle'}" class="w-4 h-4 text-neon-green"></i>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span class="text-[11px] font-black uppercase tracking-tighter text-white/60 leading-none mb-1">${a.descripcion_alerta}</span>
+                                        <span class="text-sm font-black uppercase tracking-tight">${a.placa}</span>
+                                    </div>
                                 </div>
-                                <span class="text-[9px] font-bold bg-amber-400/10 px-1.5 rounded">ORD #${a.id}</span>
+                                <div class="ml-4">
+                                    <span class="text-[10px] font-bold bg-black/20 px-2 py-1 rounded-md border border-white/5 uppercase">#${a.id}</span>
+                                </div>
                             </div>
                         `).join('')}
                     </div>`;

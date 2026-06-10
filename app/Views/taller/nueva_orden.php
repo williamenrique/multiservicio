@@ -211,32 +211,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Buscar por Cédula/NIT
-    inputClienteId?.addEventListener('blur', async function() {
-        const id = this.value.trim();
-        if (id.length < 3) return;
-
-        try {
-            const resp = await fetch(`${URLROOT}/clientes/obtener/${id}`);
-            const data = await resp.json();
-            
-            if (data && data.nombre) {
-                inputClienteNombre.value = data.nombre;
-                inputClienteNombre.classList.add('bg-green-50');
-                AppUtils.showToast('Cliente reconocido', 'success');
-            } else {
-                inputClienteNombre.classList.remove('bg-green-50');
-                inputClienteNombre.value = ''; // Clear the name field
-                AppUtils.showToast(`Cliente con ID "${id}" no encontrado. Por favor, regístrelo en el módulo de Clientes.`, 'warning');
-            }
-        } catch (e) {
-            console.error("Error buscando cliente:", e);
-            inputClienteNombre.classList.remove('bg-green-50');
-            inputClienteNombre.value = '';
-            AppUtils.showToast('Error de conexión al buscar cliente.', 'error');
-        }
-    });
-
     // Búsqueda en tiempo real para Placas
     inputPlaca?.addEventListener('input', function() {
         this.value = this.value.toUpperCase();
@@ -275,81 +249,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 300);
     });
 
-    // Búsqueda en tiempo real para Identificación/Cédula
-    inputClienteId?.addEventListener('input', function() {
-        const term = this.value.trim();
-
-        clearTimeout(searchTimerCliente);
-        if (term.length < 2) {
-            clienteResults.classList.add('hidden');
-            return;
-        }
-
-        searchTimerCliente = setTimeout(async () => {
-            try {
-                const resp = await fetch(`${URLROOT}/taller/buscar?q=${encodeURIComponent(term)}`);
-                const data = await resp.json();
-                
-                if (data.success && data.results) {
-                    const clients = data.results.filter(r => r.tipo === 'cliente');
-                    if (clients.length > 0) {
-                        clienteResults.innerHTML = clients.map(c => `
-                            <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex items-center gap-3 group" onclick="document.getElementById('cliente_id').value='${c.id}'; document.getElementById('cliente_results').classList.add('hidden'); document.getElementById('cliente_id').dispatchEvent(new Event('blur'));">
-                                <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-navy-blue group-hover:bg-neon-green transition-colors">
-                                    <i data-lucide="user" class="w-4 h-4"></i>
-                                </div>
-                                <div>
-                                    <p class="text-xs font-black text-navy-blue uppercase">${c.title}</p>
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">${c.subtitle}</p>
-                                </div>
-                            </div>
-                        `).join('');
-                        clienteResults.classList.remove('hidden');
-                        if(window.lucide) lucide.createIcons();
-                    } else {
-                        clienteResults.classList.add('hidden');
-                        // No clients found, offer to create a new one
-                        clienteResults.innerHTML = `
-                            <div class="p-3 text-center text-slate-400 text-xs italic">
-                                No se encontraron clientes con "${term}".
-                            </div>
-                            <div class="p-3 border-t border-slate-100">
-                                <button type="button" onclick="window.openNewClientModal('${term}')" class="w-full bg-navy-blue text-white px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all uppercase text-xs">
-                                    <i data-lucide="user-plus" class="w-4 h-4"></i> Registrar Nuevo Cliente
-                                </button>
-                            </div>
-                        `;
-                        clienteResults.classList.remove('hidden');
-                        if(window.lucide) lucide.createIcons();
-                    }
-                }
-            } catch (e) { console.error("Error searching clients:", e); }
-        }, 300);
-    });
-
     // Cerrar resultados al hacer click fuera
     document.addEventListener('click', (e) => {
         if (!placaResults.contains(e.target) && e.target !== inputPlaca) placaResults.classList.add('hidden');
         if (!clienteResults.contains(e.target) && e.target !== inputClienteId) clienteResults.classList.add('hidden');
     });
-
-    // Función para abrir modal de nuevo cliente (o redirigir)
-    window.openNewClientModal = (clientId) => {
-        Swal.fire({
-            title: 'Cliente no encontrado',
-            text: `El cliente con ID "${clientId}" no está registrado. ¿Desea registrarlo ahora?`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Sí, Registrar',
-            cancelButtonText: 'No, Cancelar',
-            confirmButtonColor: '#10b981'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = `${URLROOT}/clientes/index?new_client_id=${clientId}`;
-            }
-        });
-        document.getElementById('cliente_results').classList.add('hidden'); // Hide search results after interaction
-    };
 });
 
 function agregarFilaChecklist() {

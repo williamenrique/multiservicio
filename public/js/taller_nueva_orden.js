@@ -175,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const result = await saveRes.json();
                 if (result.success) {
+                    newInputId.value = id;
                     newInputNombre.value = formValues.nombre;
                     newInputNombre.classList.remove('bg-slate-100');
                     newInputNombre.classList.add('bg-green-50');
