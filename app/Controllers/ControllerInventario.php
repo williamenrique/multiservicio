@@ -124,6 +124,7 @@ class ControllerInventario extends Controller {
 
         $pdfService = new PdfService();
         $pdfService->generarDocumento('kardex_individual', [
+            'titulo_pestaña' => 'Kardex Individual',
             'titulo_documento' => 'Detalle de Movimiento de Inventario',
             'mov' => $movimiento,
             'documento_id' => $movimiento->id
@@ -150,6 +151,7 @@ class ControllerInventario extends Controller {
 
         $pdfService = new PdfService();
         $pdfService->generarDocumento('kardex_reporte', [
+            'titulo_pestaña' => 'Reporte Kardex',
             'titulo_documento' => 'Historial de Kardex',
             'producto' => $producto,
             'movimientos' => $movimientos,

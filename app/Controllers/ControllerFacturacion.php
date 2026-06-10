@@ -247,6 +247,7 @@ class ControllerFacturacion extends Controller {
             $doc_name = $venta->id_formateado ?: 'Factura_' . $id;
             $filename = $doc_name . '_' . time() . '.pdf';
             $filePath = $pdfService->generarDocumento('factura', [
+                'titulo_pestaña' => 'Factura de Venta',
                 'titulo_documento' => 'Factura de Venta',
                 'documento_id' => $doc_name,
                 'venta' => $venta
@@ -286,6 +287,7 @@ class ControllerFacturacion extends Controller {
         $pdfService = new PdfService();
         $doc_name = $venta->id_formateado ?: 'Factura_' . $id;
         $pdfService->generarDocumento('factura', [
+            'titulo_pestaña' => 'Factura de Venta',
             'titulo_documento' => 'Factura de Venta',
             'documento_id' => $doc_name,
             'venta' => $venta
@@ -406,12 +408,15 @@ class ControllerFacturacion extends Controller {
               ->in('destino', ['STOCK', 'DANADO']); // Ajustado para coincidir con el valor del frontend
 
             if (!$v->success()) {
-                throw new Exception('Datos de devolución inválidos');
+                throw new Exception(implode(" ", $v->getErrors()));
             }
 
-            $this->billingService->procesarDevolucionSegura($input);
-            return $this->jsonResponse(['success' => true, 'mensaje' => 'Devolución procesada correctamente']);
+            $resultado = $this->facturaModel->procesarDevolucion($input['venta_id'], $input['detalle_id'], $input['destino']);
 
+            return $this->jsonResponse([
+                'success' => $resultado,
+                'mensaje' => $resultado ? 'Devolución procesada con éxito y stock actualizado.' : 'No se pudo procesar la devolución.'
+            ]);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }

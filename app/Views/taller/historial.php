@@ -82,20 +82,41 @@
             <div class="space-y-4">
                 <?php foreach($historial as $h): 
                     $statusColors = [
-                        'RECIBIDO' => 'bg-slate-100 text-slate-500',
+                        'RECIBIDO' => 'bg-indigo-100 text-indigo-700',
                         'DIAGNOSTICANDO' => 'bg-amber-100 text-amber-600',
                         'EN_REPARACION' => 'bg-blue-100 text-blue-600',
                         'LISTO' => 'bg-emerald-100 text-emerald-600',
                         'ENTREGADO' => 'bg-navy-blue text-white',
                         'CANCELADO' => 'bg-rose-100 text-rose-600'
                     ];
-                    $bgStatus = $statusColors[$h->estado] ?? 'bg-slate-100';
+                    $bgStatus = $statusColors[$h->estado] ?? 'bg-slate-100 text-slate-500';
+
+                    // Clases para resaltar el contenedor principal de la orden
+                    $cardBaseClasses = 'rounded-2xl p-5 hover:shadow-md transition-shadow group';
+                    $cardSpecificClasses = 'bg-white border border-slate-100 shadow-sm'; // Default para estados finalizados
+                    $orderBadgeClasses = 'text-xs font-black text-navy-blue bg-slate-50 px-3 py-1 rounded-lg border border-slate-100';
+
+                    switch ($h->estado) {
+                        case 'RECIBIDO':
+                            $cardSpecificClasses = 'bg-indigo-50/30 border-l-4 border-indigo-500 shadow-md';
+                            $orderBadgeClasses = 'text-xs font-black text-indigo-700 bg-indigo-100 px-3 py-1 rounded-lg border border-indigo-200';
+                            break;
+                        case 'DIAGNOSTICANDO':
+                            $cardSpecificClasses = 'bg-amber-50/50 border-l-4 border-amber-500 shadow-md';
+                            $orderBadgeClasses = 'text-xs font-black text-amber-700 bg-amber-100 px-3 py-1 rounded-lg border border-amber-200';
+                            break;
+                        case 'EN_REPARACION':
+                            $cardSpecificClasses = 'bg-blue-50/50 border-l-4 border-blue-500 shadow-md';
+                            $orderBadgeClasses = 'text-xs font-black text-blue-700 bg-blue-100 px-3 py-1 rounded-lg border border-blue-200';
+                            break;
+                        // Para LISTO, ENTREGADO, CANCELADO, se mantienen las clases por defecto
+                    }
                 ?>
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow group">
+                <div class="<?php echo $cardBaseClasses; ?> <?php echo $cardSpecificClasses; ?>">
                     <div class="flex flex-col md:flex-row justify-between gap-4">
                         <div class="flex-1 space-y-3">
                             <div class="flex items-center gap-3">
-                                <span class="text-xs font-black text-navy-blue bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">ORDEN #<?php echo $h->id; ?></span>
+                                <span class="<?php echo $orderBadgeClasses; ?>">ORDEN #<?php echo $h->id; ?></span>
                                 <span class="text-[10px] font-black uppercase px-3 py-1 rounded-lg <?php echo $bgStatus; ?> tracking-tighter">
                                     <?php echo $h->estado; ?>
                                 </span>

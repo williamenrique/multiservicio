@@ -140,6 +140,7 @@ class ControllerReportes extends Controller {
         $empresa = $this->model('Empresa')->obtenerConfiguracion();
         $pdfService = new PdfService();
         $pdfService->generarDocumento('recibo_pago', [
+            'titulo_pestaña' => 'Comprobante de Pago',
             'titulo_documento' => 'Comprobante de Pago',
             'empresa' => $empresa,
             'pago' => $pago,
@@ -161,6 +162,7 @@ class ControllerReportes extends Controller {
         $empresa = $this->model('Empresa')->obtenerConfiguracion();
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_proveedor_individual', [
+            'titulo_pestaña' => 'Reporte Proveedor',
             'titulo_documento' => 'Estado de Cuenta de Proveedor',
             'empresa' => $empresa,
             'proveedor' => $data,
@@ -179,6 +181,7 @@ class ControllerReportes extends Controller {
 
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_cartera_proveedores', [
+            'titulo_pestaña' => 'Cartera Proveedores',
             'titulo_documento' => 'Cuentas por Pagar (Proveedores)',
             'empresa' => $empresa,
             'cartera' => $cartera,
@@ -211,6 +214,7 @@ class ControllerReportes extends Controller {
 
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_auditoria', [
+            'titulo_pestaña' => 'Auditoría de Trabajos',
             'titulo_documento' => 'Auditoría de Trabajos',
             'ventas' => array_values($ventas),
             'desde' => $desde,
@@ -240,6 +244,7 @@ class ControllerReportes extends Controller {
 
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_gastos', [
+            'titulo_pestaña' => 'Reporte de Gastos',
             'titulo_documento' => 'Reporte de Gastos',
             'gastos' => array_values($gastos),
             'desde' => $desde,

@@ -74,6 +74,7 @@ class ControllerTaller extends Controller {
 
             $pdfService = new PdfService();
             $pdfService->generarDocumento('orden', [
+                'titulo_pestaña' => 'Orden de Servicio',
                 'orden' => $orden,
                 'empresa' => $empresa,
                 // Las variables de cabecera (titulo_documento, documento_numero, etc.) se definirán dentro de orden.php

@@ -70,7 +70,7 @@
                         <td class="px-6 py-4">
                             <select onchange="cambiarEstado(<?php echo $o->id; ?>, this)" 
                                     class="status-select text-[10px] font-bold border rounded-lg px-2 py-1 bg-white focus:ring-2 focus:ring-neon-green outline-none transition-all <?php 
-                                        echo $o->estado == 'RECIBIDO' ? 'text-slate-500 border-slate-200' : 
+                                        echo $o->estado == 'RECIBIDO' ? 'text-indigo-600 border-indigo-200' : 
                                             ($o->estado == 'DIAGNOSTICANDO' ? 'text-amber-600 border-amber-200' : 
                                             ($o->estado == 'EN_REPARACION' ? 'text-blue-600 border-blue-200' : 
                                             ($o->estado == 'LISTO' ? 'text-emerald-600 border-emerald-400' : ''))); 
@@ -211,10 +211,10 @@ async function cambiarEstado(id, selectEl) {
             AppUtils.showToast(result.mensaje, 'success');
             
             // Actualizar colores dinámicamente
-            selectEl.classList.remove('text-slate-500', 'text-amber-600', 'text-blue-600', 'text-emerald-600', 'border-slate-200', 'border-amber-200', 'border-blue-200', 'border-emerald-400');
+            selectEl.classList.remove('text-slate-500', 'text-indigo-600', 'text-amber-600', 'text-blue-600', 'text-emerald-600', 'border-slate-200', 'border-indigo-200', 'border-amber-200', 'border-blue-200', 'border-emerald-400');
             
             const colors = {
-                'RECIBIDO': ['text-slate-500', 'border-slate-200'],
+                'RECIBIDO': ['text-indigo-600', 'border-indigo-200'],
                 'DIAGNOSTICANDO': ['text-amber-600', 'border-amber-200'],
                 'EN_REPARACION': ['text-blue-600', 'border-blue-200'],
                 'LISTO': ['text-emerald-600', 'border-emerald-400']
