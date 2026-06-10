@@ -67,7 +67,7 @@ class ModelFacturacion {
                                  COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1), su.nombre, u.username) as usuario_nombre, 
                                  c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
-                                 CASE WHEN v.orden_id IS NOT NULL THEN 'OS' WHEN v.placa IS NOT NULL THEN 'TALLER' ELSE 'MOSTRADOR' END as tipo_procedencia
+                                 CASE WHEN v.orden_id IS NOT NULL THEN 'OS' WHEN (v.placa IS NOT NULL AND v.placa != '') THEN 'TALLER' ELSE 'MOSTRADOR' END as tipo_procedencia
                           FROM table_facturas v 
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
@@ -562,15 +562,17 @@ class ModelFacturacion {
         $this->db->query("SELECT 
                             SUM(vd.precio_unitario * vd.cantidad) as total_ventas,
                             SUM(vd.costo_unitario * vd.cantidad) as total_costos,
-                            (SUM(vd.precio_unitario * vd.cantidad) - SUM(vd.costo_unitario * vd.cantidad)) as utilidad_bruta,
                             SUM(CASE WHEN vd.producto_id IS NULL THEN (vd.precio_unitario * vd.cantidad) ELSE 0 END) as total_servicios,
-                            SUM(CASE WHEN vd.producto_id IS NOT NULL THEN (vd.precio_unitario * vd.cantidad) - (vd.costo_unitario * vd.cantidad) ELSE 0 END) as ganancia_repuestos
+                            SUM(CASE WHEN vd.producto_id IS NOT NULL THEN (vd.precio_unitario - vd.costo_unitario) * vd.cantidad ELSE 0 END) as ganancia_repuestos,
+                            SUM((vd.precio_unitario - vd.costo_unitario) * vd.cantidad) as utilidad_bruta
                           FROM table_facturas_detalle vd
                           JOIN table_facturas v ON vd.factura_id = v.id
-                          WHERE DATE(v.fecha) BETWEEN :desde AND :hasta 
-                          AND v.status IN ('COMPLETADO', 'CREDITO')");
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO')
+                          AND DATE(v.fecha) BETWEEN :desde AND :hasta");
+        
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
+        
         return $this->db->single();
     }
 }

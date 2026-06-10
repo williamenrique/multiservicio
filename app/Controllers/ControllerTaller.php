@@ -290,8 +290,6 @@ class ControllerTaller extends Controller {
             $subtotal = 0;
             $itemsArr = $input['items'] ?? [];
             foreach ($itemsArr as $item) {
-                // Evitar procesar items vacíos que generen warnings de claves inexistentes
-                if (empty($item['nombre']) && empty($item['id'])) continue;
                 $subtotal += ((float)($item['precio'] ?? 0) * (int)($item['cantidad'] ?? 0));
             }
 
@@ -443,10 +441,39 @@ class ControllerTaller extends Controller {
             }
 
             if ($this->ordenModel->actualizarEstado($input['id'], $input['estado'], 'Cambio de estado desde el panel de taller')) {
+                // Si la orden entra en fase técnica, activamos el borrador en facturación
+                if (in_array($input['estado'], ['DIAGNOSTICANDO', 'EN_REPARACION', 'LISTO'])) {
+                    $this->prepararBorradorDesdeOrden($input['id']);
+                }
+                
                 return $this->jsonResponse(['success' => true, 'mensaje' => 'Estado actualizado correctamente']);
             }
             return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al actualizar el estado']);
         }
+    }
+
+    /**
+     * Asegura que exista un borrador (factura PENDIENTE) vinculado a la orden
+     * para que sea visible en el POS de facturación inmediatamente.
+     */
+    private function prepararBorradorDesdeOrden($ordenId) {
+        $modelFacturacion = $this->model('Facturacion');
+        
+        // Verificar si ya existe un borrador para evitar duplicados
+        $borrador = $modelFacturacion->obtenerBorradorPorOrden($ordenId);
+        if ($borrador) return;
+
+        $orden = $this->ordenModel->obtenerDetalleOrden($ordenId);
+        if (!$orden) return;
+
+        $datosBase = [
+            'placa' => $orden->placa,
+            'cliente_id' => $orden->cliente_id,
+            'modelo' => $orden->modelo,
+            'mecanico_id' => $orden->mecanico_id,
+            'items' => [] // Se crea inicialmente sin ítems
+        ];
+        $this->sincronizarItemsOrden($ordenId, $datosBase);
     }
 
     /**
@@ -492,48 +519,39 @@ class ControllerTaller extends Controller {
                             ELSE 'En tiempo'
                           END as descripcion_alerta
                     FROM table_ordenes_servicio os
-                    INNER JOIN table_vehiculos v ON os.placa = v.placa
-                    WHERE os.estado NOT IN ('ENTREGADO', 'ANULADO', 'LISTO')
-                    ORDER BY (os.mecanico_id IS NULL) DESC, os.fecha_entrega_estimada ASC");
-        
-        $ordenes = $db->resultSet();
-        
+                    LEFT JOIN table_vehiculos v ON os.placa = v.placa
+                    WHERE os.estado NOT IN ('ENTREGADO', 'ANULADO')
+                    ORDER BY minutos_restantes ASC");
+
+        $alertas = $db->resultSet();
+
         return $this->jsonResponse([
             'success' => true,
-            'total' => count($ordenes),
-            'data' => $ordenes
+            'total' => count($alertas),
+            'data' => $alertas
         ]);
     }
 
     /**
-     * Punto 3: Asignar o actualizar mecánico de la orden (API)
-     * Requerido por la interfaz de gestión operativa en app.min.js
+     * API para asignar un mecánico responsable a una orden (AJAX)
      */
     public function asignarMecanico() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
             
             if (empty($input['id']) || empty($input['mecanico_id'])) {
-                return $this->jsonResponse(['success' => false, 'error' => 'ID de orden y técnico son obligatorios'], 400);
+                return $this->jsonResponse(['success' => false, 'error' => 'Datos incompletos'], 400);
             }
 
-            // 1. Actualizar en la tabla de ordenes
             $db = new Database();
             $db->query("UPDATE table_ordenes_servicio SET mecanico_id = :mid WHERE id = :id");
             $db->bind(':mid', $input['mecanico_id']);
             $db->bind(':id', $input['id']);
             
             if ($db->execute()) {
-                // 2. Sincronizar mecánico en los items del borrador de factura vinculado para reporte de nómina posterior
-                $db->query("UPDATE table_facturas_detalle SET mecanico_id = :mid 
-                            WHERE factura_id IN (SELECT id FROM table_facturas WHERE orden_id = :oid AND status = 'PENDIENTE')");
-                $db->bind(':mid', $input['mecanico_id']);
-                $db->bind(':oid', $input['id']);
-                $db->execute();
-
                 return $this->jsonResponse(['success' => true, 'mensaje' => 'Mecánico asignado correctamente']);
             }
-            return $this->jsonResponse(['success' => false, 'error' => 'No se pudo actualizar el registro']);
+            return $this->jsonResponse(['success' => false, 'error' => 'Error al actualizar el registro']);
         }
     }
 }
