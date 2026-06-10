@@ -44,6 +44,19 @@ window.renderFlujoRow = (m) => {
                     ${m.categoria === 'NOMINA' ?
                 `<button onclick="verDetallePagoHistorial(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
                 ` : '---'}
+            <td class="px-4 py-3 text-right w-24">
+                <div class="flex justify-end gap-1">
+                    ${m.referencia_id ? `
+                        ${m.categoria === 'VENTA' || m.categoria === 'ABONO_CLIENTE' || m.categoria === 'DEVOLUCION' ?
+                        `<button onclick="verDetalleVenta(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                         <button onclick="printVenta(${m.referencia_id})" class="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Imprimir PDF"><i data-lucide="printer" class="w-4 h-4"></i></button>` : ''}
+                        ${m.categoria === 'COMPRA_PROVEEDOR' || m.categoria === 'ABONO_PROVEEDOR' ?
+                        `<button onclick="verDetalleCompra(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>` : ''}
+                        ${m.categoria === 'NOMINA' ?
+                        `<button onclick="verDetallePagoHistorial(${m.referencia_id})" class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                         <button onclick="imprimirReciboPago(${m.referencia_id})" class="p-2 text-slate-400 hover:text-rose-600 transition-colors" title="Imprimir Recibo de Pago"><i data-lucide="printer" class="w-4 h-4"></i></button>` : ''}
+                    ` : '---'}
+                </div>
             </td>
         </tr>`;
 };
