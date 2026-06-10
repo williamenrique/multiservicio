@@ -191,13 +191,15 @@ class ModelFacturacion {
     public function obtenerVentaCompleta($id) {
         $this->db->query("SELECT v.*, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
-                                 COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
-                                 COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_nombre,
+                                 COALESCE(vh.placa, v.placa) as placa, 
+                                 COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                                 vh.marca as marca_vehiculo,
+                                 st_m.nombre as mecanico_nombre,
                                  sv.nombre as vendedor_nombre,
                                  os.kilometraje, os.nivel_combustible, os.diagnostico_entrada
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
-                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
+                          LEFT JOIN table_staff st_m ON os.mecanico_id = st_m.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id
@@ -217,7 +219,7 @@ class ModelFacturacion {
 
         // Cargar Checklist si la factura proviene de una Orden de Servicio
         if ($venta && $venta->orden_id) {
-            $this->db->query("SELECT * FROM table_orden_checklist WHERE orden_id = :oid");
+            $this->db->query("SELECT item, observacion FROM table_orden_checklist WHERE orden_id = :oid");
             $this->db->bind(':oid', $venta->orden_id);
             $venta->checklist = $this->db->resultSet();
         }

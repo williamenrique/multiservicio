@@ -1,21 +1,23 @@
+<?php
+    $meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    $fecha_dt = strtotime($orden->fecha_ingreso);
+    $fecha_elegante = date('d', $fecha_dt) . " de " . $meses[date('n', $fecha_dt)-1] . " del " . date('Y', $fecha_dt);
+    $hora_elegante = date('h:i A', $fecha_dt);
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>PDF - ORDEN DE SERVICIO #<?php echo $orden->id; ?> - <?php echo strtoupper($orden->placa); ?></title>
     <style>
-        @page { margin: 30px 40px; }
-        body { font-family: 'Helvetica', sans-serif; color: #1f2937; font-size: 10px; line-height: 1.3; }
+        @page { margin: 20px 25px; }
+        body { font-family: 'Helvetica', sans-serif; color: #1e293b; font-size: 8.5px; line-height: 1.2; }
         
-        /* Estilo 2.0 consistente con Factura */
-        .header-table { width: 100%; border-bottom: 1px solid #111827; margin-bottom: 20px; padding-bottom: 10px; }
-        .company-data { width: 60%; vertical-align: top; }
-        .invoice-data { width: 40%; vertical-align: top; text-align: right; }
-        
-        .company-name { font-size: 18px; font-weight: bold; color: #111827; margin-bottom: 2px; }
-        .doc-type { font-size: 14px; font-weight: bold; color: #3b82f6; text-transform: uppercase; }
-        .doc-number { font-size: 16px; font-weight: bold; margin-left: 8px; color: #111827; }
-        .doc-header-line { white-space: nowrap; margin-bottom: 5px; } 
+        /* Estilos de Cabecera */
+        .header-table { width: 100%; border-bottom: 3px solid #0f172a; margin-bottom: 15px; padding-bottom: 10px; }
+        .company-data { width: 50%; vertical-align: top; text-align: left; }
+        .invoice-data { width: 50%; vertical-align: top; text-align: right; }
+        .doc-type { font-size: 12px; font-weight: 900; }
 
         .label-min { font-size: 8px; color: #6b7280; text-transform: uppercase; font-weight: bold; }
         .val-text { font-size: 10px; font-weight: bold; color: #111827; }
@@ -44,7 +46,8 @@
         }
 
         /* Estilo para Checklist en Orden */
-        .checklist-container { margin-bottom: 15px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+        .checklist-list { margin: 0; padding: 0; list-style: none; }
+        .checklist-item { display: block; width: 100%; font-size: 8px; padding: 2px 0; border-bottom: 1px dotted #e2e8f0; }
         .checklist-item { display: inline-block; width: 32%; font-size: 9px; color: #475569; margin-bottom: 3px; }
 
         /* Tabla de Ítems para la Orden */
@@ -62,13 +65,18 @@
     <!-- Inclusión de Cabecera Compartida -->
     <?php if(file_exists(APPROOT . '/Views/pdf/inc/header.php')): ?>
         <?php 
-            // Las variables $titulo_documento, $documento_numero, etc. 
-            // ya son pasadas por el ControllerTaller->imprimir()
+            // Variables para la cabecera compartida
+            $titulo_documento = 'ORDEN DE SERVICIO';
+            $documento_numero = '#' . $orden->id;
+            $fecha_documento = $fecha_elegante . ' - ' . $hora_elegante;
+            $doc_color = "#3b82f6";
+            $status_documento = $orden->estado;
+            // No pasamos $venta aquí, ya que es una orden, no una factura.
+            // Si se necesita el vendedor/técnico, se puede adaptar el header.php para usar $orden.
             require_once APPROOT . '/Views/pdf/inc/header.php'; 
         ?>
-    <?php else: ?>
-        <div style="color:red; border:1px solid red; padding:10px;">
-            Error Crítico: No se encontró la cabecera en Views/pdf/inc/header.php
+    <?php else: // Fallback si la cabecera compartida no se encuentra ?>
+        <div style="color:red; border:1px solid red; padding:10px;">Error Crítico: No se encontró la cabecera en Views/pdf/inc/header.php</div>
         </div>
     <?php endif; ?>
 
@@ -106,10 +114,14 @@
     <?php if(!empty($orden->checklist)): ?>
     <div class="section-box">
         <div class="section-title">Inventario de Recepción (Checklist)</div>
-        <div class="checklist-container">
+        <div class="section-content" style="padding-top: 2px; padding-bottom: 2px;">
+            <div class="checklist-list">
             <?php foreach($orden->checklist as $chk): ?>
                 <div class="checklist-item">
-                    • <strong><?php echo strtoupper($chk->item); ?></strong> <?php echo $chk->observacion ? "(".htmlspecialchars($chk->observacion).")" : ""; ?>
+                    <span style="color: #10b981; font-weight: bold;">[✓]</span> 
+                    <strong style="color: #0f172a;"><?php echo strtoupper($chk->item); ?></strong> 
+                    <?php if($chk->observacion): ?> — <span style="color: #64748b;">Obs: <?php echo htmlspecialchars($chk->observacion); ?></span><?php endif; ?>
+                </div>
                 </div>
             <?php endforeach; ?>
         </div>

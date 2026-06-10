@@ -22,6 +22,9 @@
             <a href="<?php echo URLROOT; ?>/taller" class="flex-1 md:flex-none justify-center bg-white/10 border border-white/20 text-white font-bold px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 uppercase text-[10px]">
                 <i data-lucide="layout-dashboard" class="w-4 h-4 text-neon-green"></i> Taller Activo
             </a>
+            <a href="<?php echo URLROOT; ?>/taller/cerradas" class="flex-1 sm:flex-none justify-center bg-white border border-slate-200 text-navy-blue font-bold px-4 py-2 rounded-lg hover:bg-slate-50 transition-all flex items-center gap-2 uppercase text-xs">
+                <i data-lucide="archive" class="w-4 h-4"></i> Historial
+            </a>
             <a href="<?php echo URLROOT; ?>/taller/cerradas" class="flex-1 md:flex-none justify-center bg-white/10 border border-white/20 text-white font-bold px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 uppercase text-[10px]">
                 <i data-lucide="archive" class="w-4 h-4"></i> Ver Cerradas
             </a>

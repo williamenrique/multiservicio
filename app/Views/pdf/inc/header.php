@@ -9,29 +9,40 @@
 // $venta (objeto de venta, para factura)
 // $orden (objeto de orden, para orden)
 ?>
-<table class="header-table">
+<table class="header-table" width="100%">
     <tr>
-        <td class="company-data">
-            <div class="company-name"><?php echo $empresa->name ?: 'TALLER PROFESIONAL'; ?></div>
-            NIT: <?php echo $empresa->nit ?: 'N/A'; ?><br>
-            Dirección: <?php echo $empresa->direccion ?: 'N/A'; ?><br>
-            Teléfono: <?php echo $empresa->telefono ?: 'N/A'; ?>
-        </td>
-        <td class="invoice-data">
-            <div class="doc-header-line">
-                <span class="doc-type"><?php echo $titulo_documento; ?></span>
-                <span class="doc-number"><?php echo $documento_numero; ?></span>
+        <td class="company-data" style="width: 55%;">
+            <div class="company-name" style="font-size: 22px; font-weight: 900; color: #0f172a; margin-bottom: 0; letter-spacing: -1px;">
+                <?php echo strtoupper($empresa->name ?: 'TALLER PROFESIONAL'); ?>
             </div>
-            <div style="margin-top: 10px;">
-                <span class="label-min">Emisión:</span> <?php echo $fecha_documento; ?><br>
-                <?php if (isset($status_documento)): // Solo para Orden de Servicio ?>
-                    <span class="label-min">Estado:</span> <?php echo $status_documento; ?><br>
+            <div style="width: 60px; height: 5px; background-color: #10b981; margin-bottom: 8px;"></div>
+            <div style="font-size: 9px; color: #475569; line-height: 1.2;">
+                <strong>NIT:</strong> <?php echo $empresa->nit ?: 'N/A'; ?><br>
+                <strong>DIRECCIÓN:</strong> <?php echo strtoupper($empresa->direccion ?: 'N/A'); ?><br>
+                <strong>TELÉFONO:</strong> <?php echo $empresa->telefono ?: 'N/A'; ?>
+            </div>
+        </td>
+        <td class="invoice-data" style="width: 45%; text-align: right; vertical-align: top; padding-right: 0;">
+            <div style="margin-bottom: 8px;">
+                <div class="doc-type" style="color: <?php echo $doc_color ?? '#3b82f6'; ?>; font-size: 12px; font-weight: 900; margin-bottom: -2px;"><?php echo strtoupper($titulo_documento); ?></div>
+                <div class="doc-number" style="font-size: 28px; font-weight: 900; color: #0f172a; letter-spacing: -1.5px; line-height: 1;"><?php echo $documento_numero; ?></div>
+            </div>
+            <div style="line-height: 1.3;">
+                <div style="margin-bottom: 2px;"><span class="label-min">Emisión:</span> <span class="val-text" style="font-size: 9px;"><?php echo strtoupper($fecha_documento); ?></span></div>
+                
+                <?php if (isset($status_documento)): ?>
+                    <div style="margin-bottom: 2px;"><span class="label-min">Estado:</span> <span class="val-text" style="font-size: 9px; color: #10b981;"><?php echo strtoupper($status_documento); ?></span></div>
                 <?php endif; ?>
-                <?php if (isset($venta) && isset($venta->vendedor_nombre)): ?>
-                    <span class="label-min">Vendedor:</span> <?php echo $venta->vendedor_nombre ?: 'SISTEMA'; ?><br>
+
+                <?php if (isset($venta) && !empty($venta->vendedor_nombre)): ?>
+                    <div><span class="label-min">Vendedor:</span> <span class="val-text" style="font-size: 9px;"><?php echo strtoupper($venta->vendedor_nombre); ?></span></div>
                 <?php endif; ?>
-                <?php if (isset($venta) && (isset($venta->mecanico_nombre) && !empty($venta->mecanico_nombre))): ?>
-                    <span class="label-min">Técnico:</span> <?php echo $venta->mecanico_nombre ?: 'N/A'; ?>
+
+                <?php 
+                    $mecanico = $venta->mecanico_nombre ?? $orden->mecanico_nombre ?? null;
+                    if ($mecanico): 
+                ?>
+                    <div><span class="label-min">Técnico:</span> <span class="val-text" style="font-size: 9px;"><?php echo strtoupper($mecanico); ?></span></div>
                 <?php endif; ?>
             </div>
         </td>

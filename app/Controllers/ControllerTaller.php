@@ -41,33 +41,45 @@ class ControllerTaller extends Controller {
      * URL: /taller/imprimir/ID
      */
     public function imprimir($id) {
-        $orden = $this->ordenModel->obtenerDetalleOrden($id);
-        
-        if (!$orden) {
-            die("La orden de servicio #$id no existe.");
+        // Primero, verificar si esta orden ya tiene una factura final (COMPLETADO o CREDITO)
+        // Si es así, redirigimos a la impresión de la factura para centralizar la lógica.
+        $db = new Database();
+        $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status IN ('COMPLETADO', 'CREDITO') ORDER BY id DESC LIMIT 1");
+        $db->bind(':oid', $id);
+        $facturaAsociada = $db->single();
+
+        if ($facturaAsociada) {
+            // Si existe una factura final, redirigir a la ruta de impresión de factura
+            redirect('facturacion/imprimir/' . $facturaAsociada->id);
+        } else {
+            // Si no hay factura final, o la factura está PENDIENTE/ANULADO,
+            // entonces generamos el PDF de la Orden de Servicio.
+            $orden = $this->ordenModel->obtenerDetalleOrden($id);
+            
+            if (!$orden) {
+                die("La orden de servicio #$id no existe.");
+            }
+
+            // Mapeo de datos para compatibilidad con la vista orden.php
+            $orden->fecha_entrada = $orden->fecha_ingreso;
+            $orden->observaciones_entrada = $orden->diagnostico_entrada;
+            
+            // Cargar el Checklist de entrada para el PDF
+            $orden->checklist = $this->ordenModel->obtenerChecklist($id);
+            
+            // Cargar los ítems de la orden (si existen en el borrador de factura)
+            $orden->items = $this->ordenModel->obtenerItemsOrden($id);
+
+            $empresa = $this->model('Empresa')->obtenerConfiguracion();
+
+            $pdfService = new PdfService();
+            $pdfService->generarDocumento('orden', [
+                'orden' => $orden,
+                'empresa' => $empresa,
+                // Las variables de cabecera (titulo_documento, documento_numero, etc.) se definirán dentro de orden.php
+            ], 'Orden_Servicio_' . $id . '.pdf');
+            exit;
         }
-
-        // Mapeo de datos para compatibilidad con la vista orden.php
-        $orden->fecha_entrada = $orden->fecha_ingreso;
-        $orden->observaciones_entrada = $orden->diagnostico_entrada;
-        
-        // Cargar el Checklist de entrada para el PDF
-        $orden->checklist = $this->ordenModel->obtenerChecklist($id);
-
-        $empresa = $this->model('Empresa')->obtenerConfiguracion();
-
-        // Datos estandarizados para la cabecera compartida (pdf/inc/header.php)
-        $pdfService = new PdfService();
-        $pdfService->generarDocumento('orden', [
-            'titulo_documento' => 'ORDEN DE SERVICIO',
-            'documento_numero' => '#' . $orden->id,
-            'fecha_documento' => date('d/m/Y - h:i A', strtotime($orden->fecha_ingreso)),
-            'status_documento' => $orden->estado,
-            'orden' => $orden,
-            'empresa' => $empresa,
-            'documento_id' => $id
-        ], 'Orden_Servicio_' . $id . '.pdf');
-        exit;
     }
 
     /**
