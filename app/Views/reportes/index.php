@@ -363,102 +363,9 @@
 </div>
 
 <script>
-    /**
-     * IMPORTANTE: Esta lógica en la vista sobreescribe cualquier renderizado
-     * previo para evitar duplicados y asegurar los botones de impresión correctos.
-     */
-
     if (typeof window.URLROOT === 'undefined') {
         window.URLROOT = "<?php echo URLROOT; ?>";
     }
-
-    /**
-     * Renderiza la tabla de Cronología de Movimientos (Flujo de Caja)
-     * Agrega botones de impresión dinámicos según el tipo de registro.
-     */
-    window.renderMovimientos = (data) => {
-        const body = document.getElementById('report-body');
-        if (!body) return;
-        body.innerHTML = ''; // Limpiamos para evitar duplicados de renderizado
-
-        if (!data || data.length === 0) {
-            body.innerHTML = `
-                <tr>
-                    <td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
-                        No hay movimientos registrados para el periodo seleccionado
-                    </td>
-                </tr>`;
-            return;
-        }
-
-        body.innerHTML = data.map(mov => {
-            let printUrl = '';
-            let orderPrintUrl = '';
-            let btnClass = 'text-slate-400 hover:text-navy-blue';
-            
-            // Normalizamos los textos para buscar palabras clave
-            const cat = (mov.categoria || '').toUpperCase();
-            const label = (mov.categoria_label || mov.tipo || '').toUpperCase();
-            const desc = (mov.descripcion || '').toUpperCase();
-            const tipo = (mov.tipo || '').toUpperCase();
-            const root = window.URLROOT || '<?php echo URLROOT; ?>';
-            
-            // Usamos el referencia_id como prioridad, si no existe usamos el ID del movimiento
-            const refId = mov.referencia_id || mov.id; 
-            const ordenId = mov.orden_id;
-
-            // 1. DETECCIÓN DE COMPROBANTE (Factura, Gasto o Nómina) - LÓGICA REFORZADA
-            if (tipo === 'INGRESO' && (cat.includes('VENTA') || cat.includes('ABONO') || desc.includes('FACTURA') || label.includes('FACTURA'))) {
-                printUrl = `${root}/facturacion/imprimir/${refId}`;
-                btnClass = 'text-blue-500 hover:bg-blue-50';
-            } else if (cat === 'NOMINA' || label.includes('NOMINA') || label.includes('ADELANTO')) {
-                printUrl = `${root}/reportes/imprimirRecibo/${refId}`;
-                btnClass = 'text-amber-500 hover:bg-amber-50';
-            } else if (tipo === 'EGRESO' || cat.includes('PROVEEDOR') || cat.includes('GASTO') || label.includes('PAGO') || desc.includes('PAGO') || label.includes('SERVICIO')) {
-                printUrl = `${root}/gastos/imprimir/${refId}`;
-                btnClass = 'text-rose-500 hover:bg-rose-50';
-            }
-
-            // 2. DETECCIÓN DE ORDEN TÉCNICA (Icono de Llave)
-            if (ordenId && ordenId !== 'null' && ordenId !== null) {
-                orderPrintUrl = `${root}/taller/imprimir/${ordenId}`;
-            } else if (label.includes('O.S') || desc.includes('ORDEN') || cat.includes('ORDEN')) {
-                orderPrintUrl = `${root}/taller/imprimir/${refId}`;
-            }
-
-            return `
-                <tr class="hover:bg-slate-50/50 transition-colors border-b border-slate-50">
-                    <td class="px-4 py-4 font-mono font-bold text-navy-blue text-xs">#${mov.id}</td>
-                    <td class="px-4 py-4 text-xs font-bold text-slate-500">${mov.fecha}</td>
-                    <td class="px-4 py-4 text-center">
-                        <span class="px-2 py-1 rounded text-[9px] font-black border ${mov.tipo_color === 'rose' || tipo === 'EGRESO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'} uppercase tracking-tighter">
-                            ${mov.categoria_label || mov.tipo}
-                        </span>
-                    </td>
-                    <td class="px-4 py-4 text-xs text-slate-600 uppercase font-medium">${mov.descripcion || 'Sin descripción'}</td>
-                    <td class="px-4 py-4 text-right font-black ${mov.tipo === 'EGRESO' ? 'text-rose-500' : 'text-emerald-600'}">
-                        ${mov.tipo === 'EGRESO' ? '-' : '+'}$${Math.abs(parseFloat(mov.monto_pagado || mov.monto || 0)).toLocaleString('es-CO', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td class="px-4 py-4 text-right" style="width: 110px; min-width: 110px;">
-                        <div class="flex justify-end gap-1">
-                            ${orderPrintUrl ? `
-                                <a href="${orderPrintUrl}" target="_blank" class="text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all" title="Imprimir Orden Técnica">
-                                    <i data-lucide="wrench" class="w-4 h-4"></i>
-                                </a>
-                            ` : ''} 
-                            ${printUrl ? `
-                                <a href="${printUrl}" target="_blank" class="${btnClass} p-2 rounded-lg transition-all" title="Imprimir Comprobante">
-                                    <i data-lucide="printer" class="w-4 h-4"></i>
-                                </a>
-                            ` : ''}
-                        </div>
-                    </td>
-                </tr>`;
-        }).join('');
-
-        if (window.lucide) lucide.createIcons();
-    };
-
     /**
      * Renderiza la tabla de Devoluciones con manejo de estado vacío.
      */
@@ -593,7 +500,4 @@
         if (window.lucide) lucide.createIcons();
     };
 </script>
-<!-- Cargamos el JS externo al final para que las funciones declaradas arriba no sean pisadas -->
-<script src="<?php echo URLROOT; ?>/public/js/reportes.js"></script>
-<!-- Cargamos el JS externo al final para que las funciones declaradas arriba no sean pisadas -->
 <script src="<?php echo URLROOT; ?>/public/js/reportes.js"></script>
