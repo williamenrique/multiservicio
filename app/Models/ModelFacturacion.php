@@ -214,6 +214,14 @@ class ModelFacturacion {
             $this->db->bind(':vid', $id);
             $venta->items = $this->db->resultSet();
         }
+
+        // Cargar Checklist si la factura proviene de una Orden de Servicio
+        if ($venta && $venta->orden_id) {
+            $this->db->query("SELECT * FROM table_orden_checklist WHERE orden_id = :oid");
+            $this->db->bind(':oid', $venta->orden_id);
+            $venta->checklist = $this->db->resultSet();
+        }
+
         return $venta;
     }
 

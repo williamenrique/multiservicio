@@ -14,8 +14,8 @@
         
         .company-name { font-size: 18px; font-weight: bold; color: #111827; margin-bottom: 2px; }
         .doc-type { font-size: 14px; font-weight: bold; color: #3b82f6; text-transform: uppercase; }
-        .doc-number { font-size: 16px; font-weight: bold; margin-left: 5px; }
-        .doc-header-line { display: flex; align-items: baseline; } /* Para mantenerlos en una línea y alineados */
+        .doc-number { font-size: 16px; font-weight: bold; margin-left: 8px; color: #111827; }
+        .doc-header-line { white-space: nowrap; margin-bottom: 5px; } 
 
         .label-min { font-size: 8px; color: #6b7280; text-transform: uppercase; font-weight: bold; }
         .val-text { font-size: 10px; font-weight: bold; color: #111827; }
@@ -42,6 +42,10 @@
             padding-bottom: 5px; 
             margin-bottom: 10px; 
         }
+
+        /* Estilo para Checklist en Orden */
+        .checklist-container { margin-bottom: 15px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+        .checklist-item { display: inline-block; width: 32%; font-size: 9px; color: #475569; margin-bottom: 3px; }
 
         /* Tabla de Ítems para la Orden */
         .items-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -98,6 +102,19 @@
             </tr>
         </table>
     </div>
+
+    <?php if(!empty($orden->checklist)): ?>
+    <div class="section-box">
+        <div class="section-title">Inventario de Recepción (Checklist)</div>
+        <div class="checklist-container">
+            <?php foreach($orden->checklist as $chk): ?>
+                <div class="checklist-item">
+                    • <strong><?php echo strtoupper($chk->item); ?></strong> <?php echo $chk->observacion ? "(".htmlspecialchars($chk->observacion).")" : ""; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="section-box">
         <div class="section-title">Motivo de Ingreso y Diagnóstico Técnico</div>

@@ -50,6 +50,9 @@ class ControllerTaller extends Controller {
         // Mapeo de datos para compatibilidad con la vista orden.php
         $orden->fecha_entrada = $orden->fecha_ingreso;
         $orden->observaciones_entrada = $orden->diagnostico_entrada;
+        
+        // Cargar el Checklist de entrada para el PDF
+        $orden->checklist = $this->ordenModel->obtenerChecklist($id);
 
         $empresa = $this->model('Empresa')->obtenerConfiguracion();
 

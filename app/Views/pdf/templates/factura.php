@@ -49,6 +49,10 @@
     .total-val { font-weight: bold; font-size: 11px; }
     .grand-total { font-size: 16px; border-top: 1px solid #111827; padding-top: 5px; color: #111827; }
 
+    /* Estilo para Checklist en Factura */
+    .checklist-container { margin-top: 10px; padding: 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+    .checklist-item { display: inline-block; width: 32%; font-size: 8px; color: #475569; margin-bottom: 2px; }
+
     .obs-box { clear: both; margin-top: 25px; border-top: 1px dashed #9ca3af; padding-top: 10px; }
 </style>
 </head>
@@ -140,6 +144,19 @@
             </div>
         </div>
     </div>
+
+    <?php if ($es_os && !empty($venta->checklist)): ?>
+    <div class="section-box">
+        <div class="label-min">Checklist de Entrada (Inventario de Recepción):</div>
+        <div class="checklist-container">
+            <?php foreach($venta->checklist as $chk): ?>
+                <div class="checklist-item">
+                    • <strong><?php echo strtoupper($chk->item); ?></strong> <?php echo $chk->observacion ? "(".htmlspecialchars($chk->observacion).")" : ""; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <?php if (!empty($venta->observaciones) || ($es_os && !empty($venta->diagnostico_entrada))): ?>
     <?php 

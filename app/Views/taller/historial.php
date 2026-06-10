@@ -175,3 +175,24 @@
         </div>
     </div>
 </div>
+
+<script>
+/**
+ * Abre el PDF de la orden en una nueva pestaña
+ */
+function imprimirOrden(id) {
+    window.open(`<?php echo URLROOT; ?>/taller/imprimir/${id}`, '_blank');
+}
+
+/**
+ * Abre el modal de detalles técnicos (consumiendo la lógica global)
+ */
+function verDetalle(id) {
+    if (typeof window.abrirModalDetalleOrden === 'function') {
+        window.abrirModalDetalleOrden(id);
+    } else {
+        // Fallback en caso de que app.min.js no esté cargado o la función cambie
+        AppUtils.showToast('Cargando expediente de la Orden #' + id, 'info');
+    }
+}
+</script>
