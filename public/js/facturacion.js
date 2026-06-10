@@ -18,8 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnProcessSale = document.getElementById('btn-process-sale');
     const inputIvaToggle = document.getElementById('pos-iva-toggle');
     const btnQuickClient = document.getElementById('btn-quick-client');
+    const inputClienteNombre = document.getElementById('cliente_nombre'); // Asegurarse de que este input exista en el HTML
     const clientSearchInput = document.getElementById('pos-client-search');
     const clientSearchResults = document.getElementById('pos-client-results');
+    const posObservaciones = document.getElementById('pos-observaciones');
     const inputPagoEfectivo = document.getElementById('pos-pago-efectivo');
     const inputPagoTransferencia = document.getElementById('pos-pago-transferencia');
     const displaySaldoPendiente = document.getElementById('pos-saldo-pendiente');
@@ -72,7 +74,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     usuario_id: d.usuario_id,
                     usuario_nombre: d.usuario_nombre,
                     cliente_nombre: d.cliente_nombre || '',
-                    tipo_procedencia: d.tipo_procedencia || 'MOSTRADOR'
+                    tipo_procedencia: d.tipo_procedencia || 'MOSTRADOR',
+                    diagnostico_entrada: d.diagnostico_entrada || '',
+                    observaciones: d.observaciones || ''
                 };
             });
 
@@ -167,8 +171,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 // Tras registro rápido, actualizamos el buscador
                 inputCliente.value = formValues[0]; // Seleccionar automáticamente
+                // 1. Añadir el nuevo cliente como una opción al select oculto
+                const newOption = document.createElement('option');
+                newOption.value = formValues[0]; // ID del cliente
+                newOption.textContent = formValues[1]; // Nombre del cliente
+                inputCliente.appendChild(newOption);
+
+                // 2. Seleccionar automáticamente el nuevo cliente en el select oculto
+                inputCliente.value = formValues[0];
+                // 3. Actualizar el input de búsqueda visible con el nombre del cliente
                 if (clientSearchInput) clientSearchInput.value = formValues[1];
                 updateActiveData('cliente_id', formValues[0]);
+                // 4. Actualizar el borrador activo con el nuevo cliente y forzar sincronización
+                updateActiveData('cliente_id', formValues[0]); // Esto también llama a debounceSync
+                openInvoices.find(i => i.id === activeInvoiceId).cliente_nombre = formValues[1]; // Actualizar nombre en el objeto local
                 AppUtils.showToast('Cliente registrado');
             } else {
                 AppUtils.showToast(data.mensaje, 'error');
@@ -285,6 +301,19 @@ document.addEventListener('DOMContentLoaded', () => {
         updateActiveData('cliente_id', e.target.value);
         renderInvoice();
     });
+
+    // Sincronización inteligente de observaciones (Salida/Taller)
+    if (posObservaciones) {
+        posObservaciones.addEventListener('input', (e) => {
+            // Actualiza el objeto local y activa el debounce para guardar en DB mientras escribes
+            updateActiveData('observaciones', e.target.value.toUpperCase());
+        });
+
+        posObservaciones.addEventListener('blur', () => {
+            // Al perder el foco del campo, forzamos el guardado inmediato en DB
+            syncActiveInvoice();
+        });
+    }
 
     inputMecanico.addEventListener('change', (e) => {
         updateActiveData('mecanico_id', e.target.value);
@@ -478,6 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputPlaca.value = "";
         inputModelo.value = "";
         inputCliente.value = "";
+        if (inputClienteNombre) inputClienteNombre.value = ""; // Limpiar el campo de nombre del cliente
         if (clientSearchInput) clientSearchInput.value = "";
 
         const obsField = document.getElementById('pos-observaciones');
@@ -485,6 +515,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const obsPreview = document.getElementById('pos-obs-preview');
         if (obsPreview) obsPreview.classList.add('hidden');
+
+        // --- Limpiar campos de observación inteligente ---
+        const containerDiagOs = document.getElementById('container-diag-os');
+        const textDiagOs = document.getElementById('text-diag-os');
+        const labelObs = document.getElementById('label-obs');
+        if (containerDiagOs) containerDiagOs.classList.add('hidden');
+        if (textDiagOs) textDiagOs.textContent = '';
+        if (labelObs) labelObs.textContent = 'Observaciones / Detalles del Trabajo'; // Reset a texto por defecto
 
         // Limpiar campos de pago y saldos (Vista Previa)
         if (inputPagoEfectivo) inputPagoEfectivo.value = 0;
@@ -516,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
             inv.mecanico_id = inputMecanico.value;
             inv.cliente_id = inputCliente.value;
             inv.cliente_nombre = clientSearchInput ? clientSearchInput.value : '';
-            inv.observaciones = document.getElementById('pos-observaciones')?.value || '';
+            inv.observaciones = posObservaciones?.value || '';
             inv.orden_id = displayFacturaId.dataset.ordenId || null;
         }
 
@@ -658,6 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeInvoice) return;
 
         displayFacturaId.textContent = activeInvoice.id;
+        displayFacturaId.dataset.ordenId = activeInvoice.orden_id || ''; // Actualizar el data attribute
         inputPlaca.value = activeInvoice.placa;
         inputModelo.value = activeInvoice.modelo;
         inputMecanico.value = activeInvoice.mecanico_id || '';
@@ -679,11 +718,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         inputCliente.value = activeInvoice.cliente_id || '';
 
-        // SOLO sobreescribir el nombre del cliente si el objeto tiene uno válido 
-        // o si el campo está vacío, para evitar borrar lo que PHP cargó inicialmente.
-        if (clientSearchInput && (activeInvoice.cliente_nombre || clientSearchInput.value === '')) {
-            clientSearchInput.value = activeInvoice.cliente_nombre || '';
-        }
+        // Sincronizar siempre el nombre del cliente con el borrador activo para evitar residuos visuales
+        if (clientSearchInput) clientSearchInput.value = activeInvoice.cliente_nombre || '';
 
         if (inputIvaToggle) {
             inputIvaToggle.checked = (activeInvoice.iva_activo !== false);
@@ -753,6 +789,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 else containerDeuda.classList.add('opacity-40');
             }
         }
+
+        // --- Lógica de Observaciones Inteligente ---
+        const containerDiagOs = document.getElementById('container-diag-os');
+        const textDiagOs = document.getElementById('text-diag-os');
+        const labelObs = document.getElementById('label-obs');
+
+        if (activeInvoice.tipo_procedencia === 'OS' || activeInvoice.tipo_procedencia === 'TALLER') {
+            // Si es una OS o Taller, mostrar el diagnóstico de entrada si existe
+            if (activeInvoice.diagnostico_entrada) {
+                containerDiagOs.classList.remove('hidden');
+                textDiagOs.textContent = activeInvoice.diagnostico_entrada;
+            } else {
+                containerDiagOs.classList.add('hidden');
+                textDiagOs.textContent = '';
+            }
+            labelObs.textContent = 'Observaciones de Salida (Factura)';
+        } else {
+            containerDiagOs.classList.add('hidden');
+            textDiagOs.textContent = '';
+            labelObs.textContent = 'Observaciones / Detalles del Trabajo';
+        }
+        // Solo actualizar el campo de observaciones si el usuario NO está escribiendo en él
+        if (posObservaciones && document.activeElement !== posObservaciones) {
+            posObservaciones.value = activeInvoice.observaciones || '';
+        }
+        updateObsPreview(); // Actualizar la vista previa de observaciones
         lucide.createIcons();
     };
 
