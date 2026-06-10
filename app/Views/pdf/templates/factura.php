@@ -91,8 +91,12 @@
                     </td>
                     <td width="30%" style="text-align: right;">
                         <div class="label-min">Datos Técnicos</div>
-                        <div class="val-text">KM: <?php echo number_format($venta->kilometraje ?: 0); ?></div>
-                        <div class="val-text">COMB: <?php echo $venta->nivel_combustible ?: 'N/A'; ?></div>
+                        <?php if($es_os && !empty($venta->kilometraje)): ?>
+                            <div class="val-text">KM: <?php echo is_numeric($venta->kilometraje) ? number_format($venta->kilometraje) : $venta->kilometraje; ?></div>
+                        <?php endif; ?>
+                        <?php if($es_os && !empty($venta->nivel_combustible) && $venta->nivel_combustible !== 'N/A'): ?>
+                            <div class="val-text">COMB: <?php echo $venta->nivel_combustible; ?></div>
+                        <?php endif; ?>
                         <div class="val-text" style="font-size: 8px;">TÉC: <?php echo $venta->mecanico_nombre ?: 'S/A'; ?></div>
                     </td>
                     <?php endif; ?>
