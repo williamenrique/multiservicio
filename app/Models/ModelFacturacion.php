@@ -313,7 +313,7 @@ class ModelFacturacion {
      * para el historial específico de repuestos.
      */
     public function obtenerVentasMostrador($limit = 10, $offset = 0, $search = null, $desde = null, $hasta = null) {
-        $where = "WHERE v.orden_id IS NULL AND v.status IN ('COMPLETADO', 'CREDITO')";
+        $where = "WHERE v.orden_id IS NULL AND (v.placa IS NULL OR v.placa = '') AND v.status IN ('COMPLETADO', 'CREDITO')";
         
         if ($search) {
             $where .= " AND (v.id LIKE :search OR c.nombre LIKE :search)";

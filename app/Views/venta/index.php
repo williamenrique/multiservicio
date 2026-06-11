@@ -240,6 +240,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const hiddenCliId = document.getElementById('clienteId');
     const inputBusqueda = document.getElementById('buscarProducto');
     const resultados = document.getElementById('resultadosBusqueda');
+    const inputPagoEfectivo = document.getElementById('pagoEfectivo');
+    const inputPagoTransferencia = document.getElementById('pagoTransferencia');
 
     // 1. Inicializar fechas con el mes cursante ANTES de crear la tabla
     const d = new Date();
@@ -437,15 +439,15 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('txtTotal').innerText = `$ ${subtotal.toFixed(2)}`;
         
         // Auto-completar el pago en efectivo por defecto si es una venta nueva
-        if(carrito.length > 0 && parseFloat(document.getElementById('pagoEfectivo').value) === 0 && parseFloat(document.getElementById('pagoTransferencia').value) === 0) {
-            document.getElementById('pagoEfectivo').value = totalValue;
+        if (carrito.length > 0 && parseFloat(inputPagoEfectivo.value || 0) === 0 && parseFloat(inputPagoTransferencia.value || 0) === 0) {
+            inputPagoEfectivo.value = totalValue;
         }
         actualizarSaldo();
     }
 
     function actualizarSaldo() {
-        const total = parseFloat(document.getElementById('txtTotal').innerText.replace('$ ', ''));
-        const pagado = parseFloat(document.getElementById('pagoEfectivo').value || 0) + parseFloat(document.getElementById('pagoTransferencia').value || 0);
+        const total = parseFloat(document.getElementById('txtTotal').innerText.replace('$ ', '')) || 0;
+        const pagado = parseFloat(inputPagoEfectivo.value || 0) + parseFloat(inputPagoTransferencia.value || 0);
         const saldo = total - pagado;
         const msgSaldo = document.getElementById('msgSaldo');
         
@@ -457,8 +459,34 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    document.getElementById('pagoEfectivo').addEventListener('input', actualizarSaldo);
-    document.getElementById('pagoTransferencia').addEventListener('input', actualizarSaldo);
+    function resetFormularioVenta() {
+        carrito = [];
+        hiddenCliId.value = '';
+        inputCliSearch.value = '';
+        inputBusqueda.value = '';
+        inputPagoEfectivo.value = '';
+        inputPagoTransferencia.value = '';
+        document.getElementById('msgSaldo').classList.add('hidden');
+        document.getElementById('txtSaldo').innerText = '';
+        renderizar();
+        historialTable.reload();
+    }
+
+    inputPagoEfectivo.addEventListener('input', (e) => {
+        const valor = e.target.value;
+        if (valor !== '' && parseFloat(valor) > 0) {
+            inputPagoTransferencia.value = '';
+        }
+        actualizarSaldo();
+    });
+
+    inputPagoTransferencia.addEventListener('input', (e) => {
+        const valor = e.target.value;
+        if (valor !== '' && parseFloat(valor) > 0) {
+            inputPagoEfectivo.value = '';
+        }
+        actualizarSaldo();
+    });
 
     window.actualizarCant = (index, val) => {
         if(val < 1) return;
@@ -472,14 +500,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     window.limpiarVenta = () => {
-        carrito = [];
-        hiddenCliId.value = '';
-        inputCliSearch.value = '';
-        inputBusqueda.value = '';
-        document.getElementById('pagoEfectivo').value = 0;
-        document.getElementById('pagoTransferencia').value = 0;
-        renderizar();
-        historialTable.reload();
+        resetFormularioVenta();
     };
 
     window.cerrarModalExito = () => {
@@ -576,11 +597,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Mostrar modal de éxito en lugar de abrir pestaña directamente
             document.getElementById('modalVentaExitosa').classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
-            
+
             // Limpiar app y refrescar tabla sin recargar página
-            carrito = [];
-            renderizar();
-            historialTable.reload();
+            resetFormularioVenta();
         } catch (error) {
             AppUtils.showToast(error.message, 'error');
             console.error("Error en venta:", error);

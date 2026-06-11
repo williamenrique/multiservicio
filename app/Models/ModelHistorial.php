@@ -19,7 +19,7 @@ class ModelHistorial {
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id
                 LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
-                WHERE v.status IN ('COMPLETADO', 'CREDITO')";
+                WHERE v.orden_id IS NULL AND (v.placa IS NULL OR v.placa = '') AND v.status IN ('COMPLETADO', 'CREDITO')";
 
         if ($search) {
             $sql .= " AND (v.id LIKE :search OR vh.placa LIKE :search OR v.placa LIKE :search OR c.nombre LIKE :search)";
@@ -45,7 +45,7 @@ class ModelHistorial {
                 FROM table_facturas v 
                 LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                 LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
-                LEFT JOIN table_clientes c ON v.cliente_id = c.id WHERE v.status IN ('COMPLETADO', 'CREDITO')";
+                LEFT JOIN table_clientes c ON v.cliente_id = c.id WHERE v.orden_id IS NULL AND (v.placa IS NULL OR v.placa = '') AND v.status IN ('COMPLETADO', 'CREDITO')";
         if ($search) $sql .= " AND (v.id LIKE :search OR vh.placa LIKE :search OR v.placa LIKE :search OR c.nombre LIKE :search)";
         $this->db->query($sql);
         if ($search) $this->db->bind(':search', "%$search%");

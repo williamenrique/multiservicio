@@ -1,4 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const formatearFechaHora = (value) => {
+        if (!value) return 'N/A';
+        return new Date(value).toLocaleString('es-CO', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
+
     new DataTableRefactor({
         tableId: 'historial',
         tableBodyId: 'tableBody',
@@ -12,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 ${isCredit ? 'bg-red-50/50' : ''}">
                     <td class="px-8 py-5 font-mono text-xs text-slate-500">#${venta.id}</td>
-                    <td class="px-8 py-5">${new Date(venta.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td class="px-8 py-5">${formatearFechaHora(venta.fecha)}</td>
                     <td class="px-8 py-5 font-mono text-sm font-bold text-slate-400 text-center">#${venta.id}</td>
                     <td class="px-8 py-5 text-base font-bold text-slate-600 uppercase text-center">${new Date(venta.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                     <td class="px-8 py-5">
@@ -68,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="grid grid-cols-2 gap-4 text-sm">
                             <div>
                                 <p class="text-slate-500 font-bold">Fecha:</p>
-                                <p>${new Date(venta.fecha).toLocaleString('es-CO')}</p>
+                                <p>${formatearFechaHora(venta.fecha)}</p>
                             </div>
                             <div>
                                 <p class="text-slate-500 font-bold">Técnico Asignado:</p>
