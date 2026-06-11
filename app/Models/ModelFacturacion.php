@@ -181,6 +181,33 @@ class ModelFacturacion {
             $this->db->bind(':status', $status);
             $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? '', 'UTF-8'));
             $this->db->execute();
+
+            // CIERRE AUTOMÁTICO DE ORDEN (Reemplaza al Trigger tg_actualizar_orden_al_facturar)
+            // Solo actualizamos a 'ENTREGADO' si la factura es DEFINITIVA (no borrador).
+            if (!empty($datos['orden_id']) && in_array($status, ['COMPLETADO', 'CREDITO'])) {
+                
+                // 1. Obtener estado actual para el historial
+                $this->db->query("SELECT estado FROM table_ordenes_servicio WHERE id = :oid");
+                $this->db->bind(':oid', $datos['orden_id']);
+                $estadoPrevio = $this->db->single()->estado ?? 'DESCONOCIDO';
+
+                // 2. Marcar orden como entregada
+                $this->db->query("UPDATE table_ordenes_servicio 
+                                  SET estado = 'ENTREGADO', fecha_entrega_real = NOW() 
+                                  WHERE id = :oid");
+                $this->db->bind(':oid', $datos['orden_id']);
+                $this->db->execute();
+
+                // 3. Registrar en el log de auditoría de la orden
+                $this->db->query("INSERT INTO table_orden_estados_log (orden_id, estado_anterior, estado_nuevo, usuario_id, comentario) 
+                                  VALUES (:oid, :ant, 'ENTREGADO', :uid, :txt)");
+                $this->db->bind(':oid', $datos['orden_id']);
+                $this->db->bind(':ant', $estadoPrevio);
+                $this->db->bind(':uid', $usuarioId);
+                $this->db->bind(':txt', "CIERRE AUTOMÁTICO POR FACTURACIÓN FINALIZADA (" . $status . ")");
+                $this->db->execute();
+            }
+
             return $ventaId ?: $this->db->lastInsertId();
         } catch (Exception $e) {
             error_log("Error en guardarCabeceraVenta: " . $e->getMessage());
@@ -192,14 +219,14 @@ class ModelFacturacion {
      * Obtiene los detalles completos de una venta para su impresión
      */
     public function obtenerVentaCompleta($id) {
-        $this->db->query("SELECT v.*, v.observaciones as observaciones, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+        $this->db->query("SELECT v.*, v.observaciones as observaciones_factura, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
                                  COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
                                  vh.marca as marca_vehiculo,
                                  COALESCE(st_m.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_nombre,
                                  sv.nombre as vendedor_nombre,
-                                 os.kilometraje, os.nivel_combustible, os.diagnostico_entrada, os.observaciones as observaciones_orden
+                                 os.kilometraje, os.nivel_combustible, os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_staff st_m ON os.mecanico_id = st_m.id

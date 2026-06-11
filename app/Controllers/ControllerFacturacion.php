@@ -105,17 +105,33 @@ class ControllerFacturacion extends Controller {
                     throw new Exception(implode(" ", $v->getErrors()));
                 }
 
+                // EVITAR DUPLICADOS: Si es una Orden de Servicio, verificamos si ya existe un borrador (id_db)
+                if (!empty($datos['orden_id']) && empty($datos['id_db'])) {
+                    $borradorExistente = $this->facturaModel->obtenerBorradorPorOrden($datos['orden_id']);
+                    if ($borradorExistente) {
+                        $datos['id_db'] = $borradorExistente->id;
+                    }
+                }
+
+                // VALIDACIÓN DE CONSISTENCIA (Reemplaza al Trigger tg_evitar_doble_facturacion)
+                // Si es una Orden de Servicio, verificamos que no tenga ya una factura FINALIZADA.
+                if (!empty($datos['orden_id'])) {
+                    $dbCheck = new Database();
+                    $dbCheck->query("SELECT id FROM table_facturas 
+                                     WHERE orden_id = :oid 
+                                     AND status IN ('COMPLETADO', 'CREDITO') 
+                                     AND id != :current_id");
+                    $dbCheck->bind(':oid', $datos['orden_id']);
+                    $dbCheck->bind(':current_id', $datos['id_db'] ?? 0);
+                    if ($dbCheck->single()) {
+                        throw new Exception("Error: Esta Orden de Servicio ya tiene una factura procesada o un crédito activo.");
+                    }
+                }
+
                 $ventaId = $this->billingService->procesarVentaCompleta($datos, $_SESSION['user_id']);
 
-                // TRANSICIÓN DE ESTADO: Solo si la venta se completó (o se generó el crédito),
-                // procedemos a marcar la Orden de Servicio como ENTREGADO para permitir la salida del vehículo.
                 if (!empty($datos['orden_id'])) {
-                    $db = new Database();
-                    $db->query("UPDATE table_ordenes_servicio SET estado = 'ENTREGADO', fecha_entrega_real = NOW() WHERE id = :oid");
-                    $db->bind(':oid', $datos['orden_id']);
-                    $db->execute();
-                    
-                    logAction('TALLER', 'FINALIZAR_ORDEN', "O.S. #{$datos['orden_id']} marcada como ENTREGADA mediante Factura #{$ventaId}");
+                    logAction('TALLER', 'FINALIZAR_ORDEN', "Venta procesada para O.S. #{$datos['orden_id']}");
                 }
 
                 return $this->jsonResponse([
