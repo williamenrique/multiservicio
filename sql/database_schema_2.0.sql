@@ -160,6 +160,7 @@ CREATE TABLE `table_ordenes_servicio` (
   `kilometraje` varchar(20),
   `nivel_combustible` varchar(20),
   `diagnostico_entrada` text,
+  `diagnostico_salida` text DEFAULT NULL,
   `observaciones` text,
   `estado` enum('RECIBIDO', 'DIAGNOSTICANDO', 'EN_REPARACION', 'LISTO', 'ENTREGADO', 'CANCELADO') DEFAULT 'RECIBIDO',
   `fecha_ingreso` timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -395,22 +396,27 @@ INSERT INTO `table_roles` (`id`, `nombre_rol`, `descripcion`) VALUES
 (3, 'CAJERO', 'GESTION DE FACTURACION Y CAJA');
 
 -- Empleado Administrador Inicial
-INSERT INTO `table_staff` (`id`, `cedula`, `nombre`, `cargo`, `estado`) VALUES 
-('STAFF-001', 'V-00000000', 'ADMINISTRADOR PRINCIPAL', 'GERENTE', 'ACTIVO');
+INSERT IGNORE INTO `table_staff` (`id`, `cedula`, `nombre`, `cargo`, `telefono`, `email`, `direccion`, `foto`, `estado`, `fecha_creacion`) VALUES
+  ('MEC-001', '12512563', 'ALBERTO JOSE', 'MECANICO', '0412125123', 'alberto@gmail.com', 'LAS TAPIAS CALLE 2', 'img/default.png', 'ACTIVO', '2026-06-11 13:58:48'),
+  ('MEC-002', '112021362', 'CARLOS LUIS', 'MECANICO', '0412125236', 'carlos@gmail.com', 'LA PRADERA, COCOROTE', 'img/default.png', 'ACTIVO', '2026-06-11 13:59:39'),
+  ('STAFF-001', 'V-00000000', 'ADMINISTRADOR', 'GERENTE', NULL, NULL, NULL, 'img/default.png', 'ACTIVO', '2026-06-11 13:53:39'),
+  ('STAFF-002', '14607920', 'WILLIAM ENRIQUE', 'ADMINISTRADOR', '04125181629', 'william21enrique@gmail.com', 'AV PRINCIPAL CALLE 2 URB VISTA ALEGRE', 'img/default.png', 'ACTIVO', '2026-06-11 13:57:55');
+
 
 -- Usuario Admin Inicial (User: admin / Pass: admin)
 -- NOTA: El sistema hashea la clave automáticamente al primer login
 INSERT INTO `table_usuarios` (`staff_id`, `username`, `password`, `role_id`, `estado`) VALUES 
-('STAFF-001', 'admin', 'admin', 1, 'ACTIVO');
+('STAFF-001', 'admin', 'admin', 1, 'ACTIVO'),
+('STAFF-002', 'WILL', 'WILL', 1, 'ACTIVO');
 
 -- Configuración inicial de empresa
 INSERT INTO `table_company_settings` (`id`, `name`, `nit`, `iva`) VALUES 
-(1, 'TALLER PROFESIONAL', '000-000-000', 19.00);
+(1, 'TALLER PRO', 'J-14607920-9', 19.00);
 
 -- Cuentas de caja base
 INSERT INTO `table_cuentas_pago` (`nombre`, `tipo`, `saldo_actual`) VALUES 
 ('CAJA GENERAL EFECTIVO', 'EFECTIVO', 0.00),
-('CUENTA BANCO NEQUI', 'VIRTUAL', 0.00);
+('CUENTA BANCO', 'VIRTUAL', 0.00);
 
 SET FOREIGN_KEY_CHECKS = 1;
 -- Fin del esquema 2.0

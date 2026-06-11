@@ -74,8 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     usuario_id: d.usuario_id,
                     usuario_nombre: d.usuario_nombre,
                     cliente_nombre: d.cliente_nombre || '',
+                    orden_id: d.orden_id || null,
                     tipo_procedencia: d.tipo_procedencia || 'MOSTRADOR',
                     diagnostico_entrada: d.diagnostico_entrada || '',
+                    diagnostico_salida: d.diagnostico_salida || d.observaciones || '',
                     observaciones: d.observaciones || ''
                 };
             });
@@ -555,7 +557,8 @@ document.addEventListener('DOMContentLoaded', () => {
             inv.cliente_id = inputCliente.value;
             inv.cliente_nombre = clientSearchInput ? clientSearchInput.value : '';
             inv.observaciones = posObservaciones?.value || '';
-            inv.orden_id = displayFacturaId.dataset.ordenId || null;
+            inv.diagnostico_salida = posObservaciones?.value || '';
+            inv.orden_id = inv.orden_id || displayFacturaId.dataset.ordenId || null;
         }
 
         // Calcular totales para asegurar persistencia de IVA 0 si el switch está apagado
@@ -841,7 +844,8 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.cliente_nombre = clientSearchInput ? clientSearchInput.value : '';
             activeInvoice.mecanico_id = inputMecanico.value;
             activeInvoice.observaciones = document.getElementById('pos-observaciones')?.value || '';
-            activeInvoice.orden_id = displayFacturaId.dataset.ordenId || null;
+            activeInvoice.diagnostico_salida = activeInvoice.observaciones;
+            activeInvoice.orden_id = activeInvoice.orden_id || displayFacturaId.dataset.ordenId || null;
 
             // En Venta de Repuestos (sin placa), el mecánico es opcional
             if (activeInvoice.placa && activeInvoice.placa.trim() !== "") {

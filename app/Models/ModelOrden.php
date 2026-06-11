@@ -7,14 +7,15 @@ class ModelOrden {
     }
 
     public function crear($data) {
-        $this->db->query("INSERT INTO table_ordenes_servicio (cliente_id, placa, mecanico_id, kilometraje, nivel_combustible, diagnostico_entrada, observaciones, fecha_entrega_estimada) 
-                          VALUES (:cid, :placa, :mid, :km, :comb, :diag, :obs, :f_entrega)");
+        $this->db->query("INSERT INTO table_ordenes_servicio (cliente_id, placa, mecanico_id, kilometraje, nivel_combustible, diagnostico_entrada, diagnostico_salida, observaciones, estado, fecha_entrega_estimada) 
+                          VALUES (:cid, :placa, :mid, :km, :comb, :diag, :diag_salida, :obs, 'RECIBIDO', :f_entrega)");
         $this->db->bind(':cid', $data['cliente_id']);
         $this->db->bind(':placa', $data['placa']);
         $this->db->bind(':mid', !empty($data['mecanico_id']) ? $data['mecanico_id'] : null);
         $this->db->bind(':km', $data['kilometraje']);
         $this->db->bind(':comb', $data['nivel_combustible']);
         $this->db->bind(':diag', mb_strtoupper($data['observaciones_entrada'] ?? '', 'UTF-8'));
+        $this->db->bind(':diag_salida', null);
         $this->db->bind(':obs', mb_strtoupper($data['observaciones'] ?? '', 'UTF-8'));
         $this->db->bind(':f_entrega', !empty($data['fecha_entrega']) ? $data['fecha_entrega'] : null);
         

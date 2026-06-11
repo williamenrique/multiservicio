@@ -154,6 +154,17 @@ class ModelFacturacion {
     public function guardarCabeceraVenta($datos, $status, $totales, $usuarioId) {
         try {
             $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
+            $ordenIdPersist = !empty($datos['orden_id']) ? (int)$datos['orden_id'] : null;
+
+            if ($ventaId && $ordenIdPersist === null) {
+                $this->db->query("SELECT orden_id FROM table_facturas WHERE id = :id");
+                $this->db->bind(':id', $ventaId);
+                $facturaActual = $this->db->single();
+                if ($facturaActual) {
+                    $ordenIdPersist = !empty($facturaActual->orden_id) ? (int)$facturaActual->orden_id : null;
+                }
+            }
+
             if ($ventaId) {
                 $this->db->query("UPDATE table_facturas SET
                                   cliente_id = :cid, orden_id = :oid, placa = :placa, modelo_vehiculo = :modelo,
@@ -169,7 +180,7 @@ class ModelFacturacion {
                 $this->db->bind(':uid', $usuarioId);
             }
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
-            $this->db->bind(':oid', !empty($datos['orden_id']) ? $datos['orden_id'] : null);
+            $this->db->bind(':oid', $ordenIdPersist);
             $this->db->bind(':placa', !empty($datos['placa']) ? $datos['placa'] : null);
             $this->db->bind(':modelo', !empty($datos['modelo']) ? $datos['modelo'] : null);
             $this->db->bind(':sub', $totales['subtotal']);
@@ -183,29 +194,17 @@ class ModelFacturacion {
             $this->db->execute();
 
             // CIERRE AUTOMÁTICO DE ORDEN (Reemplaza al Trigger tg_actualizar_orden_al_facturar)
-            // Solo actualizamos a 'ENTREGADO' si la factura es DEFINITIVA (no borrador).
-            if (!empty($datos['orden_id']) && in_array($status, ['COMPLETADO', 'CREDITO'])) {
-                
-                // 1. Obtener estado actual para el historial
-                $this->db->query("SELECT estado FROM table_ordenes_servicio WHERE id = :oid");
-                $this->db->bind(':oid', $datos['orden_id']);
-                $estadoPrevio = $this->db->single()->estado ?? 'DESCONOCIDO';
-
-                // 2. Marcar orden como entregada
-                $this->db->query("UPDATE table_ordenes_servicio 
-                                  SET estado = 'ENTREGADO', fecha_entrega_real = NOW() 
-                                  WHERE id = :oid");
-                $this->db->bind(':oid', $datos['orden_id']);
-                $this->db->execute();
-
-                // 3. Registrar en el log de auditoría de la orden
-                $this->db->query("INSERT INTO table_orden_estados_log (orden_id, estado_anterior, estado_nuevo, usuario_id, comentario) 
-                                  VALUES (:oid, :ant, 'ENTREGADO', :uid, :txt)");
-                $this->db->bind(':oid', $datos['orden_id']);
-                $this->db->bind(':ant', $estadoPrevio);
-                $this->db->bind(':uid', $usuarioId);
-                $this->db->bind(':txt', "CIERRE AUTOMÁTICO POR FACTURACIÓN FINALIZADA (" . $status . ")");
-                $this->db->execute();
+            // Solo actualizamos la orden si la factura está vinculada a una Orden de Servicio real.
+            $esFacturaOrdenServicio = !empty($ordenIdPersist);
+            if ($esFacturaOrdenServicio && in_array($status, ['COMPLETADO', 'CREDITO'], true)) {
+                $this->sincronizarOrdenServicio(
+                    $ordenIdPersist,
+                    $status,
+                    trim((string)($datos['observaciones'] ?? $datos['diagnostico_salida'] ?? '')),
+                    trim((string)($datos['diagnostico_salida'] ?? $datos['observaciones'] ?? '')),
+                    $usuarioId,
+                    'FACTURACIÓN FINALIZADA'
+                );
             }
 
             return $ventaId ?: $this->db->lastInsertId();
@@ -213,6 +212,58 @@ class ModelFacturacion {
             error_log("Error en guardarCabeceraVenta: " . $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * Sincroniza una orden de servicio con el cierre de la factura.
+     * Marca la orden como ENTREGADO cuando la factura pasa a COMPLETADO o CREDITO.
+     */
+    private function sincronizarOrdenServicio($ordenId, $statusFactura, $observacionesFactura, $diagnosticoSalidaFactura, $usuarioId, $motivo) {
+        if (!$ordenId || !in_array($statusFactura, ['COMPLETADO', 'CREDITO'], true)) {
+            return;
+        }
+
+        $this->db->query("SELECT id, estado, diagnostico_salida, observaciones FROM table_ordenes_servicio WHERE id = :oid");
+        $this->db->bind(':oid', $ordenId);
+        $ordenActual = $this->db->single();
+
+        if (!$ordenActual) {
+            return;
+        }
+
+        $estadoPrevio = $ordenActual->estado ?? 'DESCONOCIDO';
+        $diagnosticoSalida = trim((string)($diagnosticoSalidaFactura !== '' ? $diagnosticoSalidaFactura : ($ordenActual->diagnostico_salida ?? '')));
+        $observacionesFactura = trim((string)$observacionesFactura);
+
+        if ($diagnosticoSalida === '' && $observacionesFactura !== '') {
+            $diagnosticoSalida = $observacionesFactura;
+        }
+
+        $observacionesOrden = trim((string)($ordenActual->observaciones ?? ''));
+        if ($observacionesFactura !== '' && stripos($observacionesOrden, $observacionesFactura) === false) {
+            $observacionesOrden = $observacionesOrden === ''
+                ? $observacionesFactura
+                : $observacionesOrden . "\n" . $observacionesFactura;
+        }
+
+        $this->db->query("UPDATE table_ordenes_servicio
+                          SET estado = 'ENTREGADO',
+                              fecha_entrega_real = NOW(),
+                              diagnostico_salida = :diag,
+                              observaciones = :obs
+                          WHERE id = :oid");
+        $this->db->bind(':diag', $diagnosticoSalida !== '' ? $diagnosticoSalida : null);
+        $this->db->bind(':obs', $observacionesOrden !== '' ? $observacionesOrden : null);
+        $this->db->bind(':oid', $ordenId);
+        $this->db->execute();
+
+        $this->db->query("INSERT INTO table_orden_estados_log (orden_id, estado_anterior, estado_nuevo, usuario_id, comentario)
+                          VALUES (:oid, :ant, 'ENTREGADO', :uid, :txt)");
+        $this->db->bind(':oid', $ordenId);
+        $this->db->bind(':ant', $estadoPrevio);
+        $this->db->bind(':uid', $usuarioId);
+        $this->db->bind(':txt', trim($motivo . ' (' . $statusFactura . ')'));
+        $this->db->execute();
     }
 
     /**
@@ -380,7 +431,7 @@ class ModelFacturacion {
      */
     public function registrarAbono($ventaId, $monto, $metodo) {
         try {
-            $this->db->query("SELECT total, pago_efectivo, pago_transferencia, saldo_pendiente FROM table_facturas WHERE id = :id");
+            $this->db->query("SELECT id, orden_id, observaciones, total, pago_efectivo, pago_transferencia, saldo_pendiente FROM table_facturas WHERE id = :id");
             $this->db->bind(':id', $ventaId);
             $venta = $this->db->single();
 
@@ -415,7 +466,20 @@ class ModelFacturacion {
 
             $this->db->execute();
 
-            // 4. Registrar el abono como un ingreso en table_transacciones
+            // 4. Si el abono deja la factura saldada, sincronizar la orden de servicio asociada.
+            $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
+            if ($venta->orden_id && in_array($nuevoStatus, ['COMPLETADO', 'CREDITO'], true)) {
+                $this->sincronizarOrdenServicio(
+                    (int)$venta->orden_id,
+                    $nuevoStatus,
+                    trim((string)($venta->observaciones ?? '')),
+                    '',
+                    $_SESSION['user_id'] ?? null,
+                    'ABONO A FACTURA'
+                );
+            }
+
+            // 5. Registrar el abono como un ingreso en table_transacciones
             // Esto asegura que el flujo de caja refleje el dinero recibido.
             $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
                               VALUES (1, 'INGRESO', 'ABONO_CLIENTE', :monto_abono, :ref_id, :desc_abono, :uid)");
