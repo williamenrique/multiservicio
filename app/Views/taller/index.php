@@ -85,7 +85,7 @@
                             <?php if($o->fecha_entrega_estimada): ?>
                                 <div class="flex flex-col items-center">
                                     <span class="text-xs font-mono font-bold <?php echo $o->minutos_restantes < 0 ? 'text-rose-500' : ($o->minutos_restantes < 120 ? 'text-amber-500' : 'text-slate-600'); ?>">
-                                        <?php echo date('d/m H:i', strtotime($o->fecha_entrega_estimada)); ?>
+                                        <?php echo date('d/m h:i A', strtotime($o->fecha_entrega_estimada)); ?>
                                     </span>
                                     <?php if($o->minutos_restantes < 0): ?>
                                         <span class="text-[9px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded uppercase alert-shake">¡RETRASADO!</span>

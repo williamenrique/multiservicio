@@ -407,7 +407,7 @@ INSERT IGNORE INTO `table_staff` (`id`, `cedula`, `nombre`, `cargo`, `telefono`,
 -- NOTA: El sistema hashea la clave automáticamente al primer login
 INSERT INTO `table_usuarios` (`staff_id`, `username`, `password`, `role_id`, `estado`) VALUES 
 ('STAFF-001', 'admin', 'admin', 1, 'ACTIVO'),
-('STAFF-002', 'WILL', 'WILL', 1, 'ACTIVO');
+('STAFF-002', 'WILL', 'QQ', 1, 'ACTIVO');
 
 -- Configuración inicial de empresa
 INSERT INTO `table_company_settings` (`id`, `name`, `nit`, `iva`) VALUES 
@@ -417,6 +417,11 @@ INSERT INTO `table_company_settings` (`id`, `name`, `nit`, `iva`) VALUES
 INSERT INTO `table_cuentas_pago` (`nombre`, `tipo`, `saldo_actual`) VALUES 
 ('CAJA GENERAL EFECTIVO', 'EFECTIVO', 0.00),
 ('CUENTA BANCO', 'VIRTUAL', 0.00);
+
+-- PROVEEDORSES PRUEBA
+INSERT IGNORE INTO `table_proveedores` (`id`, `nombre`, `telefono`, `email`, `direccion`) VALUES
+  ('J-632563-7', 'LUBRICANTES DEL CENTRO', '041251256', 'lubricantes@gmail.com', 'AV LOS LEONES EDO LARA'),
+  ('J-954155-5', 'BATERIAS JUAN', '0414125212', 'bateriasjuan@gmail.com', 'AV INTERCOMUNAL SECTOR LAS TAPIAS');
 
 SET FOREIGN_KEY_CHECKS = 1;
 -- Fin del esquema 2.0
