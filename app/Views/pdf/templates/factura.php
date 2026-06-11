@@ -1,5 +1,28 @@
 <?php
-    // Detección de tipo de documento y preparación de variables
+    // Detección de tipo de documento
+    $es_os = !empty($venta->orden_id);
+    $es_taller = !empty($venta->placa);
+
+    // Determinación inteligente del tipo de factura
+    if ($es_os) {
+        $tipo_doc_label = "FACTURA DE ORDEN DE SERVICIO";
+        $doc_color = "#3b82f6"; // Azul
+        $id_doc_label = "OS #".$venta->orden_id;
+    } elseif ($es_taller) {
+        $tipo_doc_label = "FACTURA DE TALLER";
+        $doc_color = "#10b981"; // Verde
+        $id_doc_label = "PLACA: ".$venta->placa;
+    } else {
+        $tipo_doc_label = "VENTA DE REPUESTOS";
+        $doc_color = "#6366f1"; // Índigo
+        $id_doc_label = "MOSTRADOR";
+    }
+
+    $meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    $fecha_dt = strtotime($venta->fecha);
+    $fecha_elegante = date('d', $fecha_dt) . " de " . $meses[date('n', $fecha_dt)-1] . " del " . date('Y', $fecha_dt);
+    
+    $titulo_pestaña = "PDF - " . $tipo_doc_label . " " . ($venta->id_formateado ?: "#" . $venta->id);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -37,32 +60,6 @@
 </style>
 </head>
 <body>
-<?php
-    // Detección de tipo de documento
-    $es_os = !empty($venta->orden_id);
-    $es_taller = !empty($venta->placa);
-
-    // Determinación inteligente del tipo de factura
-    if ($es_os) {
-        $tipo_doc_label = "FACTURA DE ORDEN DE SERVICIO";
-        $doc_color = "#3b82f6"; // Azul
-        $id_doc_label = "OS #".$venta->orden_id;
-    } elseif ($es_taller) {
-        $tipo_doc_label = "FACTURA DE TALLER";
-        $doc_color = "#10b981"; // Verde
-        $id_doc_label = "PLACA: ".$venta->placa;
-    } else {
-        $tipo_doc_label = "VENTA DE REPUESTOS";
-        $doc_color = "#6366f1"; // Índigo
-        $id_doc_label = "MOSTRADOR";
-    }
-
-    $meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-    $fecha_dt = strtotime($venta->fecha);
-    $fecha_elegante = date('d', $fecha_dt) . " de " . $meses[date('n', $fecha_dt)-1] . " del " . date('Y', $fecha_dt);
-    
-    $titulo_pestaña = "PDF - " . $tipo_doc_label . " " . ($venta->id_formateado ?: "#" . $venta->id);
-?>
     <!-- Inclusión de Cabecera Compartida -->
     <?php if(file_exists(APPROOT . '/Views/pdf/inc/header.php')): ?>
         <?php 
