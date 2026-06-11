@@ -399,10 +399,14 @@ class ModelReportes {
      * Obtiene el detalle completo de un pago para generar el recibo PDF
      */
     public function obtenerDetallePago($id) {
-        $this->db->query("SELECT p.*, s.nombre as staff_nombre, s.cedula as staff_cedula, s.cargo as staff_cargo, u.username as registrado_por
+        $this->db->query("SELECT p.*, s.nombre as staff_nombre, s.cedula as staff_cedula, s.cargo as staff_cargo,
+                                 COALESCE(s2.nombre, u.username) as pagador_nombre,
+                                 s2.telefono as pagador_telefono,
+                                 p.modo_calculo, p.factor_calculo
                           FROM table_pagos_empleados p
                           JOIN table_staff s ON p.staff_id = s.id
                           LEFT JOIN table_usuarios u ON p.usuario_id = u.id
+                          LEFT JOIN table_staff s2 ON u.staff_id = s2.id
                           WHERE p.id = :id");
         $this->db->bind(':id', $id);
         $pago = $this->db->single();
@@ -428,14 +432,16 @@ class ModelReportes {
             $this->db->beginTransaction();
 
             // 1. Insertar el registro de nómina
-            $this->db->query("INSERT INTO table_pagos_empleados (staff_id, monto, monto_base, tipo, metodo_pago, notas, usuario_id) 
-                              VALUES (:sid, :monto, :base, :tipo, :metodo, :notas, :uid)");
+            $this->db->query("INSERT INTO table_pagos_empleados (staff_id, monto, monto_base, tipo, metodo_pago, modo_calculo, factor_calculo, notas, usuario_id) 
+                              VALUES (:sid, :monto, :base, :tipo, :metodo, :modo, :factor, :notas, :uid)");
             
             $this->db->bind(':sid', $data['staff_id']);
             $this->db->bind(':monto', $data['monto']);
             $this->db->bind(':base', $data['monto_base']);
             $this->db->bind(':tipo', $data['tipo']);
             $this->db->bind(':metodo', $data['metodo_pago']);
+            $this->db->bind(':modo', $data['modo_calculo'] ?? 'FIJO');
+            $this->db->bind(':factor', $data['factor_calculo'] ?? 0);
             $this->db->bind(':notas', $data['notas']);
             $this->db->bind(':uid', $data['usuario_id']);
             

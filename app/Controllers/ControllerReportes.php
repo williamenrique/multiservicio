@@ -140,8 +140,11 @@ class ControllerReportes extends Controller {
         $empresa = $this->model('Empresa')->obtenerConfiguracion();
         $pdfService = new PdfService();
         $pdfService->generarDocumento('recibo_pago', [
-            'titulo_pestaña' => 'Comprobante de Pago',
-            'titulo_documento' => 'Comprobante de Pago',
+            'titulo_pestaña' => 'Recibo de Pago',
+            'titulo_documento' => 'RECIBO DE PAGO',
+            'documento_numero' => 'N° ' . (int)$pago->id,
+            'fecha_documento' => date('d/m/Y', strtotime($pago->fecha)),
+            'doc_color' => '#10b981',
             'empresa' => $empresa,
             'pago' => $pago,
             'documento_id' => $pago->id

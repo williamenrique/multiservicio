@@ -24,8 +24,8 @@
         </td>
         <td class="invoice-data" style="width: 45%; text-align: right; vertical-align: top; padding-right: 0;">
             <div style="margin-bottom: 8px;">
-                <div class="doc-type" style="color: <?php echo $doc_color ?? '#3b82f6'; ?>; font-size: 12px; font-weight: 900; margin-bottom: -2px;"><?php echo strtoupper($titulo_documento); ?></div>
-                <div class="doc-number" style="font-size: 28px; font-weight: 900; color: #0f172a; letter-spacing: -1.5px; line-height: 1;"><?php echo $documento_numero; ?></div>
+                <div class="doc-type" style="color: <?php echo $doc_color ?? '#3b82f6'; ?>; font-size: 11px; font-weight: 900; margin-bottom: 1px; letter-spacing: .14em; text-transform: uppercase;"><?php echo strtoupper($titulo_documento); ?></div>
+                <div class="doc-number" style="font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -1px; line-height: 1.05;"><?php echo $documento_numero; ?></div>
             </div>
             <div style="line-height: 1.3;">
                 <div style="margin-bottom: 2px;"><span class="label-min">Emisión:</span> <span class="val-text" style="font-size: 9px;"><?php echo strtoupper($fecha_documento); ?></span></div>

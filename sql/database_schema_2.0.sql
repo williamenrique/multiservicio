@@ -339,6 +339,8 @@ CREATE TABLE `table_pagos_empleados` (
   `monto_base` decimal(15,2), -- Base de cálculo
   `tipo` enum('ADELANTO', 'PAGO_NOMINA') DEFAULT 'PAGO_NOMINA',
   `metodo_pago` varchar(50),
+  `modo_calculo` varchar(30) DEFAULT 'FIJO',
+  `factor_calculo` decimal(15,2) DEFAULT 0.00,
   `notas` text,
   `usuario_id` int(11),
   `fecha` timestamp DEFAULT CURRENT_TIMESTAMP,
