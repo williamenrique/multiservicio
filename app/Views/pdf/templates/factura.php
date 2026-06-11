@@ -142,25 +142,23 @@
     <table width="100%" style="margin-top: 10px;">
         <tr>
             <td width="55%" style="vertical-align: top; padding-right: 15px;">
-                <?php 
-                    $has_obs_salida = !empty($venta->observaciones);
-                    $has_obs_orden = !empty($venta->observaciones_orden);
-                    $has_diag_os = $es_os && !empty($venta->diagnostico_entrada);
+                <?php
+                    $diag_os = trim((string) ($venta->diagnostico_entrada ?? ''));
+                    $obs_salida = trim((string) ($venta->observaciones ?? ''));
+                    $has_diag_os = $es_os && $diag_os !== '';
+                    $has_obs_salida = $obs_salida !== '';
                 ?>
-                <?php if ($has_obs_salida || $has_obs_orden || $has_diag_os): ?>
+                <?php if ($has_diag_os || $has_obs_salida): ?>
                     <div class="label-min" style="margin-bottom: 4px;">Trazabilidad de Observaciones:</div>
                     <div class="obs-box">
                         <?php if($has_diag_os): ?>
                             <strong style="color: #0f172a;">[INGRESO] MOTIVO / DIAGNÓSTICO:</strong><br>
-                            <?php echo nl2br(htmlspecialchars($venta->diagnostico_entrada)); ?><?php if($has_obs_orden || $has_obs_salida) echo "<br><br>"; ?>
-                        <?php endif; ?>
-                        <?php if($has_obs_orden): ?>
-                            <strong style="color: #0f172a;">[ORDEN] OBSERVACIONES TÉCNICAS:</strong><br>
-                            <?php echo nl2br(htmlspecialchars($venta->observaciones_orden)); ?><?php if($has_obs_salida) echo "<br><br>"; ?>
+                            <?php echo nl2br(htmlspecialchars($diag_os)); ?>
+                            <?php if($has_obs_salida) echo '<br><br>'; ?>
                         <?php endif; ?>
                         <?php if($has_obs_salida): ?>
                             <strong style="color: #0f172a;">[SALIDA] NOTAS FINALES:</strong><br>
-                            <?php echo nl2br(htmlspecialchars($venta->observaciones)); ?>
+                            <?php echo nl2br(htmlspecialchars($obs_salida)); ?>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
