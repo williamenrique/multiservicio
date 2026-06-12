@@ -122,13 +122,18 @@ class ControllerInventario extends Controller {
 
         if (!$movimiento) die("Movimiento no encontrado.");
 
+        $tituloPestaña = 'MOVIMIENTO DE KARDEX - #' . str_pad((string)$movimiento->id, 6, '0', STR_PAD_LEFT);
+
         $pdfService = new PdfService();
         $pdfService->generarDocumento('kardex_individual', [
-            'titulo_pestaña' => 'Kardex Individual',
+            'titulo_pestaña' => $tituloPestaña,
             'titulo_documento' => 'Detalle de Movimiento de Inventario',
+            'documento_numero' => $tituloPestaña,
+            'fecha_documento' => date('d/m/Y', strtotime($movimiento->fecha)),
+            'doc_color' => '#2563eb',
             'mov' => $movimiento,
             'documento_id' => $movimiento->id
-        ], 'Movimiento_Kardex_' . $id . '.pdf');
+        ], $tituloPestaña . '.pdf');
         exit;
     }
 
@@ -149,14 +154,19 @@ class ControllerInventario extends Controller {
         $db->bind(':pid', $producto_id);
         $movimientos = $db->resultSet();
 
+        $tituloPestaña = 'REPORTE KARDEX - ' . mb_strtoupper($producto->nombre, 'UTF-8');
+
         $pdfService = new PdfService();
         $pdfService->generarDocumento('kardex_reporte', [
-            'titulo_pestaña' => 'Reporte Kardex',
+            'titulo_pestaña' => $tituloPestaña,
             'titulo_documento' => 'Historial de Kardex',
+            'documento_numero' => $tituloPestaña,
+            'fecha_documento' => date('d/m/Y'),
+            'doc_color' => '#16a34a',
             'producto' => $producto,
             'movimientos' => $movimientos,
             'documento_id' => $producto->id
-        ], 'Kardex_' . $producto_id . '.pdf');
+        ], $tituloPestaña . '.pdf');
         exit;
     }
 

@@ -165,8 +165,11 @@ class ControllerReportes extends Controller {
         $empresa = $this->model('Empresa')->obtenerConfiguracion();
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_proveedor_individual', [
-            'titulo_pestaña' => 'Reporte Proveedor',
-            'titulo_documento' => 'Estado de Cuenta de Proveedor',
+            'titulo_pestaña' => 'REPORTE PROVEEDOR',
+            'titulo_documento' => 'ESTADO DE CUENTA DE PROVEEDOR',
+            'documento_numero' => 'PROV-' . $id,
+            'fecha_documento' => date('d/m/Y'),
+            'doc_color' => '#3b82f6',
             'empresa' => $empresa,
             'proveedor' => $data,
             'documento_id' => 'PROV-' . $id
@@ -184,8 +187,11 @@ class ControllerReportes extends Controller {
 
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_cartera_proveedores', [
-            'titulo_pestaña' => 'Cartera Proveedores',
-            'titulo_documento' => 'Cuentas por Pagar (Proveedores)',
+            'titulo_pestaña' => 'CARTERA PROVEEDORES',
+            'titulo_documento' => 'CUENTAS POR PAGAR - PROVEEDORES',
+            'documento_numero' => 'CPP-' . date('Ymd'),
+            'fecha_documento' => date('d/m/Y'),
+            'doc_color' => '#6366f1',
             'empresa' => $empresa,
             'cartera' => $cartera,
             'documento_id' => 'CPP-' . date('Ymd')
@@ -215,14 +221,18 @@ class ControllerReportes extends Controller {
             });
         }
 
+        $tituloPestaña = 'AUDITORIA DE TRABAJOS';
+
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_auditoria', [
-            'titulo_pestaña' => 'Auditoría de Trabajos',
-            'titulo_documento' => 'Auditoría de Trabajos',
+            'titulo_pestaña' => $tituloPestaña,
+            'titulo_documento' => 'AUDITORIA DE TRABAJOS',
+            'documento_numero' => 'CONSULTA: ' . date('d/m/Y', strtotime($desde)) . ' - ' . date('d/m/Y', strtotime($hasta)),
+            'fecha_documento' => date('d/m/Y h:i A'),
+            'doc_color' => '#f59e0b',
             'ventas' => array_values($ventas),
             'desde' => $desde,
             'hasta' => $hasta,
-            'documento_id' => 'FECHAS: ' . $desde . ' / ' . $hasta,
             'usuario_actual' => $_SESSION['user_nombre']
         ], 'Reporte_Auditoria_' . date('Ymd_His') . '.pdf');
         exit;
@@ -242,17 +252,21 @@ class ControllerReportes extends Controller {
         
         // Filtrar solo los egresos (Gastos y Compras)
         $gastos = array_filter($movimientos, function($m) {
-            return $m->tipo === 'GASTO' || $m->tipo === 'COMPRA';
+            return $m->tipo === 'EGRESO';
         });
+
+        $tituloPestaña = 'REPORTE EGRESOS - ' . date('d/m/Y', strtotime($desde)) . ' AL ' . date('d/m/Y', strtotime($hasta));
 
         $pdfService = new PdfService();
         $pdfService->generarDocumento('reporte_gastos', [
-            'titulo_pestaña' => 'Reporte de Gastos',
-            'titulo_documento' => 'Reporte de Gastos',
+            'titulo_pestaña' => $tituloPestaña,
+            'titulo_documento' => 'REPORTE DE EGRESOS Y GASTOS',
+            'documento_numero' => 'REF-' . date('Y-m-d'),
+            'fecha_documento' => date('d/m/Y h:i A'),
+            'doc_color' => '#e11d48',
             'gastos' => array_values($gastos),
             'desde' => $desde,
             'hasta' => $hasta,
-            'documento_id' => 'PERIODO: ' . $desde . ' AL ' . $hasta,
             'usuario_actual' => $_SESSION['user_nombre'],
             'totales' => $res['totales'] ?? []
         ], 'Reporte_Gastos_' . date('Ymd_His') . '.pdf');
