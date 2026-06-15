@@ -78,8 +78,8 @@ class Controller {
                 }
 
                 // Determinamos si la vista requiere el layout del dashboard (header/footer)
-                // Las vistas de login o errores deben ser independientes
-                $useLayout = (strpos($view, 'auth/') === false && strpos($view, 'errores/') === false);
+                // Las vistas de login, errores o públicas deben ser independientes
+                $useLayout = (strpos($view, 'auth/') === false && strpos($view, 'errores/') === false && strpos($view, 'public/') === false);
 
                 // Intentamos cargar el header
                 if ($useLayout && file_exists(APPROOT . '/Views/inc/header.php')) {

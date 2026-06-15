@@ -316,6 +316,4 @@ return array(
     'Svg\\Tag\\Symbol' => $vendorDir . '/dompdf/php-svg-lib/src/Svg/Tag/Symbol.php',
     'Svg\\Tag\\Text' => $vendorDir . '/dompdf/php-svg-lib/src/Svg/Tag/Text.php',
     'Svg\\Tag\\UseTag' => $vendorDir . '/dompdf/php-svg-lib/src/Svg/Tag/UseTag.php',
-    'Symfony\\Polyfill\\Ctype\\Ctype' => $vendorDir . '/symfony/polyfill-ctype/Ctype.php',
-    'Symfony\\Polyfill\\Mbstring\\Mbstring' => $vendorDir . '/symfony/polyfill-mbstring/Mbstring.php',
 );

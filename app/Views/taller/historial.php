@@ -16,6 +16,11 @@
             <a href="<?php echo URLROOT; ?>/taller/nuevaOrden<?php echo $vehiculo ? '?placa='.$vehiculo->placa : ''; ?>" class="flex-1 lg:flex-none justify-center bg-neon-green text-navy-blue font-black px-4 py-2 rounded-xl hover:brightness-110 transition-all flex items-center gap-2 uppercase text-xs">
                 <i data-lucide="plus-circle" class="w-4 h-4"></i> Nueva O.S.
             </a>
+            <?php if($vehiculo): ?>
+            <button onclick="generarQrVehiculo('<?php echo $vehiculo->placa; ?>')" class="flex-1 lg:flex-none justify-center bg-blue-600 text-white font-black px-4 py-2 rounded-xl hover:bg-blue-700 transition-all flex items-center gap-2 uppercase text-xs">
+                <i data-lucide="qr-code" class="w-4 h-4"></i> Generar QR
+            </button>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -214,6 +219,34 @@ function verDetalle(id) {
     } else {
         // Fallback en caso de que app.min.js no esté cargado o la función cambie
         AppUtils.showToast('Cargando expediente de la Orden #' + id, 'info');
+    }
+}
+
+/**
+ * Genera el código QR para el historial del vehículo y lo muestra en un modal.
+ */
+async function generarQrVehiculo(placa) {
+    AppUtils.showLoading('Generando código QR...');
+    try {
+        const response = await fetch(`${URLROOT}/public/generateVehicleQr/${placa}`);
+        if (!response.ok) {
+            throw new Error('Error al generar el QR.');
+        }
+        const blob = await response.blob();
+        const imageUrl = URL.createObjectURL(blob);
+        AppUtils.hideLoading();
+        Swal.fire({
+            title: `QR para Historial de ${placa}`,
+            imageUrl: imageUrl,
+            imageAlt: 'Código QR del historial del vehículo',
+            showCloseButton: true,
+            showConfirmButton: false,
+            html: `<p class="text-sm text-slate-500 mt-2">Escanee este código para ver el historial público del vehículo.</p>`
+        });
+    } catch (error) {
+        AppUtils.hideLoading();
+        AppUtils.showToast(error.message || 'Error desconocido al generar QR.', 'error');
+        console.error("Error generando QR:", error);
     }
 }
 </script>
