@@ -25,11 +25,9 @@ taller_pro/
 │   ├── Helpers/                # Funciones globales reutilizables
 │   │   └── helpers.php         # Formatos de moneda, fechas, limpieza XSS
 │   └── Views/                  # Interfaz (HTML/PHP)
-│       ├── inc/                # header.php, footer.php, sidebar.php
-│       ├── auth/               # Login, Perfil
-│       ├── taller/             # Gestión de vehículos y órdenes
-│       └── finanzas/           # Facturas y reportes
-├── public/                     # ÚNICA PUERTA DE ENTRADA (DocumentRoot)
+    │       ├── inc/                # header.php, footer.php, sidebar.php
+    │       └── ...
+├── public_html/                # ÚNICA PUERTA DE ENTRADA (Renombrado para coincidir con Hosting)
 │   ├── css/                    # Estilos
 │   ├── js/                     # Scripts y validaciones cliente
 │   ├── img/                    # Logos y fotos
