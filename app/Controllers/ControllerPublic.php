@@ -1,5 +1,6 @@
 <?php
 use chillerlan\QRCode\{QRCode, QROptions};
+use chillerlan\QRCode\Output\QRGdImagePNG;
 
 class ControllerPublic extends Controller {
 
@@ -18,6 +19,10 @@ class ControllerPublic extends Controller {
      * @param string $placa La placa del vehículo
      */
     public function generateVehicleQr($placa) {
+        // Desactivamos la visualización de errores para esta petición 
+        // para evitar que un "Warning" corrompa el binario de la imagen.
+        ini_set('display_errors', 0);
+        
         $placa = strtoupper(trim($placa));
 
         // 1. Verificación de dependencias de la carpeta vendor
@@ -43,22 +48,38 @@ class ControllerPublic extends Controller {
 
         // Usamos valores primitivos (strings/integers) para evitar errores de constantes inexistentes
         $options = new QROptions([
-            'outputType' => 'gdimage_png', // Nombre técnico interno para el módulo GD
-            'eccLevel'   => 1,             // 1 = EccLevel::L
-            'scale'      => 8,
-            'imageBase64'      => false,   // Queremos el binario puro
-            'bgColor'    => [255, 255, 255], // Fondo blanco
-            'fgColor'    => [0, 0, 0],     // Primer plano negro
+            'outputInterface' => QRGdImagePNG::class,
+            'eccLevel'       => 1,             // 1 = EccLevel::L
+            'scale'          => 8,
+            'outputBase64'   => false,         // Intentamos forzar binario
+            'bgColor'        => [255, 255, 255], // Fondo blanco
+            'moduleValues'   => [0 => [0, 0, 0], 1 => [255, 255, 255]], // Interior/Exterior colores para GD
         ]);
 
         try {
             $qrcode = new QRCode($options);
             $imageData = $qrcode->render($publicHistoryUrl);
             
-            // Limpieza absoluta del buffer antes de enviar la imagen
+            // 1. Limpieza absoluta del buffer para eliminar cualquier espacio en blanco previo
             while (ob_get_level() > 0) ob_end_clean();
             
+            // 2. Si la librería devolvió un Data URI (Base64) por error, lo decodificamos
+            if (strpos($imageData, 'data:image/png;base64,') === 0) {
+                $imageData = base64_decode(str_replace('data:image/png;base64,', '', $imageData));
+            }
+
+            // Verificación de los bytes mágicos de PNG para asegurar que es una imagen válida
+            if (substr($imageData, 0, 8) !== "\x89PNG\x0d\x0a\x1a\x0a") {
+                error_log("Error: La salida del QR no es un PNG válido para placa $placa. Primeros 20 bytes: " . bin2hex(substr($imageData, 0, 20)));
+                throw new Exception("La librería no generó una imagen PNG válida.");
+            }
+            
+            
+            // 3. Enviamos cabeceras correctas
             header('Content-Type: image/png');
+            header('Content-Length: ' . strlen($imageData));
+            header('Cache-Control: no-store, no-cache, must-revalidate');
+            
             echo $imageData;
             exit;
         } catch (Throwable $e) {
