@@ -3,11 +3,11 @@
         'name' => 'tu-nombre/taller-pro',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'a9af565807264f7395aa391813493f0a7e595e2c',
+        'reference' => '5e63018e6987355a9959894746ca6243e2466144',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'dev' => true,
+        'dev' => false,
     ),
     'versions' => array(
         'dompdf/dompdf' => array(
@@ -121,7 +121,7 @@
         'tu-nombre/taller-pro' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'a9af565807264f7395aa391813493f0a7e595e2c',
+            'reference' => '5e63018e6987355a9959894746ca6243e2466144',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

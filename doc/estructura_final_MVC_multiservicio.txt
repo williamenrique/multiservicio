@@ -36,7 +36,7 @@ taller_pro/
 │   ├── uploads/                # Evidencias de vehículos (con protección)
 │   ├── .htaccess               # Manejo de URLs amigables
 │   └── index.php               # Front Controller
-├── vendor/                     # Librerías Composer (dompdf, phpmailer)
+├── vendor/                     # Librerías de terceros (Dompdf + PHPMailer)
 ├── sql/                        # Base de datos (Scripts de migración)
 ├── .env                        # Credenciales secretas (NO subir a Git)
 ├── .htaccess                   # Protege la raíz y redirige a public/
