@@ -1,4 +1,4 @@
-
+SUBIENDO ARCHIVOS AL SERVIDOR WEB DE PRUEBA 
 composer install --no-dev --optimize-autoloader
 
 # 1. Eliminar solo la librería chillerlan/php-qrcode
