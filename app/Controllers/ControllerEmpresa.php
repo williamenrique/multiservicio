@@ -37,12 +37,12 @@ class ControllerEmpresa extends Controller {
 
             // Procesar subida de Logo si se adjuntó un archivo
             if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = dirname(APPROOT) . '/public/uploads/logo/';
+                $uploadDir = dirname(APPROOT) . '/public_html/uploads/logo/';
                 if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
                 // 1. Borrar logo anterior si existe y no es el por defecto
                 if (!empty($configActual->logo)) {
-                    $oldPath = dirname(APPROOT) . '/public/' . ltrim($configActual->logo, '/');
+                    $oldPath = dirname(APPROOT) . '/public_html/' . ltrim($configActual->logo, '/');
                     if (file_exists($oldPath)) {
                         unlink($oldPath);
                     }

@@ -73,7 +73,7 @@ class ControllerInventario extends Controller {
                 // Es URL externa o Base64, no hacemos nada con el archivo físico
             } else {
                 // Validamos localmente
-                if (!file_exists(APPROOT . '/../public/' . $producto->imagen)) {
+                if (!file_exists(APPROOT . '/../public_html/' . $producto->imagen)) {
                     $producto->imagen = null;
                 }
             }
@@ -195,7 +195,7 @@ class ControllerInventario extends Controller {
 
                 // Procesar subida de imagen si se adjuntó un archivo
                 if (isset($_FILES['imagen_archivo']) && $_FILES['imagen_archivo']['error'] === UPLOAD_ERR_OK) {
-                    $uploadDir = dirname(APPROOT) . '/public/uploads/inventario/';
+                    $uploadDir = dirname(APPROOT) . '/public_html/uploads/inventario/';
                     if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
                     $fileExtension = strtolower(pathinfo($_FILES['imagen_archivo']['name'], PATHINFO_EXTENSION));

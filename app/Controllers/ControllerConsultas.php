@@ -3,10 +3,8 @@ use chillerlan\QRCode\{QRCode, QROptions};
 use chillerlan\QRCode\Output\QRGdImagePNG;
 
 /**
- * Se recomienda renombrar este controlador. 
- * El nombre 'Public' suele entrar en conflicto con la carpeta física /public 
- * que contiene los assets (JS, CSS). El servidor intenta rutear /public/js 
- * hacia este controlador en lugar de servir el archivo estático.
+ * Controlador para consultas públicas (Historial mediante QR)
+ * El nombre 'Consultas' evita conflictos con carpetas del sistema.
  */
 class ControllerConsultas extends Controller {
 
@@ -47,9 +45,8 @@ class ControllerConsultas extends Controller {
             exit;
         }
 
-        // URL a la que apuntará el QR
-        // Ajustamos a la ruta real del método showVehicleHistoryByQr
-        // Asumiendo que 'ControllerPublic' se mapea al segmento 'public' en el router
+        // URL que se codifica dentro del QR. 
+        // Al escanear, el usuario irá directamente a esta ruta pública.
         $publicHistoryUrl = URLROOT . '/consultas/showVehicleHistoryByQr/' . $placa;
 
         // Usamos valores primitivos (strings/integers) para evitar errores de constantes inexistentes

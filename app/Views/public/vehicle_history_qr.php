@@ -136,7 +136,7 @@
             
             <div class="bg-white p-5 rounded-3xl inline-block shadow-2xl mb-8">
                 <!-- Llamada al controlador para generar y mostrar la imagen -->
-                <img src="<?php echo URLROOT; ?>/public/generateVehicleQr/<?php echo $vehiculo->placa; ?>" 
+                <img src="<?php echo URLROOT; ?>/consultas/generateVehicleQr/<?php echo $vehiculo->placa; ?>" 
                      alt="QR Historial" class="w-52 h-52 mx-auto"
                      onerror="this.src='https://placehold.co/200x200?text=Error+QR'; console.error('Error al cargar la imagen QR. Verifique extensión GD en PHP y carpeta Vendor.');">
             </div>

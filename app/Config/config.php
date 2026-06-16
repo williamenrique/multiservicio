@@ -20,10 +20,19 @@ define('SECRET_IV', $_ENV['SECRET_IV'] ?? '20242025');
 define('APPROOT', dirname(dirname(__FILE__)));
 
 // 3. Ruta URL (Para enlaces y carga de assets en el navegador)
+//define('URLROOT', $_ENV['URLROOT'] ?? 'http://multiservicio2.0.test');
 // Cámbialo por tu dominio real cuando subas a producción
-// Ejemplo local: http://localhost/taller_pro
-// Ejemplo servidor: https://taller-pro.com
-define('URLROOT', $_ENV['URLROOT'] ?? 'http://multiservicio2.0.test');
+if (isset($_ENV['URLROOT'])) {
+    define('URLROOT', $_ENV['URLROOT']);
+} else {
+    // Detección automática para XAMPP y Hosting
+    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    // Si estás en una subcarpeta (ej: localhost/multiservicio), esto lo detecta
+    $scriptName = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+    $root = ($scriptName === '/') ? '' : $scriptName;
+    define('URLROOT', $protocol . "://" . $host . rtrim($root, '/public_html'));
+}
 
 // Ruta absoluta para el almacenamiento de datos JSON (Base de datos plana para módulos no migrados)
 define('JSON_DIR', APPROOT . '/../public_html/json/');
