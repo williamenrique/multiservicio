@@ -20,10 +20,19 @@ define('SECRET_IV', $_ENV['SECRET_IV'] ?? '20242025');
 define('APPROOT', dirname(dirname(__FILE__)));
 
 // 3. Ruta URL (Para enlaces y carga de assets en el navegador)
+//define('URLROOT', $_ENV['URLROOT'] ?? 'http://multiservicio2.0.test');
 // Cámbialo por tu dominio real cuando subas a producción
-// Ejemplo local: http://localhost/taller_pro
-// Ejemplo servidor: https://taller-pro.com
-define('URLROOT', $_ENV['URLROOT'] ?? 'http://multiservicio2.0.test');
+if (isset($_ENV['URLROOT'])) {
+    define('URLROOT', $_ENV['URLROOT']);
+} else {
+    // Detección automática para XAMPP y Hosting
+    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    // Si estás en una subcarpeta (ej: localhost/multiservicio), esto lo detecta
+    $scriptName = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+    $root = ($scriptName === '/') ? '' : $scriptName;
+    define('URLROOT', $protocol . "://" . $host . rtrim($root, '/public_html'));
+}
 
 // Ruta absoluta para el almacenamiento de datos JSON (Base de datos plana para módulos no migrados)
 define('JSON_DIR', APPROOT . '/../public_html/json/');
@@ -52,3 +61,27 @@ if (ENVIRONMENT == 'development') {
 
 // 7. Configuración de Zona Horaria (Crucial para registros de órdenes y facturas)
 date_default_timezone_set($_ENV['TIMEZONE'] ?? 'America/Caracas'); // Ajusta según tu país
+
+/**
+ * Normalización de getallheaders() para compatibilidad entre Apache y CGI/FastCGI
+ * Esto permite que el código funcione igual en XAMPP y en hostings gratuitos.
+ * Se coloca aquí porque es uno de los primeros archivos en cargarse.
+ */
+if (!function_exists('getallheaders')) {
+    function getallheaders() {
+        $headers = [];
+        foreach ($_SERVER as $name => $value) {
+            // Buscamos las variables que PHP asigna a las cabeceras HTTP
+            if (substr($name, 0, 5) == 'HTTP_') {
+                // Convertimos HTTP_X_CSRF_TOKEN a X-Csrf-Token
+                $headerName = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))));
+                $headers[$headerName] = $value;
+            } elseif ($name == 'CONTENT_TYPE') {
+                $headers['Content-Type'] = $value;
+            } elseif ($name == 'CONTENT_LENGTH') {
+                $headers['Content-Length'] = $value;
+            }
+        }
+        return $headers;
+    }
+}

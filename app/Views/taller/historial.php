@@ -65,6 +65,17 @@
                             <p class="text-[10px] font-black text-slate-400 uppercase">Órdenes Totales</p>
                         </div>
                     <?php endif; ?>
+
+                    <!-- Sección de QR con botón de descarga -->
+                    <div class="flex flex-col items-center gap-2 p-4 border border-slate-200 rounded-lg bg-white shadow-sm mt-4">
+                        <img src="<?php echo URLROOT; ?>/consultas/generateVehicleQr/<?php echo $vehiculo->placa; ?>" alt="QR Code del Vehículo" class="w-32 h-32 object-contain">
+                        <a href="<?php echo URLROOT; ?>/consultas/generateVehicleQr/<?php echo $vehiculo->placa; ?>" 
+                           download="QR_<?php echo $vehiculo->placa; ?>.png" 
+                           class="bg-navy-blue text-white text-xs font-bold px-3 py-1.5 rounded-md hover:bg-neon-green hover:text-black transition-colors flex items-center gap-1 w-full justify-center">
+                            <i data-lucide="download" class="w-4 h-4"></i> Descargar QR
+                        </a>
+                        <p class="text-[9px] text-slate-400 text-center uppercase font-bold">Historial Público</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -228,7 +239,7 @@ function verDetalle(id) {
 async function generarQrVehiculo(placa) {
     AppUtils.showLoading('Generando código QR...');
     try {
-        const response = await fetch(`${URLROOT}/public/generateVehicleQr/${placa}`);
+        const response = await fetch(`${URLROOT}/consultas/generateVehicleQr/${placa}`);
         if (!response.ok) {
             throw new Error('Error al generar el QR.');
         }

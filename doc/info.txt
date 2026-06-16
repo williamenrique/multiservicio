@@ -1,5 +1,18 @@
+<<<<<<< HEAD
 SUBIENDO ARCHIVOS AL SERVIDOR WEB DE PRUEBA 
+=======
+
+
+
+ALTER TABLE table_staff ADD COLUMN foto_frente VARCHAR(255) DEFAULT 'img/default.png' AFTER foto;
+
+
+
+>>>>>>> SERVIDOR-WEB
 composer install --no-dev --optimize-autoloader
+
+
+
 
 # 1. Eliminar solo la librería chillerlan/php-qrcode
 composer remove chillerlan/php-qrcode

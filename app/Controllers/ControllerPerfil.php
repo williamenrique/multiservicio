@@ -42,7 +42,7 @@ class ControllerPerfil extends Controller {
             $imagenes = ['foto' => 'avatar', 'foto_frente' => 'identificacion'];
             foreach ($imagenes as $campo => $tipo) {
                 if (isset($_FILES[$campo]) && $_FILES[$campo]['error'] === UPLOAD_ERR_OK) {
-                    $uploadDir = dirname(APPROOT) . '/public/uploads/perfiles/';
+                    $uploadDir = dirname(APPROOT) . '/public_html/uploads/perfiles/';
                     if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
                     $ext = strtolower(pathinfo($_FILES[$campo]['name'], PATHINFO_EXTENSION));
@@ -52,7 +52,7 @@ class ControllerPerfil extends Controller {
                         // 1. Borrar imagen anterior si existe y no es la por defecto
                         $oldFile = $perfilActual->$campo;
                         if (!empty($oldFile) && $oldFile !== 'img/default.png') {
-                            $fullOldPath = APPROOT . '/../public/' . $oldFile;
+                            $fullOldPath = APPROOT . '/../public_html/' . $oldFile;
                             if (file_exists($fullOldPath)) {
                                 unlink($fullOldPath);
                             }
