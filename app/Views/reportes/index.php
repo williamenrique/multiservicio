@@ -500,4 +500,4 @@
         if (window.lucide) lucide.createIcons();
     };
 </script>
-<script src="<?php echo URLROOT; ?>/js/eportes.js"></script>
+<script src="<?php echo URLROOT; ?>/js/reportes.js"></script>
