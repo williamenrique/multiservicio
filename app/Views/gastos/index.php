@@ -79,4 +79,4 @@
         </div>
     </div>
 </div>
-<script src="<?= URLROOT ?>/public/js/gastos.js"></script>
+<script src="<?php echo URLROOT; ?>/js/gastos.js"></script>

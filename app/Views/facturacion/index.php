@@ -211,7 +211,7 @@
     </div>
 </section>
 
-<script src="<?php echo URLROOT; ?>/public/js/facturacion.js"></script>
+<script src="<?php echo URLROOT; ?>/js/facturacion.js"></script>
 
 <script>
     // Sincronizar nombre en la UI cuando cambia el mecánico (Solo para Administradores)

@@ -291,4 +291,4 @@
                         </div>
                     </div>
                 </section>
-<script src="<?= URLROOT ?>/public/js/dashboard.js"></script>
+<script src="<?php echo URLROOT; ?>/js/dashboard.js"></script>

@@ -2,7 +2,13 @@
 use chillerlan\QRCode\{QRCode, QROptions};
 use chillerlan\QRCode\Output\QRGdImagePNG;
 
-class ControllerPublic extends Controller {
+/**
+ * Se recomienda renombrar este controlador. 
+ * El nombre 'Public' suele entrar en conflicto con la carpeta física /public 
+ * que contiene los assets (JS, CSS). El servidor intenta rutear /public/js 
+ * hacia este controlador en lugar de servir el archivo estático.
+ */
+class ControllerConsultas extends Controller {
 
     private $vehiculoModel;
     private $ordenModel;
@@ -44,7 +50,7 @@ class ControllerPublic extends Controller {
         // URL a la que apuntará el QR
         // Ajustamos a la ruta real del método showVehicleHistoryByQr
         // Asumiendo que 'ControllerPublic' se mapea al segmento 'public' en el router
-        $publicHistoryUrl = URLROOT . '/public/showVehicleHistoryByQr/' . $placa;
+        $publicHistoryUrl = URLROOT . '/consultas/showVehicleHistoryByQr/' . $placa;
 
         // Usamos valores primitivos (strings/integers) para evitar errores de constantes inexistentes
         $options = new QROptions([
