@@ -205,8 +205,8 @@ class ControllerInventario extends Controller {
 
                     if (move_uploaded_file($_FILES['imagen_archivo']['tmp_name'], $destPath)) {
                         // Borrar imagen física anterior si existe y es un archivo local (empieza por uploads/)
-                if ($prodActual && !empty($prodActual->imagen) && strpos((string)$prodActual->imagen, 'uploads/') === 0) {
-                            $oldFilePath = dirname(APPROOT) . '/public/' . $prodActual->imagen;
+                        if ($prodActual && !empty($prodActual->imagen) && strpos((string)$prodActual->imagen, 'uploads/') === 0) {
+                            $oldFilePath = dirname(APPROOT) . '/public_html/' . $prodActual->imagen;
                             if (file_exists($oldFilePath)) @unlink($oldFilePath);
                         }
                         // Asignamos la nueva ruta para guardar en la base de datos
@@ -224,7 +224,7 @@ class ControllerInventario extends Controller {
                             // Si la imagen anterior era local (empezaba con uploads/) 
                             // y la nueva NO lo es (es data: o http), borramos la física.
                             if (strpos($prodActual->imagen, 'uploads/') === 0 && strpos((string)$input['imagen'], 'uploads/') === false) {
-                                $oldFilePath = dirname(APPROOT) . '/public/' . $prodActual->imagen;
+                                $oldFilePath = dirname(APPROOT) . '/public_html/' . $prodActual->imagen;
                                 if (file_exists($oldFilePath)) @unlink($oldFilePath);
                             }
                         }
