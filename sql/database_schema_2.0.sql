@@ -37,6 +37,7 @@ CREATE TABLE `table_staff` (
   `email` varchar(100),
   `direccion` text,
   `foto` varchar(255) DEFAULT 'img/default.png',
+  `foto_frente` varchar(255) DEFAULT 'img/default.png',
   `estado` enum('ACTIVO', 'INACTIVO') DEFAULT 'ACTIVO',
   `fecha_creacion` timestamp DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -398,11 +399,11 @@ INSERT INTO `table_roles` (`id`, `nombre_rol`, `descripcion`) VALUES
 (3, 'CAJERO', 'GESTION DE FACTURACION Y CAJA');
 
 -- Empleado Administrador Inicial
-INSERT IGNORE INTO `table_staff` (`id`, `cedula`, `nombre`, `cargo`, `telefono`, `email`, `direccion`, `foto`, `estado`, `fecha_creacion`) VALUES
-  ('MEC-001', '12512563', 'ALBERTO JOSE', 'MECANICO', '0412125123', 'alberto@gmail.com', 'LAS TAPIAS CALLE 2', 'img/default.png', 'ACTIVO', '2026-06-11 13:58:48'),
-  ('MEC-002', '112021362', 'CARLOS LUIS', 'MECANICO', '0412125236', 'carlos@gmail.com', 'LA PRADERA, COCOROTE', 'img/default.png', 'ACTIVO', '2026-06-11 13:59:39'),
-  ('STAFF-001', 'V-00000000', 'ADMINISTRADOR', 'GERENTE', NULL, NULL, NULL, 'img/default.png', 'ACTIVO', '2026-06-11 13:53:39'),
-  ('STAFF-002', '14607920', 'WILLIAM ENRIQUE', 'ADMINISTRADOR', '04125181629', 'william21enrique@gmail.com', 'AV PRINCIPAL CALLE 2 URB VISTA ALEGRE', 'img/default.png', 'ACTIVO', '2026-06-11 13:57:55');
+INSERT IGNORE INTO `table_staff` (`id`, `cedula`, `nombre`, `cargo`, `telefono`, `email`, `direccion`, `foto`, `foto_frente`, `estado`, `fecha_creacion`) VALUES
+  ('MEC-001', '12512563', 'ALBERTO JOSE', 'MECANICO', '0412125123', 'alberto@gmail.com', 'LAS TAPIAS CALLE 2', 'img/default.png', 'img/default.png', 'ACTIVO', '2026-06-11 13:58:48'),
+  ('MEC-002', '112021362', 'CARLOS LUIS', 'MECANICO', '0412125236', 'carlos@gmail.com', 'LA PRADERA, COCOROTE', 'img/default.png', 'img/default.png', 'ACTIVO', '2026-06-11 13:59:39'),
+  ('STAFF-001', 'V-00000000', 'ADMINISTRADOR', 'GERENTE', NULL, NULL, NULL, 'img/default.png', 'img/default.png', 'ACTIVO', '2026-06-11 13:53:39'),
+  ('STAFF-002', '14607920', 'WILLIAM ENRIQUE', 'ADMINISTRADOR', '04125181629', 'william21enrique@gmail.com', 'AV PRINCIPAL CALLE 2 URB VISTA ALEGRE', 'img/default.png', 'img/default.png', 'ACTIVO', '2026-06-11 13:57:55');
 
 
 -- Usuario Admin Inicial (User: admin / Pass: admin)

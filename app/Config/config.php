@@ -52,3 +52,27 @@ if (ENVIRONMENT == 'development') {
 
 // 7. Configuración de Zona Horaria (Crucial para registros de órdenes y facturas)
 date_default_timezone_set($_ENV['TIMEZONE'] ?? 'America/Caracas'); // Ajusta según tu país
+
+/**
+ * Normalización de getallheaders() para compatibilidad entre Apache y CGI/FastCGI
+ * Esto permite que el código funcione igual en XAMPP y en hostings gratuitos.
+ * Se coloca aquí porque es uno de los primeros archivos en cargarse.
+ */
+if (!function_exists('getallheaders')) {
+    function getallheaders() {
+        $headers = [];
+        foreach ($_SERVER as $name => $value) {
+            // Buscamos las variables que PHP asigna a las cabeceras HTTP
+            if (substr($name, 0, 5) == 'HTTP_') {
+                // Convertimos HTTP_X_CSRF_TOKEN a X-Csrf-Token
+                $headerName = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))));
+                $headers[$headerName] = $value;
+            } elseif ($name == 'CONTENT_TYPE') {
+                $headers['Content-Type'] = $value;
+            } elseif ($name == 'CONTENT_LENGTH') {
+                $headers['Content-Length'] = $value;
+            }
+        }
+        return $headers;
+    }
+}
