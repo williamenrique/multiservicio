@@ -70,8 +70,8 @@ function renderView($view, $data = []) {
         }
 
         // Determinar si usar el layout del dashboard
-        // Las vistas de login o errores no deben cargar header/footer
-        $useLayout = (strpos($view, 'auth/') === false && strpos($view, 'errores/') === false);
+        // Las vistas de login, errores o vistas públicas no deben cargar header/footer
+        $useLayout = (strpos($view, 'auth/') === false && strpos($view, 'errores/') === false && strpos($view, 'public/') === false);
 
         if ($useLayout && file_exists(APPROOT . '/Views/inc/header.php')) {
             require_once APPROOT . '/Views/inc/header.php';

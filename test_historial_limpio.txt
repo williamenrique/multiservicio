@@ -1,0 +1,75 @@
+✅ MODIFICACIONES COMPLETADAS - INTERFAZ LIMPIA CON TEMA CLARO/OSCURO
+
+1. **PROBLEMA ORIGINAL CORREGIDO**:
+   - Vista `vehicle_history_qr.php` ahora es completamente independiente
+   - Ya NO hereda el layout del sistema (header/footer)
+   - Se corrigió la función `renderView()` en `helpers.php` para excluir vistas `public/`
+
+2. **INTERFAZ LIMPIA Y RESPONSIVE**:
+   - Diseño centrado y minimalista
+   - Sin menús, sidebars o elementos administrativos
+   - Interfaz pública accesible para cualquier usuario sin login
+
+3. **SWITCHER DE TEMA CLARO/OSCURO**:
+   - Botón en esquina superior derecha: 🌙 "Oscuro" / ☀️ "Claro"
+   - Sistema guarda preferencia en `localStorage`
+   - Respeto a preferencias del sistema (`prefers-color-scheme`)
+   - Transiciones suaves entre temas
+
+4. **BOTÓN PARA ADMINISTRADORES** (Solo si están logueados):
+   - Aparece SOLO si: 
+     * `$_SESSION['user_id']` existe
+     * `$_SESSION['user_role'] === 'ADMINISTRADOR'`
+   - Texto: "NUEVA ORDEN"
+   - Ubicación: Esquina superior derecha de la tarjeta del vehículo
+   - Función: Redirige a `/taller/nueva_orden?placa=PLACA` con datos pre-cargados
+
+5. **ESTILOS PARA AMBOS TEMAS**:
+   - **Tema Oscuro (default)**: Fondo oscuro, texto blanco, acentos verde neón
+   - **Tema Claro**: Fondo claro, texto azul marino, acentos azul marino
+   - Todos los elementos adaptados: tarjetas, botones, texto, bordes, modales
+
+6. **FUNCIONALIDADES MANTENIDAS**:
+   - Historial completo del vehículo
+   - Checklist de entrada
+   - Modal con código QR generado dinámicamente
+   - Botón "MOSTRAR QR DE ACCESO"
+   - Información del cliente/vehículo
+
+7. **FLUJOS DE USUARIO**:
+
+   **USUARIO NO LOGUEADO / CLIENTE**:
+   ```
+   1. Escanea QR → Ve interfaz limpia (tema oscuro por defecto)
+   2. Puede cambiar tema claro/oscuro con el botón 🌙/☀️
+   3. Ve historial completo del vehículo
+   4. NO ve botón "NUEVA ORDEN"
+   ```
+
+   **ADMINISTRADOR LOGUEADO**:
+   ```
+   1. Escanea QR → Ve interfaz limpia + botón "NUEVA ORDEN"
+   2. Click en "NUEVA ORDEN" → Redirige a formulario con datos pre-cargados
+   3. Formulario ya tiene: placa, cliente, marca, modelo, año, color
+   4. Sólo completa: kilometraje, observaciones, checklist
+   ```
+
+8. **ARCHIVOS MODIFICADOS**:
+   - `app/Helpers/helpers.php` → Corrección en `renderView()` para excluir `public/`
+   - `app/Views/public/vehicle_history_qr.php` → Interfaz completa limpia + tema claro/oscuro
+   - `app/Controllers/ControllerTaller.php` → Acepta parámetro GET `?placa`
+   - `app/Views/taller/nueva_orden.php` → Auto-carga datos del vehículo
+
+9. **TECNOLOGÍAS UTILIZADAS**:
+   - Tailwind CSS con clases `dark:` para tema oscuro
+   - JavaScript vanilla para switcher de tema
+   - LocalStorage para persistencia de preferencia
+   - Lucide Icons para iconografía
+
+10. **ACCESIBILIDAD Y UX**:
+    - Tema por defecto basado en preferencias del sistema
+    - Texto legible en ambos temas (contraste adecuado)
+    - Botones claramente identificables
+    - Interfaz responsive para móviles y desktop
+
+✅ SISTEMA LISTO: Interfaz pública limpia + Tema claro/oscuro + Botón administrativo condicional

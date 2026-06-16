@@ -11,5 +11,8 @@ return [
     'login'      => 'Auth@index',
     'logout'     => 'Auth@logout',
     'mi-perfil'  => 'Perfil@index',
-    'solicitudes-acceso' => 'Auth@solicitudes'
+    'solicitudes-acceso' => 'Auth@solicitudes',
+    
+    // Taller - Corrección de rutas con guiones bajos
+    'taller/nueva_orden' => 'Taller@nuevaOrden'
 ];

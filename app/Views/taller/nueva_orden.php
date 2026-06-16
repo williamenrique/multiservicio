@@ -35,21 +35,46 @@
         <!-- Información General -->
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <?php if(isset($data['vehiculo']) && $data['vehiculo']): ?>
+                    <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <p class="text-xs font-bold text-green-800 uppercase tracking-wider flex items-center gap-2">
+                            <i data-lucide="car" class="w-4 h-4"></i> VEHÍCULO ENCONTRADO DESDE HISTORIAL QR
+                        </p>
+                        <p class="text-sm text-green-700 mt-1">Los datos del vehículo han sido pre-cargados automáticamente.</p>
+                    </div>
+                <?php endif; ?>
+                
                 <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Información del Vehículo</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="relative">
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Placa *</label>
-                        <input type="text" name="placa" id="inputPlaca" required class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none font-bold text-navy-blue" placeholder="ABC-123">
+                        <input type="text" name="placa" id="inputPlaca" required class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none font-bold text-navy-blue" placeholder="ABC-123" 
+                               value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->placa) : ''; ?>">
                         <div id="placa_results" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
                     </div>
                     <div class="relative">
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Identificación Cliente *</label>
-                        <input type="text" name="cliente_id" id="cliente_id" required placeholder="Cédula o NIT" autocomplete="off" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
+                        <input type="text" name="cliente_id" id="cliente_id" required placeholder="Cédula o NIT" autocomplete="off" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                               value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] && isset($data['vehiculo']->cliente_id) ? htmlspecialchars($data['vehiculo']->cliente_id) : ''; ?>">
                         <div id="cliente_results" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre del Cliente</label>
-                        <input type="text" id="cliente_nombre" readonly class="w-full bg-slate-100 border border-gray-200 rounded-lg px-4 py-2 outline-none font-bold text-navy-blue italic" placeholder="Ingrese ID para buscar...">
+                        <input type="text" id="cliente_nombre" readonly class="w-full bg-slate-100 border border-gray-200 rounded-lg px-4 py-2 outline-none font-bold text-navy-blue italic" placeholder="Ingrese ID para buscar..."
+                               value="<?php echo isset($data['cliente']) && $data['cliente'] ? htmlspecialchars($data['cliente']->nombre) : (isset($data['vehiculo']) && $data['vehiculo'] && isset($data['vehiculo']->cliente_nombre) ? htmlspecialchars($data['vehiculo']->cliente_nombre) : ''); ?>">
+                        <?php if(isset($data['vehiculo']) && $data['vehiculo'] && isset($data['vehiculo']->cliente_id)): ?>
+                            <div class="mt-1">
+                                <?php if(isset($data['cliente']) && $data['cliente']): ?>
+                                    <span class="text-xs text-green-600 font-medium flex items-center gap-1">
+                                        <i data-lucide="check-circle" class="w-3 h-3"></i> Cliente verificado
+                                    </span>
+                                <?php else: ?>
+                                    <span class="text-xs text-yellow-600 font-medium flex items-center gap-1">
+                                        <i data-lucide="alert-circle" class="w-3 h-3"></i> Cliente encontrado en BD
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <div class="md:col-span-3">
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Mecánico Asignado</label>
@@ -62,17 +87,21 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Marca *</label>
-                        <input type="text" name="marca" required placeholder="Ej: Toyota" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
+                        <input type="text" name="marca" required placeholder="Ej: Toyota" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                               value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->marca) : ''; ?>">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Modelo *</label>
-                        <input type="text" name="modelo" required placeholder="Ej: Corolla" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
+                        <input type="text" name="modelo" required placeholder="Ej: Corolla" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                               value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->modelo) : ''; ?>">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Año / Color</label>
                         <div class="flex gap-2">
-                            <input type="number" name="anio" placeholder="Año" class="w-1/2 bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
-                            <input type="text" name="color" placeholder="Color" class="w-1/2 bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
+                            <input type="number" name="anio" placeholder="Año" class="w-1/2 bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                                   value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->anio) : ''; ?>">
+                            <input type="text" name="color" placeholder="Color" class="w-1/2 bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                                   value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->color) : ''; ?>">
                         </div>
                     </div>
                     <div>
@@ -138,6 +167,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputClienteNombre = document.getElementById('cliente_nombre');
     let searchTimerPlaca;
     let searchTimerCliente;
+
+    // Auto-cargar datos del vehículo cuando la página se carga con placa pre-cargada (desde historial QR)
+    if (inputPlaca && inputPlaca.value.trim().length >= 3) {
+        // Aplicar estilos visuales para indicar que los datos son pre-cargados
+        inputPlaca.classList.add('bg-green-50', 'border-green-300');
+        
+        // Marcar campos del vehículo como pre-cargados
+        document.querySelectorAll('[name="marca"], [name="modelo"], [name="anio"], [name="color"]').forEach(input => {
+            if (input.value) {
+                input.classList.add('bg-green-50', 'border-green-300');
+            }
+        });
+        
+        if (inputClienteNombre && inputClienteNombre.value) {
+            inputClienteNombre.classList.add('bg-green-50', 'border-green-300');
+            inputClienteId.classList.add('bg-green-50', 'border-green-300');
+        }
+        
+        // Simular el evento blur para buscar el último kilometraje automáticamente
+        setTimeout(() => {
+            if (inputPlaca.value.trim()) {
+                const event = new Event('blur');
+                inputPlaca.dispatchEvent(event);
+            }
+        }, 800);
+    }
 
     // Buscar por Placa
     inputPlaca?.addEventListener('blur', async function() {

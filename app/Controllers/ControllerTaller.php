@@ -21,10 +21,30 @@ class ControllerTaller extends Controller {
 
     public function nuevaOrden() {
         $reportModel = $this->model('Reportes');
-        $this->view('taller/nueva_orden', [
+        
+        $data = [
             'titulo' => 'Nueva Orden de Servicio',
-            'staff' => $reportModel->obtenerStaffSimple()
-        ]);
+            'staff' => $reportModel->obtenerStaffSimple(),
+            'vehiculo' => null,
+            'cliente' => null
+        ];
+        
+        // Si viene una placa por parámetro GET, buscar el vehículo y cliente
+        $placa = isset($_GET['placa']) ? strtoupper(trim($_GET['placa'])) : '';
+        if (!empty($placa)) {
+            $vehiculo = $this->vehiculoModel->buscarPorPlaca($placa);
+            if ($vehiculo) {
+                $data['vehiculo'] = $vehiculo;
+                
+                // Buscar información del cliente
+                $clienteModel = $this->model('Cliente');
+                if ($vehiculo->cliente_id) {
+                    $data['cliente'] = $clienteModel->obtenerPorId($vehiculo->cliente_id);
+                }
+            }
+        }
+        
+        $this->view('taller/nueva_orden', $data);
     }
 
     /**
