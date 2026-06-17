@@ -50,6 +50,14 @@ class BillingService {
             // 2. Guardar Cabecera
             $ventaId = $this->facturaModel->guardarCabeceraVenta($datos, $status, $totales, $usuarioId);
 
+            // SINCRO: Si se asignó un mecánico en la factura, actualizar la orden de servicio
+            if (!empty($datos['mecanico_id']) && !empty($datos['orden_id'])) {
+                $this->db->query("UPDATE table_ordenes_servicio SET mecanico_id = :mid WHERE id = :oid");
+                $this->db->bind(':mid', $datos['mecanico_id']);
+                $this->db->bind(':oid', $datos['orden_id']);
+                $this->db->execute();
+            }
+
             // 3. Limpiar y registrar detalles
             $this->db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :vid");
             $this->db->bind(':vid', $ventaId);

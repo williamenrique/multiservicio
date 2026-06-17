@@ -130,6 +130,15 @@ class ControllerFacturacion extends Controller {
 
                 $ventaId = $this->billingService->procesarVentaCompleta($datos, $_SESSION['user_id']);
 
+                // SINCRO: Si se asignó un mecánico en la factura, actualizar la orden
+                if (!empty($datos['mecanico_id']) && !empty($datos['orden_id'])) {
+                    $db = new Database();
+                    $db->query("UPDATE table_ordenes_servicio SET mecanico_id = :mid WHERE id = :oid");
+                    $db->bind(':mid', $datos['mecanico_id']);
+                    $db->bind(':oid', $datos['orden_id']);
+                    $db->execute();
+                }
+
                 if (!empty($datos['orden_id'])) {
                     logAction('TALLER', 'FINALIZAR_ORDEN', "Venta procesada para O.S. #{$datos['orden_id']}");
                 }
@@ -196,6 +205,14 @@ class ControllerFacturacion extends Controller {
                 // Guardar cabecera usando el modelo inyectando la conexión actual
                 $tempModel = new ModelFacturacion($db);
                 $ventaId = $tempModel->guardarCabeceraVenta($datos, 'PENDIENTE', $totales, $_SESSION['user_id']);
+
+                // SINCRO: Si se asignó un mecánico en el borrador, actualizar la orden
+                if (!empty($datos['mecanico_id']) && !empty($datos['orden_id'])) {
+                    $db->query("UPDATE table_ordenes_servicio SET mecanico_id = :mid WHERE id = :oid");
+                    $db->bind(':mid', $datos['mecanico_id']);
+                    $db->bind(':oid', $datos['orden_id']);
+                    $db->execute();
+                }
 
                 // Limpiar y actualizar items del borrador
                 $db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :vid");
