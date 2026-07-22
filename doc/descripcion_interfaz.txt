@@ -1,0 +1,828 @@
+================================================================================
+  DESCRIPCIÓN DETALLADA DE INTERFACES - TALLER PRO (PHP MVC)
+  Documento para replicación en Python (Escritorio)
+================================================================================
+
+SISTEMA: Taller Pro - Gestión de Taller Mecánico y Facturación
+BASE DE DATOS: MySQL (misma que usa la versión PHP)
+DISEÑO: Navy-blue (#0f172a), Neon-green (#10b981), Glassmorphism, Tailwind CSS
+ICONOS: Lucide Icons
+ALERTAS: SweetAlert2
+TABLAS DINÁMICAS: DataTableRefactor.js (motor propio)
+
+================================================================================
+ 1. INTERFAZ DE LOGIN
+================================================================================
+ARCHIVO: app/Views/auth/Login.php
+PROPÓSITO: Autenticación de usuarios del sistema.
+
+LAYOUT:
+- Fondo con gradiente radial oscuro (from-slate-900 via-slate-800 to-slate-900)
+- Tarjeta glassmorphism centrada (glass-login con backdrop-blur)
+- Logo de llave inglesa (Lucide: wrench) en verde neón
+- Título "TALLERPRO" en blanco
+- Campo USUARIO con icono User
+- Campo CONTRASEÑA con icono Lock
+- Enlace "¿Olvidaste tu contraseña?" que redirige a recuperar
+- Botón "INGRESAR" verde neón
+- CSRF Token oculto
+
+INTERACCIONES:
+- Submit del formulario vía AJAX a ControllerAuth
+- Errores mostrados con SweetAlert2
+- Redirección al dashboard en éxito
+
+NOTAS PYTHON:
+- Ventana centrada, sin bordes o con estilo moderno
+- Fondo oscuro con tarjeta central
+- Validación de campos antes de enviar
+- Conexión a API propia o directamente a MySQL
+
+================================================================================
+ 2. DASHBOARD (Panel Principal)
+================================================================================
+ARCHIVO: app/Views/dashboard/index.php
+PROPÓSITO: Panel de control con resumen financiero y operativo.
+
+LAYOUT:
+- Encabezado "Dashboard" con subtítulo "Resumen General"
+- Tarjetas de resumen financiero (4 columnas):
+  * Ventas (icono DollarSign, azul)
+  * Órdenes (icono Wrench, índigo)
+  * Gastos (icono CreditCard, rojo)
+  * Utilidad (icono TrendingUp, verde)
+- Sección "Rentabilidad y Deudores" (2 columnas):
+  * Rentabilidad: ingresos vs gastos
+  * Deudores: clientes con deuda
+- Estado del inventario (4 columnas): stock bajo, agotados, etc.
+- Órdenes pendientes (borradores) en tarjetas
+- Deudas con proveedores
+- Gráfico de ventas mensuales (Chart.js - canvas)
+- Botón de descarga de respaldo (JSON)
+
+INTERACCIONES:
+- Datos cargados dinámicamente con JS
+- Gráfico Chart.js de línea para ventas
+- Tarjetas con efecto hover
+
+NOTAS PYTHON:
+- Usar matplotlib o PyQtChart para gráficos
+- Diseñar como página principal con widgets
+- Actualización periódica de datos
+
+================================================================================
+ 3. TALLER ACTIVO (Órdenes en Proceso)
+================================================================================
+ARCHIVO: app/Views/taller/index.php
+PROPÓSITO: Gestionar órdenes de servicio activas en el taller.
+
+LAYOUT:
+- Encabezado con "Taller Activo" y botones "Nueva O.S." e "Historial"
+- Barra de búsqueda con resultados en vivo (dropdown)
+- Tabla de órdenes activas con columnas:
+  * Orden # (enlace a detalle)
+  * Vehículo (placa + marca/modelo)
+  * Cliente
+  * Estado (select dropdown coloreado)
+  * Mecánico Asignado
+  * Fecha Ingreso
+  * Fecha Estimada (con alerta si está retrasada)
+  * Acciones (botones)
+- Estados disponibles: RECIBIDO (azul), DIAGNOSTICANDO (ámbar), EN_REPARACION (índigo), LISTO (esmeralda)
+
+INTERACCIONES:
+- Cambio de estado vía select (AJAX)
+- Búsqueda en vivo con debounce
+- Asignación de mecánico
+- Enlace a detalle de orden
+
+NOTAS PYTHON:
+- Tabla principal con QTableWidget
+- Búsqueda con QLineEdit + timer
+- ComboBox para cambio de estado
+- Colores de estado consistentes
+
+================================================================================
+ 4. NUEVA ORDEN DE SERVICIO
+================================================================================
+ARCHIVO: app/Views/taller/nueva_orden.php
+PROPÓSITO: Crear una nueva orden de trabajo para un vehículo.
+
+LAYOUT:
+- Encabezado "Nueva Orden de Servicio"
+- Si viene de QR: banner verde con datos precargados y mensaje de éxito
+- Sección VEHÍCULO:
+  * Placa (con búsqueda y dropdown de resultados)
+  * Cliente (búsqueda con dropdown, ID + nombre)
+  * Nombre Cliente (readonly, se autocompleta)
+  * Marca, Modelo, Año, Color
+  * Mecánico asignado (select)
+- Sección CHECKLIST (lista de items a revisar)
+- Observaciones (textarea)
+- Botones: "Guardar Orden", "Cancelar"
+
+INTERACCIONES:
+- Búsqueda de placa con autocompletado
+- Búsqueda de cliente con autocompletado
+- Al seleccionar placa, auto-rellena datos del vehículo
+- Al seleccionar cliente, auto-rellena nombre
+- Validación de campos requeridos
+
+NOTAS PYTHON:
+- Formulario con QLineEdit + QCompleter para búsquedas
+- QComboBox para selects
+- QTextEdit para observaciones
+- Validación antes de guardar
+
+================================================================================
+ 5. EXPEDIENTE TÉCNICO (Historial del Vehículo)
+================================================================================
+ARCHIVO: app/Views/taller/historial.php
+PROPÓSITO: Mostrar el historial completo de servicios de un vehículo.
+
+LAYOUT:
+- Diseño de 2 columnas:
+  COLUMNA IZQUIERDA (fija):
+  * Placa en 4xl (grande)
+  * Badge de Marca
+  * Modelo, Año
+  * Color con muestra visual (círculo de color)
+  * Propietario (nombre + teléfono)
+  * Código QR (con botón descargar)
+  COLUMNA DERECHA (scroll):
+  * Línea de tiempo (timeline) de servicios
+  * Cada entrada: fecha, estado (coloreado), descripción, monto
+- Botones superiores: "Taller Activo", "Historial Cerradas", "Nueva O.S.", "Generar QR"
+
+INTERACCIONES:
+- Timeline vertical con indicadores de estado
+- QR generado dinámicamente
+- Botones de navegación rápida
+
+NOTAS PYTHON:
+- Layout de dos paneles (QSplitter o similar)
+- Timeline personalizado con QScrollArea
+- Generación de QR con qrcode library
+- Botón de descarga de QR
+
+================================================================================
+ 6. ÓRDENES CERRADAS
+================================================================================
+ARCHIVO: app/Views/taller/cerradas.php
+PROPÓSITO: Historial de órdenes finalizadas con búsqueda y detalle.
+
+LAYOUT:
+- Encabezado "Órdenes Cerradas"
+- Barra de búsqueda (por placa, orden o cliente)
+- Selector de límite (10/25/50)
+- Tabla con columnas:
+  * Orden #
+  * Vehículo / Placa
+  * Cliente
+  * Fecha Entrega
+  * Responsable
+  * Acciones (ver detalle)
+- Paginación con índice (Mostrando X a Y de Z)
+- Modal de detalle con:
+  * Información del vehículo
+  * Datos del cliente
+  * Mecánico asignado
+  * Fechas (ingreso, estimada, real)
+  * Diagnóstico
+  * Observaciones
+
+INTERACCIONES:
+- Búsqueda con filtro
+- Paginación dinámica
+- Modal con detalle completo
+- Selector de límite de registros
+
+NOTAS PYTHON:
+- QTableWidget con paginación
+- QDialog para modal de detalle
+- Búsqueda con QLineEdit + filtro
+- Selector de items por página
+
+================================================================================
+ 7. CLIENTES
+================================================================================
+ARCHIVO: app/Views/cliente/index.php
+PROPÓSITO: Gestión del directorio de clientes.
+
+LAYOUT:
+- Encabezado "Clientes" con botón "+ NUEVO CLIENTE"
+- Barra de búsqueda
+- Contador total de clientes
+- Selector de límite
+- Tabla con columnas:
+  * ID
+  * Nombre
+  * Contacto (teléfono)
+  * Ubicación (dirección)
+  * Acciones (editar/eliminar)
+- Paginación
+- Modal para crear/editar cliente con campos:
+  * ID Fiscal (NIT/Cédula)
+  * Teléfono
+  * Nombre
+  * Email
+  * Dirección
+
+INTERACCIONES:
+- CRUD completo vía AJAX
+- Modal con formulario
+- Confirmación SweetAlert2 para eliminar
+- Búsqueda en vivo
+
+NOTAS PYTHON:
+- QTableWidget con CRUD
+- QDialog para formulario
+- Validación de campos (email, teléfono)
+- Búsqueda con filtro
+
+================================================================================
+ 8. FACTURACIÓN / POS (Punto de Venta)
+================================================================================
+ARCHIVO: app/Views/facturacion/index.php
+PROPÓSITO: Facturación de servicios y venta de repuestos.
+
+LAYOUT:
+- Barra superior con cola de facturas borrador
+- Sección VEHÍCULO:
+  * Descripción del vehículo
+  * Placa
+  * Mecánico (select, solo admin)
+- Sección CLIENTE:
+  * Búsqueda de cliente con botón "REGISTRAR RÁPIDO"
+- Diagnóstico (desde la OS)
+- Observaciones (textarea)
+- Sección REPUESTOS:
+  * Búsqueda de repuestos con resultados
+  * Cantidad (input numérico)
+  * Botón "Agregar" para añadir al carrito
+- Tabla de items facturables (descripción, cantidad, precio, subtotal, eliminar)
+- Total general
+- Botones: "FACTURAR", "GUARDAR BORRADOR", "IMPRIMIR"
+
+INTERACCIONES:
+- Búsqueda de productos con autocompletado
+- Carrito de compras dinámico
+- Cálculo de totales en tiempo real
+- Facturación con generación de PDF
+- Guardado como borrador
+
+NOTAS PYTHON:
+- Interfaz similar a POS con QTableWidget para carrito
+- QLineEdit con QCompleter para búsqueda de productos
+- Cálculos automáticos
+- Generación de PDF con reportlab
+- Manejo de borradores
+
+================================================================================
+ 9. INVENTARIO
+================================================================================
+ARCHIVO: app/Views/inventario/index.php
+PROPÓSITO: Gestión de productos/repuestos del taller.
+
+LAYOUT:
+- Encabezado "Inventario" con botón "+ NUEVO PRODUCTO"
+- Barra de búsqueda (nombre, categoría, SKU)
+- Contador total
+- Selector de límite
+- Tabla con columnas:
+  * Imagen (miniatura)
+  * Producto (nombre + SKU)
+  * Categoría
+  * Stock (con alerta si bajo)
+  * Precio
+  * Estado (activo/inactivo)
+  * Acciones (editar/eliminar/kardex)
+- Paginación
+- Modal para crear/editar producto con:
+  * Subida de imagen (archivo o URL)
+  * Nombre, SKU, Categoría
+  * Stock actual, Stock mínimo
+  * Precio de compra, Precio de venta
+  * Estado (activo/inactivo)
+
+INTERACCIONES:
+- CRUD completo vía AJAX
+- Subida de imágenes (archivo o URL)
+- Alerta visual si stock < stock mínimo
+- Enlace directo a kardex del producto
+
+NOTAS PYTHON:
+- QTableWidget con imágenes (QTableWidgetItem con icono)
+- QDialog para formulario con QLineEdit, QSpinBox, QComboBox
+- Subida de imágenes con QFileDialog
+- Validación de stock mínimo
+
+================================================================================
+ 10. KARDEX (Movimientos de Inventario)
+================================================================================
+ARCHIVO: app/Views/inventario/kardex.php
+PROPÓSITO: Historial de movimientos de un producto específico.
+
+LAYOUT:
+- Encabezado "Kardex" con botón "Volver a Inventario"
+- Tarjeta de información del producto:
+  * Imagen del producto
+  * Nombre
+  * Categoría
+  * Stock Actual
+  * Stock Mínimo
+  * Último Costo
+  * Precio Venta
+- Gráfico de historial de costos (Chart.js - línea)
+- Tabla de movimientos con columnas:
+  * ID
+  * Fecha
+  * Tipo (entrada/salida)
+  * Cantidad
+  * Flujo Stock (nuevo stock después del movimiento)
+  * Referencia (factura, orden, etc.)
+  * Acciones
+- Barra de búsqueda y selector de límite
+- Paginación
+
+INTERACCIONES:
+- Gráfico de evolución de costos
+- Búsqueda y paginación de movimientos
+- Enlace a documento de referencia
+
+NOTAS PYTHON:
+- QTableWidget con paginación
+- Gráfico de línea con matplotlib
+- Tarjeta de resumen del producto
+- Filtros por fecha y tipo
+
+================================================================================
+ 11. GASTOS
+================================================================================
+ARCHIVO: app/Views/gastos/index.php
+PROPÓSITO: Registro y control de gastos operativos.
+
+LAYOUT:
+- Encabezado "Gastos" con botón rojo "REGISTRAR GASTO"
+- Filtros de fecha (desde / hasta)
+- Barra de búsqueda (descripción o categoría)
+- Tabla con columnas:
+  * Fecha
+  * Descripción
+  * Categoría
+  * Monto
+  * Acciones (editar/eliminar)
+- Paginación
+- Botón "IMPRIMIR REPORTE" para PDF
+
+INTERACCIONES:
+- CRUD completo vía AJAX
+- Filtro por rango de fechas
+- Búsqueda por descripción/categoría
+- Generación de reporte PDF
+
+NOTAS PYTHON:
+- QTableWidget con filtros de fecha (QDateEdit)
+- QDialog para registro de gasto
+- QComboBox para categorías
+- Generación de PDF
+
+================================================================================
+ 12. PROVEEDORES
+================================================================================
+ARCHIVO: app/Views/proveedor/index.php
+PROPÓSITO: Gestión de proveedores y cuentas por pagar.
+
+LAYOUT:
+- Dos pestañas (tabs):
+  TAB 1 - "DIRECTORIO":
+  * Barra de búsqueda
+  * Tabla: NIT, Nombre, Contacto, Acciones
+  * Modal para crear/editar proveedor
+  
+  TAB 2 - "CUENTAS POR PAGAR":
+  * Tabla de deudas pendientes
+  * Facturas pendientes
+  * Saldo pendiente
+  * Próximo vencimiento
+  * Acciones
+
+INTERACCIONES:
+- Cambio entre tabs
+- CRUD de proveedores
+- Vista de deudas y vencimientos
+
+NOTAS PYTHON:
+- QTabWidget para las dos vistas
+- QTableWidget para cada tabla
+- QDialog para formulario de proveedor
+- Cálculo de saldos y vencimientos
+
+================================================================================
+ 13. PERSONAL (Empleados)
+================================================================================
+ARCHIVO: app/Views/personal/index.php
+PROPÓSITO: Gestión del personal del taller.
+
+LAYOUT:
+- Encabezado "Personal" con botón "+ NUEVO"
+- Barra de búsqueda (nombre, rol, documento)
+- Tabla con columnas:
+  * ID Interno
+  * Cédula
+  * Nombre
+  * Rol / Especialidad
+  * Nivel de Acceso
+  * Contacto
+  * Acciones (editar/eliminar)
+- Modal para crear/editar con campos:
+  * ID Interno
+  * Cédula
+  * Cargo (select: ADMINISTRADOR, MECANICO, AYUDANTE, VENDEDOR)
+  * Nombres, Apellidos
+  * Teléfono, Email, Dirección
+  * Nivel de Acceso
+
+INTERACCIONES:
+- CRUD completo vía AJAX
+- Roles predefinidos con colores
+- Nivel de acceso numérico
+
+NOTAS PYTHON:
+- QTableWidget con CRUD
+- QDialog con QComboBox para cargos
+- Validación de cédula
+- Control de acceso por rol
+
+================================================================================
+ 14. EMPRESA (Configuración)
+================================================================================
+ARCHIVO: app/Views/empresa/index.php
+PROPÓSITO: Configuración de datos de la empresa.
+
+LAYOUT:
+- Encabezado "Configuración de Empresa"
+- Formulario único con:
+  * Logo (subida con preview)
+  * Nombre de la Empresa
+  * NIT
+  * IVA (%) 
+  * Teléfono
+  * Dirección
+  * Email
+- Botón "GUARDAR CAMBIOS"
+
+INTERACCIONES:
+- Subida de logo con preview
+- Guardado vía AJAX
+- Validación de campos
+
+NOTAS PYTHON:
+- QFormLayout con QLineEdit
+- QLabel para preview de logo
+- QFileDialog para seleccionar imagen
+- QDoubleSpinBox para IVA
+
+================================================================================
+ 15. REPORTES CONTABLES
+================================================================================
+ARCHIVO: app/Views/reportes/index.php
+PROPÓSITO: Reportes financieros y contables avanzados.
+
+LAYOUT:
+- Encabezado "Reportes Contables"
+- 5 tarjetas de totales rápidos:
+  * Ingreso Neto Repuestos (azul)
+  * Ingreso Neto Servicios (índigo)
+  * Gastos y Compras (rojo)
+  * Deuda Proveedores (ámbar)
+  * Utilidad Real (esmeralda)
+- 7 pestañas (tabs):
+  1. Flujo de Caja
+  2. Auditoría de Trabajos
+  3. Cartera por Edades
+  4. Análisis Rentabilidad
+  5. Nómina y Pagos
+  6. Devoluciones
+  7. Historial Nómina
+- Filtro de rango de fechas
+- Barra de búsqueda
+- Selector de límite
+- Botón de exportar/PDF
+
+INTERACCIONES:
+- Cambio entre tabs con datos dinámicos
+- Filtros de fecha aplicados a todos los reportes
+- Generación de PDF para cada reporte
+- Cálculos financieros en tiempo real
+
+NOTAS PYTHON:
+- QTabWidget con 7 pestañas
+- QTableWidget para cada reporte
+- QDateEdit para filtros de fecha
+- Tarjetas de resumen con QFrame
+- Exportación a PDF
+
+================================================================================
+ 16. AUDITORÍA
+================================================================================
+ARCHIVO: app/Views/audit/index.php
+PROPÓSITO: Registro de actividades y cambios en el sistema.
+
+LAYOUT:
+- Encabezado "Auditoría" con botón "REFRESH"
+- Tabla con columnas:
+  * Fecha/Hora
+  * Usuario
+  * Módulo
+  * Acción (badges coloreados)
+  * Descripción
+  * Dirección IP
+- Acciones coloreadas:
+  * DELETE = rojo
+  * CREATE = verde
+  * LOGIN = azul
+  * UPDATE = amarillo
+
+INTERACCIONES:
+- Datos cargados dinámicamente vía JS
+- Botón de refrescar
+- Sin edición (solo lectura)
+
+NOTAS PYTHON:
+- QTableWidget de solo lectura
+- QPushButton para refrescar
+- Colores de acción consistentes
+- Scroll infinito o paginación
+
+================================================================================
+ 17. VENTA MOSTRADOR (Contador)
+================================================================================
+ARCHIVO: app/Views/venta/index.php
+PROPÓSITO: Ventas rápidas de repuestos en mostrador.
+
+LAYOUT:
+- Encabezado "Venta Mostrador"
+- Sección PRODUCTO:
+  * Búsqueda de producto con dropdown de resultados
+  * Tabla de items de venta:
+    - Producto
+    - Cantidad
+    - Precio
+    - Subtotal
+    - Eliminar
+  * Total general
+  * Placeholder vacío con icono package-open cuando no hay items
+- Sección HISTORIAL:
+  * Barra de búsqueda
+  * Filtros de fecha
+  * Selector de límite
+  * Tabla de ventas recientes
+  * Paginación
+
+INTERACCIONES:
+- Búsqueda de productos con autocompletado
+- Carrito de venta dinámico
+- Cálculo de total en tiempo real
+- Finalizar venta
+- Historial con filtros
+
+NOTAS PYTHON:
+- Interfaz dividida: carrito + historial
+- QTableWidget para items de venta
+- QLineEdit con QCompleter para productos
+- Cálculos automáticos
+
+================================================================================
+ 18. PERFIL DE USUARIO
+================================================================================
+ARCHIVO: app/Views/perfil/index.php
+PROPÓSITO: Perfil del usuario logueado con opciones de edición.
+
+LAYOUT:
+- Tema oscuro (glass-card, gray-900 inputs, verde neón)
+- Foto de avatar (circular, con overlay de cámara al hover)
+- Foto de carnet (rectangular)
+- Badge de rol
+- Formulario de información personal:
+  * Nombre
+  * Email
+  * Teléfono
+  * Dirección
+- Sección CAMBIAR CONTRASEÑA:
+  * Nueva contraseña
+  * Confirmar contraseña
+
+INTERACCIONES:
+- Subida de fotos con preview
+- Edición de datos personales
+- Cambio de contraseña con confirmación
+- Validación de campos
+
+NOTAS PYTHON:
+- QLabel circular para avatar (QPixmap con máscara)
+- QFileDialog para subir fotos
+- QLineEdit para campos
+- Validación de contraseña (mínimo 6 caracteres, coincidencia)
+
+================================================================================
+ 19. RECUPERAR CONTRASEÑA
+================================================================================
+ARCHIVO: app/Views/recuperar/index.php
+PROPÓSITO: Gestión de solicitudes de recuperación de contraseña.
+
+LAYOUT:
+- Contenedor simple
+- Tabla de solicitudes de recuperación cargada dinámicamente
+- Función JS: cargarTablaRecuperacion()
+
+INTERACCIONES:
+- Datos cargados vía AJAX
+- Aprobación/rechazo de solicitudes
+
+NOTAS PYTHON:
+- QTableWidget simple
+- QPushButton para acciones
+- Integración con envío de email
+
+================================================================================
+ 20. PÁGINA 404
+================================================================================
+ARCHIVO: app/Views/errores/404.php
+PROPÓSITO: Página de error para rutas no encontradas.
+
+LAYOUT:
+- Número "404" grande (150px, slate-200)
+- Icono search-x superpuesto
+- Título "¡Oops! Página no encontrada"
+- Descripción: "La página que buscas no existe o ha sido movida."
+- Botón "VOLVER AL INICIO" (verde neón)
+
+NOTAS PYTHON:
+- Ventana de error simple
+- QLabel con fuente grande para 404
+- QPushButton para volver
+
+================================================================================
+ 21. HISTORIAL PÚBLICO QR
+================================================================================
+ARCHIVO: app/Views/public/vehicle_history_qr.php
+PROPÓSITO: Página pública accesible vía QR para que el cliente vea el historial.
+
+LAYOUT:
+- Fondo gradiente (purple/indigo: #667eea → #764ba2)
+- Tarjeta glassmorphism (glass-card, 95% blanco, blur(12px))
+- Información del vehículo:
+  * Placa (4xl, grande)
+  * Marca (badge)
+  * Modelo, Año, Color
+- Botón de administrador (solo visible para rol ADMINISTRADOR)
+- Historial de servicios con badges de estado:
+  * RECIBIDO = azul
+  * DIAGNOSTICANDO = ámbar
+  * EN_REPARACION = índigo
+  * LISTO = esmeralda
+  * ENTREGADO = verde
+  * CANCELADO = rosa
+- Sección "Items Facturados" con descripción, cantidad, precio
+- Modal QR con backdrop blur
+- Información del propietario con teléfono
+
+INTERACCIONES:
+- Sin login requerido (público)
+- QR escaneable desde el vehículo
+- Botón admin condicional por rol
+
+NOTAS PYTHON:
+- Ventana independiente o diálogo
+- Diseño limpio y moderno
+- Generación de QR con qrcode
+- Sin necesidad de autenticación
+
+================================================================================
+ 22. PDF TEMPLATES (11 Plantillas)
+================================================================================
+ARCHIVOS: app/Views/pdf/templates/*.php
+PROPÓSITO: Generación de documentos PDF imprimibles.
+
+PLANTILLAS:
+1. factura.php - Factura de venta (cliente, items, totales, IVA)
+2. orden.php - Orden de servicio (vehículo, servicios, repuestos)
+3. cartera.php - Cartera de clientes (deudas, vencimientos)
+4. recibo_pago.php - Recibo de pago
+5. kardex_individual.php - Kardex de un producto
+6. kardex_reporte.php - Reporte general de kardex
+7. reporte_gastos.php - Reporte de gastos
+8. reporte_auditoria.php - Reporte de auditoría
+9. reporte_cartera_proveedores.php - Cartera de proveedores
+10. reporte_mostrador.php - Reporte de ventas mostrador
+11. reporte_proveedor_individual.php - Reporte individual proveedor
+
+HEADER COMPARTIDO (app/Views/pdf/inc/header.php):
+- Nombre empresa (22px, weight 900)
+- Línea verde decorativa (60px x 5px)
+- NIT, Dirección, Teléfono
+- Tipo de documento (coloreado)
+- Número de documento (22px)
+- Fecha de emisión
+- Estado, Vendedor, Técnico
+
+NOTAS PYTHON:
+- Usar reportlab o fpdf para generar PDFs
+- Mismo header/footer en todos los documentos
+- Datos desde la misma base de datos MySQL
+- Estilo limpio y profesional
+
+================================================================================
+ 23. COMPONENTES COMPARTIDOS
+================================================================================
+
+HEADER (app/Views/inc/header.php):
+- Sidebar lateral (w-64, bg-navy-blue #0f172a)
+- Menú de navegación organizado en secciones:
+  * Dashboard
+  * Gestión: Venta Repuestos, Inventario, Facturación, Taller, Proveedores, Gastos, Reportes Contables
+  * Administración: Clientes, Personal, Configuración
+- Top bar con:
+  * Botón hamburguesa (toggle sidebar)
+  * Reloj digital (neon-green, font-mono)
+  * Logo y nombre de empresa
+- Variables globales JS: URLROOT, URL_IMG, IVA_RATE, CSRF_TOKEN, USER_ROLE, USER_ROLE_ID
+
+FOOTER (app/Views/inc/footer.php):
+- Scripts: jQuery 3.7.0, pdfmake, SweetAlert2, Chart.js, Toastify-js, Lucide 0.344.0
+- DataTableRefactor.js (motor de tablas dinámicas propio)
+- app.js (funciones globales)
+
+NOTAS PYTHON:
+- Ventana principal con QMainWindow
+- QToolBar como top bar
+- QListWidget o QTreeWidget como sidebar
+- QStackedWidget para cambiar entre vistas
+- Reloj con QTimer
+
+================================================================================
+ 24. SISTEMA DE DISEÑO (Design System)
+================================================================================
+
+COLORES:
+- Fondo principal: Navy-blue #0f172a
+- Acento primario: Neon-green #10b981
+- Texto principal: Blanco/gris claro
+- Estados:
+  * RECIBIDO: Azul
+  * DIAGNOSTICANDO: Ámbar
+  * EN_REPARACION: Índigo
+  * LISTO: Esmeralda
+  * ENTREGADO: Verde
+  * CANCELADO: Rosa
+  * DELETE: Rojo
+  * CREATE: Verde
+  * LOGIN: Azul
+
+ESTILOS:
+- Glassmorphism: backdrop-blur, bg-opacity, rounded-2xl
+- Bordes redondeados: rounded-xl, rounded-2xl
+- Etiquetas: uppercase, tracking-widest, text-xs
+- Sombras suaves
+- Transiciones hover
+
+TIPOGRAFÍA:
+- Títulos: text-2xl o text-3xl, font-bold
+- Subtítulos: text-sm, uppercase, tracking-widest
+- Cuerpo: text-base, text-sm
+- Placa vehículo: text-4xl, font-bold
+
+================================================================================
+ 25. REGLAS DE NEGOCIO IMPORTANTES
+================================================================================
+
+1. CONTROL DE ACCESO:
+   - Roles: ADMINISTRADOR, MECANICO, AYUDANTE, VENDEDOR
+   - ADMINISTRADOR: acceso total
+   - MECANICO: taller, historial, perfil
+   - VENDEDOR: facturación, venta mostrador, clientes
+   - AYUDANTE: limitado a taller
+
+2. FLUJO DE ÓRDENES:
+   RECIBIDO → DIAGNOSTICANDO → EN_REPARACION → LISTO → ENTREGADO
+   Cualquier estado puede ir a CANCELADO
+
+3. FACTURACIÓN:
+   - Una orden puede tener múltiples facturas (parciales)
+   - Borradores guardados antes de facturar
+   - IVA configurable por empresa
+
+4. INVENTARIO:
+   - Stock mínimo configurable por producto
+   - Alerta visual cuando stock < mínimo
+   - Kardex obligatorio para cada movimiento
+
+5. SEGURIDAD:
+   - CSRF Token en todos los formularios
+   - Rutas protegidas por middleware (AuthGuard, RoleGuard)
+   - Auditoría de todas las operaciones CRUD
+
+================================================================================
+ FIN DEL DOCUMENTO
+================================================================================
