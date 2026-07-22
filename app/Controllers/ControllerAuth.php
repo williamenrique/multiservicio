@@ -62,15 +62,18 @@ class ControllerAuth extends Controller {
                         $this->userModel->actualizarPassword($userFound->id, $newHash);
                     }
 
-                    // Control de sesión única: Verificar si ya hay un registro en la BD
-                    $sesionActiva = $this->userModel->obtenerSesionActiva($userFound->id);
+                    // Detectar origen de la petición (WEB o APP)
+                    $tipoCliente = detectarTipoCliente();
+
+                    // Control de sesión por plataforma: solo verifica conflicto en el MISMO tipo
+                    $sesionActiva = $this->userModel->obtenerSesionActiva($userFound->id, $tipoCliente);
 
                     if ($sesionActiva && !$force) {
-                        // Si hay sesión y no se forzó, enviamos el flag session_exists
+                        // Hay sesión activa en la MISMA plataforma y no se forzó
                         return $this->jsonResponse([
                             'success' => false, 
                             'session_exists' => true, 
-                            'error' => 'Ya tienes una sesión abierta en otro dispositivo.'
+                            'error' => 'Ya tienes una sesión abierta en otro dispositivo (' . $tipoCliente . ').'
                         ]);
                     }
 
@@ -83,11 +86,13 @@ class ControllerAuth extends Controller {
                     $_SESSION['user_role_id'] = (int)$userFound->role_id;
                     $_SESSION['user_staff_id'] = $userFound->staff_id ?? null;
                     $_SESSION['user_foto'] = $userFound->foto;
+                    $_SESSION['tipo_cliente'] = $tipoCliente; // Guardar tipo en sesión
 
-                    // Actualizar o crear el registro de sesión única en la base de datos
+                    // Registrar sesión con el tipo detectado (REPLACE por UK usuario_id+tipo)
                     $this->userModel->registrarSesion([
                         'session_id' => session_id(),
                         'usuario_id' => $userFound->id,
+                        'tipo' => $tipoCliente,
                         'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0',
                         'usuario_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido'
                     ]);

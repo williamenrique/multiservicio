@@ -88,6 +88,48 @@ function renderView($view, $data = []) {
 }
 
 /**
+ * Detecta el origen de la petición: 'WEB' o 'APP'.
+ * Estrategia:
+ *  1. Header personalizado X-Client-Type (enviado por la app).
+ *  2. User-Agent con patrones típicos de apps móviles (okhttp, Dalvik, Android, etc.).
+ *  3. Content-Type application/json como indicio de app.
+ *  4. Por defecto: 'WEB'.
+ * @return string 'WEB' | 'APP'
+ */
+function detectarTipoCliente() {
+    $headers = array_change_key_case(getallheaders(), CASE_LOWER);
+
+    // 1. Header personalizado
+    if (isset($headers['x-client-type'])) {
+        $tipo = strtoupper(trim($headers['x-client-type']));
+        if (in_array($tipo, ['WEB', 'APP'], true)) {
+            return $tipo;
+        }
+    }
+
+    // 2. User-Agent heurístico
+    $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $appPatterns = ['okhttp', 'Dalvik', 'Android', 'UnityPlayer', 'FBAN', 'MobileApp', 'Dart', 'Flutter'];
+    foreach ($appPatterns as $pattern) {
+        if (stripos($ua, $pattern) !== false) {
+            return 'APP';
+        }
+    }
+
+    // 3. Content-Type JSON como indicio de app
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    if (stripos($contentType, 'application/json') !== false) {
+        // Si además no hay cookies de sesión típicas de navegador, asumimos APP
+        if (empty($_COOKIE) && stripos($ua, 'Mozilla') === false) {
+            return 'APP';
+        }
+    }
+
+    // 4. Por defecto: WEB
+    return 'WEB';
+}
+
+/**
  * Registra una acción en la bitácora de auditoría.
  * @param string $modulo Nombre del módulo (AUTH, PERSONAL, INVENTARIO, etc.)
  * @param string $accion Acción realizada (LOGIN, CREATE, UPDATE, DELETE)

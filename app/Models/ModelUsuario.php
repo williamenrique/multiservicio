@@ -32,26 +32,54 @@ class ModelUsuario {
         return $this->db->execute();
     }
 
-    public function obtenerSesionActiva($usuarioId) {
-        $this->db->query("SELECT session_id FROM table_usuario_sessions WHERE usuario_id = :uid");
-        $this->db->bind(':uid', $usuarioId);
+    /**
+     * Obtiene la sesión activa de un usuario filtrando por tipo (WEB o APP).
+     * @param int $usuarioId
+     * @param string $tipo 'WEB' o 'APP'
+     * @return object|false
+     */
+    public function obtenerSesionActiva($usuarioId, $tipo = null) {
+        if ($tipo) {
+            $this->db->query("SELECT session_id FROM table_usuario_sessions WHERE usuario_id = :uid AND tipo = :tipo");
+            $this->db->bind(':uid', $usuarioId);
+            $this->db->bind(':tipo', $tipo);
+        } else {
+            // Retrocompatibilidad: sin tipo, busca cualquier sesión
+            $this->db->query("SELECT session_id FROM table_usuario_sessions WHERE usuario_id = :uid");
+            $this->db->bind(':uid', $usuarioId);
+        }
         return $this->db->single();
     }
 
+    /**
+     * Registra o reemplaza la sesión para un usuario en una plataforma específica.
+     * Usa REPLACE con la UK (usuario_id, tipo) para garantizar solo 1 sesión por tipo.
+     */
     public function registrarSesion($data) {
-        // REPLACE asegura que solo exista un registro por usuario_id (Sesión Única)
-        $this->db->query("REPLACE INTO table_usuario_sessions (usuario_id, session_id, ip_address, usuario_agent) 
-                          VALUES (:uid, :sid, :ip, :ua)");
+        $this->db->query("REPLACE INTO table_usuario_sessions (usuario_id, tipo, session_id, ip_address, usuario_agent) 
+                          VALUES (:uid, :tipo, :sid, :ip, :ua)");
         $this->db->bind(':uid', $data['usuario_id']);
+        $this->db->bind(':tipo', $data['tipo'] ?? 'WEB');
         $this->db->bind(':sid', $data['session_id']);
         $this->db->bind(':ip', $data['ip_address']);
         $this->db->bind(':ua', $data['usuario_agent']);
         return $this->db->execute();
     }
 
-    public function eliminarSesiones($usuarioId) {
-        $this->db->query("DELETE FROM table_usuario_sessions WHERE usuario_id = :uid");
-        $this->db->bind(':uid', $usuarioId);
+    /**
+     * Elimina las sesiones de un usuario. Si se especifica $tipo, solo elimina esa plataforma.
+     * @param int $usuarioId
+     * @param string|null $tipo 'WEB', 'APP' o null para eliminar todas
+     */
+    public function eliminarSesiones($usuarioId, $tipo = null) {
+        if ($tipo) {
+            $this->db->query("DELETE FROM table_usuario_sessions WHERE usuario_id = :uid AND tipo = :tipo");
+            $this->db->bind(':uid', $usuarioId);
+            $this->db->bind(':tipo', $tipo);
+        } else {
+            $this->db->query("DELETE FROM table_usuario_sessions WHERE usuario_id = :uid");
+            $this->db->bind(':uid', $usuarioId);
+        }
         return $this->db->execute();
     }
 

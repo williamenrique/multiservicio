@@ -20,11 +20,13 @@ class AuthGuard {
             redirect('auth');
         }
  
-        // Validación de sesión única contra Base de Datos
+        // Validación de sesión por plataforma (WEB/APP) contra Base de Datos
+        $tipoCliente = $_SESSION['tipo_cliente'] ?? detectarTipoCliente();
         try {
             $db = new Database();
-            $db->query("SELECT session_id FROM table_usuario_sessions WHERE usuario_id = :uid");
+            $db->query("SELECT session_id FROM table_usuario_sessions WHERE usuario_id = :uid AND tipo = :tipo");
             $db->bind(':uid', $_SESSION['user_id']);
+            $db->bind(':tipo', $tipoCliente);
             $registro = $db->single();
         } catch (Throwable $e) {
             // Si falla la DB, por seguridad cerramos sesión
