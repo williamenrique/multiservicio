@@ -521,4 +521,51 @@ class ControllerCatalogo extends Controller {
             $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()]);
         }
     }
+
+    /**
+     * Lista de pedidos procesados (staff autenticado)
+     * GET /catalogo/pedidos-procesados
+     */
+    public function pedidosProcesados() {
+        if (!isset($_SESSION['user_id'])) {
+            redirect('login');
+        }
+
+        $pedidos = $this->modelCatalogo->listarPedidosProcesados();
+
+        $data = [
+            'titulo' => 'Pedidos Procesados',
+            'pedidos' => $pedidos
+        ];
+
+        $this->view('catalogo/pedidos_procesados', $data);
+    }
+
+    /**
+     * API: Obtener conteo de pedidos pendientes para notificaciones (badge en header)
+     * GET /catalogo/notificaciones-pedidos
+     */
+    public function notificacionesPedidos() {
+        if (!isset($_SESSION['user_id'])) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'No autorizado.']);
+            return;
+        }
+
+        $db = new Database();
+        $db->query("SELECT p.id, p.nombre_cliente, p.telefono_cliente, p.total, p.fecha_pedido,
+                           COUNT(pd.id) as total_items
+                    FROM pedidos_clientes p
+                    LEFT JOIN pedido_detalles pd ON p.id = pd.pedido_id
+                    WHERE p.estado = 'PENDIENTE'
+                    GROUP BY p.id
+                    ORDER BY p.fecha_pedido DESC");
+
+        $pedidos = $db->resultSet();
+
+        $this->jsonResponse([
+            'success' => true,
+            'total' => count($pedidos),
+            'data' => $pedidos
+        ]);
+    }
 }

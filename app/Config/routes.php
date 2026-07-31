@@ -26,6 +26,7 @@ return [
 
     // Catálogo staff - gestión de pedidos
     'catalogo/pedidos-pendientes'      => 'Catalogo@pedidosPendientes',
+    'catalogo/pedidos-procesados'      => 'Catalogo@pedidosProcesados',
     'catalogo/ver-pedido'              => 'Catalogo@verPedido',
     'catalogo/procesar-pedido-staff'   => 'Catalogo@procesarPedidoStaff',
     'catalogo/cancelar-pedido-staff'   => 'Catalogo@cancelarPedidoStaff',

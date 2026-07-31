@@ -128,8 +128,8 @@
                         <span class="font-medium">$<?php echo number_format($pedido->subtotal, 2); ?></span>
                     </div>
                     <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">IVA (19%)</span>
-                        <span class="font-medium">$<?php echo number_format($pedido->iva, 2); ?></span>
+                        <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400">— Deshabilitado</span></span>
+                        <span class="font-medium text-gray-400">$0.00</span>
                     </div>
                     <div class="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
                         <span>Total</span>

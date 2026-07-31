@@ -65,6 +65,9 @@
                     <a href="<?php echo URLROOT; ?>/gastos" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'gastos') !== false) ? 'active' : ''; ?>" data-section="gastos">
                         <i data-lucide="wallet"></i> <span>Gastos del Taller</span>
                     </a>
+                    <a href="<?php echo URLROOT; ?>/catalogo/pedidos-pendientes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'catalogo/pedidos') !== false) ? 'active' : ''; ?>" data-section="pedidos-clientes">
+                        <i data-lucide="clipboard-list"></i> <span>Pedidos Clientes</span>
+                    </a>
                     <?php if($_SESSION['user_role'] === 'ADMINISTRADOR'): ?>
                     <a href="<?php echo URLROOT; ?>/reportes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'reportes') !== false) ? 'active' : ''; ?>" data-section="reportes">
                         <i data-lucide="bar-chart-big"></i> <span>Reportes Contables</span>

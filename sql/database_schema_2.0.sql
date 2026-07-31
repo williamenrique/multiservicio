@@ -119,6 +119,7 @@ CREATE TABLE `table_proveedores` (
 -- Productos y Servicios
 CREATE TABLE `table_inventario` (
   `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `codigo` varchar(100) DEFAULT NULL,
   `nombre` varchar(150) NOT NULL,
   `categoria` varchar(50),
   `stock` int(11) DEFAULT 0,
@@ -129,7 +130,8 @@ CREATE TABLE `table_inventario` (
   `imagen` varchar(255),
   `estado` enum('ACTIVO', 'INACTIVO') DEFAULT 'ACTIVO',
   INDEX (`nombre`),
-  INDEX (`categoria`)
+  INDEX (`categoria`),
+  UNIQUE KEY `uk_codigo` (`codigo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Historial de movimientos de stock (Kardex)
@@ -386,6 +388,43 @@ CREATE TABLE `table_devoluciones` (
   FOREIGN KEY (`factura_id`) REFERENCES `table_facturas`(`id`),
   FOREIGN KEY (`producto_id`) REFERENCES `table_inventario`(`id`),
   FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =====================================================
+-- BLOQUE 7: CATÁLOGO PÚBLICO Y PEDIDOS EN LÍNEA
+-- =====================================================
+
+-- Pedidos realizados desde el catálogo público
+CREATE TABLE `pedidos_clientes` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `nombre_cliente` varchar(150) NOT NULL,
+  `cedula` varchar(20) DEFAULT NULL,
+  `correo` varchar(100) DEFAULT NULL,
+  `telefono` varchar(20) DEFAULT NULL,
+  `direccion` text DEFAULT NULL,
+  `notas` text DEFAULT NULL,
+  `subtotal` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `iva` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `total` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `estado` enum('PENDIENTE','PROCESADO','CANCELADO') DEFAULT 'PENDIENTE',
+  `usuario_procesa` int(11) DEFAULT NULL,
+  `fecha_pedido` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `fecha_procesado` datetime DEFAULT NULL,
+  INDEX (`estado`),
+  INDEX (`fecha_pedido`),
+  FOREIGN KEY (`usuario_procesa`) REFERENCES `table_usuarios`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Detalle de productos en cada pedido
+CREATE TABLE `pedido_detalles` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `pedido_id` int(11) NOT NULL,
+  `producto_id` int(11) NOT NULL,
+  `cantidad` int(11) NOT NULL DEFAULT 1,
+  `precio_unitario` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `subtotal` decimal(15,2) NOT NULL DEFAULT 0.00,
+  FOREIGN KEY (`pedido_id`) REFERENCES `pedidos_clientes`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`producto_id`) REFERENCES `table_inventario`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================

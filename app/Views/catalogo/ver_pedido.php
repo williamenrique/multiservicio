@@ -88,8 +88,8 @@
                         <span class="font-semibold">$<?php echo number_format($data['pedido']->subtotal, 2); ?></span>
                     </div>
                     <div class="flex justify-between text-sm">
-                        <span class="text-slate-500">IVA (19%)</span>
-                        <span class="font-semibold">$<?php echo number_format($data['pedido']->iva, 2); ?></span>
+                        <span class="text-slate-400">IVA (0%) <span class="text-xs text-slate-400">— Deshabilitado</span></span>
+                        <span class="font-semibold text-slate-400">$0.00</span>
                     </div>
                     <div class="flex justify-between text-lg font-extrabold pt-3 border-t border-slate-200">
                         <span class="text-navy-blue">Total</span>

@@ -145,12 +145,9 @@ class ModelCatalogo {
             $subtotal += $item['precio'] * $item['cantidad'];
         }
 
-        // Obtener IVA desde configuración de empresa
-        $this->db->query("SELECT iva FROM table_company_settings WHERE id = 1");
-        $config = $this->db->single();
-        $ivaPorcentaje = ($config->iva ?? 19) / 100;
-        $iva = $subtotal * $ivaPorcentaje;
-        $total = $subtotal + $iva;
+        // IVA DESHABILITADO — Se usará 0 hasta que se active
+        $iva = 0;
+        $total = $subtotal;
 
         $this->db->query("INSERT INTO pedidos_clientes 
             (nombre_cliente, cedula, correo, telefono, direccion, notas, subtotal, iva, total, estado) 
@@ -222,6 +219,21 @@ class ModelCatalogo {
     }
 
     /**
+     * Lista pedidos ya procesados (PROCESADO, CANCELADO)
+     */
+    public function listarPedidosProcesados() {
+        $this->db->query("SELECT pc.*, 
+                          (SELECT COUNT(*) FROM pedido_detalles WHERE pedido_id = pc.id) as total_items,
+                          u.nombre as nombre_usuario
+                          FROM pedidos_clientes pc 
+                          LEFT JOIN table_usuarios u ON pc.usuario_procesa = u.id
+                          WHERE pc.estado IN ('PROCESADO', 'CANCELADO')
+                          ORDER BY pc.fecha_pedido DESC
+                          LIMIT 100");
+        return $this->db->resultSet();
+    }
+
+    /**
      * Lista todos los pedidos (historial)
      */
     public function listarPedidos($estado = null, $limit = 50, $offset = 0) {
@@ -266,8 +278,18 @@ class ModelCatalogo {
         $this->db->query("START TRANSACTION");
 
         try {
-            // Descontar stock de cada producto
+            // Descontar stock de cada producto y registrar en kardex
             foreach ($detalles as $detalle) {
+                // Obtener stock actual antes del descuento
+                $this->db->query("SELECT stock FROM table_inventario WHERE id = :id");
+                $this->db->bind(':id', $detalle->producto_id);
+                $producto = $this->db->single();
+                if (!$producto) {
+                    throw new Exception("Producto no encontrado: {$detalle->nombre}");
+                }
+                $stockAnterior = (int)$producto->stock;
+
+                // Descontar stock
                 $this->db->query("UPDATE table_inventario SET stock = stock - :cantidad WHERE id = :id AND stock >= :cantidad");
                 $this->db->bind(':cantidad', $detalle->cantidad);
                 $this->db->bind(':id', $detalle->producto_id);
@@ -277,6 +299,21 @@ class ModelCatalogo {
                 if ($this->db->rowCount() === 0) {
                     throw new Exception("Stock insuficiente para: {$detalle->nombre}");
                 }
+
+                $stockActual = $stockAnterior - (int)$detalle->cantidad;
+
+                // Registrar movimiento en kardex
+                $this->db->query("INSERT INTO table_kardex 
+                    (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_actual, referencia_id, usuario_id, observacion) 
+                    VALUES (:producto_id, 'SALIDA_VENTA', :cantidad, :stock_anterior, :stock_actual, :referencia, :usuario_id, :observacion)");
+                $this->db->bind(':producto_id', $detalle->producto_id);
+                $this->db->bind(':cantidad', $detalle->cantidad);
+                $this->db->bind(':stock_anterior', $stockAnterior);
+                $this->db->bind(':stock_actual', $stockActual);
+                $this->db->bind(':referencia', 'PEDIDO-CATALOGO-' . $pedidoId);
+                $this->db->bind(':usuario_id', $usuarioId);
+                $this->db->bind(':observacion', 'Venta por catálogo - Pedido #' . $pedidoId . ' - Cliente: ' . ($pedido->nombre_cliente ?? 'N/A'));
+                $this->db->execute();
             }
 
             // Actualizar estado del pedido
