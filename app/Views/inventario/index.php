@@ -102,10 +102,14 @@
             <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Código</label>
                 <div class="relative">
-                    <input type="text" name="codigo" id="prodCodigo" list="codigoList" autocomplete="off"
+                    <input type="text" name="codigo" id="prodCodigo" autocomplete="off"
                         placeholder="Ej: BOMGAS-001"
                         class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all">
-                    <datalist id="codigoList"></datalist>
+                    <!-- Lista desplegable personalizada con scroll neón -->
+                    <div id="codigoDropdown" class="hidden absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden">
+                        <div id="codigoDropdownList" class="max-h-48 overflow-y-auto custom-scrollbar-neon"></div>
+                        <div id="codigoDropdownEmpty" class="hidden px-4 py-3 text-xs text-slate-400 italic text-center">Sin resultados</div>
+                    </div>
                     <span id="codigoSugerencia" class="text-[10px] text-neon-green font-bold hidden ml-1"></span>
                 </div>
             </div>

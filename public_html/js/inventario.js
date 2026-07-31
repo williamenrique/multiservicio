@@ -162,19 +162,77 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // ===== CÓDIGO COMBOBOX =====
+    // ===== CÓDIGO DROPDOWN PERSONALIZADO =====
+    const codigoInput = document.getElementById('prodCodigo');
+    const codigoDropdown = document.getElementById('codigoDropdown');
+    const codigoDropdownList = document.getElementById('codigoDropdownList');
+    const codigoDropdownEmpty = document.getElementById('codigoDropdownEmpty');
+    let codigosCache = [];
+
     async function cargarCodigos() {
         try {
             const res = await fetch(`${URLROOT}/inventario/codigos`);
             const data = await res.json();
             if (data.success) {
-                const datalist = document.getElementById('codigoList');
-                datalist.innerHTML = data.codigos.map(c => `<option value="${c}">`).join('');
+                codigosCache = data.codigos;
+                renderCodigosDropdown(codigosCache);
             }
         } catch (e) {
             console.warn('Error al cargar códigos:', e);
         }
     }
+
+    function renderCodigosDropdown(lista) {
+        if (!codigoDropdownList) return;
+        if (lista.length === 0) {
+            codigoDropdownList.innerHTML = '';
+            codigoDropdownEmpty.classList.remove('hidden');
+            return;
+        }
+        codigoDropdownEmpty.classList.add('hidden');
+        codigoDropdownList.innerHTML = lista.map(c =>
+            `<div class="px-4 py-2.5 text-sm font-mono text-slate-700 uppercase cursor-pointer hover:bg-neon-green/10 hover:text-neon-green border-b border-slate-100 last:border-b-0 transition-all" data-codigo="${c}">${c}</div>`
+        ).join('');
+
+        // Click en un item lo selecciona y cierra el dropdown
+        codigoDropdownList.querySelectorAll('[data-codigo]').forEach(el => {
+            el.addEventListener('click', () => {
+                codigoInput.value = el.dataset.codigo;
+                codigoDropdown.classList.add('hidden');
+                codigoInput.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        });
+    }
+
+    // Mostrar dropdown al enfocar el input si hay códigos
+    codigoInput.addEventListener('focus', () => {
+        if (codigosCache.length > 0) {
+            renderCodigosDropdown(codigosCache.filter(c =>
+                c.includes(codigoInput.value.toUpperCase())
+            ));
+            codigoDropdown.classList.remove('hidden');
+        }
+    });
+
+    // Filtrar mientras escribe
+    codigoInput.addEventListener('input', (e) => {
+        const val = e.target.value.toUpperCase();
+        if (val.length > 0 && codigosCache.length > 0) {
+            const filtrados = codigosCache.filter(c => c.includes(val));
+            renderCodigosDropdown(filtrados);
+            codigoDropdown.classList.remove('hidden');
+        } else if (val.length === 0) {
+            renderCodigosDropdown(codigosCache);
+            codigoDropdown.classList.remove('hidden');
+        }
+    });
+
+    // Cerrar dropdown al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (codigoDropdown && !e.target.closest('#prodCodigo') && !e.target.closest('#codigoDropdown')) {
+            codigoDropdown.classList.add('hidden');
+        }
+    });
 
     // Convertir a mayúsculas automáticamente mientras escribe
     document.getElementById('prodCodigo').addEventListener('input', (e) => {

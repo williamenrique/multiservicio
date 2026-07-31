@@ -193,7 +193,7 @@ class ControllerCatalogo extends Controller {
                 $subtotalCarrito += $r->precio * $qty;
             }
         }
-        $iva = $subtotalCarrito * 0.13;
+        $iva = 0; // IVA deshabilitado temporalmente
         $total = $subtotalCarrito + $iva;
 
         $this->jsonResponse([
@@ -229,7 +229,7 @@ class ControllerCatalogo extends Controller {
                 $subtotalCarrito += $r->precio * $qty;
             }
         }
-        $iva = $subtotalCarrito * 0.13;
+        $iva = 0; // IVA deshabilitado temporalmente
         $total = $subtotalCarrito + $iva;
 
         $this->jsonResponse([
