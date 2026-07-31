@@ -44,6 +44,7 @@
                 <thead>
                     <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
                         <th class="px-8 py-6">Imagen</th>
+                        <th class="px-8 py-6">Código</th>
                         <th class="px-8 py-6">Producto</th>
                         <th class="px-8 py-6">Categoría</th>
                         <th class="px-8 py-6">Stock</th>
@@ -54,7 +55,7 @@
                 </thead>
                 <tbody id="tableBody" class="divide-y divide-slate-100 text-sm text-slate-600">
                     <tr>
-                        <td colspan="7" class="px-8 py-16 text-center text-slate-400 italic animate-pulse">SINCRONIZANDO INVENTARIO...</td>
+                        <td colspan="8" class="px-8 py-16 text-center text-slate-400 italic animate-pulse">SINCRONIZANDO INVENTARIO...</td>
                     </tr>
                 </tbody>
             </table>
@@ -95,6 +96,17 @@
                 <div class="w-full">
                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">O pega una URL de imagen externa</label>
                     <input type="text" name="imagen" id="prodImagen" placeholder="https://ejemplo.com/imagen.jpg" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-4 text-xs outline-none focus:border-neon-green transition-all">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Código</label>
+                <div class="relative">
+                    <input type="text" name="codigo" id="prodCodigo" list="codigoList" autocomplete="off"
+                        placeholder="Ej: BOMGAS-001"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all">
+                    <datalist id="codigoList"></datalist>
+                    <span id="codigoSugerencia" class="text-[10px] text-neon-green font-bold hidden ml-1"></span>
                 </div>
             </div>
 

@@ -81,9 +81,10 @@ class ModelInventario {
     }
 
     public function crear($datos) {
-        $this->db->query("INSERT INTO table_inventario (nombre, categoria, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen) 
-                          VALUES (:nombre, :categoria, :stock, :smin, :costo, :cprom, :precio, :imagen)");
+        $this->db->query("INSERT INTO table_inventario (codigo, nombre, categoria, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen) 
+                          VALUES (:codigo, :nombre, :categoria, :stock, :smin, :costo, :cprom, :precio, :imagen)");
         
+        $this->db->bind(':codigo', $datos['codigo'] ?? null);
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
         $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
         $this->db->bind(':stock', $datos['stock']);
@@ -101,7 +102,8 @@ class ModelInventario {
 
     public function actualizar($datos) {
         $this->db->query("UPDATE table_inventario 
-                          SET nombre = :nombre, 
+                          SET codigo = :codigo,
+                              nombre = :nombre, 
                               categoria = :categoria, 
                               stock = :stock,
                               stock_minimo = :smin,
@@ -112,6 +114,7 @@ class ModelInventario {
                           WHERE id = :id");
         
         $this->db->bind(':id', $datos['id']);
+        $this->db->bind(':codigo', $datos['codigo'] ?? null);
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
         $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
         $this->db->bind(':stock', $datos['stock']);
@@ -131,6 +134,29 @@ class ModelInventario {
         $this->db->query("DELETE FROM table_inventario WHERE id = :id");
         $this->db->bind(':id', $id);
         return $this->db->execute();
+    }
+
+    /**
+     * Obtiene todos los códigos únicos existentes en el inventario
+     */
+    public function obtenerCodigos() {
+        $this->db->query("SELECT DISTINCT codigo FROM table_inventario WHERE codigo IS NOT NULL AND codigo != '' ORDER BY codigo ASC");
+        return $this->db->resultSet();
+    }
+
+    /**
+     * Obtiene el siguiente número correlativo para un prefijo de código dado
+     * Ej: para prefijo 'BOMGAS-' devuelve el siguiente número disponible
+     */
+    public function obtenerSiguienteCorrelativo($prefijo) {
+        $this->db->query("SELECT codigo FROM table_inventario WHERE codigo LIKE :prefijo ORDER BY codigo DESC LIMIT 1");
+        $this->db->bind(':prefijo', $prefijo . '%');
+        $ultimo = $this->db->single();
+        
+        if ($ultimo && preg_match('/-(\d+)$/', $ultimo->codigo, $m)) {
+            return (int)$m[1] + 1;
+        }
+        return 1;
     }
 
     /**

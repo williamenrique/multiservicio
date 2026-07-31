@@ -1,0 +1,524 @@
+<?php
+/**
+ * Controlador de Catálogo Público
+ * Muestra repuestos, gestiona carrito público y pedidos.
+ * NO requiere autenticación - acceso público.
+ */
+class ControllerCatalogo extends Controller {
+
+    private $modelCatalogo;
+
+    public function __construct() {
+        // NOTA: No se llama a AuthGuard - es público
+        $this->modelCatalogo = $this->model('Catalogo');
+    }
+
+    /**
+     * Página principal del catálogo
+     * GET /catalogo
+     */
+    public function index() {
+        $busqueda = $_GET['busqueda'] ?? null;
+        $categoria = $_GET['categoria'] ?? null;
+        $pagina = max(1, (int)($_GET['pagina'] ?? 1));
+        $limit = 12;
+        $offset = ($pagina - 1) * $limit;
+
+        $repuestos = $this->modelCatalogo->listarRepuestos($busqueda, $categoria, $limit, $offset);
+        $total = $this->modelCatalogo->contarRepuestos($busqueda, $categoria);
+        $categorias = $this->modelCatalogo->obtenerCategorias();
+        $totalPaginas = max(1, ceil($total / $limit));
+
+        $carritoCount = array_sum($_SESSION['carrito_publico'] ?? []);
+
+        $data = [
+            'titulo' => 'Catálogo de Repuestos',
+            'repuestos' => $repuestos,
+            'categorias' => $categorias,
+            'busqueda' => $busqueda,
+            'categoriaSeleccionada' => $categoria,
+            'paginaActual' => $pagina,
+            'totalPaginas' => $totalPaginas,
+            'total' => $total,
+            'carrito_count' => $carritoCount
+        ];
+
+        $this->view('public/catalogo/index', $data);
+    }
+
+    /**
+     * Detalle de un repuesto
+     * GET /catalogo/detalle/{id}
+     */
+    public function detalle($id = null) {
+        if (!$id) {
+            redirect('catalogo');
+        }
+
+        $repuesto = $this->modelCatalogo->obtenerRepuesto($id);
+        if (!$repuesto) {
+            $this->view('errores/404', ['titulo' => 'Producto no encontrado']);
+            return;
+        }
+
+        $carritoCount = array_sum($_SESSION['carrito_publico'] ?? []);
+
+        $data = [
+            'titulo' => $repuesto->nombre,
+            'repuesto' => $repuesto,
+            'carrito_count' => $carritoCount
+        ];
+
+        $this->view('public/catalogo/detalle', $data);
+    }
+
+    /**
+     * Ver carrito
+     * GET /catalogo/carrito
+     */
+    public function carrito() {
+        $carrito = $_SESSION['carrito_publico'] ?? [];
+        $items = [];
+        $total = 0;
+
+        if (!empty($carrito)) {
+            foreach ($carrito as $id => $cantidad) {
+                $repuesto = $this->modelCatalogo->obtenerRepuesto($id);
+                if ($repuesto) {
+                    $subtotal = $repuesto->precio * $cantidad;
+                    $total += $subtotal;
+                    $items[] = [
+                        'id' => $repuesto->id,
+                        'nombre' => $repuesto->nombre,
+                        'codigo' => $repuesto->codigo,
+                        'precio' => $repuesto->precio,
+                        'cantidad' => $cantidad,
+                        'subtotal' => $subtotal,
+                        'imagen' => $repuesto->imagen,
+                        'stock' => $repuesto->stock
+                    ];
+                }
+            }
+        }
+
+        $carritoCount = array_sum($_SESSION['carrito_publico'] ?? []);
+
+        $data = [
+            'titulo' => 'Carrito de Compras',
+            'items' => $items,
+            'total' => $total,
+            'carrito_count' => $carritoCount
+        ];
+
+        $this->view('public/catalogo/carrito', $data);
+    }
+
+    /**
+     * Agregar al carrito (AJAX)
+     * POST /catalogo/agregar-carrito
+     */
+    public function agregarCarrito() {
+        $id = (int)($_POST['producto_id'] ?? $_POST['id'] ?? 0);
+        $cantidad = max(1, (int)($_POST['cantidad'] ?? 1));
+
+        if (!$id) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'Producto no válido.']);
+            return;
+        }
+
+        $repuesto = $this->modelCatalogo->obtenerRepuesto($id);
+        if (!$repuesto) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'Producto no encontrado.']);
+            return;
+        }
+
+        if ($repuesto->stock < 1) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'Producto sin stock disponible.']);
+            return;
+        }
+
+        if (!isset($_SESSION['carrito_publico'])) {
+            $_SESSION['carrito_publico'] = [];
+        }
+
+        $carrito = &$_SESSION['carrito_publico'];
+        $carrito[$id] = ($carrito[$id] ?? 0) + $cantidad;
+
+        $totalItems = array_sum($carrito);
+
+        $this->jsonResponse([
+            'success' => true,
+            'mensaje' => 'Producto agregado al carrito.',
+            'total_items' => $totalItems
+        ]);
+    }
+
+    /**
+     * Actualizar cantidad en carrito (AJAX)
+     * POST /catalogo/actualizar-carrito
+     */
+    public function actualizarCarrito() {
+        $id = (int)($_POST['id'] ?? 0);
+        $cantidad = max(0, (int)($_POST['cantidad'] ?? 0));
+
+        if (!isset($_SESSION['carrito_publico'])) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'Carrito vacío.']);
+            return;
+        }
+
+        if ($cantidad <= 0) {
+            unset($_SESSION['carrito_publico'][$id]);
+        } else {
+            $_SESSION['carrito_publico'][$id] = $cantidad;
+        }
+
+        $totalItems = array_sum($_SESSION['carrito_publico'] ?? []);
+
+        // Calcular subtotal del item y totales del carrito
+        $subtotalItem = 0;
+        $subtotalCarrito = 0;
+        if ($cantidad > 0) {
+            $repuesto = $this->modelCatalogo->buscarPorId($id);
+            if ($repuesto) {
+                $subtotalItem = $repuesto->precio * $cantidad;
+            }
+        }
+
+        // Calcular totales del carrito completo
+        $ids = array_keys($_SESSION['carrito_publico'] ?? []);
+        if (!empty($ids)) {
+            $repuestos = $this->modelCatalogo->buscarPorIds($ids);
+            foreach ($repuestos as $r) {
+                $qty = $_SESSION['carrito_publico'][$r->id] ?? 0;
+                $subtotalCarrito += $r->precio * $qty;
+            }
+        }
+        $iva = $subtotalCarrito * 0.13;
+        $total = $subtotalCarrito + $iva;
+
+        $this->jsonResponse([
+            'success' => true,
+            'total_items' => $totalItems,
+            'subtotal_item' => number_format($subtotalItem, 2, '.', ''),
+            'subtotal' => number_format($subtotalCarrito, 2, '.', ''),
+            'iva' => number_format($iva, 2, '.', ''),
+            'total' => number_format($total, 2, '.', '')
+        ]);
+    }
+
+    /**
+     * Eliminar del carrito (AJAX)
+     * POST /catalogo/eliminar-carrito
+     */
+    public function eliminarCarrito() {
+        $id = (int)($_POST['id'] ?? 0);
+
+        if (isset($_SESSION['carrito_publico'][$id])) {
+            unset($_SESSION['carrito_publico'][$id]);
+        }
+
+        $totalItems = array_sum($_SESSION['carrito_publico'] ?? []);
+
+        // Calcular totales del carrito completo
+        $subtotalCarrito = 0;
+        $ids = array_keys($_SESSION['carrito_publico'] ?? []);
+        if (!empty($ids)) {
+            $repuestos = $this->modelCatalogo->buscarPorIds($ids);
+            foreach ($repuestos as $r) {
+                $qty = $_SESSION['carrito_publico'][$r->id] ?? 0;
+                $subtotalCarrito += $r->precio * $qty;
+            }
+        }
+        $iva = $subtotalCarrito * 0.13;
+        $total = $subtotalCarrito + $iva;
+
+        $this->jsonResponse([
+            'success' => true,
+            'total_items' => $totalItems,
+            'subtotal' => number_format($subtotalCarrito, 2, '.', ''),
+            'iva' => number_format($iva, 2, '.', ''),
+            'total' => number_format($total, 2, '.', '')
+        ]);
+    }
+
+    /**
+     * Limpiar todo el carrito (AJAX)
+     * POST /catalogo/limpiar-carrito
+     */
+    public function limpiarCarrito() {
+        $_SESSION['carrito_publico'] = [];
+
+        $this->jsonResponse([
+            'success' => true,
+            'total_items' => 0,
+            'subtotal' => '0.00',
+            'iva' => '0.00',
+            'total' => '0.00'
+        ]);
+    }
+
+    /**
+     * Obtener conteo del carrito (AJAX)
+     * GET /catalogo/contar-carrito
+     */
+    public function contarCarrito() {
+        $totalItems = array_sum($_SESSION['carrito_publico'] ?? []);
+        $this->jsonResponse(['total_items' => $totalItems]);
+    }
+
+    /**
+     * Página de checkout (formulario de datos del cliente)
+     * GET /catalogo/checkout
+     */
+    public function checkout() {
+        $carrito = $_SESSION['carrito_publico'] ?? [];
+
+        if (empty($carrito)) {
+            redirect('catalogo/carrito');
+        }
+
+        $items = [];
+        $total = 0;
+
+        foreach ($carrito as $id => $cantidad) {
+            $repuesto = $this->modelCatalogo->obtenerRepuesto($id);
+            if ($repuesto) {
+                $subtotal = $repuesto->precio * $cantidad;
+                $total += $subtotal;
+                $items[] = [
+                    'id' => $repuesto->id,
+                    'nombre' => $repuesto->nombre,
+                    'codigo' => $repuesto->codigo,
+                    'precio' => $repuesto->precio,
+                    'cantidad' => $cantidad,
+                    'subtotal' => $subtotal
+                ];
+            }
+        }
+
+        $data = [
+            'titulo' => 'Finalizar Pedido',
+            'items' => $items,
+            'total' => $total
+        ];
+
+        $this->view('public/catalogo/checkout', $data);
+    }
+
+    /**
+     * Procesar pedido (POST)
+     * POST /catalogo/procesar-pedido
+     */
+    public function procesarPedido() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('catalogo/carrito');
+        }
+
+        $carrito = $_SESSION['carrito_publico'] ?? [];
+
+        if (empty($carrito)) {
+            redirect('catalogo/carrito');
+        }
+
+        // Validar datos del cliente
+        $nombre = trim($_POST['nombre'] ?? '');
+        $cedula = trim($_POST['cedula'] ?? '');
+        $correo = trim($_POST['correo'] ?? '');
+        $telefono = trim($_POST['telefono'] ?? '');
+        $direccion = trim($_POST['direccion'] ?? '');
+        $notas = trim($_POST['notas'] ?? '');
+
+        $errores = [];
+
+        if (empty($nombre)) $errores[] = 'El nombre es obligatorio.';
+        if (empty($cedula)) $errores[] = 'La cédula/NIT es obligatoria.';
+        if (empty($correo) || !filter_var($correo, FILTER_VALIDATE_EMAIL)) $errores[] = 'Correo electrónico no válido.';
+        if (empty($telefono)) $errores[] = 'El teléfono es obligatorio.';
+
+        if (!empty($errores)) {
+            $_SESSION['checkout_errores'] = $errores;
+            $_SESSION['checkout_data'] = $_POST;
+            redirect('catalogo/checkout');
+        }
+
+        // Preparar items del carrito
+        $items = [];
+        foreach ($carrito as $id => $cantidad) {
+            $repuesto = $this->modelCatalogo->obtenerRepuesto($id);
+            if ($repuesto && $repuesto->stock >= $cantidad) {
+                $items[] = [
+                    'id' => $repuesto->id,
+                    'precio' => $repuesto->precio,
+                    'cantidad' => $cantidad
+                ];
+            }
+        }
+
+        if (empty($items)) {
+            $_SESSION['checkout_errores'] = ['Los productos en tu carrito ya no están disponibles.'];
+            redirect('catalogo/carrito');
+        }
+
+        try {
+            $datosCliente = [
+                'nombre' => $nombre,
+                'cedula' => $cedula,
+                'correo' => $correo,
+                'telefono' => $telefono,
+                'direccion' => $direccion,
+                'notas' => $notas
+            ];
+
+            $pedidoId = $this->modelCatalogo->crearPedido($datosCliente, $items);
+
+            // Limpiar carrito
+            unset($_SESSION['carrito_publico']);
+            unset($_SESSION['checkout_data']);
+
+            redirect('catalogo/confirmacion/' . $pedidoId);
+        } catch (Exception $e) {
+            $_SESSION['checkout_errores'] = ['Error al procesar el pedido: ' . $e->getMessage()];
+            redirect('catalogo/checkout');
+        }
+    }
+
+    /**
+     * Confirmación de pedido
+     * GET /catalogo/confirmacion/{id}
+     */
+    public function confirmacion($id = null) {
+        if (!$id) {
+            redirect('catalogo');
+        }
+
+        $pedido = $this->modelCatalogo->obtenerPedido($id);
+        if (!$pedido) {
+            $this->view('errores/404', ['titulo' => 'Pedido no encontrado']);
+            return;
+        }
+
+        $detalles = $this->modelCatalogo->obtenerDetallesPedido($id);
+
+        $data = [
+            'titulo' => 'Pedido Confirmado',
+            'pedido' => $pedido,
+            'detalles' => $detalles
+        ];
+
+        $this->view('public/catalogo/confirmacion', $data);
+    }
+
+    // ============================================================
+    // MÉTODOS PARA STAFF (GESTIÓN DE PEDIDOS PÚBLICOS)
+    // ============================================================
+
+    /**
+     * Lista de pedidos pendientes (solo staff autenticado)
+     * GET /catalogo/pedidos-pendientes
+     */
+    public function pedidosPendientes() {
+        // Verificar autenticación
+        if (!isset($_SESSION['user_id'])) {
+            redirect('login');
+        }
+
+        $pedidos = $this->modelCatalogo->listarPedidosPendientes();
+
+        $data = [
+            'titulo' => 'Pedidos Pendientes',
+            'pedidos' => $pedidos
+        ];
+
+        $this->view('catalogo/pedidos_pendientes', $data);
+    }
+
+    /**
+     * Ver detalle de un pedido (staff)
+     * GET /catalogo/ver-pedido/{id}
+     */
+    public function verPedido($id = null) {
+        if (!isset($_SESSION['user_id'])) {
+            redirect('login');
+        }
+
+        if (!$id) {
+            redirect('catalogo/pedidos-pendientes');
+        }
+
+        $pedido = $this->modelCatalogo->obtenerPedido($id);
+        if (!$pedido) {
+            $this->view('errores/404', ['titulo' => 'Pedido no encontrado']);
+            return;
+        }
+
+        $detalles = $this->modelCatalogo->obtenerDetallesPedido($id);
+
+        $data = [
+            'titulo' => 'Pedido #' . $id,
+            'pedido' => $pedido,
+            'detalles' => $detalles
+        ];
+
+        $this->view('catalogo/ver_pedido', $data);
+    }
+
+    /**
+     * Procesar pedido (staff) - descuenta inventario
+     * POST /catalogo/procesar-pedido-staff
+     */
+    public function procesarPedidoStaff() {
+        if (!isset($_SESSION['user_id'])) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'No autorizado.']);
+            return;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'Método no permitido.']);
+            return;
+        }
+
+        $pedidoId = (int)($_POST['pedido_id'] ?? 0);
+
+        if (!$pedidoId) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'ID de pedido no válido.']);
+            return;
+        }
+
+        try {
+            $this->modelCatalogo->procesarPedido($pedidoId, $_SESSION['user_id']);
+            $this->jsonResponse(['success' => true, 'mensaje' => 'Pedido procesado y stock actualizado.']);
+        } catch (Exception $e) {
+            $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Cancelar pedido (staff)
+     * POST /catalogo/cancelar-pedido-staff
+     */
+    public function cancelarPedidoStaff() {
+        if (!isset($_SESSION['user_id'])) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'No autorizado.']);
+            return;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'Método no permitido.']);
+            return;
+        }
+
+        $pedidoId = (int)($_POST['pedido_id'] ?? 0);
+
+        if (!$pedidoId) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'ID de pedido no válido.']);
+            return;
+        }
+
+        try {
+            $this->modelCatalogo->cambiarEstadoPedido($pedidoId, 'CANCELADO');
+            $this->jsonResponse(['success' => true, 'mensaje' => 'Pedido cancelado.']);
+        } catch (Exception $e) {
+            $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()]);
+        }
+    }
+}

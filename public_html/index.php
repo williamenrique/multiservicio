@@ -89,7 +89,8 @@ try {
             'empresa',
             'clientes',
             'facturacion',
-            'reportes' // Sugerencia: añadir reportes si dan problemas de token
+            'reportes',
+            'catalogo'
         ];
         $isExcluded = false;
         foreach ($excludedRoutes as $route) {

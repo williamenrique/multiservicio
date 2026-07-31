@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="image" class="w-5 h-5 text-slate-400"></i>`}
                         </div>
                     </td>
+                    <td class="px-8 py-5 font-mono text-xs font-bold text-slate-500 uppercase tracking-tight align-middle">${item.codigo || '-'}</td>
                     <td class="px-8 py-5 font-bold text-base text-slate-700 uppercase tracking-tight align-middle">${item.nombre}</td>
                     <td class="px-8 py-5 align-middle">
                         <span class="text-xs font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider">${item.categoria}</span>
@@ -98,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Submit del formulario
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -112,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(form);
 
         // Normalizar textos a MAYÚSCULAS en el FormData
+        formData.set('codigo', document.getElementById('prodCodigo').value.trim().toUpperCase());
         formData.set('nombre', document.getElementById('prodNombre').value.trim().toUpperCase());
         formData.set('categoria', document.getElementById('prodCategoria').value.trim().toUpperCase());
 
@@ -159,14 +162,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    document.getElementById('btnOpenModal')?.addEventListener('click', () => toggleModal(true));
+    // ===== CÓDIGO COMBOBOX =====
+    async function cargarCodigos() {
+        try {
+            const res = await fetch(`${URLROOT}/inventario/codigos`);
+            const data = await res.json();
+            if (data.success) {
+                const datalist = document.getElementById('codigoList');
+                datalist.innerHTML = data.codigos.map(c => `<option value="${c}">`).join('');
+            }
+        } catch (e) {
+            console.warn('Error al cargar códigos:', e);
+        }
+    }
+
+    // Convertir a mayúsculas automáticamente mientras escribe
+    document.getElementById('prodCodigo').addEventListener('input', (e) => {
+        const start = e.target.selectionStart;
+        const end = e.target.selectionEnd;
+        e.target.value = e.target.value.toUpperCase();
+        e.target.setSelectionRange(start, end);
+    });
+
+    document.getElementById('prodCodigo').addEventListener('input', async (e) => {
+        const val = e.target.value.trim();
+        const sugerenciaEl = document.getElementById('codigoSugerencia');
+
+        // Detectar si el usuario está escribiendo un prefijo (ej: "BOMGAS-")
+        const match = val.match(/^([A-Za-z0-9]+-)$/);
+        if (match) {
+            try {
+                const res = await fetch(`${URLROOT}/inventario/codigos?prefijo=${encodeURIComponent(match[1])}`);
+                const data = await res.json();
+                if (data.success && data.sugerido) {
+                    sugerenciaEl.textContent = `Sugerido: ${data.sugerido}`;
+                    sugerenciaEl.classList.remove('hidden');
+                } else {
+                    sugerenciaEl.classList.add('hidden');
+                }
+            } catch (e) {
+                sugerenciaEl.classList.add('hidden');
+            }
+        } else {
+            sugerenciaEl.classList.add('hidden');
+        }
+    });
+
+    document.getElementById('btnOpenModal')?.addEventListener('click', () => {
+        cargarCodigos();
+        toggleModal(true);
+    });
     document.getElementById('btnCloseModal')?.addEventListener('click', () => toggleModal(false));
     document.getElementById('btnCancel')?.addEventListener('click', () => toggleModal(false));
 
     window.editItem = (id) => {
         const item = window.currentData.find(i => i.id == id);
 
+        cargarCodigos();
         document.getElementById('prodId').value = item.id;
+        document.getElementById('prodCodigo').value = item.codigo || '';
         document.getElementById('prodNombre').value = item.nombre;
         document.getElementById('prodCategoria').value = item.categoria;
         document.getElementById('prodStock').value = item.stock;

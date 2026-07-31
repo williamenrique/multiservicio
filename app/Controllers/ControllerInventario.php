@@ -190,6 +190,11 @@ class ControllerInventario extends Controller {
                     $input['nombre'] = mb_strtoupper(trim($input['nombre']), 'UTF-8');
                 }
 
+                // Normalizar código a mayúsculas
+                if (!empty($input['codigo'])) {
+                    $input['codigo'] = mb_strtoupper(trim($input['codigo']), 'UTF-8');
+                }
+
                 // Obtener el producto actual si es edición para gestionar el archivo viejo
                 $prodActual = !empty($input['id']) ? $this->inventarioModel->obtenerPorId($input['id']) : null;
 
@@ -244,6 +249,27 @@ class ControllerInventario extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
             }
         }
+    }
+
+    /**
+     * Endpoint AJAX: devuelve códigos existentes y sugiere correlativo según prefijo
+     * GET /inventario/codigos?prefijo=BOMGAS-
+     */
+    public function codigos() {
+        $prefijo = $_GET['prefijo'] ?? null;
+        $codigos = $this->inventarioModel->obtenerCodigos();
+        $sugerido = null;
+
+        if ($prefijo && $prefijo !== '') {
+            $correlativo = $this->inventarioModel->obtenerSiguienteCorrelativo($prefijo);
+            $sugerido = $prefijo . str_pad((string)$correlativo, 3, '0', STR_PAD_LEFT);
+        }
+
+        return $this->jsonResponse([
+            'success' => true,
+            'codigos' => array_column($codigos, 'codigo'),
+            'sugerido' => $sugerido
+        ]);
     }
 
     /**

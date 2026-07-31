@@ -41,7 +41,12 @@ class App {
 
         // 4. LÓGICA PARA EL MÉTODO (Si no fue definido por ruta manual)
         if (isset($url[1]) && $this->metodoActual === 'index') {
-            if (method_exists($this->controladorActual, $url[1])) {
+            // Convertir guiones a camelCase (ej: ver-pedido → verPedido)
+            $metodoUrl = lcfirst(str_replace(' ', '', ucwords(str_replace('-', ' ', $url[1]))));
+            if (method_exists($this->controladorActual, $metodoUrl)) {
+                $this->metodoActual = $metodoUrl;
+                unset($url[1]);
+            } elseif (method_exists($this->controladorActual, $url[1])) {
                 $this->metodoActual = $url[1];
                 unset($url[1]);
             } else {

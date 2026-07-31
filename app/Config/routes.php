@@ -14,5 +14,19 @@ return [
     'solicitudes-acceso' => 'Auth@solicitudes',
     
     // Taller - Corrección de rutas con guiones bajos
-    'taller/nueva_orden' => 'Taller@nuevaOrden'
+    'taller/nueva_orden' => 'Taller@nuevaOrden',
+
+    // Catálogo público - rutas con guiones
+    'catalogo/procesar-pedido'         => 'Catalogo@procesarPedido',
+    'catalogo/agregar-carrito'         => 'Catalogo@agregarCarrito',
+    'catalogo/actualizar-carrito'      => 'Catalogo@actualizarCarrito',
+    'catalogo/eliminar-carrito'        => 'Catalogo@eliminarCarrito',
+    'catalogo/contar-carrito'          => 'Catalogo@contarCarrito',
+    'catalogo/limpiar-carrito'         => 'Catalogo@limpiarCarrito',
+
+    // Catálogo staff - gestión de pedidos
+    'catalogo/pedidos-pendientes'      => 'Catalogo@pedidosPendientes',
+    'catalogo/ver-pedido'              => 'Catalogo@verPedido',
+    'catalogo/procesar-pedido-staff'   => 'Catalogo@procesarPedidoStaff',
+    'catalogo/cancelar-pedido-staff'   => 'Catalogo@cancelarPedidoStaff',
 ];
