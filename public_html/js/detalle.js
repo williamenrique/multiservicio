@@ -5,12 +5,27 @@
 
 let cantidad = 1;
 const precioUnitario = parseFloat(document.getElementById('subtotalDetalle')?.dataset?.precio || 0);
+const btnMenos = document.querySelector('button[onclick="cambiarCantidad(-1)"]');
+const btnMas = document.querySelector('button[onclick="cambiarCantidad(1)"]');
+const inputCantidad = document.getElementById('cantidad');
+
+function actualizarEstadoBotones() {
+    // Deshabilitar botón - si estamos en 1
+    if (btnMenos) btnMenos.disabled = (cantidad <= 1);
+    // Deshabilitar botón + si llegamos al stock máximo
+    if (btnMas) btnMas.disabled = (cantidad >= maxStock);
+    // Aplicar estilos visuales
+    if (btnMenos) btnMenos.style.opacity = cantidad <= 1 ? '0.4' : '1';
+    if (btnMas) btnMas.style.opacity = cantidad >= maxStock ? '0.4' : '1';
+}
 
 function cambiarCantidad(delta) {
     const nuevaCantidad = cantidad + delta;
 
-    // No bajar de 1, no subir más allá del stock disponible
+    // No bajar de 1
     if (nuevaCantidad < 1) return;
+
+    // No subir más allá del stock disponible
     if (nuevaCantidad > maxStock) {
         Toastify({
             text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
@@ -27,8 +42,9 @@ function cambiarCantidad(delta) {
     }
 
     cantidad = nuevaCantidad;
-    document.getElementById('cantidad').value = cantidad;
+    if (inputCantidad) inputCantidad.value = cantidad;
     actualizarSubtotal();
+    actualizarEstadoBotones();
 }
 
 function actualizarSubtotal() {

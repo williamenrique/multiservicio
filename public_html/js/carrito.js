@@ -12,6 +12,7 @@ function actualizarCantidad(id, cantidad) {
     // Validar contra el stock disponible
     const stockEl = document.getElementById('stock-' + id);
     const maxStock = stockEl ? parseInt(stockEl.dataset.stock) : 999;
+
     if (cantidad > maxStock) {
         Toastify({
             text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
@@ -24,15 +25,19 @@ function actualizarCantidad(id, cantidad) {
                 padding: '12px 20px'
             }
         }).showToast();
-        // Revertir el input al stock máximo
+        // Revertir el input al stock máximo y actualizar estado de botones
         const inputEl = document.querySelector('.qty-input[data-id="' + id + '"]');
         if (inputEl) inputEl.value = maxStock;
+        actualizarEstadoBotonesItem(id, maxStock);
         return;
     }
 
     // Optimistic update: actualizar la UI inmediatamente
     const cantEl = document.getElementById('cant-' + id);
     if (cantEl) cantEl.textContent = cantidad;
+
+    // Actualizar estado de botones según la nueva cantidad
+    actualizarEstadoBotonesItem(id, cantidad);
 
     const formData = new FormData();
     formData.append('id', id);
@@ -82,6 +87,27 @@ function actualizarCantidad(id, cantidad) {
             // Revertir el optimistic update si hay error de red
             if (cantEl) cantEl.textContent = cantidad - 1;
         });
+}
+
+/**
+ * Habilita/deshabilita los botones +/- de un item según su stock
+ */
+function actualizarEstadoBotonesItem(id, cantidad) {
+    const stockEl = document.getElementById('stock-' + id);
+    const maxStock = stockEl ? parseInt(stockEl.dataset.stock) : 999;
+    const btnMenos = document.querySelector('.qty-btn.minus[data-id="' + id + '"]');
+    const btnMas = document.querySelector('.qty-btn.plus[data-id="' + id + '"]');
+
+    if (btnMenos) {
+        btnMenos.disabled = (cantidad <= 1);
+        btnMenos.style.opacity = cantidad <= 1 ? '0.4' : '1';
+        btnMenos.style.cursor = cantidad <= 1 ? 'not-allowed' : 'pointer';
+    }
+    if (btnMas) {
+        btnMas.disabled = (cantidad >= maxStock);
+        btnMas.style.opacity = cantidad >= maxStock ? '0.4' : '1';
+        btnMas.style.cursor = cantidad >= maxStock ? 'not-allowed' : 'pointer';
+    }
 }
 
 function eliminarItem(id) {
@@ -187,11 +213,30 @@ document.addEventListener('DOMContentLoaded', function () {
         btn.addEventListener('click', function () {
             const id = this.dataset.id;
             const input = document.querySelector('.qty-input[data-id="' + id + '"]');
-            if (input) {
-                const nuevaCantidad = parseInt(input.value) + 1;
-                input.value = nuevaCantidad;
-                actualizarCantidad(id, nuevaCantidad);
+            if (!input) return;
+
+            const stockEl = document.getElementById('stock-' + id);
+            const maxStock = stockEl ? parseInt(stockEl.dataset.stock) : 999;
+            const nuevaCantidad = parseInt(input.value) + 1;
+
+            // No permitir exceder el stock
+            if (nuevaCantidad > maxStock) {
+                Toastify({
+                    text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
+                    duration: 2500,
+                    gravity: 'bottom',
+                    position: 'right',
+                    style: {
+                        background: '#f59e0b',
+                        borderRadius: '12px',
+                        padding: '12px 20px'
+                    }
+                }).showToast();
+                return;
             }
+
+            input.value = nuevaCantidad;
+            actualizarCantidad(id, nuevaCantidad);
         });
     });
 
@@ -199,14 +244,41 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.qty-input').forEach(input => {
         input.addEventListener('change', function () {
             const id = this.dataset.id;
-            const cantidad = parseInt(this.value);
-            if (cantidad >= 1) {
-                actualizarCantidad(id, cantidad);
-            } else {
+            const stockEl = document.getElementById('stock-' + id);
+            const maxStock = stockEl ? parseInt(stockEl.dataset.stock) : 999;
+            let cantidad = parseInt(this.value);
+
+            if (isNaN(cantidad) || cantidad < 1) {
+                cantidad = 1;
                 this.value = 1;
-                actualizarCantidad(id, 1);
             }
+
+            // Limitar al stock máximo
+            if (cantidad > maxStock) {
+                cantidad = maxStock;
+                this.value = maxStock;
+                Toastify({
+                    text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
+                    duration: 2500,
+                    gravity: 'bottom',
+                    position: 'right',
+                    style: {
+                        background: '#f59e0b',
+                        borderRadius: '12px',
+                        padding: '12px 20px'
+                    }
+                }).showToast();
+            }
+
+            actualizarCantidad(id, cantidad);
         });
+    });
+
+    // Inicializar estado de botones al cargar la página
+    document.querySelectorAll('.qty-input').forEach(input => {
+        const id = input.dataset.id;
+        const cantidad = parseInt(input.value) || 1;
+        actualizarEstadoBotonesItem(id, cantidad);
     });
 
     // Botones de eliminar
