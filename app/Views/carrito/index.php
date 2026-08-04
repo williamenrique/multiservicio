@@ -45,6 +45,7 @@
                             <h3><?php echo htmlspecialchars($item['nombre']); ?></h3>
                             <span class="item-marca"><i class="fas fa-tag"></i> <?php echo htmlspecialchars($item['marca']); ?></span>
                             <span class="item-price">$<?php echo number_format($item['precio'], 2); ?></span>
+                            <span id="stock-<?php echo $item['id']; ?>" data-stock="<?php echo $item['stock']; ?>" class="stock-info">Stock: <?php echo $item['stock']; ?> uds.</span>
                         </div>
                         <div class="item-actions">
                             <div class="quantity-control">

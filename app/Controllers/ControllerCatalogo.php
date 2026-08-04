@@ -142,7 +142,19 @@ class ControllerCatalogo extends Controller {
         }
 
         $carrito = &$_SESSION['carrito_publico'];
-        $carrito[$id] = ($carrito[$id] ?? 0) + $cantidad;
+        $cantidadActual = $carrito[$id] ?? 0;
+        $nuevaCantidad = $cantidadActual + $cantidad;
+
+        // Validar que no exceda el stock disponible
+        if ($nuevaCantidad > $repuesto->stock) {
+            $this->jsonResponse([
+                'success' => false,
+                'mensaje' => 'No hay suficiente stock. Solo quedan ' . $repuesto->stock . ' unidades disponibles.'
+            ]);
+            return;
+        }
+
+        $carrito[$id] = $nuevaCantidad;
 
         $totalItems = array_sum($carrito);
 
@@ -164,6 +176,22 @@ class ControllerCatalogo extends Controller {
         if (!isset($_SESSION['carrito_publico'])) {
             $this->jsonResponse(['success' => false, 'mensaje' => 'Carrito vacío.']);
             return;
+        }
+
+        // Validar stock antes de actualizar
+        if ($cantidad > 0) {
+            $repuesto = $this->modelCatalogo->obtenerRepuesto($id);
+            if (!$repuesto) {
+                $this->jsonResponse(['success' => false, 'mensaje' => 'Producto no encontrado.']);
+                return;
+            }
+            if ($cantidad > $repuesto->stock) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'mensaje' => 'No hay suficiente stock. Solo quedan ' . $repuesto->stock . ' unidades disponibles.'
+                ]);
+                return;
+            }
         }
 
         if ($cantidad <= 0) {

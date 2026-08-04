@@ -92,7 +92,7 @@
         <div class="bg-white rounded-2xl shadow-md overflow-hidden">
             <div class="grid md:grid-cols-2 gap-0">
                 <!-- Image -->
-                <div class="bg-gray-100 p-8 flex items-center justify-center min-h-[300px]">
+                <div class="bg-gray-100 p-8 flex items-center justify-center min-h-[300px] relative">
                     <?php if ($repuesto->imagen && file_exists(APPROOT . '/../public_html/' . $repuesto->imagen)): ?>
                     <img src="<?php echo URLROOT . '/' . $repuesto->imagen; ?>"
                         alt="<?php echo s($repuesto->nombre); ?>" class="max-w-full max-h-80 object-contain">
@@ -120,7 +120,14 @@
                     <p class="text-gray-600 mt-4 leading-relaxed"><?php echo nl2br(s($repuesto->descripcion)); ?></p>
                     <?php endif; ?>
 
-                    <div class="mt-6 flex items-center gap-3">
+                    <!-- Precio destacado -->
+                    <div class="mt-4 mb-2">
+                        <span class="text-3xl font-bold text-emerald-600">$<?php echo number_format($repuesto->precio, 2); ?></span>
+                        <span class="text-sm text-gray-400 ml-1">c/u</span>
+                    </div>
+
+                    <!-- Stock badge -->
+                    <div class="flex items-center gap-3 mb-4">
                         <?php if ($repuesto->stock > 0): ?>
                         <span class="stock-badge bg-emerald-100 text-emerald-700 text-sm px-3 py-1">
                             <?php echo $repuesto->stock > 10 ? 'En stock (' . $repuesto->stock . ' uds.)' : 'Últimas ' . $repuesto->stock . ' unidades'; ?>
@@ -130,35 +137,42 @@
                         <?php endif; ?>
                     </div>
 
+                    <!-- Controles de cantidad y subtotal -->
                     <div class="mt-auto pt-6 border-t border-gray-100">
-                        <div class="flex items-center justify-between mb-4">
-                            <span
-                                class="text-3xl font-bold text-emerald-600">$<?php echo number_format($repuesto->precio, 2); ?></span>
-                        </div>
                         <?php if ($repuesto->stock > 0): ?>
-                        <div class="flex items-center gap-4">
-                            <div class="flex items-center border border-gray-300 rounded-lg">
-                                <button onclick="cambiarCantidad(-1)"
-                                    class="px-3 py-2 text-gray-600 hover:bg-gray-100 transition-colors">-</button>
-                                <input type="number" id="cantidad" value="1" min="1"
-                                    max="<?php echo $repuesto->stock; ?>"
-                                    class="w-16 text-center border-x border-gray-300 py-2 text-sm focus:outline-none"
-                                    readonly>
-                                <button onclick="cambiarCantidad(1)"
-                                    class="px-3 py-2 text-gray-600 hover:bg-gray-100 transition-colors">+</button>
+                        <!-- Cantidad y subtotal en móvil: apilados; en desktop: en fila -->
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                            <div class="flex items-center gap-3">
+                                <span class="text-sm text-gray-500 font-medium">Cantidad:</span>
+                                <div class="flex items-center border border-gray-300 rounded-lg">
+                                    <button onclick="cambiarCantidad(-1)"
+                                        class="px-3 py-2 text-gray-600 hover:bg-gray-100 transition-colors text-lg leading-none">−</button>
+                                    <input type="number" id="cantidad" value="1" min="1"
+                                        max="<?php echo $repuesto->stock; ?>"
+                                        class="w-14 text-center border-x border-gray-300 py-2 text-sm focus:outline-none font-semibold"
+                                        readonly>
+                                    <button onclick="cambiarCantidad(1)"
+                                        class="px-3 py-2 text-gray-600 hover:bg-gray-100 transition-colors text-lg leading-none">+</button>
+                                </div>
                             </div>
-                            <button onclick="agregarCarrito(<?php echo $repuesto->id; ?>)"
-                                class="btn-primary flex-1 text-center py-3 text-base font-semibold flex items-center justify-center gap-2">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
-                                </svg>
-                                Agregar al Carrito
-                            </button>
+                            <!-- Subtotal dinámico -->
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-500">Subtotal:</span>
+                                <span id="subtotalDetalle" data-precio="<?php echo $repuesto->precio; ?>" class="text-xl font-bold text-emerald-600">$<?php echo number_format($repuesto->precio, 2); ?></span>
+                            </div>
                         </div>
+                        <!-- Botón agregar -->
+                        <button onclick="agregarCarrito(<?php echo $repuesto->id; ?>)"
+                            class="btn-primary w-full text-center py-3 text-base font-semibold flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+                            </svg>
+                            Agregar al Carrito
+                        </button>
                         <?php else: ?>
                         <button disabled
-                            class="w-full bg-gray-200 text-gray-400 py-3 rounded-lg text-base cursor-not-allowed">Producto
+                            class="w-full bg-gray-200 text-gray-400 py-4 rounded-lg text-base cursor-not-allowed">Producto
                             agotado</button>
                         <?php endif; ?>
                     </div>

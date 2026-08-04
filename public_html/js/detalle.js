@@ -1,17 +1,61 @@
 /**
  * detalle.js - Funcionalidad de la página de detalle de producto
- * Dependencias: Toastify-js, URLROOT global
+ * Dependencias: Toastify-js, URLROOT global, maxStock global (definido en PHP)
  */
 
 let cantidad = 1;
-let maxStock = 0;
+const precioUnitario = parseFloat(document.getElementById('subtotalDetalle')?.dataset?.precio || 0);
 
 function cambiarCantidad(delta) {
-    cantidad = Math.max(1, Math.min(maxStock, cantidad + delta));
+    const nuevaCantidad = cantidad + delta;
+
+    // No bajar de 1, no subir más allá del stock disponible
+    if (nuevaCantidad < 1) return;
+    if (nuevaCantidad > maxStock) {
+        Toastify({
+            text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
+            duration: 2500,
+            gravity: 'bottom',
+            position: 'right',
+            style: {
+                background: '#f59e0b',
+                borderRadius: '12px',
+                padding: '12px 20px'
+            }
+        }).showToast();
+        return;
+    }
+
+    cantidad = nuevaCantidad;
     document.getElementById('cantidad').value = cantidad;
+    actualizarSubtotal();
+}
+
+function actualizarSubtotal() {
+    const subtotalEl = document.getElementById('subtotalDetalle');
+    if (subtotalEl && precioUnitario) {
+        const subtotal = precioUnitario * cantidad;
+        subtotalEl.textContent = '$' + subtotal.toFixed(2);
+    }
 }
 
 function agregarCarrito(id) {
+    // Validar que no exceda el stock antes de enviar
+    if (cantidad > maxStock) {
+        Toastify({
+            text: '⚠ No hay suficiente stock. Máximo: ' + maxStock + ' unidades.',
+            duration: 3000,
+            gravity: 'bottom',
+            position: 'right',
+            style: {
+                background: '#f59e0b',
+                borderRadius: '12px',
+                padding: '12px 20px'
+            }
+        }).showToast();
+        return;
+    }
+
     const formData = new FormData();
     formData.append('id', id);
     formData.append('cantidad', cantidad);

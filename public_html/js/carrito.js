@@ -9,6 +9,27 @@ function actualizarCantidad(id, cantidad) {
         return;
     }
 
+    // Validar contra el stock disponible
+    const stockEl = document.getElementById('stock-' + id);
+    const maxStock = stockEl ? parseInt(stockEl.dataset.stock) : 999;
+    if (cantidad > maxStock) {
+        Toastify({
+            text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
+            duration: 2500,
+            gravity: 'bottom',
+            position: 'right',
+            style: {
+                background: '#f59e0b',
+                borderRadius: '12px',
+                padding: '12px 20px'
+            }
+        }).showToast();
+        // Revertir el input al stock máximo
+        const inputEl = document.querySelector('.qty-input[data-id="' + id + '"]');
+        if (inputEl) inputEl.value = maxStock;
+        return;
+    }
+
     // Optimistic update: actualizar la UI inmediatamente
     const cantEl = document.getElementById('cant-' + id);
     if (cantEl) cantEl.textContent = cantidad;
@@ -42,6 +63,19 @@ function actualizarCantidad(id, cantidad) {
             } else {
                 // Revertir el optimistic update si falló
                 if (cantEl) cantEl.textContent = cantidad - 1;
+                if (data.mensaje) {
+                    Toastify({
+                        text: '✗ ' + data.mensaje,
+                        duration: 3000,
+                        gravity: 'bottom',
+                        position: 'right',
+                        style: {
+                            background: '#ef4444',
+                            borderRadius: '12px',
+                            padding: '12px 20px'
+                        }
+                    }).showToast();
+                }
             }
         })
         .catch(() => {
@@ -130,3 +164,58 @@ function mostrarCarritoVacio() {
         </div>
     `;
 }
+
+// Event listeners para los botones +/- y eliminar
+document.addEventListener('DOMContentLoaded', function () {
+    // Botones de cantidad: menos (-)
+    document.querySelectorAll('.qty-btn.minus').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const id = this.dataset.id;
+            const input = document.querySelector('.qty-input[data-id="' + id + '"]');
+            if (input) {
+                const nuevaCantidad = parseInt(input.value) - 1;
+                if (nuevaCantidad >= 1) {
+                    input.value = nuevaCantidad;
+                    actualizarCantidad(id, nuevaCantidad);
+                }
+            }
+        });
+    });
+
+    // Botones de cantidad: más (+)
+    document.querySelectorAll('.qty-btn.plus').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const id = this.dataset.id;
+            const input = document.querySelector('.qty-input[data-id="' + id + '"]');
+            if (input) {
+                const nuevaCantidad = parseInt(input.value) + 1;
+                input.value = nuevaCantidad;
+                actualizarCantidad(id, nuevaCantidad);
+            }
+        });
+    });
+
+    // Inputs de cantidad: cambio manual
+    document.querySelectorAll('.qty-input').forEach(input => {
+        input.addEventListener('change', function () {
+            const id = this.dataset.id;
+            const cantidad = parseInt(this.value);
+            if (cantidad >= 1) {
+                actualizarCantidad(id, cantidad);
+            } else {
+                this.value = 1;
+                actualizarCantidad(id, 1);
+            }
+        });
+    });
+
+    // Botones de eliminar
+    document.querySelectorAll('.remove-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const id = this.dataset.id;
+            if (confirm('¿Eliminar este producto del carrito?')) {
+                eliminarItem(id);
+            }
+        });
+    });
+});
