@@ -126,6 +126,15 @@ class EmailService
         return $resultados;
     }
 
+    /**
+     * Envía notificación al cliente de que su pedido fue PROCESADO por el staff
+     */
+    public function notificarPedidoProcesadoCliente(array $datos): bool {
+        $asunto = 'Tu pedido #' . $datos['id_formateado'] . ' ha sido procesado — ' . SITENAME;
+        $html = $this->renderizar('pedido_procesado_cliente', $datos);
+        return $this->enviar($datos['cliente_email'], $datos['cliente_nombre'], $asunto, $html);
+    }
+
     // ============================================================
     // FUTUROS MÉTODOS (a implementar cuando se necesiten)
     // ============================================================

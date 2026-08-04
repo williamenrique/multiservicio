@@ -641,6 +641,28 @@ class ControllerCatalogo extends Controller {
 
         try {
             $this->modelCatalogo->procesarPedido($pedidoId, $_SESSION['user_id']);
+
+            // Enviar correo de notificación al cliente
+            try {
+                $pedido = $this->modelCatalogo->obtenerPedido($pedidoId);
+                $detalles = $this->modelCatalogo->obtenerDetallesPedido($pedidoId);
+
+                if ($pedido && !empty($pedido->correo)) {
+                    $emailService = new EmailService();
+                    $emailService->notificarPedidoProcesadoCliente([
+                        'cliente_nombre'  => $pedido->nombre_cliente,
+                        'cliente_email'   => $pedido->correo,
+                        'id_formateado'   => 'PED-' . str_pad($pedido->id, 6, '0', STR_PAD_LEFT),
+                        'fecha'           => date('d/m/Y h:i A'),
+                        'items'           => $detalles,
+                        'subtotal'        => $pedido->subtotal,
+                        'total'           => $pedido->total,
+                    ]);
+                }
+            } catch (\Exception $e) {
+                error_log("Error al enviar email de pedido procesado: " . $e->getMessage());
+            }
+
             $this->jsonResponse(['success' => true, 'mensaje' => 'Pedido procesado y stock actualizado.']);
         } catch (Exception $e) {
             $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()]);
