@@ -4,6 +4,9 @@
  * Muestra repuestos, gestiona carrito público y pedidos.
  * NO requiere autenticación - acceso público.
  */
+
+use App\Services\EmailService;
+
 class ControllerCatalogo extends Controller {
 
     private $modelCatalogo;
@@ -473,6 +476,33 @@ class ControllerCatalogo extends Controller {
                 'notas'     => $notas
             ];
             $pedidoId = $this->modelCatalogo->crearPedido($datosCliente, $itemsPedido);
+
+            // --- 5. Enviar notificaciones por email ---
+            try {
+                $facturaModel = $this->model('Facturacion');
+                $ventaCompleta = $facturaModel->obtenerVentaCompleta($ventaId);
+                $emailService = new EmailService();
+                $datosEmail = [
+                    'cliente_nombre'    => $nombre,
+                    'cliente_email'     => $correo,
+                    'cliente_telefono'  => $telefono,
+                    'cliente_cedula'    => $cedula,
+                    'cliente_direccion' => $direccion,
+                    'venta_formateado'  => $ventaCompleta->id_formateado ?? 'FAC-' . str_pad($ventaId, 3, '0', STR_PAD_LEFT),
+                    'venta_id'          => $ventaId,
+                    'id_formateado'     => 'PED-' . str_pad($pedidoId, 3, '0', STR_PAD_LEFT),
+                    'fecha'             => date('d/m/Y h:i A'),
+                    'items'             => $ventaCompleta->items ?? $items,
+                    'subtotal'          => $ventaCompleta->subtotal ?? $totalVenta,
+                    'iva'               => $ventaCompleta->iva ?? 0,
+                    'iva_tasa'          => 19,
+                    'total'             => $ventaCompleta->total ?? $totalVenta,
+                ];
+                $emailService->notificarPedidoCatalogo($datosEmail);
+            } catch (Exception $emailEx) {
+                error_log("ERROR EMAIL CATÁLOGO: " . $emailEx->getMessage());
+                // No interrumpir el flujo si falla el email
+            }
 
             // Limpiar carrito
             unset($_SESSION['carrito_publico']);

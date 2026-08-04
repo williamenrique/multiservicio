@@ -56,11 +56,21 @@ if (ENVIRONMENT == 'development') {
     ini_set('display_errors', 1);
 } else {
     error_reporting(0);
-    ini_set('display_errors', 0);
+    ini_set('display_errors', 0 );
 }
 
 // 7. Configuración de Zona Horaria (Crucial para registros de órdenes y facturas)
 date_default_timezone_set($_ENV['TIMEZONE'] ?? 'America/Caracas'); // Ajusta según tu país
+
+// 8. CONFIGURACIÓN DE CORREO ELECTRÓNICO (PHPMailer)
+define('MAIL_HOST', $_ENV['MAIL_HOST'] ?? 'smtp.gmail.com');
+define('MAIL_PORT', $_ENV['MAIL_PORT'] ?? 587);
+define('MAIL_USERNAME', $_ENV['MAIL_USERNAME'] ?? 'will.registro@gmail.com');
+define('MAIL_PASSWORD', $_ENV['MAIL_PASSWORD'] ?? 'qrbaecdlydfwnnyg');
+define('MAIL_ENCRYPTION', $_ENV['MAIL_ENCRYPTION'] ?? 'tls'); // tls o ssl
+define('MAIL_FROM_ADDRESS', $_ENV['MAIL_FROM_ADDRESS'] ?? 'will.registro@gmail.com');
+define('MAIL_FROM_NAME', $_ENV['MAIL_FROM_NAME'] ?? SITENAME);
+define('MAIL_ADMIN', $_ENV['MAIL_ADMIN'] ?? 'admin@taller.com'); // Correo del administrador que recibe copias
 
 /**
  * Normalización de getallheaders() para compatibilidad entre Apache y CGI/FastCGI

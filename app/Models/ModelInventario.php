@@ -192,7 +192,7 @@ class ModelInventario {
         $this->db->bind(':ant', $stock_anterior);
         $this->db->bind(':act', $stock_actual);
         $this->db->bind(':ref', $referencia);
-        $this->db->bind(':uid', $_SESSION['user_id']);
+        $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
         $this->db->bind(':obs', $obs);
         
         return $this->db->execute();
