@@ -65,6 +65,78 @@
         </div>
 
         <!-- Order details -->
+        <?php if ($venta): ?>
+        <!-- FORMATO FACTURA -->
+        <div class="bg-white rounded-2xl shadow-md overflow-hidden">
+            <div class="bg-emerald-600 text-white px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-80">Factura #<?php echo $venta->id_formateado ?? 'FAC-' . str_pad($venta->id, 3, '0', STR_PAD_LEFT); ?></p>
+                        <p class="text-lg font-semibold"><?php echo s($venta->cliente_nombre); ?></p>
+                    </div>
+                    <span class="bg-emerald-500 px-3 py-1 rounded-full text-sm font-medium"><?php echo s($venta->status); ?></span>
+                </div>
+            </div>
+            <div class="p-6">
+                <!-- Customer info -->
+                <div class="grid sm:grid-cols-2 gap-4 mb-6 pb-6 border-b border-gray-100">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider">Cédula / NIT</p>
+                        <p class="font-medium text-gray-800"><?php echo s($venta->cliente_id); ?></p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider">Teléfono</p>
+                        <p class="font-medium text-gray-800"><?php echo s($venta->cliente_telefono); ?></p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider">Correo</p>
+                        <p class="font-medium text-gray-800"><?php echo s($venta->cliente_email); ?></p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider">Fecha</p>
+                        <p class="font-medium text-gray-800"><?php echo date('d/m/Y h:i A', strtotime($venta->fecha)); ?></p>
+                    </div>
+                    <?php if ($venta->observaciones_factura): ?>
+                    <div class="sm:col-span-2">
+                        <p class="text-xs text-gray-400 uppercase tracking-wider">Observaciones</p>
+                        <p class="font-medium text-gray-800"><?php echo s($venta->observaciones_factura); ?></p>
+                    </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Items -->
+                <h3 class="font-semibold text-gray-800 mb-3">Productos</h3>
+                <div class="divide-y divide-gray-100">
+                    <?php foreach ($detalles as $detalle): ?>
+                    <div class="py-3 flex justify-between text-sm">
+                        <div>
+                            <p class="font-medium text-gray-800"><?php echo s($detalle->descripcion); ?></p>
+                            <p class="text-gray-400 text-xs"><?php echo $detalle->cantidad; ?> x $<?php echo number_format($detalle->precio_unitario, 2); ?></p>
+                        </div>
+                        <span class="font-medium text-gray-800">$<?php echo number_format($detalle->cantidad * $detalle->precio_unitario, 2); ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- Totals -->
+                <div class="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Subtotal</span>
+                        <span class="font-medium">$<?php echo number_format($venta->subtotal, 2); ?></span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400">— Deshabilitado</span></span>
+                        <span class="font-medium text-gray-400">$0.00</span>
+                    </div>
+                    <div class="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
+                        <span>Total</span>
+                        <span class="text-emerald-600">$<?php echo number_format($venta->total, 2); ?></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php elseif ($pedido): ?>
+        <!-- ========== FORMATO PEDIDO LEGACY ========== -->
         <div class="bg-white rounded-2xl shadow-md overflow-hidden">
             <div class="bg-emerald-600 text-white px-6 py-4">
                 <div class="flex items-center justify-between">
@@ -72,8 +144,7 @@
                         <p class="text-sm opacity-80">Pedido #<?php echo $pedido->id; ?></p>
                         <p class="text-lg font-semibold"><?php echo s($pedido->nombre_cliente); ?></p>
                     </div>
-                    <span
-                        class="bg-emerald-500 px-3 py-1 rounded-full text-sm font-medium"><?php echo s($pedido->estado); ?></span>
+                    <span class="bg-emerald-500 px-3 py-1 rounded-full text-sm font-medium"><?php echo s($pedido->estado); ?></span>
                 </div>
             </div>
             <div class="p-6">
@@ -93,8 +164,7 @@
                     </div>
                     <div>
                         <p class="text-xs text-gray-400 uppercase tracking-wider">Fecha</p>
-                        <p class="font-medium text-gray-800">
-                            <?php echo date('d/m/Y h:i A', strtotime($pedido->fecha_pedido)); ?></p>
+                        <p class="font-medium text-gray-800"><?php echo date('d/m/Y h:i A', strtotime($pedido->fecha_pedido)); ?></p>
                     </div>
                     <?php if ($pedido->direccion): ?>
                     <div class="sm:col-span-2">
@@ -110,13 +180,10 @@
                     <?php foreach ($detalles as $detalle): ?>
                     <div class="py-3 flex justify-between text-sm">
                         <div>
-                            <p class="font-medium text-gray-800">
-                                <?php echo s($detalle->nombre ?? 'Producto #' . $detalle->producto_id); ?></p>
-                            <p class="text-gray-400 text-xs"><?php echo $detalle->cantidad; ?> x
-                                $<?php echo number_format($detalle->precio_unitario, 2); ?></p>
+                            <p class="font-medium text-gray-800"><?php echo s($detalle->nombre ?? 'Producto #' . $detalle->producto_id); ?></p>
+                            <p class="text-gray-400 text-xs"><?php echo $detalle->cantidad; ?> x $<?php echo number_format($detalle->precio_unitario, 2); ?></p>
                         </div>
-                        <span
-                            class="font-medium text-gray-800">$<?php echo number_format($detalle->subtotal, 2); ?></span>
+                        <span class="font-medium text-gray-800">$<?php echo number_format($detalle->subtotal, 2); ?></span>
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -145,6 +212,7 @@
                 <?php endif; ?>
             </div>
         </div>
+        <?php endif; ?>
 
         <div class="text-center mt-8">
             <a href="<?php echo URLROOT; ?>/catalogo"

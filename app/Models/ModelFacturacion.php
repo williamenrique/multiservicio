@@ -165,20 +165,23 @@ class ModelFacturacion {
                 }
             }
 
+            $origen = !empty($datos['origen']) ? $datos['origen'] : 'MOSTRADOR';
+
             if ($ventaId) {
                 $this->db->query("UPDATE table_facturas SET
                                   cliente_id = :cid, orden_id = :oid, placa = :placa, modelo_vehiculo = :modelo,
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
                                   pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
-                                  status = :status, observaciones = :obs
+                                  status = :status, origen = :origen, observaciones = :obs
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
             } else {
                 $this->db->query("INSERT INTO table_facturas (cliente_id, orden_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
-                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status, observaciones) 
-                                  VALUES (:cid, :oid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status, :obs)");
+                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status, origen, observaciones) 
+                                  VALUES (:cid, :oid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status, :origen, :obs)");
                 $this->db->bind(':uid', $usuarioId);
             }
+            $this->db->bind(':origen', $origen);
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
             $this->db->bind(':oid', $ordenIdPersist);
             $this->db->bind(':placa', !empty($datos['placa']) ? $datos['placa'] : null);

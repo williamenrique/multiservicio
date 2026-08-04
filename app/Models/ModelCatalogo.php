@@ -154,11 +154,11 @@ class ModelCatalogo {
             VALUES (:nombre, :cedula, :correo, :telefono, :direccion, :notas, :subtotal, :iva, :total, 'PENDIENTE')");
 
         $this->db->bind(':nombre', mb_strtoupper($datosCliente['nombre'], 'UTF-8'));
-        $this->db->bind(':cedula', $datosCliente['cedula']);
-        $this->db->bind(':correo', $datosCliente['correo']);
+        $this->db->bind(':cedula', mb_strtoupper($datosCliente['cedula'], 'UTF-8'));
+        $this->db->bind(':correo', mb_strtoupper($datosCliente['correo'], 'UTF-8'));
         $this->db->bind(':telefono', $datosCliente['telefono']);
-        $this->db->bind(':direccion', $datosCliente['direccion'] ?? '');
-        $this->db->bind(':notas', $datosCliente['notas'] ?? '');
+        $this->db->bind(':direccion', mb_strtoupper($datosCliente['direccion'] ?? '', 'UTF-8'));
+        $this->db->bind(':notas', mb_strtoupper($datosCliente['notas'] ?? '', 'UTF-8'));
         $this->db->bind(':subtotal', $subtotal);
         $this->db->bind(':iva', $iva);
         $this->db->bind(':total', $total);

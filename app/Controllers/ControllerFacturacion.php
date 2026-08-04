@@ -93,6 +93,7 @@ class ControllerFacturacion extends Controller {
                 // Normalizar datos para ventas de mostrador (asegurar campos mínimos para BillingService)
                 $datos['iva_activo'] = $datos['iva_activo'] ?? false;
                 $datos['placa'] = !empty($datos['placa']) ? strtoupper(trim($datos['placa'])) : '';
+                $datos['origen'] = !empty($datos['orden_id']) ? 'TALLER' : 'MOSTRADOR';
 
                 $v = new Validator($datos);
                 $v->required(['items'])->array('items');

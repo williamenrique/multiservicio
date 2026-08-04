@@ -44,6 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="px-8 py-5 font-mono text-xs font-bold text-slate-500 uppercase tracking-tight align-middle">${item.codigo || '-'}</td>
                     <td class="px-8 py-5 font-bold text-base text-slate-700 uppercase tracking-tight align-middle">${item.nombre}</td>
                     <td class="px-8 py-5 align-middle">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-tight">${item.marca || '-'}</span>
+                    </td>
+                    <td class="px-8 py-5 align-middle">
                         <span class="text-xs font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider">${item.categoria}</span>
                     </td>
                     <td class="px-8 py-5 align-middle font-mono text-base">
@@ -116,6 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Normalizar textos a MAYÚSCULAS en el FormData
         formData.set('codigo', document.getElementById('prodCodigo').value.trim().toUpperCase());
         formData.set('nombre', document.getElementById('prodNombre').value.trim().toUpperCase());
+        formData.set('marca', document.getElementById('prodMarca').value.trim().toUpperCase());
+        formData.set('descripcion', document.getElementById('prodDescripcion').value.trim().toUpperCase());
         formData.set('categoria', document.getElementById('prodCategoria').value.trim().toUpperCase());
 
         // Adjuntar token CSRF
@@ -266,8 +271,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ===== MARCA DROPDOWN PERSONALIZADO =====
+    const marcaInput = document.getElementById('prodMarca');
+    const marcaDropdown = document.getElementById('marcaDropdown');
+    const marcaDropdownList = document.getElementById('marcaDropdownList');
+    const marcaDropdownEmpty = document.getElementById('marcaDropdownEmpty');
+    let marcasCache = [];
+
+    async function cargarMarcas() {
+        try {
+            const res = await fetch(`${URLROOT}/inventario/marcas`);
+            const data = await res.json();
+            if (data.success) {
+                marcasCache = data.marcas;
+                renderMarcasDropdown(marcasCache);
+            }
+        } catch (e) {
+            console.warn('Error al cargar marcas:', e);
+        }
+    }
+
+    function renderMarcasDropdown(lista) {
+        if (!marcaDropdownList) return;
+        if (lista.length === 0) {
+            marcaDropdownList.innerHTML = '';
+            marcaDropdownEmpty.classList.remove('hidden');
+            return;
+        }
+        marcaDropdownEmpty.classList.add('hidden');
+        marcaDropdownList.innerHTML = lista.map(m =>
+            `<div class="px-4 py-2.5 text-sm font-bold text-slate-700 uppercase cursor-pointer hover:bg-neon-green/10 hover:text-neon-green border-b border-slate-100 last:border-b-0 transition-all" data-marca="${m}">${m}</div>`
+        ).join('');
+
+        // Click en un item lo selecciona y cierra el dropdown
+        marcaDropdownList.querySelectorAll('[data-marca]').forEach(el => {
+            el.addEventListener('click', () => {
+                marcaInput.value = el.dataset.marca;
+                marcaDropdown.classList.add('hidden');
+            });
+        });
+    }
+
+    // Mostrar dropdown al enfocar el input si hay marcas
+    if (marcaInput) {
+        marcaInput.addEventListener('focus', () => {
+            if (marcasCache.length > 0) {
+                renderMarcasDropdown(marcasCache.filter(m =>
+                    m.includes(marcaInput.value.toUpperCase())
+                ));
+                marcaDropdown.classList.remove('hidden');
+            }
+        });
+
+        // Filtrar mientras escribe
+        marcaInput.addEventListener('input', (e) => {
+            const val = e.target.value.toUpperCase();
+            if (val.length > 0 && marcasCache.length > 0) {
+                const filtrados = marcasCache.filter(m => m.includes(val));
+                renderMarcasDropdown(filtrados);
+                marcaDropdown.classList.remove('hidden');
+            } else if (val.length === 0) {
+                renderMarcasDropdown(marcasCache);
+                marcaDropdown.classList.remove('hidden');
+            }
+        });
+
+        // Convertir a mayúsculas automáticamente mientras escribe
+        marcaInput.addEventListener('input', (e) => {
+            const start = e.target.selectionStart;
+            const end = e.target.selectionEnd;
+            e.target.value = e.target.value.toUpperCase();
+            e.target.setSelectionRange(start, end);
+        });
+    }
+
+    // Cerrar dropdown de marca al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (marcaDropdown && !e.target.closest('#prodMarca') && !e.target.closest('#marcaDropdown')) {
+            marcaDropdown.classList.add('hidden');
+        }
+    });
+
     document.getElementById('btnOpenModal')?.addEventListener('click', () => {
         cargarCodigos();
+        cargarMarcas();
         toggleModal(true);
     });
     document.getElementById('btnCloseModal')?.addEventListener('click', () => toggleModal(false));
@@ -277,9 +364,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = window.currentData.find(i => i.id == id);
 
         cargarCodigos();
+        cargarMarcas();
         document.getElementById('prodId').value = item.id;
         document.getElementById('prodCodigo').value = item.codigo || '';
         document.getElementById('prodNombre').value = item.nombre;
+        document.getElementById('prodMarca').value = item.marca || '';
+        document.getElementById('prodDescripcion').value = item.descripcion || '';
         document.getElementById('prodCategoria').value = item.categoria;
         document.getElementById('prodStock').value = item.stock;
         document.getElementById('prodStockMin').value = item.stock_minimo; // Cargar stock mínimo

@@ -46,6 +46,7 @@
                         <th class="px-8 py-6">Imagen</th>
                         <th class="px-8 py-6">Código</th>
                         <th class="px-8 py-6">Producto</th>
+                        <th class="px-8 py-6">Marca</th>
                         <th class="px-8 py-6">Categoría</th>
                         <th class="px-8 py-6">Stock</th>
                         <th class="px-8 py-6">Precio Unitario</th>
@@ -55,7 +56,7 @@
                 </thead>
                 <tbody id="tableBody" class="divide-y divide-slate-100 text-sm text-slate-600">
                     <tr>
-                        <td colspan="8" class="px-8 py-16 text-center text-slate-400 italic animate-pulse">SINCRONIZANDO INVENTARIO...</td>
+                        <td colspan="9" class="px-8 py-16 text-center text-slate-400 italic animate-pulse">SINCRONIZANDO INVENTARIO...</td>
                     </tr>
                 </tbody>
             </table>
@@ -117,6 +118,27 @@
             <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Nombre del Producto / Servicio</label>
                 <input type="text" name="nombre" id="prodNombre" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Marca</label>
+                <div class="relative">
+                    <input type="text" name="marca" id="prodMarca" autocomplete="off"
+                        placeholder="Buscar o escribir marca..."
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all">
+                    <!-- Lista desplegable de marcas -->
+                    <div id="marcaDropdown" class="hidden absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden">
+                        <div id="marcaDropdownList" class="max-h-48 overflow-y-auto custom-scrollbar-neon"></div>
+                        <div id="marcaDropdownEmpty" class="hidden px-4 py-3 text-xs text-slate-400 italic text-center">Sin resultados</div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Descripción</label>
+                <textarea name="descripcion" id="prodDescripcion" rows="3"
+                    placeholder="Descripción del producto o servicio..."
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all resize-none"></textarea>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

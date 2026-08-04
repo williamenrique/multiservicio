@@ -299,8 +299,13 @@ class ControllerCatalogo extends Controller {
         $data = [
             'titulo' => 'Finalizar Pedido',
             'items' => $items,
-            'total' => $total
+            'total' => $total,
+            'errores' => $_SESSION['checkout_errores'] ?? [],
+            'formData' => $_SESSION['checkout_data'] ?? []
         ];
+
+        // Limpiar datos de sesión después de pasarlos a la vista
+        unset($_SESSION['checkout_errores'], $_SESSION['checkout_data']);
 
         $this->view('public/catalogo/checkout', $data);
     }
@@ -308,6 +313,7 @@ class ControllerCatalogo extends Controller {
     /**
      * Procesar pedido (POST)
      * POST /catalogo/procesar-pedido
+     * Integrado con BillingService para generar factura, descontar stock y registrar transacción.
      */
     public function procesarPedido() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -341,14 +347,23 @@ class ControllerCatalogo extends Controller {
             redirect('catalogo/checkout');
         }
 
-        // Preparar items del carrito
+        // Preparar items del carrito con todos los datos necesarios para BillingService
         $items = [];
+        $itemsPedido = []; // Para el registro en pedidos_clientes (legacy)
         foreach ($carrito as $id => $cantidad) {
             $repuesto = $this->modelCatalogo->obtenerRepuesto($id);
             if ($repuesto && $repuesto->stock >= $cantidad) {
                 $items[] = [
-                    'id' => $repuesto->id,
-                    'precio' => $repuesto->precio,
+                    'id'          => $repuesto->id,
+                    'nombre'      => $repuesto->nombre,
+                    'precio'      => $repuesto->precio,
+                    'cantidad'    => $cantidad,
+                    'tipo'        => 'PRODUCTO',
+                    'costo_promedio' => $repuesto->costo_promedio ?? $repuesto->ultimo_costo ?? 0
+                ];
+                $itemsPedido[] = [
+                    'id'       => $repuesto->id,
+                    'precio'   => $repuesto->precio,
                     'cantidad' => $cantidad
                 ];
             }
@@ -360,24 +375,87 @@ class ControllerCatalogo extends Controller {
         }
 
         try {
-            $datosCliente = [
-                'nombre' => $nombre,
-                'cedula' => $cedula,
-                'correo' => $correo,
-                'telefono' => $telefono,
-                'direccion' => $direccion,
-                'notas' => $notas
+            // --- Find-or-create cliente en table_clientes ---
+            $clienteModel = $this->model('Cliente');
+            $clienteId = mb_strtoupper($cedula, 'UTF-8');
+            $clienteExistente = $clienteModel->obtenerPorId($clienteId);
+
+            if (!$clienteExistente) {
+                $clienteModel->crear([
+                    'id'        => $clienteId,
+                    'nombre'    => $nombre,
+                    'email'     => $correo,
+                    'telefono'  => $telefono,
+                    'direccion' => $direccion
+                ]);
+            }
+
+            // --- 2. Construir datos para BillingService ---
+            $datosFactura = [
+                'cliente_id'         => $clienteId,
+                'orden_id'           => null,
+                'placa'              => null,
+                'modelo_vehiculo'    => null,
+                'items'              => $items,
+                'pago_efectivo'      => 0,
+                'pago_transferencia' => 0,
+                'tasa_iva'           => 19,
+                'aplicar_iva'        => false, // IVA deshabilitado para catálogo
+                'origen'             => 'CATALOGO',
+                'observaciones'      => 'VENTA CATÁLOGO PÚBLICO'
             ];
 
-            $pedidoId = $this->modelCatalogo->crearPedido($datosCliente, $items);
+            // Calcular total y asignar como pago en efectivo (venta completada)
+            $totalVenta = 0;
+            foreach ($items as $it) {
+                $totalVenta += $it['precio'] * $it['cantidad'];
+            }
+            $datosFactura['pago_efectivo'] = $totalVenta;
+
+            // --- 3. Procesar venta completa con BillingService ---
+            require_once APPROOT . '/Services/BillingService.php';
+            $billingService = new BillingService();
+            
+            // Buscar un usuario administrador activo para asociar la venta
+            $dbCheck = new Database();
+            $dbCheck->query("SELECT u.id FROM table_usuarios u 
+                             INNER JOIN table_roles r ON u.role_id = r.id 
+                             WHERE r.nombre_rol = 'ADMINISTRADOR' AND u.estado = 'ACTIVO' 
+                             LIMIT 1");
+            $adminUser = $dbCheck->single();
+            if (!$adminUser) {
+                // Fallback: cualquier usuario activo
+                $dbCheck->query("SELECT id FROM table_usuarios WHERE estado = 'ACTIVO' LIMIT 1");
+                $adminUser = $dbCheck->single();
+            }
+            if (!$adminUser) {
+                throw new Exception("No hay usuarios activos en el sistema. Contacte al administrador.");
+            }
+            $usuarioSistema = $adminUser->id;
+            
+            $ventaId = $billingService->procesarVentaCompleta($datosFactura, $usuarioSistema);
+
+            // --- 4. Crear registro en pedidos_clientes para tracking (legacy) ---
+            $datosCliente = [
+                'nombre'    => $nombre,
+                'cedula'    => $cedula,
+                'correo'    => $correo,
+                'telefono'  => $telefono,
+                'direccion' => $direccion,
+                'notas'     => $notas
+            ];
+            $pedidoId = $this->modelCatalogo->crearPedido($datosCliente, $itemsPedido);
 
             // Limpiar carrito
             unset($_SESSION['carrito_publico']);
             unset($_SESSION['checkout_data']);
 
-            redirect('catalogo/confirmacion/' . $pedidoId);
+            // Redirigir a confirmación con ID de factura
+            redirect('catalogo/confirmacion/' . $ventaId);
         } catch (Exception $e) {
+            error_log("ERROR CATÁLOGO: " . $e->getMessage());
             $_SESSION['checkout_errores'] = ['Error al procesar el pedido: ' . $e->getMessage()];
+            $_SESSION['checkout_data'] = $_POST;
             redirect('catalogo/checkout');
         }
     }
@@ -385,12 +463,30 @@ class ControllerCatalogo extends Controller {
     /**
      * Confirmación de pedido
      * GET /catalogo/confirmacion/{id}
+     * Ahora recibe el ID de factura (table_facturas) y muestra los datos de la venta.
      */
     public function confirmacion($id = null) {
         if (!$id) {
             redirect('catalogo');
         }
 
+        // Intentar obtener la factura primero
+        $facturaModel = $this->model('Facturacion');
+        $venta = $facturaModel->obtenerVentaCompleta($id);
+
+        if ($venta) {
+            // Es una factura - mostrar datos de factura
+            $data = [
+                'titulo'   => 'Pedido Confirmado',
+                'venta'    => $venta,
+                'pedido'   => null,
+                'detalles' => $venta->items ?? []
+            ];
+            $this->view('public/catalogo/confirmacion', $data);
+            return;
+        }
+
+        // Fallback: intentar como pedido legacy
         $pedido = $this->modelCatalogo->obtenerPedido($id);
         if (!$pedido) {
             $this->view('errores/404', ['titulo' => 'Pedido no encontrado']);
@@ -400,8 +496,9 @@ class ControllerCatalogo extends Controller {
         $detalles = $this->modelCatalogo->obtenerDetallesPedido($id);
 
         $data = [
-            'titulo' => 'Pedido Confirmado',
-            'pedido' => $pedido,
+            'titulo'   => 'Pedido Confirmado',
+            'venta'    => null,
+            'pedido'   => $pedido,
             'detalles' => $detalles
         ];
 
@@ -552,7 +649,7 @@ class ControllerCatalogo extends Controller {
         }
 
         $db = new Database();
-        $db->query("SELECT p.id, p.nombre_cliente, p.telefono_cliente, p.total, p.fecha_pedido,
+        $db->query("SELECT p.id, p.nombre_cliente, p.telefono, p.total, p.fecha_pedido,
                            COUNT(pd.id) as total_items
                     FROM pedidos_clientes p
                     LEFT JOIN pedido_detalles pd ON p.id = pd.pedido_id

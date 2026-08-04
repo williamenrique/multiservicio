@@ -119,15 +119,17 @@ CREATE TABLE `table_proveedores` (
 -- Productos y Servicios
 CREATE TABLE `table_inventario` (
   `id` int(11) PRIMARY KEY AUTO_INCREMENT,
-  `codigo` varchar(100) DEFAULT NULL,
+  `codigo` varchar(50) DEFAULT NULL,
   `nombre` varchar(150) NOT NULL,
-  `categoria` varchar(50),
+  `marca` varchar(100) DEFAULT NULL,
+  `descripcion` text DEFAULT NULL,
+  `categoria` varchar(50) DEFAULT NULL,
   `stock` int(11) DEFAULT 0,
   `stock_minimo` int(11) DEFAULT 5,
   `ultimo_costo` decimal(15,2) DEFAULT 0.00,
   `costo_promedio` decimal(15,2) DEFAULT 0.00, -- Pilar para rentabilidad real
   `precio` decimal(15,2) NOT NULL DEFAULT 0.00,
-  `imagen` varchar(255),
+  `imagen` varchar(255) DEFAULT NULL,
   `estado` enum('ACTIVO', 'INACTIVO') DEFAULT 'ACTIVO',
   INDEX (`nombre`),
   INDEX (`categoria`),
@@ -227,6 +229,7 @@ CREATE TABLE `table_facturas` (
   `pago_transferencia` decimal(15,2) DEFAULT 0,
   `saldo_pendiente` decimal(15,2) DEFAULT 0,
   `status` enum('COMPLETADO', 'CREDITO', 'ANULADO', 'PENDIENTE') DEFAULT 'COMPLETADO',
+  `origen` enum('MOSTRADOR','CATALOGO','TALLER') DEFAULT 'MOSTRADOR',
   `observaciones` text DEFAULT NULL,
   `fecha` timestamp DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio`(`id`),

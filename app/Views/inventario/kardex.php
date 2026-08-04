@@ -25,6 +25,12 @@
                 <div>
                     <p class="text-xl font-black text-navy-blue uppercase"><?php echo s($producto->nombre); ?></p>
                     <p class="text-sm text-slate-500">Categoría: <span class="font-bold"><?php echo s($producto->categoria); ?></span></p>
+                    <?php if (!empty($producto->marca)): ?>
+                        <p class="text-sm text-slate-500">Marca: <span class="font-bold uppercase text-neon-green"><?php echo s($producto->marca); ?></span></p>
+                    <?php endif; ?>
+                    <?php if (!empty($producto->descripcion)): ?>
+                        <p class="text-xs text-slate-400 mt-1"><?php echo s($producto->descripcion); ?></p>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="space-y-2">

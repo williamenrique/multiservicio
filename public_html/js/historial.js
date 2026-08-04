@@ -33,8 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${venta.modelo_vehiculo || 'N/A'}
                             ${isCredit ? '<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>' : ''}
                         </div>
-                        <div class="text-[10px] font-black ${venta.placa ? 'text-slate-400' : 'text-blue-500'}">${venta.placa ? 'PLACA: ' + venta.placa : 'VENTA MOSTRADOR'}</div>
-                        <div class="text-xs font-black ${venta.placa ? 'text-slate-500' : 'text-blue-600'} uppercase tracking-tight">${venta.placa ? 'PLACA: ' + venta.placa : 'VENTA MOSTRADOR'}</div>
+                        <div class="text-[10px] font-black ${venta.placa ? 'text-slate-400' : (venta.origen === 'CATALOGO' ? 'text-emerald-500' : 'text-blue-500')}">${venta.placa ? 'PLACA: ' + venta.placa : (venta.origen === 'CATALOGO' ? 'VENTA CATÁLOGO' : 'VENTA MOSTRADOR')}</div>
+                        <div class="text-xs font-black ${venta.placa ? 'text-slate-500' : (venta.origen === 'CATALOGO' ? 'text-emerald-600' : 'text-blue-600')} uppercase tracking-tight">${venta.placa ? 'PLACA: ' + venta.placa : (venta.origen === 'CATALOGO' ? 'VENTA CATÁLOGO' : 'VENTA MOSTRADOR')}</div>
                     </td>
                     <td class="px-8 py-5">${venta.cliente_nombre || 'Sin Cliente'}</td>
                     <td class="px-8 py-5 font-bold text-navy-blue">${AppUtils.formatCurrency(venta.total)}</td>

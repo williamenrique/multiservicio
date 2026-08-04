@@ -204,6 +204,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         setInterval(initRecoveryNotifications, 30000); // Polling cada 30 segundos
         initWorkshopAlerts();
         setInterval(initWorkshopAlerts, 60000); // Chequeo de taller cada minuto
+        initPedidosAlerts();
+        setInterval(initPedidosAlerts, 60000); // Chequeo de pedidos cada minuto
         initCreditNotifications();
         setInterval(initCreditNotifications, 60000); // Chequeo de cartera cada minuto
         initDebtorsCard();
@@ -217,6 +219,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (user && user.role.toUpperCase() === "MECANICO") {
         initWorkshopAlerts();
         setInterval(initWorkshopAlerts, 60000); // Chequeo de taller cada minuto
+        initPedidosAlerts();
+        setInterval(initPedidosAlerts, 60000); // Chequeo de pedidos cada minuto
     }
 
     renderTopBarUserInfo(); // Actualiza nombre y rol en la UI
@@ -1056,6 +1060,61 @@ const AppNotifications = {
         if (window.switchProveedorTab) switchProveedorTab("deudas");
     },
 };
+
+/**
+ * Gestiona las notificaciones de pedidos pendientes del catálogo público.
+ */
+async function initPedidosAlerts() {
+    const containerBell = document.getElementById('pedidos-bell-container');
+    const badge = document.getElementById('pedidos-notif-badge');
+    const lista = document.getElementById('pedidos-notif-list');
+
+    if (!containerBell) return;
+
+    try {
+        const res = await fetch(`${URLROOT}/catalogo/notificaciones-pedidos`);
+        if (!res.ok) return;
+        const result = await res.json();
+
+        if (result.success) {
+            const data = result.data || [];
+
+            if (result.total > 0) {
+                containerBell.classList.remove('hidden');
+            } else {
+                containerBell.classList.add('hidden');
+            }
+
+            if (badge) {
+                if (result.total > 0) {
+                    badge.textContent = result.total;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+
+            if (lista) {
+                lista.innerHTML = data.length === 0
+                    ? '<div class="p-8 text-center text-slate-600 italic text-xs">No hay pedidos pendientes</div>'
+                    : data.map(item => `
+                        <a href="${URLROOT}/catalogo/ver-pedido/${item.id}" class="flex items-center gap-4 p-4 hover:bg-slate-900 border-b border-slate-800/50 transition-colors">
+                            <div class="w-1.5 h-10 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)]"></div>
+                            <div class="flex-1">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-black text-white text-xs tracking-tighter">${item.nombre_cliente}</span>
+                                    <span class="text-[10px] text-amber-400 font-mono font-bold">$${parseFloat(item.total).toFixed(2)}</span>
+                                </div>
+                                <p class="text-[11px] text-slate-300 font-bold leading-tight mt-1 uppercase">${item.total_items} producto(s)</p>
+                                <p class="text-[9px] text-slate-500 mt-0.5 font-medium">${item.telefono || ''} &mdash; ${item.fecha_pedido}</p>
+                            </div>
+                        </a>`).join('');
+            }
+        }
+    } catch (e) {
+        // Silencioso
+    }
+}
 
 /**
  * Gestiona las notificaciones de entregas próximas o atrasadas en el taller.

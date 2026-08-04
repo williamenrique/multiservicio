@@ -175,11 +175,25 @@
                             <?php echo s($repuesto->nombre); ?>
                         </a>
                     </h3>
-                    <p class="text-xs text-gray-400 mt-1">ID: <?php echo $repuesto->id; ?></p>
+                    <?php if (!empty($repuesto->marca)): ?>
+                        <p class="text-xs text-blue-600 font-bold uppercase mt-0.5"><?php echo s($repuesto->marca); ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($repuesto->descripcion)): ?>
+                        <p class="text-xs text-gray-400 mt-1 line-clamp-2"><?php echo s($repuesto->descripcion); ?></p>
+                    <?php endif; ?>
+                    <p class="text-xs text-gray-400 mt-1">Código: <?php echo s($repuesto->codigo); ?></p>
 
                     <div class="mt-auto pt-3 flex items-center justify-between">
-                        <span
-                            class="text-lg font-bold text-gray-900">$<?php echo number_format($repuesto->precio, 2); ?></span>
+                        <div>
+                            <span class="text-lg font-bold text-gray-900">$<?php echo number_format($repuesto->precio, 2); ?></span>
+                            <p class="text-xs <?php echo $repuesto->stock > 0 ? 'text-emerald-600' : 'text-red-500'; ?> font-medium">
+                                <?php if ($repuesto->stock > 0): ?>
+                                    <i data-lucide="package-check" class="w-3 h-3 inline"></i> <?php echo $repuesto->stock; ?> disponible(s)
+                                <?php else: ?>
+                                    Sin stock
+                                <?php endif; ?>
+                            </p>
+                        </div>
                         <?php if ($repuesto->stock > 0): ?>
                         <button onclick="agregarCarrito(<?php echo $repuesto->id; ?>)"
                             class="px-3 py-2 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition flex items-center gap-1">
@@ -187,7 +201,7 @@
                             <span class="hidden sm:inline">Agregar</span>
                         </button>
                         <?php else: ?>
-                        <span class="text-xs text-red-500 font-medium">Sin stock</span>
+                        <span class="text-xs text-red-500 font-medium">Agotado</span>
                         <?php endif; ?>
                     </div>
                 </div>

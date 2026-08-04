@@ -81,12 +81,14 @@ class ModelInventario {
     }
 
     public function crear($datos) {
-        $this->db->query("INSERT INTO table_inventario (codigo, nombre, categoria, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen) 
-                          VALUES (:codigo, :nombre, :categoria, :stock, :smin, :costo, :cprom, :precio, :imagen)");
+        $this->db->query("INSERT INTO table_inventario (codigo, nombre, marca, categoria, descripcion, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen) 
+                          VALUES (:codigo, :nombre, :marca, :categoria, :descripcion, :stock, :smin, :costo, :cprom, :precio, :imagen)");
         
         $this->db->bind(':codigo', $datos['codigo'] ?? null);
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
+        $this->db->bind(':marca', !empty($datos['marca']) ? mb_strtoupper($datos['marca'], 'UTF-8') : null);
         $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
+        $this->db->bind(':descripcion', !empty($datos['descripcion']) ? mb_strtoupper($datos['descripcion'], 'UTF-8') : null);
         $this->db->bind(':stock', $datos['stock']);
         $this->db->bind(':smin', $datos['stock_minimo'] ?? 5);
         $this->db->bind(':costo', $datos['ultimo_costo'] ?? 0);
@@ -103,8 +105,10 @@ class ModelInventario {
     public function actualizar($datos) {
         $this->db->query("UPDATE table_inventario 
                           SET codigo = :codigo,
-                              nombre = :nombre, 
-                              categoria = :categoria, 
+                              nombre = :nombre,
+                              marca = :marca,
+                              categoria = :categoria,
+                              descripcion = :descripcion,
                               stock = :stock,
                               stock_minimo = :smin,
                               ultimo_costo = :costo,
@@ -116,7 +120,9 @@ class ModelInventario {
         $this->db->bind(':id', $datos['id']);
         $this->db->bind(':codigo', $datos['codigo'] ?? null);
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
+        $this->db->bind(':marca', !empty($datos['marca']) ? mb_strtoupper($datos['marca'], 'UTF-8') : null);
         $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
+        $this->db->bind(':descripcion', !empty($datos['descripcion']) ? mb_strtoupper($datos['descripcion'], 'UTF-8') : null);
         $this->db->bind(':stock', $datos['stock']);
         $this->db->bind(':smin', $datos['stock_minimo'] ?? 5);
         $this->db->bind(':costo', $datos['ultimo_costo'] ?? 0);
@@ -141,6 +147,14 @@ class ModelInventario {
      */
     public function obtenerCodigos() {
         $this->db->query("SELECT DISTINCT codigo FROM table_inventario WHERE codigo IS NOT NULL AND codigo != '' ORDER BY codigo ASC");
+        return $this->db->resultSet();
+    }
+
+    /**
+     * Obtiene todas las marcas únicas existentes en el inventario
+     */
+    public function obtenerMarcas() {
+        $this->db->query("SELECT DISTINCT marca FROM table_inventario WHERE marca IS NOT NULL AND marca != '' ORDER BY marca ASC");
         return $this->db->resultSet();
     }
 

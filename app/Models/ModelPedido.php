@@ -22,9 +22,9 @@ class ModelPedido {
                     VALUES (?, ?, ?, ?, ?)";
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([
-                $datosCliente['nombre'],
-                $datosCliente['cedula'],
-                $datosCliente['correo'],
+                mb_strtoupper($datosCliente['nombre'], 'UTF-8'),
+                mb_strtoupper($datosCliente['cedula'], 'UTF-8'),
+                mb_strtoupper($datosCliente['correo'], 'UTF-8'),
                 $datosCliente['telefono'],
                 $total
             ]);

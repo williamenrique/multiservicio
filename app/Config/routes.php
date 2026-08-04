@@ -30,4 +30,5 @@ return [
     'catalogo/ver-pedido'              => 'Catalogo@verPedido',
     'catalogo/procesar-pedido-staff'   => 'Catalogo@procesarPedidoStaff',
     'catalogo/cancelar-pedido-staff'   => 'Catalogo@cancelarPedidoStaff',
+    'catalogo/notificaciones-pedidos'  => 'Catalogo@notificacionesPedidos',
 ];

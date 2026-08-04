@@ -51,9 +51,9 @@ class ControllerPedido extends Controller{
         
         try {
             $datosCliente = [
-                'nombre' => $nombre,
-                'cedula' => $cedula,
-                'correo' => $correo,
+                'nombre' => mb_strtoupper($nombre, 'UTF-8'),
+                'cedula' => mb_strtoupper($cedula, 'UTF-8'),
+                'correo' => mb_strtoupper($correo, 'UTF-8'),
                 'telefono' => $telefono
             ];
             

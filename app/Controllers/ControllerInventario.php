@@ -190,6 +190,16 @@ class ControllerInventario extends Controller {
                     $input['nombre'] = mb_strtoupper(trim($input['nombre']), 'UTF-8');
                 }
 
+                // Normalizar marca a mayúsculas
+                if (!empty($input['marca'])) {
+                    $input['marca'] = mb_strtoupper(trim($input['marca']), 'UTF-8');
+                }
+
+                // Normalizar descripción a mayúsculas
+                if (!empty($input['descripcion'])) {
+                    $input['descripcion'] = mb_strtoupper(trim($input['descripcion']), 'UTF-8');
+                }
+
                 // Normalizar código a mayúsculas
                 if (!empty($input['codigo'])) {
                     $input['codigo'] = mb_strtoupper(trim($input['codigo']), 'UTF-8');
@@ -269,6 +279,18 @@ class ControllerInventario extends Controller {
             'success' => true,
             'codigos' => array_column($codigos, 'codigo'),
             'sugerido' => $sugerido
+        ]);
+    }
+
+    /**
+     * Endpoint AJAX: devuelve todas las marcas únicas existentes en el inventario
+     * GET /inventario/marcas
+     */
+    public function marcas() {
+        $marcas = $this->inventarioModel->obtenerMarcas();
+        return $this->jsonResponse([
+            'success' => true,
+            'marcas' => array_column($marcas, 'marca')
         ]);
     }
 
