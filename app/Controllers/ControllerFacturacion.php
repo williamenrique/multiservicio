@@ -135,6 +135,38 @@ class ControllerFacturacion extends Controller {
                     logAction('TALLER', 'FINALIZAR_ORDEN', "Venta procesada para O.S. #{$datos['orden_id']}");
                 }
 
+                // Enviar notificación por email si es factura directa (mostrador)
+                if (empty($datos['orden_id'])) {
+                    try {
+                        $ventaCompleta = $this->facturaModel->obtenerVentaCompleta($ventaId);
+                        if ($ventaCompleta && !empty($ventaCompleta->cliente_email)) {
+                            $emailData = [
+                                'cliente_nombre'    => $ventaCompleta->cliente_nombre ?? 'Cliente',
+                                'cliente_email'     => $ventaCompleta->cliente_email,
+                                'venta_id'          => $ventaId,
+                                'id_formateado'     => $ventaCompleta->id_formateado ?? null,
+                                'placa'             => $ventaCompleta->placa ?? null,
+                                'marca_vehiculo'    => $ventaCompleta->marca_vehiculo ?? null,
+                                'modelo_vehiculo'   => $ventaCompleta->modelo_vehiculo ?? null,
+                                'items'             => $ventaCompleta->items ?? [],
+                                'subtotal'          => $ventaCompleta->subtotal ?? 0,
+                                'iva_monto'         => $ventaCompleta->iva_monto ?? 0,
+                                'total'             => $ventaCompleta->total ?? 0,
+                                'pago_efectivo'     => $ventaCompleta->pago_efectivo ?? 0,
+                                'pago_transferencia'=> $ventaCompleta->pago_transferencia ?? 0,
+                                'saldo_pendiente'   => $ventaCompleta->saldo_pendiente ?? 0,
+                                'status'            => $ventaCompleta->status ?? 'PENDIENTE',
+                                'observaciones_factura' => $ventaCompleta->observaciones_factura ?? null,
+                                'vendedor_nombre'   => $ventaCompleta->vendedor_nombre ?? null,
+                            ];
+                            $emailService = new \App\Services\EmailService();
+                            $emailService->notificarFacturaDirecta($emailData);
+                        }
+                    } catch (\Throwable $e) {
+                        error_log('ControllerFacturacion: Error al enviar email de factura directa: ' . $e->getMessage());
+                    }
+                }
+
                 return $this->jsonResponse([
                     'success' => true,
                     'mensaje' => 'Venta realizada con éxito',

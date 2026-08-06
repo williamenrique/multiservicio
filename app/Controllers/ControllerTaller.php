@@ -288,6 +288,55 @@ class ControllerTaller extends Controller {
                 }
 
                 logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
+
+                // Enviar email de notificación al cliente
+                try {
+                    $ordenCreada = $this->ordenModel->obtenerDetalleOrden($ordenId);
+                    if ($ordenCreada && !empty($ordenCreada->cliente_email)) {
+                        $emailService = new \App\Services\EmailService();
+                        $itemsEmail = [];
+                        $totalEmail = 0;
+                        if (!empty($input['items'])) {
+                            foreach ($input['items'] as $it) {
+                                $precio = (float)($it['precio'] ?? 0);
+                                $cant = (int)($it['cantidad'] ?? 0);
+                                // Solo incluir ítems con cantidad real
+                                if ($cant <= 0) continue;
+                                $sub = $precio * $cant;
+                                $itemsEmail[] = [
+                                    'descripcion' => $it['descripcion'] ?? 'Ítem',
+                                    'cantidad' => $cant,
+                                    'precio' => $precio,
+                                    'subtotal' => $sub
+                                ];
+                                $totalEmail += $sub;
+                            }
+                        }
+                        // Construir datos del email — solo incluir items si hay algo real
+                        $datosEmail = [
+                            'cliente_email' => $ordenCreada->cliente_email,
+                            'cliente_nombre' => $ordenCreada->cliente_nombre ?? 'Cliente',
+                            'orden_id' => $ordenId,
+                            'id_formateado' => str_pad($ordenId, 6, '0', STR_PAD_LEFT),
+                            'placa' => $input['placa'],
+                            'vehiculo' => ($ordenCreada->marca ?? '') . ' ' . ($ordenCreada->modelo ?? ''),
+                            'kilometraje' => $input['kilometraje'] ?? '',
+                            'nivel_combustible' => $input['nivel_combustible'] ?? '',
+                            'mecanico_nombre' => $ordenCreada->mecanico_nombre ?? 'Por asignar',
+                            'fecha_ingreso' => date('d/m/Y H:i'),
+                            'fecha_entrega_estimada' => !empty($input['fecha_entrega']) ? date('d/m/Y', strtotime($input['fecha_entrega'])) : 'No especificada',
+                            'observaciones' => $input['observaciones'] ?? '',
+                        ];
+                        if (!empty($itemsEmail)) {
+                            $datosEmail['items'] = $itemsEmail;
+                            $datosEmail['total'] = $totalEmail;
+                        }
+                        $emailService->notificarOrdenServicioCreada($datosEmail);
+                    }
+                } catch (\Exception $e) {
+                    error_log('Error enviando email de orden creada: ' . $e->getMessage());
+                }
+
                 return $this->jsonResponse(['success' => true, 'id' => $ordenId, 'mensaje' => 'Orden creada correctamente']);
             }
             return $this->jsonResponse(['success' => false, 'error' => 'No se pudo crear la orden']);
@@ -466,7 +515,33 @@ class ControllerTaller extends Controller {
                 if (in_array($input['estado'], ['DIAGNOSTICANDO', 'EN_REPARACION', 'LISTO'])) {
                     $this->prepararBorradorDesdeOrden($input['id']);
                 }
-                
+
+                // ── Enviar email de notificación de cambio de estado ──
+                try {
+                    $orden = $this->ordenModel->obtenerDetalleOrden($input['id']);
+                    if ($orden && !empty($orden->cliente_email)) {
+                        // Obtener el estado anterior desde los logs
+                        $logs = $this->ordenModel->obtenerLogsEstado($input['id']);
+                        $estadoAnterior = (count($logs) >= 2) ? $logs[1]->estado : 'RECIBIDO';
+                        $emailService = new \App\Services\EmailService();
+                        $emailService->notificarOrdenServicioCambioEstado([
+                            'cliente_email' => $orden->cliente_email,
+                            'cliente_nombre' => $orden->cliente_nombre ?? 'Cliente',
+                            'orden_id' => $input['id'],
+                            'id_formateado' => str_pad($input['id'], 6, '0', STR_PAD_LEFT),
+                            'placa' => $orden->placa,
+                            'vehiculo' => ($orden->marca ?? '') . ' ' . ($orden->modelo ?? ''),
+                            'estado_anterior' => $estadoAnterior,
+                            'estado_nuevo' => $input['estado'],
+                            'fecha_cambio' => date('d/m/Y H:i'),
+                            'comentario' => 'Cambio de estado desde el panel de taller',
+                            'mecanico_nombre' => $orden->mecanico_nombre ?? 'No asignado'
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    error_log('Error enviando email de cambio de estado: ' . $e->getMessage());
+                }
+
                 return $this->jsonResponse(['success' => true, 'mensaje' => 'Estado actualizado correctamente']);
             }
             return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al actualizar el estado']);
@@ -510,6 +585,47 @@ class ControllerTaller extends Controller {
 
             $comentario = !empty($input['comentario']) ? $input['comentario'] : 'Vehículo entregado al cliente.';
             if ($this->ordenModel->actualizarEstado($input['id'], 'ENTREGADO', $comentario)) {
+                // ─── Enviar email de notificación: vehículo listo ───
+                try {
+                    $ordenado = $this->ordenModel->obtenerDetalleOrden($input['id']);
+                    if ($ordenado && !empty($ordenado->cliente_email)) {
+                        // Obtener ítems desde la factura PENDIENTE vinculada
+                        $db = new Database();
+                        $db->query("SELECT fd.descripcion, fd.cantidad, fd.precio, (fd.cantidad * fd.precio) as subtotal
+                                     FROM table_facturas_detalle fd
+                                     JOIN table_facturas f ON fd.factura_id = f.id
+                                     WHERE f.orden_id = :oid AND f.status = 'PENDIENTE'");
+                        $db->bind(':oid', $input['id']);
+                        $itemsFactura = $db->resultSet();
+                        $itemsEmail = [];
+                        $totalEmail = 0;
+                        foreach ($itemsFactura as $it) {
+                            $itemsEmail[] = [
+                                'descripcion' => $it->descripcion,
+                                'cantidad' => (int)$it->cantidad,
+                                'precio' => (float)$it->precio,
+                                'subtotal' => (float)$it->subtotal
+                            ];
+                            $totalEmail += (float)$it->subtotal;
+                        }
+                        $emailService = new \App\Services\EmailService();
+                        $emailService->notificarOrdenServicioLista([
+                            'cliente_email' => $ordenado->cliente_email,
+                            'cliente_nombre' => $ordenado->cliente_nombre ?? 'Cliente',
+                            'orden_id' => $input['id'],
+                            'id_formateado' => str_pad($input['id'], 6, '0', STR_PAD_LEFT),
+                            'placa' => $ordenado->placa,
+                            'vehiculo' => ($ordenado->marca ?? '') . ' ' . ($ordenado->modelo ?? ''),
+                            'fecha_entrega' => date('d/m/Y H:i'),
+                            'mecanico_nombre' => $ordenado->mecanico_nombre ?? 'No asignado',
+                            'items' => $itemsEmail,
+                            'total' => $totalEmail
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    error_log('Error enviando email de orden lista: ' . $e->getMessage());
+                }
+
                 return $this->jsonResponse(['success' => true, 'mensaje' => 'Orden finalizada correctamente']);
             }
             return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al procesar la entrega']);

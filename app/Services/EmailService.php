@@ -136,12 +136,84 @@ class EmailService
     }
 
     // ============================================================
+    // NOTIFICACIONES DE ÓRDENES DE SERVICIO
+    // ============================================================
+
+    /**
+     * Notifica al cliente que su orden de servicio fue creada.
+     */
+    public function notificarOrdenServicioCreada(array $datos): bool
+    {
+        $asunto = 'Orden de Servicio #' . $datos['id_formateado'] . ' creada — ' . SITENAME;
+        $html = $this->renderizar('orden_servicio_creada', $datos);
+        return $this->enviar($datos['cliente_email'], $datos['cliente_nombre'], $asunto, $html);
+    }
+
+    /**
+     * Notifica al cliente que el estado de su orden de servicio cambió.
+     */
+    public function notificarOrdenServicioCambioEstado(array $datos): bool
+    {
+        $asunto = 'Orden de Servicio #' . $datos['id_formateado'] . ' — ' . $datos['estado_nuevo'] . ' — ' . SITENAME;
+        $html = $this->renderizar('orden_servicio_cambio_estado', $datos);
+        return $this->enviar($datos['cliente_email'], $datos['cliente_nombre'], $asunto, $html);
+    }
+
+    /**
+     * Notifica al cliente que su vehículo está listo para recoger.
+     */
+    public function notificarOrdenServicioLista(array $datos): bool
+    {
+        $asunto = '¡Tu vehículo está listo! Orden de Servicio #' . $datos['id_formateado'] . ' — ' . SITENAME;
+        $html = $this->renderizar('orden_servicio_lista', $datos);
+        return $this->enviar($datos['cliente_email'], $datos['cliente_nombre'], $asunto, $html);
+    }
+
+    // ============================================================
+    // NOTIFICACIONES DE FACTURACIÓN DIRECTA (MOSTRADOR)
+    // ============================================================
+
+    /**
+     * Notifica al cliente los detalles de una factura directa (mostrador).
+     * Muestra servicios/repuestos, descripción del trabajo y estado del pago.
+     */
+    public function notificarFacturaDirecta(array $datos): bool
+    {
+        $asunto = 'Factura #' . ($datos['id_formateado'] ?? 'FAC-' . str_pad((string)($datos['venta_id'] ?? ''), 3, '0', STR_PAD_LEFT)) . ' — ' . SITENAME;
+        $html = $this->renderizar('factura_directa', $datos);
+        return $this->enviar($datos['cliente_email'], $datos['cliente_nombre'], $asunto, $html);
+    }
+
+    // ============================================================
+    // NOTIFICACIONES DE VENCIMIENTO DE PROVEEDORES
+    // ============================================================
+
+    /**
+     * Envía alerta al administrador con los proveedores cuyas facturas
+     * están próximas a vencer o ya vencidas.
+     *
+     * @param array $proveedores  Lista de proveedores con saldo pendiente
+     * @param int   $diasLimite   Días usados como filtro para la alerta
+     * @return bool
+     */
+    public function notificarProveedoresVencimiento(array $proveedores, int $diasLimite = 7): bool
+    {
+        if (empty($proveedores)) {
+            return false;
+        }
+
+        $asunto = '🔔 Alertas de Vencimiento — ' . count($proveedores) . ' proveedor(es) con facturas por vencer — ' . SITENAME;
+        $html = $this->renderizar('proveedor_vencimiento', [
+            'proveedores' => $proveedores,
+            'dias_limite' => $diasLimite,
+        ]);
+        return $this->enviar(MAIL_ADMIN, 'Administrador', $asunto, $html);
+    }
+
+    // ============================================================
     // FUTUROS MÉTODOS (a implementar cuando se necesiten)
     // ============================================================
 
-    // public function notificarOrdenServicioCliente(array $datos): bool { ... }
-    // public function notificarOrdenServicioAdmin(array $datos): bool { ... }
-    // public function notificarVentaMostradorCliente(array $datos): bool { ... }
     // public function notificarVentaMostradorAdmin(array $datos): bool { ... }
     // public function notificarRecuperacionPassword(string $email, string $token): bool { ... }
 }

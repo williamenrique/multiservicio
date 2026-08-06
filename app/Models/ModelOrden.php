@@ -109,7 +109,7 @@ class ModelOrden {
 
     public function obtenerDetalleOrden($id) {
         $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, v.color, v.anio, 
-                          c.nombre as cliente_nombre, c.telefono as cliente_telefono,
+                          c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email,
                           s.nombre as mecanico_nombre
                           FROM table_ordenes_servicio os
                           INNER JOIN table_vehiculos v ON os.placa = v.placa
