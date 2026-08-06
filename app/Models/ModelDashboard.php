@@ -197,4 +197,85 @@ class ModelDashboard {
                           ORDER BY total_vendido DESC LIMIT 5");
         return $this->db->resultSet();
     }
+
+    // ──────────────────────────────────────────────
+    //  Métodos para resumen mensual (notificaciones)
+    // ──────────────────────────────────────────────
+
+    /**
+     * Total de ventas del mes anterior (COMPLETADO + CREDITO)
+     */
+    public function getVentasMesAnterior() {
+        $this->db->query("SELECT COALESCE(SUM(total), 0) as total,
+                                 COUNT(*) as cantidad
+                          FROM table_facturas
+                          WHERE status IN ('COMPLETADO', 'CREDITO')
+                          AND MONTH(fecha) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
+                          AND YEAR(fecha) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)");
+        return $this->db->single();
+    }
+
+    /**
+     * Total de gastos del mes anterior
+     */
+    public function getGastosMesAnterior() {
+        $this->db->query("SELECT COALESCE(SUM(monto), 0) as total,
+                                 COUNT(*) as cantidad
+                          FROM table_gastos
+                          WHERE MONTH(fecha) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
+                          AND YEAR(fecha) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)");
+        return $this->db->single();
+    }
+
+    /**
+     * Clientes registrados en el mes anterior
+     */
+    public function getClientesMesAnterior() {
+        $this->db->query("SELECT COUNT(*) as cantidad
+                          FROM table_clientes
+                          WHERE MONTH(fecha_registro) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
+                          AND YEAR(fecha_registro) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)");
+        return $this->db->single();
+    }
+
+    /**
+     * Órdenes de servicio completadas en el mes anterior
+     */
+    public function getOrdenesMesAnterior() {
+        $this->db->query("SELECT COUNT(*) as cantidad
+                          FROM table_ordenes_servicio
+                          WHERE estado = 'ENTREGADO'
+                          AND MONTH(fecha_entrega_real) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
+                          AND YEAR(fecha_entrega_real) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)");
+        return $this->db->single();
+    }
+
+    /**
+     * Productos más vendidos del mes anterior
+     */
+    public function getTopProductosMesAnterior($limite = 5) {
+        $this->db->query("SELECT i.nombre, SUM(vd.cantidad) as total_vendido
+                          FROM table_facturas_detalle vd
+                          JOIN table_inventario i ON vd.producto_id = i.id
+                          JOIN table_facturas v ON vd.factura_id = v.id
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO')
+                          AND MONTH(v.fecha) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
+                          AND YEAR(v.fecha) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)
+                          GROUP BY i.id
+                          ORDER BY total_vendido DESC LIMIT :limite");
+        $this->db->bind(':limite', (int)$limite);
+        return $this->db->resultSet();
+    }
+
+    /**
+     * Resumen de inventario (productos con stock bajo)
+     */
+    public function getResumenInventario() {
+        $this->db->query("SELECT
+                            COUNT(*) as total_productos,
+                            SUM(CASE WHEN stock <= stock_minimo AND stock > 0 THEN 1 ELSE 0 END) as criticos,
+                            SUM(CASE WHEN stock = 0 THEN 1 ELSE 0 END) as agotados
+                          FROM table_inventario");
+        return $this->db->single();
+    }
 }

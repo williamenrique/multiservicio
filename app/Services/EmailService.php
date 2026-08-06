@@ -211,9 +211,46 @@ class EmailService
     }
 
     // ============================================================
-    // FUTUROS MÉTODOS (a implementar cuando se necesiten)
+    // NOTIFICACIÓN DE RESUMEN MENSUAL
     // ============================================================
 
-    // public function notificarVentaMostradorAdmin(array $datos): bool { ... }
-    // public function notificarRecuperacionPassword(string $email, string $token): bool { ... }
+    /**
+     * Envía al administrador un resumen detallado de la actividad del mes anterior.
+     *
+     * @param object $ventas       {total, cantidad}
+     * @param object $gastos       {total, cantidad}
+     * @param object $utilidad     {total_ventas, total_costos, total_servicios, ganancia_repuestos, utilidad_bruta}
+     * @param object $clientes     {cantidad}
+     * @param object $ordenes      {cantidad}
+     * @param array  $topProductos [{nombre, total_vendido}]
+     * @param object $inventario   {total_productos, criticos, agotados}
+     * @param string $mes          Nombre del mes en español
+     * @param string $anio         Año
+     * @return bool
+     */
+    public function notificarResumenMensual(
+        object $ventas,
+        object $gastos,
+        object $utilidad,
+        object $clientes,
+        object $ordenes,
+        array  $topProductos,
+        object $inventario,
+        string $mes,
+        string $anio
+    ): bool {
+        $asunto = "📊 Resumen Mensual — {$mes} {$anio} — " . SITENAME;
+        $html = $this->renderizar('resumen_mensual', [
+            'ventas'       => $ventas,
+            'gastos'       => $gastos,
+            'utilidad'     => $utilidad,
+            'clientes'     => $clientes,
+            'ordenes'      => $ordenes,
+            'topProductos' => $topProductos,
+            'inventario'   => $inventario,
+            'mes'          => $mes,
+            'anio'         => $anio,
+        ]);
+        return $this->enviar(MAIL_ADMIN, 'Administrador', $asunto, $html);
+    }
 }

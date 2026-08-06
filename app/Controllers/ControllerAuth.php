@@ -100,6 +100,9 @@ class ControllerAuth extends Controller {
                     // Auditoría de inicio de sesión
                     logAction('AUTH', 'LOGIN', "El usuario {$userFound->username} ha ingresado al sistema.");
 
+                    // Verificar y enviar notificaciones automáticas (proveedores + resumen mensual)
+                    NotificationChecker::verificarYNotificar();
+
                     return $this->jsonResponse(['success' => true, 'redirect' => URLROOT . '/dashboard']);
                 } else {
                     return $this->jsonResponse(['success' => false, 'error' => 'Contraseña incorrecta.'], 401);
