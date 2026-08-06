@@ -72,6 +72,11 @@ define('MAIL_FROM_ADDRESS', $_ENV['MAIL_FROM_ADDRESS'] ?? 'will.registro@gmail.c
 define('MAIL_FROM_NAME', $_ENV['MAIL_FROM_NAME'] ?? SITENAME);
 define('MAIL_ADMIN', $_ENV['MAIL_ADMIN'] ?? 'admin@taller.com'); // Correo del administrador que recibe copias
 
+// 9. CONFIGURACIÓN DE WHATSAPP (Servicio de mensajería)
+define('WHATSAPP_API_URL', $_ENV['WHATSAPP_API_URL'] ?? 'http://localhost:3000/enviar-pedido');
+define('WHATSAPP_TIMEOUT', (int)($_ENV['WHATSAPP_TIMEOUT'] ?? 10));
+define('WHATSAPP_ADMIN_PHONE', $_ENV['WHATSAPP_ADMIN_PHONE'] ?? '584125181629'); // Número del admin sin "+" ni espacios, ej: 584125551234
+
 /**
  * Normalización de getallheaders() para compatibilidad entre Apache y CGI/FastCGI
  * Esto permite que el código funcione igual en XAMPP y en hostings gratuitos.

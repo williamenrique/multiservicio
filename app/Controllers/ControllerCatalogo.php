@@ -477,31 +477,41 @@ class ControllerCatalogo extends Controller {
             ];
             $pedidoId = $this->modelCatalogo->crearPedido($datosCliente, $itemsPedido);
 
-            // --- 5. Enviar notificaciones por email ---
+            // --- 5. Preparar datos para notificaciones y enviar email ---
+            $facturaModel = $this->model('Facturacion');
+            $ventaCompleta = $facturaModel->obtenerVentaCompleta($ventaId);
+            $datosEmail = [
+                'cliente_nombre'    => $nombre,
+                'cliente_email'     => $correo,
+                'cliente_telefono'  => $telefono,
+                'cliente_cedula'    => $cedula,
+                'cliente_direccion' => $direccion,
+                'venta_formateado'  => $ventaCompleta->id_formateado ?? 'FAC-' . str_pad($ventaId, 3, '0', STR_PAD_LEFT),
+                'venta_id'          => $ventaId,
+                'id_formateado'     => 'PED-' . str_pad($pedidoId, 3, '0', STR_PAD_LEFT),
+                'fecha'             => date('d/m/Y h:i A'),
+                'items'             => $ventaCompleta->items ?? $items,
+                'subtotal'          => $ventaCompleta->subtotal ?? $totalVenta,
+                'iva'               => $ventaCompleta->iva ?? 0,
+                'iva_tasa'          => 19,
+                'total'             => $ventaCompleta->total ?? $totalVenta,
+            ];
+
             try {
-                $facturaModel = $this->model('Facturacion');
-                $ventaCompleta = $facturaModel->obtenerVentaCompleta($ventaId);
                 $emailService = new EmailService();
-                $datosEmail = [
-                    'cliente_nombre'    => $nombre,
-                    'cliente_email'     => $correo,
-                    'cliente_telefono'  => $telefono,
-                    'cliente_cedula'    => $cedula,
-                    'cliente_direccion' => $direccion,
-                    'venta_formateado'  => $ventaCompleta->id_formateado ?? 'FAC-' . str_pad($ventaId, 3, '0', STR_PAD_LEFT),
-                    'venta_id'          => $ventaId,
-                    'id_formateado'     => 'PED-' . str_pad($pedidoId, 3, '0', STR_PAD_LEFT),
-                    'fecha'             => date('d/m/Y h:i A'),
-                    'items'             => $ventaCompleta->items ?? $items,
-                    'subtotal'          => $ventaCompleta->subtotal ?? $totalVenta,
-                    'iva'               => $ventaCompleta->iva ?? 0,
-                    'iva_tasa'          => 19,
-                    'total'             => $ventaCompleta->total ?? $totalVenta,
-                ];
                 $emailService->notificarPedidoCatalogo($datosEmail);
             } catch (Exception $emailEx) {
                 error_log("ERROR EMAIL CATÁLOGO: " . $emailEx->getMessage());
                 // No interrumpir el flujo si falla el email
+            }
+
+            // --- 6. Enviar notificación por WhatsApp al ADMIN ---
+            try {
+                $whatsappService = new \App\Services\WhatsAppService();
+                $whatsappService->notificarPedidoCatalogoAdmin($datosEmail);
+            } catch (Exception $whatsappEx) {
+                error_log("ERROR WHATSAPP CATÁLOGO: " . $whatsappEx->getMessage());
+                // No interrumpir el flujo si falla WhatsApp
             }
 
             // Limpiar carrito
