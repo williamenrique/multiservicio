@@ -477,31 +477,44 @@ class ControllerCatalogo extends Controller {
             ];
             $pedidoId = $this->modelCatalogo->crearPedido($datosCliente, $itemsPedido);
 
-            // --- 5. Enviar notificaciones por email ---
+            // --- 5. Preparar datos para notificaciones y enviar email ---
+            $facturaModel = $this->model('Facturacion');
+            $ventaCompleta = $facturaModel->obtenerVentaCompleta($ventaId);
+            $datosEmail = [
+                'cliente_nombre'    => $nombre,
+                'cliente_email'     => $correo,
+                'cliente_telefono'  => $telefono,
+                'cliente_cedula'    => $cedula,
+                'cliente_direccion' => $direccion,
+                'venta_formateado'  => $ventaCompleta->id_formateado ?? 'FAC-' . str_pad($ventaId, 3, '0', STR_PAD_LEFT),
+                'venta_id'          => $ventaId,
+                'id_formateado'     => 'PED-' . str_pad($pedidoId, 3, '0', STR_PAD_LEFT),
+                'fecha'             => date('d/m/Y h:i A'),
+                'items'             => $ventaCompleta->items ?? $items,
+                'subtotal'          => $ventaCompleta->subtotal ?? $totalVenta,
+                'iva'               => $ventaCompleta->iva ?? 0,
+                'iva_tasa'          => 19,
+                'total'             => $ventaCompleta->total ?? $totalVenta,
+            ];
+
             try {
-                $facturaModel = $this->model('Facturacion');
-                $ventaCompleta = $facturaModel->obtenerVentaCompleta($ventaId);
                 $emailService = new EmailService();
-                $datosEmail = [
-                    'cliente_nombre'    => $nombre,
-                    'cliente_email'     => $correo,
-                    'cliente_telefono'  => $telefono,
-                    'cliente_cedula'    => $cedula,
-                    'cliente_direccion' => $direccion,
-                    'venta_formateado'  => $ventaCompleta->id_formateado ?? 'FAC-' . str_pad($ventaId, 3, '0', STR_PAD_LEFT),
-                    'venta_id'          => $ventaId,
-                    'id_formateado'     => 'PED-' . str_pad($pedidoId, 3, '0', STR_PAD_LEFT),
-                    'fecha'             => date('d/m/Y h:i A'),
-                    'items'             => $ventaCompleta->items ?? $items,
-                    'subtotal'          => $ventaCompleta->subtotal ?? $totalVenta,
-                    'iva'               => $ventaCompleta->iva ?? 0,
-                    'iva_tasa'          => 19,
-                    'total'             => $ventaCompleta->total ?? $totalVenta,
-                ];
                 $emailService->notificarPedidoCatalogo($datosEmail);
             } catch (Exception $emailEx) {
                 error_log("ERROR EMAIL CATÁLOGO: " . $emailEx->getMessage());
                 // No interrumpir el flujo si falla el email
+            }
+
+            // --- 6. Enviar notificación por WhatsApp al ADMIN ---
+            try {
+                $whatsappService = new \App\Services\WhatsAppService();
+                $resultadoWhatsapp = $whatsappService->notificarPedidoCatalogoAdmin($datosEmail);
+                if (!$resultadoWhatsapp['success']) {
+                    $_SESSION['whatsapp_warning'] = 'El pedido se registró correctamente, pero el servidor de WhatsApp no está disponible en este momento. Te notificaremos por correo.';
+                }
+            } catch (\Throwable $whatsappEx) {
+                error_log("ERROR WHATSAPP CATÁLOGO: " . $whatsappEx->getMessage());
+                $_SESSION['whatsapp_warning'] = 'El pedido se registró correctamente, pero el servidor de WhatsApp no está disponible en este momento. Te notificaremos por correo.';
             }
 
             // Limpiar carrito
@@ -528,6 +541,10 @@ class ControllerCatalogo extends Controller {
             redirect('catalogo');
         }
 
+        // Recoger warning de WhatsApp si existe
+        $whatsappWarning = $_SESSION['whatsapp_warning'] ?? null;
+        unset($_SESSION['whatsapp_warning']);
+
         // Intentar obtener la factura primero
         $facturaModel = $this->model('Facturacion');
         $venta = $facturaModel->obtenerVentaCompleta($id);
@@ -535,10 +552,11 @@ class ControllerCatalogo extends Controller {
         if ($venta) {
             // Es una factura - mostrar datos de factura
             $data = [
-                'titulo'   => 'Pedido Confirmado',
-                'venta'    => $venta,
-                'pedido'   => null,
-                'detalles' => $venta->items ?? []
+                'titulo'           => 'Pedido Confirmado',
+                'venta'            => $venta,
+                'pedido'           => null,
+                'detalles'         => $venta->items ?? [],
+                'whatsapp_warning' => $whatsappWarning
             ];
             $this->view('public/catalogo/confirmacion', $data);
             return;
@@ -554,10 +572,11 @@ class ControllerCatalogo extends Controller {
         $detalles = $this->modelCatalogo->obtenerDetallesPedido($id);
 
         $data = [
-            'titulo'   => 'Pedido Confirmado',
-            'venta'    => null,
-            'pedido'   => $pedido,
-            'detalles' => $detalles
+            'titulo'           => 'Pedido Confirmado',
+            'venta'            => null,
+            'pedido'           => $pedido,
+            'detalles'         => $detalles,
+            'whatsapp_warning' => $whatsappWarning
         ];
 
         $this->view('public/catalogo/confirmacion', $data);

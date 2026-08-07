@@ -229,6 +229,30 @@
             </p>
         </div>
     </footer>
+
+    <?php if (!empty($whatsapp_warning)): ?>
+    <!-- Toastify CSS/JS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script>
+    Toastify({
+        text: "<?php echo addslashes($whatsapp_warning); ?>",
+        duration: 6000,
+        gravity: "top",
+        position: "right",
+        style: {
+            background: "#f59e0b",
+            color: "#1e293b",
+            borderRadius: "12px",
+            fontWeight: "700",
+            fontSize: "13px",
+            boxShadow: "0 0 20px rgba(245, 158, 11, 0.4)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            textTransform: "none"
+        },
+    }).showToast();
+    </script>
+    <?php endif; ?>
 </body>
 
 </html>
