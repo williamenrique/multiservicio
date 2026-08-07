@@ -393,6 +393,9 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
         
         if (res.success) {
             AppUtils.showToast(res.mensaje, 'success');
+            if (res.wa_success === false) {
+                AppUtils.showToast('WhatsApp no enviado: ' + (res.wa_mensaje || 'sin teléfono'), 'warning');
+            }
             
             // Mejora: Limpiar formulario y resetear interfaz sin redirigir
             this.reset();

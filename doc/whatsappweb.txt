@@ -1,0 +1,66 @@
+mkdir c:\whatsapp-local
+cd c:\whatsapp-local
+npm init -y
+npm install whatsapp-web.js qrcode-terminal express body-parser
+server.js
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const express = require('express');
+const bodyParser = require('body-parser');
+
+const app = express();
+app.use(bodyParser.json());
+
+// Configurar el cliente de WhatsApp local
+const client = new Client({
+    authStrategy: new LocalAuth(), // Guarda la sesión para no escanear el QR cada vez
+    puppeteer: {
+        headless: true // Corre en segundo plano sin abrir ventanas molestas
+    }
+});
+
+// Mostrar el código QR en la consola de Windows
+client.on('qr', (qr) => {
+    console.log('\n--- ESCANEA ESTE CÓDIGO QR CON TU TELÉFONO ---');
+    qrcode.generate(qr, { small: true });
+});
+
+// Mensaje cuando la conexión sea exitosa
+client.on('ready', () => {
+    console.log('\n¡Éxito! WhatsApp está conectado y escuchando a tu PHP.');
+});
+
+// Ruta que recibirá los pedidos desde PHP
+app.post('/enviar-pedido', async (req, res) => {
+    const { telefono, mensaje } = req.body;
+
+    if (!telefono || !mensaje) {
+        return res.status(400).json({ status: false, error: 'Faltan parámetros: telefono o mensaje' });
+    }
+
+    try {
+        // Formatear el número agregando el sufijo oficial de WhatsApp (@c.us)
+        const numeroFormateado = telefono.replace('+', '').trim() + '@c.us';
+        
+        await client.sendMessage(numeroFormateado, mensaje);
+        res.json({ status: true, message: 'Mensaje enviado!' });
+    } catch (error) {
+        console.error('Error al enviar mensaje:', error);
+        res.status(500).json({ status: false, error: error.message });
+    }
+});
+
+// Iniciar el servidor local en el puerto 3000
+app.listen(3000, () => {
+    console.log('Servidor de WhatsApp iniciado en http://localhost:3000');
+    client.initialize();
+});
+
+
+node server.js
+
+*** metodo 2 si falla el primero ***
+
+npm uninstall whatsapp-web.js
+npm install github:wwebjs/whatsapp-web.js
+node server.js

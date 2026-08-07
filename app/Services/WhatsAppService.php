@@ -150,6 +150,62 @@ class WhatsAppService
     }
 
     // ============================================================
+    // NOTIFICACIONES DE ORDEN DE SERVICIO
+    // ============================================================
+
+    /**
+     * Notifica al cliente que su orden de servicio fue creada (recepción).
+     */
+    public function notificarOrdenServicioCreada(array $datos): array
+    {
+        $telefono = $datos['cliente_telefono'] ?? '';
+        if (empty($telefono)) {
+            return ['success' => false, 'mensaje' => 'El cliente no tiene teléfono.', 'respuesta' => null];
+        }
+        $mensaje = $this->formatearOrdenCreada($datos);
+        return $this->enviar($telefono, $mensaje);
+    }
+
+    /**
+     * Notifica al cliente que el estado de su orden de servicio cambió.
+     */
+    public function notificarOrdenServicioCambioEstado(array $datos): array
+    {
+        $telefono = $datos['cliente_telefono'] ?? '';
+        if (empty($telefono)) {
+            return ['success' => false, 'mensaje' => 'El cliente no tiene teléfono.', 'respuesta' => null];
+        }
+        $mensaje = $this->formatearCambioEstado($datos);
+        return $this->enviar($telefono, $mensaje);
+    }
+
+    /**
+     * Notifica al cliente que su vehículo está listo para recoger.
+     */
+    public function notificarOrdenServicioLista(array $datos): array
+    {
+        $telefono = $datos['cliente_telefono'] ?? '';
+        if (empty($telefono)) {
+            return ['success' => false, 'mensaje' => 'El cliente no tiene teléfono.', 'respuesta' => null];
+        }
+        $mensaje = $this->formatearOrdenLista($datos);
+        return $this->enviar($telefono, $mensaje);
+    }
+
+    /**
+     * Notifica al cliente los detalles de una factura directa (mostrador).
+     */
+    public function notificarFacturaDirecta(array $datos): array
+    {
+        $telefono = $datos['cliente_telefono'] ?? '';
+        if (empty($telefono)) {
+            return ['success' => false, 'mensaje' => 'El cliente no tiene teléfono.', 'respuesta' => null];
+        }
+        $mensaje = $this->formatearFacturaDirecta($datos);
+        return $this->enviar($telefono, $mensaje);
+    }
+
+    // ============================================================
     // FORMATEADORES DE MENSAJES (Markdown de WhatsApp)
     // ============================================================
 
@@ -232,6 +288,200 @@ class WhatsAppService
         $lineas[] = "";
         $lineas[] = "Nos pondremos en contacto contigo pronto para coordinar la entrega.";
         $lineas[] = "Si tienes dudas, responde a este mensaje o contáctanos.";
+
+        return implode("\n", $lineas);
+    }
+
+    // ------------------------------------------------------------
+    // Formateadores de ORDEN DE SERVICIO
+    // ------------------------------------------------------------
+
+    /**
+     * Formatea el mensaje de orden de servicio creada (recepción).
+     */
+    private function formatearOrdenCreada(array $d): string
+    {
+        $lineas = [];
+        $lineas[] = "🔧 *ORDEN DE SERVICIO CREADA*";
+        $lineas[] = "";
+        $lineas[] = "Hola *{$d['cliente_nombre']}*, hemos recibido tu vehículo correctamente:";
+        $lineas[] = "";
+        $lineas[] = "📋 *Orden:* {$d['id_formateado']}";
+        $lineas[] = "📅 *Fecha:* {$d['fecha_ingreso']}";
+        $lineas[] = "🚗 *Vehículo:* {$d['vehiculo']}";
+        $lineas[] = "🔖 *Placa:* {$d['placa']}";
+        if (!empty($d['kilometraje'])) {
+            $lineas[] = "📏 *Kilometraje:* {$d['kilometraje']} km";
+        }
+        if (!empty($d['nivel_combustible'])) {
+            $lineas[] = "⛽ *Combustible:* {$d['nivel_combustible']}";
+        }
+        $lineas[] = "👨‍🔧 *Mecánico:* {$d['mecanico_nombre']}";
+        if (!empty($d['fecha_entrega_estimada']) && $d['fecha_entrega_estimada'] !== 'No especificada') {
+            $lineas[] = "📆 *Entrega estimada:* {$d['fecha_entrega_estimada']}";
+        }
+        $lineas[] = "";
+
+        $items = $d['items'] ?? [];
+        if (!empty($items)) {
+            $lineas[] = "🛒 *Servicios/Repuestos:*";
+            foreach ($items as $it) {
+                $desc = $it['descripcion'] ?? 'Ítem';
+                $cant = (int)($it['cantidad'] ?? 1);
+                $sub  = number_format((float)($it['subtotal'] ?? ($it['precio'] ?? 0) * $cant), 2);
+                $lineas[] = "  • {$desc} (x{$cant}) — \${$sub}";
+            }
+            $lineas[] = "";
+            $lineas[] = "💰 *Total estimado:* \$" . number_format((float)($d['total'] ?? 0), 2);
+            $lineas[] = "";
+        }
+
+        if (!empty($d['observaciones'])) {
+            $lineas[] = "📝 *Observaciones:* {$d['observaciones']}";
+            $lineas[] = "";
+        }
+
+        $lineas[] = "Te mantendremos informado sobre el progreso del servicio.";
+
+        return implode("\n", $lineas);
+    }
+
+    /**
+     * Formatea el mensaje de cambio de estado de la orden.
+     */
+    private function formatearCambioEstado(array $d): string
+    {
+        $estados = [
+            'RECIBIDO'       => 'Recibido',
+            'DIAGNOSTICANDO' => 'Diagnosticando',
+            'EN_REPARACION'  => 'En reparación',
+            'LISTO'          => 'Listo para entrega',
+            'ENTREGADO'      => 'Entregado',
+        ];
+        $estadoAntTxt = $estados[$d['estado_anterior']] ?? $d['estado_anterior'];
+        $estadoNuevoTxt = $estados[$d['estado_nuevo']] ?? $d['estado_nuevo'];
+
+        $lineas = [];
+        $lineas[] = "🔄 *ACTUALIZACIÓN DE TU ORDEN DE SERVICIO*";
+        $lineas[] = "";
+        $lineas[] = "Hola *{$d['cliente_nombre']}*, el estado de tu orden ha cambiado:";
+        $lineas[] = "";
+        $lineas[] = "📋 *Orden:* {$d['id_formateado']}";
+        $lineas[] = "🚗 *Vehículo:* {$d['vehiculo']}";
+        $lineas[] = "🔖 *Placa:* {$d['placa']}";
+        $lineas[] = "";
+        $lineas[] = "📌 *Estado anterior:* {$estadoAntTxt}";
+        $lineas[] = "✅ *Estado actual:* {$estadoNuevoTxt}";
+        $lineas[] = "📅 *Fecha:* {$d['fecha_cambio']}";
+        $lineas[] = "👨‍🔧 *Mecánico:* {$d['mecanico_nombre']}";
+        if (!empty($d['comentario'])) {
+            $lineas[] = "";
+            $lineas[] = "📝 *Comentario:* {$d['comentario']}";
+        }
+        $lineas[] = "";
+        $lineas[] = "Te avisaremos cuando tu vehículo esté listo para recoger.";
+
+        return implode("\n", $lineas);
+    }
+
+    /**
+     * Formatea el mensaje de vehículo listo para entrega.
+     */
+    private function formatearOrdenLista(array $d): string
+    {
+        $lineas = [];
+        $lineas[] = "✅ *¡TU VEHÍCULO ESTÁ LISTO!*";
+        $lineas[] = "";
+        $lineas[] = "Hola *{$d['cliente_nombre']}*, tu vehículo ya está listo para ser recogido:";
+        $lineas[] = "";
+        $lineas[] = "📋 *Orden:* {$d['id_formateado']}";
+        $lineas[] = "🚗 *Vehículo:* {$d['vehiculo']}";
+        $lineas[] = "🔖 *Placa:* {$d['placa']}";
+        $lineas[] = "📅 *Fecha:* {$d['fecha_entrega']}";
+        $lineas[] = "👨‍🔧 *Mecánico:* {$d['mecanico_nombre']}";
+        $lineas[] = "";
+
+        $items = $d['items'] ?? [];
+        if (!empty($items)) {
+            $lineas[] = "🛒 *Servicios/Repuestos:*";
+            foreach ($items as $it) {
+                $desc = $it['descripcion'] ?? 'Ítem';
+                $cant = (int)($it['cantidad'] ?? 1);
+                $sub  = number_format((float)($it['subtotal'] ?? ($it['precio'] ?? 0) * $cant), 2);
+                $lineas[] = "  • {$desc} (x{$cant}) — \${$sub}";
+            }
+            $lineas[] = "";
+        }
+
+        $lineas[] = "💰 *Total:* \$" . number_format((float)($d['total'] ?? 0), 2);
+        $lineas[] = "";
+        $lineas[] = "Puedes acercarte a nuestras instalaciones para retirarlo.";
+
+        return implode("\n", $lineas);
+    }
+
+    /**
+     * Formatea el mensaje de factura directa (mostrador).
+     */
+    private function formatearFacturaDirecta(array $d): string
+    {
+        $statusTxt = [
+            'COMPLETADO' => 'Pagado (Completado)',
+            'CREDITO'    => 'Crédito',
+            'PENDIENTE'  => 'Pendiente (Abono)',
+        ];
+        $estadoTxt = $statusTxt[$d['status'] ?? ''] ?? ($d['status'] ?? 'Pendiente');
+
+        $lineas = [];
+        $lineas[] = "🧾 *FACTURA DE SERVICIO*";
+        $lineas[] = "";
+        $lineas[] = "Hola *{$d['cliente_nombre']}*, aquí los detalles de tu factura:";
+        $lineas[] = "";
+        $lineas[] = "📋 *Factura:* " . ($d['id_formateado'] ?? 'N/A');
+        if (!empty($d['placa'])) {
+            $lineas[] = "🚗 *Vehículo:* " . trim(($d['marca_vehiculo'] ?? '') . ' ' . ($d['modelo_vehiculo'] ?? ''));
+            $lineas[] = "🔖 *Placa:* {$d['placa']}";
+        }
+        $lineas[] = "";
+
+        $items = $d['items'] ?? [];
+        if (!empty($items)) {
+            $lineas[] = "🛒 *Detalle:*";
+            foreach ($items as $it) {
+                $it = (array)$it;
+                $desc = $it['descripcion'] ?? 'Ítem';
+                $cant = (int)($it['cantidad'] ?? 1);
+                $sub  = number_format((float)($it['subtotal'] ?? ($it['precio'] ?? 0) * $cant), 2);
+                $lineas[] = "  • {$desc} (x{$cant}) — \${$sub}";
+            }
+            $lineas[] = "";
+        }
+
+        $lineas[] = "💰 *Subtotal:* \$" . number_format((float)($d['subtotal'] ?? 0), 2);
+        if (!empty($d['iva_monto']) && (float)$d['iva_monto'] > 0) {
+            $lineas[] = "🧾 *IVA:* \$" . number_format((float)$d['iva_monto'], 2);
+        }
+        $lineas[] = "💵 *TOTAL:* \$" . number_format((float)($d['total'] ?? 0), 2);
+        $lineas[] = "";
+        $lineas[] = "📌 *Estado:* {$estadoTxt}";
+
+        $pef = (float)($d['pago_efectivo'] ?? 0);
+        $ptr = (float)($d['pago_transferencia'] ?? 0);
+        $saldo = (float)($d['saldo_pendiente'] ?? 0);
+        if ($pef > 0 || $ptr > 0) {
+            $lineas[] = "";
+            $lineas[] = "💸 *Pagado:* \$" . number_format($pef + $ptr, 2);
+        }
+        if ($saldo > 0) {
+            $lineas[] = "⏳ *Saldo pendiente:* \$" . number_format($saldo, 2);
+        }
+
+        if (!empty($d['vendedor_nombre'])) {
+            $lineas[] = "";
+            $lineas[] = "👤 *Atendido por:* {$d['vendedor_nombre']}";
+        }
+        $lineas[] = "";
+        $lineas[] = "¡Gracias por tu preferencia!";
 
         return implode("\n", $lineas);
     }

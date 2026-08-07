@@ -884,6 +884,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (data.success) {
+                if (data.wa_success === false) {
+                    AppUtils.showToast('WhatsApp no enviado: ' + (data.wa_mensaje || 'sin teléfono'), 'warning');
+                }
                 // Preguntar si desea imprimir después del éxito
                 AppUtils.confirmAction(
                     '¡Venta Exitosa!',

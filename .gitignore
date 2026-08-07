@@ -1,1 +1,4 @@
 public_html/uploads/
+.wwebjs_auth/
+.wwebjs_cache/
+node_modules/

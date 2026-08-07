@@ -594,6 +594,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             ultimaVentaId = data.venta_id;
             
+            if (data.wa_success === false) {
+                AppUtils.showToast('WhatsApp no enviado: ' + (data.wa_mensaje || 'sin teléfono'), 'warning');
+            }
+            
             // Mostrar modal de éxito en lugar de abrir pestaña directamente
             document.getElementById('modalVentaExitosa').classList.remove('hidden');
             if (window.lucide) lucide.createIcons();

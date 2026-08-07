@@ -209,6 +209,9 @@ async function cambiarEstado(id, selectEl) {
         
         if (result.success) {
             AppUtils.showToast(result.mensaje, 'success');
+            if (result.wa_success === false) {
+                AppUtils.showToast('WhatsApp no enviado: ' + (result.wa_mensaje || 'sin teléfono'), 'warning');
+            }
             
             // Actualizar colores dinámicamente
             selectEl.classList.remove('text-slate-500', 'text-indigo-600', 'text-amber-600', 'text-blue-600', 'text-emerald-600', 'border-slate-200', 'border-indigo-200', 'border-amber-200', 'border-blue-200', 'border-emerald-400');
@@ -277,6 +280,9 @@ async function entregarVehiculo(id) {
 
         if (result.success) {
             AppUtils.showToast('Vehículo entregado. Orden finalizada.');
+            if (result.wa_success === false) {
+                AppUtils.showToast('WhatsApp no enviado: ' + (result.wa_mensaje || 'sin teléfono'), 'warning');
+            }
             setTimeout(() => location.reload(), 1000); // Recarga para limpiar la tabla
         }
     }

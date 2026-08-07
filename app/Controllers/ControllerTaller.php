@@ -337,7 +337,26 @@ class ControllerTaller extends Controller {
                     error_log('Error enviando email de orden creada: ' . $e->getMessage());
                 }
 
-                return $this->jsonResponse(['success' => true, 'id' => $ordenId, 'mensaje' => 'Orden creada correctamente']);
+                // ── Enviar WhatsApp de notificación al cliente ──
+                $waOk = true;
+                $waMsg = '';
+                try {
+                    if ($ordenCreada && !empty($ordenCreada->cliente_telefono)) {
+                        $waService = new \App\Services\WhatsAppService();
+                        $datosWA = $datosEmail;
+                        $datosWA['cliente_telefono'] = $ordenCreada->cliente_telefono;
+                        $waResult = $waService->notificarOrdenServicioCreada($datosWA);
+                        $waOk = $waResult['success'] ?? false;
+                        $waMsg = $waResult['mensaje'] ?? '';
+                    }
+                } catch (\Exception $e) {
+                    $waOk = false;
+                    $waMsg = $e->getMessage();
+                    error_log('Error enviando WhatsApp de orden creada: ' . $e->getMessage());
+                }
+
+                $waNotice = $waOk ? '' : ' (WhatsApp no enviado: ' . ($waMsg ?: 'sin teléfono') . ')';
+                return $this->jsonResponse(['success' => true, 'id' => $ordenId, 'mensaje' => 'Orden creada correctamente' . $waNotice, 'wa_success' => $waOk, 'wa_mensaje' => $waMsg]);
             }
             return $this->jsonResponse(['success' => false, 'error' => 'No se pudo crear la orden']);
         }
@@ -542,7 +561,36 @@ class ControllerTaller extends Controller {
                     error_log('Error enviando email de cambio de estado: ' . $e->getMessage());
                 }
 
-                return $this->jsonResponse(['success' => true, 'mensaje' => 'Estado actualizado correctamente']);
+                // ── Enviar WhatsApp de notificación de cambio de estado ──
+                $waOk = true;
+                $waMsg = '';
+                try {
+                    if ($orden && !empty($orden->cliente_telefono)) {
+                        $waService = new \App\Services\WhatsAppService();
+                        $waResult = $waService->notificarOrdenServicioCambioEstado([
+                            'cliente_telefono' => $orden->cliente_telefono,
+                            'cliente_nombre' => $orden->cliente_nombre ?? 'Cliente',
+                            'orden_id' => $input['id'],
+                            'id_formateado' => str_pad($input['id'], 6, '0', STR_PAD_LEFT),
+                            'placa' => $orden->placa,
+                            'vehiculo' => ($orden->marca ?? '') . ' ' . ($orden->modelo ?? ''),
+                            'estado_anterior' => $estadoAnterior,
+                            'estado_nuevo' => $input['estado'],
+                            'fecha_cambio' => date('d/m/Y H:i'),
+                            'comentario' => 'Cambio de estado desde el panel de taller',
+                            'mecanico_nombre' => $orden->mecanico_nombre ?? 'No asignado'
+                        ]);
+                        $waOk = $waResult['success'] ?? false;
+                        $waMsg = $waResult['mensaje'] ?? '';
+                    }
+                } catch (\Exception $e) {
+                    $waOk = false;
+                    $waMsg = $e->getMessage();
+                    error_log('Error enviando WhatsApp de cambio de estado: ' . $e->getMessage());
+                }
+
+                $waNotice = $waOk ? '' : ' (WhatsApp no enviado: ' . ($waMsg ?: 'sin teléfono') . ')';
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Estado actualizado correctamente' . $waNotice, 'wa_success' => $waOk, 'wa_mensaje' => $waMsg]);
             }
             return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al actualizar el estado']);
         }
@@ -626,7 +674,35 @@ class ControllerTaller extends Controller {
                     error_log('Error enviando email de orden lista: ' . $e->getMessage());
                 }
 
-                return $this->jsonResponse(['success' => true, 'mensaje' => 'Orden finalizada correctamente']);
+                // ── Enviar WhatsApp de notificación: vehículo listo ──
+                $waOk = true;
+                $waMsg = '';
+                try {
+                    if ($ordenado && !empty($ordenado->cliente_telefono)) {
+                        $waService = new \App\Services\WhatsAppService();
+                        $waResult = $waService->notificarOrdenServicioLista([
+                            'cliente_telefono' => $ordenado->cliente_telefono,
+                            'cliente_nombre' => $ordenado->cliente_nombre ?? 'Cliente',
+                            'orden_id' => $input['id'],
+                            'id_formateado' => str_pad($input['id'], 6, '0', STR_PAD_LEFT),
+                            'placa' => $ordenado->placa,
+                            'vehiculo' => ($ordenado->marca ?? '') . ' ' . ($ordenado->modelo ?? ''),
+                            'fecha_entrega' => date('d/m/Y H:i'),
+                            'mecanico_nombre' => $ordenado->mecanico_nombre ?? 'No asignado',
+                            'items' => $itemsEmail,
+                            'total' => $totalEmail
+                        ]);
+                        $waOk = $waResult['success'] ?? false;
+                        $waMsg = $waResult['mensaje'] ?? '';
+                    }
+                } catch (\Exception $e) {
+                    $waOk = false;
+                    $waMsg = $e->getMessage();
+                    error_log('Error enviando WhatsApp de orden lista: ' . $e->getMessage());
+                }
+
+                $waNotice = $waOk ? '' : ' (WhatsApp no enviado: ' . ($waMsg ?: 'sin teléfono') . ')';
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Orden finalizada correctamente' . $waNotice, 'wa_success' => $waOk, 'wa_mensaje' => $waMsg]);
             }
             return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al procesar la entrega']);
         }

@@ -165,12 +165,33 @@ class ControllerFacturacion extends Controller {
                     } catch (\Throwable $e) {
                         error_log('ControllerFacturacion: Error al enviar email de factura directa: ' . $e->getMessage());
                     }
+
+                    // ── Enviar WhatsApp de notificación de factura directa ──
+                    $waOk = true;
+                    $waMsg = '';
+                    try {
+                        if ($ventaCompleta && !empty($ventaCompleta->cliente_telefono)) {
+                            $waService = new \App\Services\WhatsAppService();
+                            $waData = $emailData;
+                            $waData['cliente_telefono'] = $ventaCompleta->cliente_telefono;
+                            $waResult = $waService->notificarFacturaDirecta($waData);
+                            $waOk = $waResult['success'] ?? false;
+                            $waMsg = $waResult['mensaje'] ?? '';
+                        }
+                    } catch (\Throwable $e) {
+                        $waOk = false;
+                        $waMsg = $e->getMessage();
+                        error_log('ControllerFacturacion: Error al enviar WhatsApp de factura directa: ' . $e->getMessage());
+                    }
                 }
 
+                $waNotice = $waOk ? '' : ' (WhatsApp no enviado: ' . ($waMsg ?: 'sin teléfono') . ')';
                 return $this->jsonResponse([
                     'success' => true,
-                    'mensaje' => 'Venta realizada con éxito',
-                    'venta_id' => $ventaId
+                    'mensaje' => 'Venta realizada con éxito' . $waNotice,
+                    'venta_id' => $ventaId,
+                    'wa_success' => $waOk,
+                    'wa_mensaje' => $waMsg
                 ]);
             } catch (Exception $e) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
