@@ -641,23 +641,23 @@ class ControllerTaller extends Controller {
         // Punto 4: Consulta inteligente para el dropdown de notificaciones (Llave)
         // Categorizamos las alertas para que el frontend distinga entre órdenes sin mecánico, vencidas o estancadas.
         $db->query("SELECT os.id, os.placa, os.estado, os.mecanico_id, os.fecha_entrega_estimada, os.fecha_ingreso,
-                          TIMESTAMPDIFF(MINUTE, NOW(), os.fecha_entrega_estimada) as minutos_restantes,
+                          EXTRACT(EPOCH FROM (os.fecha_entrega_estimada - NOW()))/60 as minutos_restantes,
                           v.marca, v.modelo,
                           CASE 
                             WHEN os.mecanico_id IS NULL THEN 'SIN_MECANICO'
                             WHEN os.fecha_entrega_estimada < NOW() THEN 'VENCIDA'
-                            WHEN os.estado = 'RECIBIDO' AND DATEDIFF(NOW(), os.fecha_ingreso) >= 1 THEN 'ESTANCADA'
+                            WHEN os.estado = 'RECIBIDO' AND (CURRENT_DATE - os.fecha_ingreso::date) >= 1 THEN 'ESTANCADA'
                             ELSE 'PENDIENTE'
                           END as tipo_alerta,
                           CASE 
                             WHEN os.mecanico_id IS NULL THEN 'Pendiente de asignar técnico'
                             WHEN os.fecha_entrega_estimada < NOW() THEN 'Entrega fuera de tiempo'
-                            WHEN os.estado = 'RECIBIDO' AND DATEDIFF(NOW(), os.fecha_ingreso) >= 1 THEN 'Sin seguimiento (24h+)'
+                            WHEN os.estado = 'RECIBIDO' AND (CURRENT_DATE - os.fecha_ingreso::date) >= 1 THEN 'Sin seguimiento (24h+)'
                             ELSE 'En tiempo'
                           END as descripcion_alerta
                     FROM table_ordenes_servicio os
                     LEFT JOIN table_vehiculos v ON os.placa = v.placa
-                    WHERE os.estado NOT IN ('ENTREGADO', 'ANULADO')
+                    WHERE os.estado NOT IN ('ENTREGADO', 'CANCELADO')
                     ORDER BY minutos_restantes ASC");
 
         $alertas = $db->resultSet();

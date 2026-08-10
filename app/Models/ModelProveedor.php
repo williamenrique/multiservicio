@@ -69,7 +69,7 @@ class ModelProveedor {
                           FROM table_proveedores p
                           INNER JOIN table_compras c ON p.id = c.proveedor_id
                           GROUP BY p.id, p.nombre, p.telefono
-                          HAVING saldo_pendiente > 0
+                          HAVING SUM(c.total - c.pagado) > 0
                           ORDER BY proximo_vencimiento ASC");
         return $this->db->resultSet();
     }

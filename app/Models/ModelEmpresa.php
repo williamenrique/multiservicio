@@ -38,7 +38,7 @@ class ModelEmpresa {
         // Intentar actualizar, si no existe, insertar
         $this->db->query("INSERT INTO table_company_settings (id, name, nit, iva, logo, direccion, telefono) 
                           VALUES (1, :name, :nit, :iva, :logo, :direccion, :telefono)
-                          ON DUPLICATE KEY UPDATE
+ON CONFLICT (id) DO UPDATE SET
                               name = :name,
                               nit = :nit,
                               iva = :iva,

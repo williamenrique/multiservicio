@@ -4,25 +4,32 @@
  */
 class Database {
     private $host = DB_HOST;
+    private $port = DB_PORT;
     private $user = DB_USER;
     private $pass = DB_PASS;
     private $dbname = DB_NAME;
+    private $schema = DB_SCHEMA;
+    private $sslmode = DB_SSLMODE;
 
     private $dbh; // Database Handler
     private $stmt;
     private $error;
 
     public function __construct() {
-        // Configurar el DSN (Data Source Name)
-        $dsn = 'mysql:host=' . $this->host . ';dbname=' . $this->dbname . ';charset=utf8mb4';
-        
+        // Configurar el DSN (Data Source Name) para PostgreSQL (Supabase)
+        // IMPORTANTE: El pooler de Supabase (PgBouncer en modo transaction pooling) resetea
+        // el search_path en cada conexión, por lo que SET search_path no persiste.
+        // La solución es usar el parámetro "options" del DSN, que envía el comando al
+        // startup del protocolo libpq y SÍ se aplica a cada conexión nueva del pool.
+        $dsn = 'pgsql:host=' . $this->host . ';port=' . $this->port . ';dbname=' . $this->dbname . ';sslmode=' . $this->sslmode
+             . ';options=--search_path=' . $this->schema;
+
         $options = [
-            PDO::ATTR_PERSISTENT => true, // Conexión persistente para mejor rendimiento
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, // Lanzar excepciones en errores
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ // Retornar resultados como objetos por defecto
         ];
 
-        // Crear instancia de PDO
+        // Crear instancia de PDO (PostgreSQL)
         try {
             $this->dbh = new PDO($dsn, $this->user, $this->pass, $options);
         } catch (PDOException $e) {

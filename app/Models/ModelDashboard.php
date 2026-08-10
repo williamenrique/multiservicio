@@ -26,7 +26,7 @@ class ModelDashboard {
      * Suma de ventas completadas en el día actual
      */
     public function getIncomeToday($usuarioId = null) {
-        $sql = "SELECT COALESCE(SUM(total), 0) as total FROM table_facturas WHERE DATE(fecha) = CURDATE() AND status IN ('COMPLETADO', 'CREDITO')";
+        $sql = "SELECT COALESCE(SUM(total), 0) as total FROM table_facturas WHERE fecha::date = CURRENT_DATE AND status IN ('COMPLETADO', 'CREDITO')";
         if ($usuarioId) $sql .= " AND usuario_id = :uid";
         
         $this->db->query($sql);
@@ -38,7 +38,7 @@ class ModelDashboard {
      * Suma de gastos registrados en el mes actual
      */
     public function getExpensesMonth() {
-        $this->db->query("SELECT COALESCE(SUM(monto), 0) as total FROM table_gastos WHERE MONTH(fecha) = MONTH(CURRENT_DATE()) AND YEAR(fecha) = YEAR(CURRENT_DATE())");
+        $this->db->query("SELECT COALESCE(SUM(monto), 0) as total FROM table_gastos WHERE EXTRACT(MONTH FROM fecha) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM fecha) = EXTRACT(YEAR FROM CURRENT_DATE)");
         return $this->db->single()->total ?? 0;
     }
 
@@ -66,7 +66,7 @@ class ModelDashboard {
      * Obtiene los borradores (ventas pendientes)
      */
     public function getPendingDrafts($usuarioId = null) {
-        $sql = "SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+        $sql = "SELECT v.id, CONCAT('FAC-', LPAD(v.id::text, 3, '0')) as id_formateado,
                        v.usuario_id, v.fecha, v.total,
                        COALESCE(vh.placa, v.placa, '---') as placa, 
                        COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
@@ -111,10 +111,10 @@ class ModelDashboard {
         $dateStart = date('Y-m-d', strtotime("-" . ($days - 1) . " days"));
 
         // Ingresos agrupados por día
-        $sql = "SELECT DATE(fecha) as date, SUM(total) as total FROM table_facturas 
-                WHERE DATE(fecha) >= :start AND status IN ('COMPLETADO', 'CREDITO')";
+        $sql = "SELECT fecha::date as date, SUM(total) as total FROM table_facturas 
+                WHERE fecha::date >= :start AND status IN ('COMPLETADO', 'CREDITO')";
         if ($usuarioId) $sql .= " AND usuario_id = :uid";
-        $sql .= " GROUP BY DATE(fecha)";
+        $sql .= " GROUP BY fecha::date";
 
         $this->db->query($sql);
         $this->db->bind(':start', $dateStart);
@@ -122,7 +122,7 @@ class ModelDashboard {
         $incomeRows = $this->db->resultSet();
 
         // Gastos agrupados por día
-        $this->db->query("SELECT DATE(fecha) as date, SUM(monto) as total FROM table_gastos WHERE DATE(fecha) >= :start GROUP BY DATE(fecha)");
+        $this->db->query("SELECT fecha::date as date, SUM(monto) as total FROM table_gastos WHERE fecha::date >= :start GROUP BY fecha::date");
         $this->db->bind(':start', $dateStart);
         $expensesRows = $this->db->resultSet();
 
@@ -153,8 +153,8 @@ class ModelDashboard {
      */
     public function getRecentExpenses() {
         $this->db->query("SELECT * FROM table_gastos 
-                          WHERE MONTH(fecha) = MONTH(CURRENT_DATE()) 
-                          AND YEAR(fecha) = YEAR(CURRENT_DATE()) 
+                          WHERE EXTRACT(MONTH FROM fecha) = EXTRACT(MONTH FROM CURRENT_DATE) 
+                          AND EXTRACT(YEAR FROM fecha) = EXTRACT(YEAR FROM CURRENT_DATE) 
                           ORDER BY fecha DESC 
                           LIMIT 6");
         return $this->db->resultSet();
@@ -192,7 +192,7 @@ class ModelDashboard {
                           JOIN table_inventario i ON vd.producto_id = i.id
                           JOIN table_facturas v ON vd.factura_id = v.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')
-                          AND MONTH(v.fecha) = MONTH(CURRENT_DATE())
+                          AND EXTRACT(MONTH FROM v.fecha) = EXTRACT(MONTH FROM CURRENT_DATE)
                           GROUP BY i.id 
                           ORDER BY total_vendido DESC LIMIT 5");
         return $this->db->resultSet();
@@ -210,8 +210,8 @@ class ModelDashboard {
                                  COUNT(*) as cantidad
                           FROM table_facturas
                           WHERE status IN ('COMPLETADO', 'CREDITO')
-                          AND MONTH(fecha) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
-                          AND YEAR(fecha) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)");
+                          AND EXTRACT(MONTH FROM fecha) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')
+                          AND EXTRACT(YEAR FROM fecha) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')");
         return $this->db->single();
     }
 
@@ -222,8 +222,8 @@ class ModelDashboard {
         $this->db->query("SELECT COALESCE(SUM(monto), 0) as total,
                                  COUNT(*) as cantidad
                           FROM table_gastos
-                          WHERE MONTH(fecha) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
-                          AND YEAR(fecha) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)");
+                          WHERE EXTRACT(MONTH FROM fecha) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')
+                          AND EXTRACT(YEAR FROM fecha) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')");
         return $this->db->single();
     }
 
@@ -233,8 +233,8 @@ class ModelDashboard {
     public function getClientesMesAnterior() {
         $this->db->query("SELECT COUNT(*) as cantidad
                           FROM table_clientes
-                          WHERE MONTH(fecha_registro) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
-                          AND YEAR(fecha_registro) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)");
+                          WHERE EXTRACT(MONTH FROM fecha_registro) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')
+                          AND EXTRACT(YEAR FROM fecha_registro) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')");
         return $this->db->single();
     }
 
@@ -245,8 +245,8 @@ class ModelDashboard {
         $this->db->query("SELECT COUNT(*) as cantidad
                           FROM table_ordenes_servicio
                           WHERE estado = 'ENTREGADO'
-                          AND MONTH(fecha_entrega_real) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
-                          AND YEAR(fecha_entrega_real) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)");
+                          AND EXTRACT(MONTH FROM fecha_entrega_real) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')
+                          AND EXTRACT(YEAR FROM fecha_entrega_real) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')");
         return $this->db->single();
     }
 
@@ -259,8 +259,8 @@ class ModelDashboard {
                           JOIN table_inventario i ON vd.producto_id = i.id
                           JOIN table_facturas v ON vd.factura_id = v.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')
-                          AND MONTH(v.fecha) = MONTH(CURRENT_DATE() - INTERVAL 1 MONTH)
-                          AND YEAR(v.fecha) = YEAR(CURRENT_DATE() - INTERVAL 1 MONTH)
+                          AND EXTRACT(MONTH FROM v.fecha) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')
+                          AND EXTRACT(YEAR FROM v.fecha) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')
                           GROUP BY i.id
                           ORDER BY total_vendido DESC LIMIT :limite");
         $this->db->bind(':limite', (int)$limite);

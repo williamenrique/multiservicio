@@ -54,7 +54,7 @@ class ModelOrden {
             SUM(CASE WHEN mecanico_id IS NULL THEN 1 ELSE 0 END) as sin_mecanico,
             SUM(CASE WHEN fecha_entrega_estimada < NOW() AND estado NOT IN ('LISTO', 'ENTREGADO') THEN 1 ELSE 0 END) as vencidas
             FROM table_ordenes_servicio 
-            WHERE estado NOT IN ('ENTREGADO', 'ANULADO')");
+            WHERE estado NOT IN ('ENTREGADO', 'CANCELADO')");
         return $this->db->single();
     }
 
@@ -97,7 +97,7 @@ class ModelOrden {
 
     public function obtenerOrdenesActivas() {
         $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, s.nombre as mecanico_nombre,
-                          TIMESTAMPDIFF(MINUTE, NOW(), os.fecha_entrega_estimada) as minutos_restantes,
+                          EXTRACT(EPOCH FROM (os.fecha_entrega_estimada - NOW()))/60 as minutos_restantes,
                           (SELECT status FROM table_facturas WHERE orden_id = os.id AND status != 'ANULADO' ORDER BY id DESC LIMIT 1) as factura_status
                           FROM table_ordenes_servicio os
                           INNER JOIN table_vehiculos v ON os.placa = v.placa

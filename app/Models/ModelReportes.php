@@ -25,11 +25,11 @@ class ModelReportes {
                            ELSE 'rose' 
                        END as tipo_color,
                        CASE 
-                           WHEN t.categoria = 'VENTA' AND f.origen = 'TALLER' THEN CONCAT('VENTA O.S. #', COALESCE(f.orden_id, '---'))
+                           WHEN t.categoria = 'VENTA' AND f.origen = 'TALLER' THEN CONCAT('VENTA O.S. #', COALESCE(f.orden_id::text, '---'))
                            WHEN t.categoria = 'VENTA' AND f.origen = 'CATALOGO' THEN 'VENTA CATÁLOGO'
                            WHEN t.categoria = 'VENTA' AND f.origen = 'MOSTRADOR' THEN 'VENTA MOSTRADOR'
                            WHEN t.categoria = 'VENTA' THEN 'VENTA SERVICIO'
-                           WHEN t.categoria = 'ABONO_CLIENTE' AND f.origen = 'TALLER' THEN CONCAT('ABONO O.S. #', COALESCE(f.orden_id, '---'))
+                           WHEN t.categoria = 'ABONO_CLIENTE' AND f.origen = 'TALLER' THEN CONCAT('ABONO O.S. #', COALESCE(f.orden_id::text, '---'))
                            WHEN t.categoria = 'ABONO_CLIENTE' AND f.origen = 'CATALOGO' THEN 'ABONO CATÁLOGO'
                            WHEN t.categoria = 'ABONO_CLIENTE' AND f.origen = 'MOSTRADOR' THEN 'ABONO MOSTRADOR'
                            WHEN t.categoria = 'ABONO_CLIENTE' THEN 'ABONO SERVICIO'
@@ -37,14 +37,13 @@ class ModelReportes {
                            WHEN t.categoria = 'COMPRA_PROVEEDOR' THEN 'COMPRA REPUESTOS'
                            WHEN t.categoria = 'ABONO_PROVEEDOR' THEN 'PAGO PROVEEDOR'
                            WHEN t.categoria = 'NOMINA' THEN 'PAGO NÓMINA'
-                           WHEN t.categoria = 'DEVOLUCION' THEN 'DEVOLUCIÓN'
-                           ELSE t.categoria 
+                           ELSE t.categoria::text 
                        END as categoria_label
                 FROM table_transacciones t
                 LEFT JOIN table_usuarios u ON t.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
-                -- Joins para detalles según categoría, incluimos DEVOLUCION para ver placa/cliente
-                LEFT JOIN table_facturas f ON (t.categoria IN ('VENTA', 'ABONO_CLIENTE', 'DEVOLUCION') AND t.referencia_id = f.id)
+                -- Joins para detalles según categoría
+                LEFT JOIN table_facturas f ON (t.categoria IN ('VENTA', 'ABONO_CLIENTE') AND t.referencia_id = f.id)
                 LEFT JOIN table_ordenes_servicio os ON f.orden_id = os.id
                 LEFT JOIN table_vehiculos vh ON (f.placa = vh.placa)
                 LEFT JOIN table_clientes c ON f.cliente_id = c.id
@@ -52,8 +51,7 @@ class ModelReportes {
                 LEFT JOIN table_proveedores p ON comp.proveedor_id = p.id
                 LEFT JOIN table_pagos_empleados pe ON (t.categoria = 'NOMINA' AND t.referencia_id = pe.id)
                 LEFT JOIN table_staff st ON pe.staff_id = st.id
-                WHERE DATE(t.fecha) BETWEEN :desde AND :hasta
-                GROUP BY t.id";
+                WHERE t.fecha::date BETWEEN :desde AND :hasta";
 
         if ($search) {
             $sql .= " AND (t.descripcion LIKE :q OR vh.placa LIKE :q OR f.placa LIKE :q OR c.nombre LIKE :q OR p.nombre LIKE :q)";
@@ -77,7 +75,7 @@ class ModelReportes {
         $movimientos = $this->db->resultSet() ?: [];
 
         // Obtener total para paginación
-        $this->db->query("SELECT COUNT(*) as total FROM table_transacciones WHERE DATE(fecha) BETWEEN :desde AND :hasta");
+        $this->db->query("SELECT COUNT(*) as total FROM table_transacciones WHERE fecha::date BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $totalMovimientos = (int)$this->db->single()->total;
@@ -93,7 +91,7 @@ class ModelReportes {
                             v.id as factura_id
                           FROM table_facturas_detalle vd
                           JOIN table_facturas v ON vd.factura_id = v.id
-                          WHERE v.id IN (SELECT referencia_id FROM table_transacciones WHERE categoria IN ('VENTA', 'ABONO_CLIENTE') AND DATE(fecha) BETWEEN :desde AND :hasta)
+                          WHERE v.id IN (SELECT referencia_id FROM table_transacciones WHERE categoria IN ('VENTA', 'ABONO_CLIENTE') AND fecha::date BETWEEN :desde AND :hasta)
                           GROUP BY v.id");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -116,14 +114,14 @@ class ModelReportes {
         }
 
         // Obtener Devoluciones del Periodo (dinero real que salió de caja)
-        $this->db->query("SELECT COALESCE(SUM(monto_devuelto), 0) as total FROM table_devoluciones WHERE DATE(fecha) BETWEEN :desde AND :hasta");
+        $this->db->query("SELECT COALESCE(SUM(monto_devuelto), 0) as total FROM table_devoluciones WHERE fecha::date BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $totalDevolucionesPeriodo = (float)$this->db->single()->total;
 
         $totalIngresosNetos = $ingresoRepuestos + $ingresoServicios;
 
-        $this->db->query("SELECT COALESCE(SUM(monto), 0) as total FROM table_transacciones WHERE tipo = 'EGRESO' AND DATE(fecha) BETWEEN :desde AND :hasta");
+        $this->db->query("SELECT COALESCE(SUM(monto), 0) as total FROM table_transacciones WHERE tipo = 'EGRESO' AND fecha::date BETWEEN :desde AND :hasta");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $totalEgresosOperativos = (float)$this->db->single()->total;
@@ -165,7 +163,7 @@ class ModelReportes {
                           LEFT JOIN table_staff s ON u.staff_id = s.id
                           LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE v.status IN ('COMPLETADO', 'CREDITO', 'PENDIENTE') AND (v.orden_id IS NOT NULL OR v.placa IS NOT NULL) AND DATE(v.fecha) BETWEEN :desde AND :hasta
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO', 'PENDIENTE') AND (v.orden_id IS NOT NULL OR v.placa IS NOT NULL) AND v.fecha::date BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -176,7 +174,7 @@ class ModelReportes {
                           FROM table_compras c
                           JOIN table_proveedores p ON c.proveedor_id = p.id
                           JOIN table_compras_detalle cd ON c.id = cd.compra_id
-                          WHERE DATE(c.fecha) BETWEEN :desde AND :hasta
+                          WHERE c.fecha::date BETWEEN :desde AND :hasta
                           ORDER BY c.fecha DESC");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -184,7 +182,7 @@ class ModelReportes {
 
         // 3. Detalle de Gastos
         $this->db->query("SELECT * FROM table_gastos 
-                          WHERE DATE(fecha) BETWEEN :desde AND :hasta
+                          WHERE fecha::date BETWEEN :desde AND :hasta
                           ORDER BY fecha DESC");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -206,7 +204,7 @@ class ModelReportes {
                 LEFT JOIN table_usuarios u ON d.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
+                WHERE d.fecha::date BETWEEN :desde AND :hasta";
 
         if ($search) {
             $sql .= " AND (COALESCE(vh.placa, v.placa) LIKE :search OR c.nombre LIKE :search OR d.descripcion LIKE :search)";
@@ -236,7 +234,7 @@ class ModelReportes {
                 JOIN table_facturas v ON d.factura_id = v.id 
                 LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                 LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
-                WHERE DATE(d.fecha) BETWEEN :desde AND :hasta";
+                WHERE d.fecha::date BETWEEN :desde AND :hasta";
 
         if ($search) $sql .= " AND (COALESCE(vh.placa, v.placa) LIKE :search OR d.descripcion LIKE :search)";
         $this->db->query($sql);
@@ -254,15 +252,15 @@ class ModelReportes {
     public function obtenerCarteraPorEdades($desde = null, $hasta = null) {
         $where = "WHERE v.status = 'CREDITO' AND v.saldo_pendiente > 0.05";
         if ($desde && $hasta) {
-            $where .= " AND DATE(v.fecha) BETWEEN :desde AND :hasta";
+            $where .= " AND v.fecha::date BETWEEN :desde AND :hasta";
         }
 
         $this->db->query("SELECT 
                             c.nombre as cliente_nombre,
                             c.telefono as cliente_telefono,
-                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) <= 15 THEN v.saldo_pendiente ELSE 0 END) as rango_0_15,
-                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) > 15 AND DATEDIFF(CURDATE(), DATE(v.fecha)) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
-                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
+                            SUM(CASE WHEN (CURRENT_DATE - v.fecha::date) <= 15 THEN v.saldo_pendiente ELSE 0 END) as rango_0_15,
+                            SUM(CASE WHEN (CURRENT_DATE - v.fecha::date) > 15 AND (CURRENT_DATE - v.fecha::date) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
+                            SUM(CASE WHEN (CURRENT_DATE - v.fecha::date) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
                             SUM(v.saldo_pendiente) as total_deuda
                           FROM table_facturas v
                           JOIN table_clientes c ON v.cliente_id = c.id
@@ -286,9 +284,9 @@ class ModelReportes {
         $this->db->query("SELECT 
                             p.nombre as proveedor_nombre,
                             p.telefono as proveedor_telefono,
-                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(c.fecha)) <= 15 THEN (c.total - c.pagado) ELSE 0 END) as rango_0_15,
-                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(c.fecha)) > 15 AND DATEDIFF(CURDATE(), DATE(c.fecha)) <= 30 THEN (c.total - c.pagado) ELSE 0 END) as rango_16_30,
-                            SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(c.fecha)) > 30 THEN (c.total - c.pagado) ELSE 0 END) as rango_30_mas,
+                            SUM(CASE WHEN (CURRENT_DATE - c.fecha::date) <= 15 THEN (c.total - c.pagado) ELSE 0 END) as rango_0_15,
+                            SUM(CASE WHEN (CURRENT_DATE - c.fecha::date) > 15 AND (CURRENT_DATE - c.fecha::date) <= 30 THEN (c.total - c.pagado) ELSE 0 END) as rango_16_30,
+                            SUM(CASE WHEN (CURRENT_DATE - c.fecha::date) > 30 THEN (c.total - c.pagado) ELSE 0 END) as rango_30_mas,
                             SUM(c.total - c.pagado) as total_deuda
                           FROM table_compras c
                           JOIN table_proveedores p ON c.proveedor_id = p.id
@@ -343,7 +341,7 @@ class ModelReportes {
                           FROM table_facturas_detalle vd
                           JOIN table_facturas v ON vd.factura_id = v.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO') 
-                          AND DATE(v.fecha) BETWEEN :desde AND :hasta
+                          AND v.fecha::date BETWEEN :desde AND :hasta
                           GROUP BY tipo");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
@@ -374,7 +372,7 @@ class ModelReportes {
                           WHERE (vd.mecanico_id = :staff_id OR os.mecanico_id = :staff_id OR :staff_id_alt = '0')
                           AND vd.producto_id IS NULL 
                           AND v.status IN ('COMPLETADO', 'CREDITO')
-                          AND DATE(v.fecha) BETWEEN :desde AND :hasta
+                          AND v.fecha::date BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
         $this->db->bind(':staff_id', $staff_id);
         $this->db->bind(':staff_id_alt', $staff_id);
@@ -387,7 +385,7 @@ class ModelReportes {
                           FROM table_pagos_empleados p
                           LEFT JOIN table_usuarios u ON p.usuario_id = u.id
                           WHERE (p.staff_id = :staff_id OR :staff_id = '0')
-                          AND DATE(p.fecha) BETWEEN :desde AND :hasta
+                          AND p.fecha::date BETWEEN :desde AND :hasta
                           ORDER BY p.fecha DESC");
         $this->db->bind(':staff_id', $staff_id);
         $this->db->bind(':desde', $desde);
@@ -488,7 +486,7 @@ class ModelReportes {
                           FROM table_pagos_empleados p
                           JOIN table_staff s ON p.staff_id = s.id
                           LEFT JOIN table_usuarios u ON p.usuario_id = u.id
-                          WHERE DATE(p.fecha) BETWEEN :desde AND :hasta
+                          WHERE p.fecha::date BETWEEN :desde AND :hasta
                           ORDER BY p.fecha DESC");
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);

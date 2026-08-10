@@ -56,8 +56,10 @@ class ModelUsuario {
      * Usa REPLACE con la UK (usuario_id, tipo) para garantizar solo 1 sesión por tipo.
      */
     public function registrarSesion($data) {
-        $this->db->query("REPLACE INTO table_usuario_sessions (usuario_id, tipo, session_id, ip_address, usuario_agent) 
-                          VALUES (:uid, :tipo, :sid, :ip, :ua)");
+        $this->db->query("INSERT INTO table_usuario_sessions (usuario_id, tipo, session_id, ip_address, usuario_agent) 
+                          VALUES (:uid, :tipo, :sid, :ip, :ua)
+                          ON CONFLICT (usuario_id, tipo) DO UPDATE SET 
+                          session_id = :sid, ip_address = :ip, usuario_agent = :ua");
         $this->db->bind(':uid', $data['usuario_id']);
         $this->db->bind(':tipo', $data['tipo'] ?? 'WEB');
         $this->db->bind(':sid', $data['session_id']);

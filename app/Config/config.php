@@ -3,11 +3,15 @@
  * CONFIGURACIÓN GLOBAL DEL SISTEMA
  */
 
-// 1. Configuración de la Base de Datos (Si no usas .env, cámbialos aquí directamente)
-define('DB_HOST', $_ENV['DB_HOST'] ?? 'localhost');
-define('DB_USER', $_ENV['DB_USER'] ?? 'root');
-define('DB_PASS', $_ENV['DB_PASS'] ?? '');
-define('DB_NAME', $_ENV['DB_NAME'] ?? 'multiservicio_2.0');
+// 1. Configuración de la Base de Datos (Supabase - PostgreSQL)
+// Migrado de MySQL a Supabase (PostgreSQL) vía pooler de conexión
+define('DB_HOST', $_ENV['DB_HOST'] ?? 'aws-0-us-east-2.pooler.supabase.com');
+define('DB_PORT', $_ENV['DB_PORT'] ?? 5432);
+define('DB_USER', $_ENV['DB_USER'] ?? 'postgres.wruyukgrhmqulxnqabip');
+define('DB_PASS', $_ENV['DB_PASS'] ?? 'OB2htzJFrnM2N509');
+define('DB_NAME', $_ENV['DB_NAME'] ?? 'postgres');
+define('DB_SCHEMA', $_ENV['DB_SCHEMA'] ?? 'multiservicio_2.0');
+define('DB_SSLMODE', $_ENV['DB_SSLMODE'] ?? 'require');
 
 // Seguridad para encriptación de datos sensibles
 define('METHOD', 'AES-256-CBC');

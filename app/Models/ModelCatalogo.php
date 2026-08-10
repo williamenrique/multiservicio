@@ -127,7 +127,7 @@ class ModelCatalogo {
     public function obtenerDestacados($limit = 8) {
         $this->db->query("SELECT * FROM table_inventario 
                           WHERE estado = 'ACTIVO' AND stock > 0 
-                          ORDER BY RAND() LIMIT :limit");
+                          ORDER BY RANDOM() LIMIT :limit");
         $this->db->bind(':limit', (int)$limit);
         return $this->db->resultSet();
     }

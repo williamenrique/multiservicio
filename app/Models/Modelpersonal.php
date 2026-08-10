@@ -75,7 +75,7 @@ class ModelPersonal {
     public function obtenerUltimoCorrelativo($prefix = 'STAFF-') {
         $this->db->query("SELECT id FROM table_staff 
                           WHERE id LIKE :prefix 
-                          ORDER BY CAST(SUBSTRING_INDEX(id, '-', -1) AS UNSIGNED) DESC 
+                          ORDER BY CAST(SPLIT_PART(id, '-', 2) AS INTEGER) DESC 
                           LIMIT 1");
         $this->db->bind(':prefix', $prefix . '%');
         $result = $this->db->single();
