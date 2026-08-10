@@ -8,8 +8,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script>const URLROOT = "<?php echo URLROOT; ?>";</script>
     <style>
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
         .nav-blur { backdrop-filter: blur(12px); background: rgba(15, 23, 42, 0.9); }
+        main { flex: 1 0 auto; }
         .btn-primary { background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; transition: all 0.2s; }
         .btn-primary:hover { background: #059669; transform: scale(1.02); }
         .btn-outline { border: 2px solid #10b981; color: #10b981; padding: 0.5rem 1rem; border-radius: 0.5rem; transition: all 0.2s; }
@@ -38,7 +39,7 @@
     </nav>
 
     <!-- CART CONTENT -->
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Carrito de Compras</h1>
 
         <?php if (empty($items)): ?>
@@ -118,10 +119,10 @@
                 </div>
             </div>
         <?php endif; ?>
-    </div>
+    </main>
 
     <!-- FOOTER -->
-    <footer class="bg-slate-900 text-gray-400 py-8 mt-12">
+    <footer class="bg-slate-900 text-gray-400 py-8 mt-12 w-full">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <p class="text-sm">&copy; <?php echo date('Y'); ?> <?php echo SITENAME; ?>. Todos los derechos reservados.</p>
         </div>

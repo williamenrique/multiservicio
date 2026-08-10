@@ -70,6 +70,30 @@ ob_start();
     </tfoot>
 </table>
 
+<?php
+$telefono = $empresa->telefono ?? '';
+$telefonoWhatsApp = $telefono ? preg_replace('/[^0-9]/', '', $telefono) : '';
+// Asegurar código de país (58 para Venezuela por defecto)
+if ($telefonoWhatsApp && strlen($telefonoWhatsApp) < 11) {
+    $telefonoWhatsApp = '58' . $telefonoWhatsApp;
+}
+?>
+<?php if (!empty($empresa->name) || !empty($telefonoWhatsApp)): ?>
+<div style="background-color:#f0fdf4; border-left:4px solid #10b981; padding:16px 20px; margin:20px 0; border-radius:0 8px 8px 0;">
+    <p style="margin:0 0 8px 0; font-weight:600; color:#10b981; font-size:15px;">📞 ¿Necesitas ayuda?</p>
+    <?php if (!empty($empresa->name)): ?>
+    <p style="margin:4px 0; font-size:14px;">Contacta a <strong><?= htmlspecialchars($empresa->name) ?></strong></p>
+    <?php endif; ?>
+    <?php if (!empty($telefonoWhatsApp)): ?>
+    <p style="margin:4px 0; font-size:14px;">
+        <a href="https://wa.me/<?= $telefonoWhatsApp ?>" style="color:#10b981; text-decoration:none; font-weight:600;">
+            💬 <?= htmlspecialchars($empresa->telefono) ?> (WhatsApp)
+        </a>
+    </p>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
 <p style="text-align:center;margin-top:20px;">
     <a href="<?= URLROOT ?>/facturacion/ver/<?= htmlspecialchars($venta_id ?? '') ?>" class="btn">Ver factura en el sistema</a>
 </p>

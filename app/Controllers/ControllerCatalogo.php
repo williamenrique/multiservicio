@@ -351,9 +351,23 @@ class ControllerCatalogo extends Controller {
             redirect('catalogo/carrito');
         }
 
+        // Detectar si es petición AJAX (fetch con X-Requested-With o Accept: application/json)
+        $esAjax = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+                || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'));
+
+        // Helper para responder JSON y terminar
+        $responderJson = function(array $payload) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($payload);
+            exit;
+        };
+
         $carrito = $_SESSION['carrito_publico'] ?? [];
 
         if (empty($carrito)) {
+            if ($esAjax) {
+                $responderJson(['success' => false, 'errores' => ['Tu carrito está vacío.']]);
+            }
             redirect('catalogo/carrito');
         }
 
@@ -373,6 +387,9 @@ class ControllerCatalogo extends Controller {
         if (empty($telefono)) $errores[] = 'El teléfono es obligatorio.';
 
         if (!empty($errores)) {
+            if ($esAjax) {
+                $responderJson(['success' => false, 'errores' => $errores]);
+            }
             $_SESSION['checkout_errores'] = $errores;
             $_SESSION['checkout_data'] = $_POST;
             redirect('catalogo/checkout');
@@ -401,6 +418,9 @@ class ControllerCatalogo extends Controller {
         }
 
         if (empty($items)) {
+            if ($esAjax) {
+                $responderJson(['success' => false, 'errores' => ['Los productos en tu carrito ya no están disponibles.']]);
+            }
             $_SESSION['checkout_errores'] = ['Los productos en tu carrito ya no están disponibles.'];
             redirect('catalogo/carrito');
         }
@@ -522,9 +542,20 @@ class ControllerCatalogo extends Controller {
             unset($_SESSION['checkout_data']);
 
             // Redirigir a confirmación con ID de factura
+            if ($esAjax) {
+                $responderJson([
+                    'success'       => true,
+                    'venta_id'      => $ventaId,
+                    'redirect_url'  => URLROOT . '/catalogo/confirmacion/' . $ventaId,
+                    'mensaje'       => '¡Pedido confirmado correctamente!'
+                ]);
+            }
             redirect('catalogo/confirmacion/' . $ventaId);
         } catch (Exception $e) {
             error_log("ERROR CATÁLOGO: " . $e->getMessage());
+            if ($esAjax) {
+                $responderJson(['success' => false, 'errores' => ['Error al procesar el pedido: ' . $e->getMessage()]]);
+            }
             $_SESSION['checkout_errores'] = ['Error al procesar el pedido: ' . $e->getMessage()];
             $_SESSION['checkout_data'] = $_POST;
             redirect('catalogo/checkout');
