@@ -339,4 +339,26 @@ class ModelCatalogo {
         $this->db->bind(':id', $pedidoId);
         return $this->db->execute();
     }
+
+    /**
+     * Actualiza el IVA y total de un pedido existente (al procesar por staff)
+     * Si aplicarIva es true, calcula iva = subtotal * (tasa/100) y total = subtotal + iva
+     * Si es false, iva = 0 y total = subtotal
+     */
+    public function actualizarIvaPedido($pedidoId, $aplicarIva, $tasaIva) {
+        $pedido = $this->obtenerPedido($pedidoId);
+        if (!$pedido) {
+            throw new Exception("Pedido no encontrado para actualizar IVA.");
+        }
+
+        $subtotal = (float)$pedido->subtotal;
+        $iva = $aplicarIva ? ($subtotal * ((float)$tasaIva / 100)) : 0;
+        $total = $subtotal + $iva;
+
+        $this->db->query("UPDATE pedidos_clientes SET iva = :iva, total = :total WHERE id = :id");
+        $this->db->bind(':iva', $iva);
+        $this->db->bind(':total', $total);
+        $this->db->bind(':id', $pedidoId);
+        return $this->db->execute();
+    }
 }

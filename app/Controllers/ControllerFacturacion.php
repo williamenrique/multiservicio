@@ -460,7 +460,8 @@ class ControllerFacturacion extends Controller {
                 throw new Exception(implode(" ", $v->getErrors()));
             }
 
-            $resultado = $this->facturaModel->procesarDevolucion($input['venta_id'], $input['detalle_id'], $input['destino']);
+            $motivo = trim($input['motivo'] ?? '');
+            $resultado = $this->facturaModel->procesarDevolucion($input['venta_id'], $input['detalle_id'], $input['destino'], $motivo);
 
             return $this->jsonResponse([
                 'success' => $resultado,

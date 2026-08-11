@@ -6,21 +6,25 @@
 class ControllerVenta extends Controller {
     private $facturaModel;
     private $reporteModel;
+    private $empresaModel;
 
     public function __construct() {
         AuthGuard::handle();
         RoleGuard::isAdmin(); // Restricción de seguridad para administradores
         $this->facturaModel = $this->model('Facturacion');
         $this->reporteModel = $this->model('Reportes');
+        $this->empresaModel = $this->model('Empresa');
     }
 
     /**
      * Vista principal del mostrador: app/Views/venta/index.php
      */
     public function index() {
+        $config = $this->empresaModel->obtenerConfiguracion();
         $data = [
             'titulo' => 'Venta de Repuestos - Administrador',
-            'clientes' => $this->model('Cliente')->listar() 
+            'clientes' => $this->model('Cliente')->listar(),
+            'iva_defecto' => $config->iva ?? 0
         ];
         $this->view('venta/index', $data);
     }

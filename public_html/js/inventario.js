@@ -374,6 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('prodStock').value = item.stock;
         document.getElementById('prodStockMin').value = item.stock_minimo; // Cargar stock mínimo
         document.getElementById('prodPrecio').value = item.precio;
+        document.getElementById('prodDiasGarantia').value = item.dias_garantia || '';
         document.getElementById('prodImagen').value = item.imagen || '';
 
         // Lógica de previsualización en edición

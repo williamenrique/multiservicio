@@ -627,10 +627,13 @@ class ControllerCatalogo extends Controller {
 
         $detalles = $this->modelCatalogo->obtenerDetallesPedido($id);
 
+        $empresa = $this->model('Empresa')->obtenerConfiguracion();
+
         $data = [
             'titulo' => 'Pedido #' . $id,
             'pedido' => $pedido,
-            'detalles' => $detalles
+            'detalles' => $detalles,
+            'iva_defecto' => $empresa->iva ?? 0
         ];
 
         $this->view('catalogo/ver_pedido', $data);
@@ -658,7 +661,17 @@ class ControllerCatalogo extends Controller {
             return;
         }
 
+        // Leer preferencia de IVA enviada desde el toggle de la vista
+        $aplicarIva = isset($_POST['aplicar_iva']) && $_POST['aplicar_iva'] === '1';
+
         try {
+            // Si se activa IVA, recalcular y persistir totales del pedido antes de procesar
+            if ($aplicarIva) {
+                $empresa = $this->model('Empresa')->obtenerConfiguracion();
+                $tasaIva = (float)($empresa->iva ?? 0);
+                $this->modelCatalogo->actualizarIvaPedido($pedidoId, true, $tasaIva);
+            }
+
             $this->modelCatalogo->procesarPedido($pedidoId, $_SESSION['user_id']);
 
             // Enviar correo de notificación al cliente

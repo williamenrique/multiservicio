@@ -74,19 +74,20 @@
 </div>
 
 <!-- Modal -->
-<div id="inventoryModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-    <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
-        <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <h2 id="modalTitle" class="text-xl font-bold text-navy-blue uppercase tracking-wider">Registrar Producto</h2>
+<div id="inventoryModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 hidden overflow-y-auto">
+    <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden my-auto">
+        <div class="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
+            <h2 id="modalTitle" class="text-lg sm:text-xl font-bold text-navy-blue uppercase tracking-wider">Registrar Producto</h2>
             <button id="btnCloseModal" class="text-gray-500 hover:text-navy-blue"><i data-lucide="x" class="w-6 h-6"></i></button>
         </div>
         
-        <form id="formInventory" class="p-6 space-y-4" enctype="multipart/form-data">
+        <form id="formInventory" class="p-4 sm:p-6 space-y-5" enctype="multipart/form-data">
             <input type="hidden" name="id" id="prodId">
             
-            <div class="flex flex-col items-center gap-4 mb-4">
-                <div class="relative group cursor-pointer" onclick="document.getElementById('fileInput').click()">
-                    <div id="imagePreview" class="w-32 h-32 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group-hover:border-neon-green transition-all">
+            <!-- Sección: Imagen -->
+            <div class="flex flex-col sm:flex-row items-center gap-4">
+                <div class="relative group cursor-pointer shrink-0" onclick="document.getElementById('fileInput').click()">
+                    <div id="imagePreview" class="w-28 h-28 sm:w-32 sm:h-32 bg-slate-100 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group-hover:border-neon-green transition-all">
                         <i data-lucide="image" class="w-8 h-8 text-slate-300"></i>
                     </div>
                     <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
@@ -100,18 +101,34 @@
                 </div>
             </div>
 
-            <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Código</label>
-                <div class="relative">
-                    <input type="text" name="codigo" id="prodCodigo" autocomplete="off"
-                        placeholder="Ej: BOMGAS-001"
-                        class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all">
-                    <!-- Lista desplegable personalizada con scroll neón -->
-                    <div id="codigoDropdown" class="hidden absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden">
-                        <div id="codigoDropdownList" class="max-h-48 overflow-y-auto custom-scrollbar-neon"></div>
-                        <div id="codigoDropdownEmpty" class="hidden px-4 py-3 text-xs text-slate-400 italic text-center">Sin resultados</div>
+            <!-- Sección: Datos principales (2 columnas en desktop) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Código</label>
+                    <div class="relative">
+                        <input type="text" name="codigo" id="prodCodigo" autocomplete="off"
+                            placeholder="Ej: BOMGAS-001"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all">
+                        <!-- Lista desplegable personalizada con scroll neón -->
+                        <div id="codigoDropdown" class="hidden absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden">
+                            <div id="codigoDropdownList" class="max-h-48 overflow-y-auto custom-scrollbar-neon"></div>
+                            <div id="codigoDropdownEmpty" class="hidden px-4 py-3 text-xs text-slate-400 italic text-center">Sin resultados</div>
+                        </div>
+                        <span id="codigoSugerencia" class="text-[10px] text-neon-green font-bold hidden ml-1"></span>
                     </div>
-                    <span id="codigoSugerencia" class="text-[10px] text-neon-green font-bold hidden ml-1"></span>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Marca</label>
+                    <div class="relative">
+                        <input type="text" name="marca" id="prodMarca" autocomplete="off"
+                            placeholder="Buscar o escribir marca..."
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all">
+                        <!-- Lista desplegable de marcas -->
+                        <div id="marcaDropdown" class="hidden absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden">
+                            <div id="marcaDropdownList" class="max-h-48 overflow-y-auto custom-scrollbar-neon"></div>
+                            <div id="marcaDropdownEmpty" class="hidden px-4 py-3 text-xs text-slate-400 italic text-center">Sin resultados</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -121,27 +138,14 @@
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Marca</label>
-                <div class="relative">
-                    <input type="text" name="marca" id="prodMarca" autocomplete="off"
-                        placeholder="Buscar o escribir marca..."
-                        class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all">
-                    <!-- Lista desplegable de marcas -->
-                    <div id="marcaDropdown" class="hidden absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden">
-                        <div id="marcaDropdownList" class="max-h-48 overflow-y-auto custom-scrollbar-neon"></div>
-                        <div id="marcaDropdownEmpty" class="hidden px-4 py-3 text-xs text-slate-400 italic text-center">Sin resultados</div>
-                    </div>
-                </div>
-            </div>
-
-            <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Descripción</label>
-                <textarea name="descripcion" id="prodDescripcion" rows="3"
+                <textarea name="descripcion" id="prodDescripcion" rows="2"
                     placeholder="Descripción del producto o servicio..."
                     class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all resize-none"></textarea>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Sección: Stock y Precio (3 columnas en desktop, 2 en tablet) -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Categoría</label>
                     <select name="categoria" id="prodCategoria" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
@@ -153,7 +157,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Existencia (Stock)</label>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Existencia</label>
                     <input type="number" name="stock" id="prodStock" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
                 </div>
                 <div>
@@ -162,15 +166,23 @@
                 </div>
             </div>
 
-            <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Precio de Venta</label>
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                    <input type="number" step="0.01" name="precio" id="prodPrecio" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-8 pr-4 outline-none focus:border-neon-green transition-all">
+            <!-- Sección: Precio y Garantía (2 columnas en desktop) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Precio de Venta</label>
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                        <input type="number" step="0.01" name="precio" id="prodPrecio" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-8 pr-4 outline-none focus:border-neon-green transition-all">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Días de Garantía (Devoluciones)</label>
+                    <input type="number" name="dias_garantia" id="prodDiasGarantia" min="1" placeholder="Vacío = usar global" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
+                    <p class="text-[10px] text-slate-400 mt-1">Vacío = valor global de la empresa.</p>
                 </div>
             </div>
 
-            <div class="pt-4 flex gap-3">
+            <div class="pt-2 flex gap-3">
                 <button type="button" id="btnCancel" class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 uppercase text-xs">Cancelar</button>
                 <button type="submit" class="flex-1 bg-neon-green text-black font-black py-3 rounded-xl hover:scale-[1.02] uppercase text-xs flex items-center justify-center gap-2">Guardar Item</button>
             </div>

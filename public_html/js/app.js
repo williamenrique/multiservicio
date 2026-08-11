@@ -759,14 +759,9 @@ async function initProfitabilityCard() {
 }
 
 /**
- * Abre el flujo de devolución para una factura (Solo repuestos, máx 5 días)
+ * Abre el flujo de devolución para una factura (Solo repuestos, garantía configurable en servidor)
  */
 window.iniciarDevolucion = async (ventaId, fecha) => {
-    const dias = Math.floor((new Date() - new Date(fecha)) / (1000 * 60 * 60 * 24));
-    if (dias > 5) {
-        return AppUtils.showAlert("Plazo Vencido", `Solo se permiten devoluciones en los primeros 5 días. (Pasaron ${dias} días)`, "error");
-    }
-
     try {
         const res = await fetch(`${URLROOT}/facturacion/getItemsDevolucion/${ventaId}`);
         const data = await res.json();
@@ -793,6 +788,10 @@ window.iniciarDevolucion = async (ventaId, fecha) => {
                             <option value="DANADO">Garantía / Dañado (No vuelve al stock)</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Motivo de la Devolución</label>
+                        <textarea id="motivo-devolucion" class="swal2-input w-full m-0 text-sm" rows="2" placeholder="Describe el motivo de la devolución..."></textarea>
+                    </div>
                 </div>`,
             showCancelButton: true,
             confirmButtonText: 'PROCESAR DEVOLUCIÓN',
@@ -800,7 +799,8 @@ window.iniciarDevolucion = async (ventaId, fecha) => {
             preConfirm: () => {
                 return {
                     detalle_id: document.getElementById('item-select').value,
-                    destino: document.getElementById('destino-select').value
+                    destino: document.getElementById('destino-select').value,
+                    motivo: document.getElementById('motivo-devolucion').value
                 }
             }
         });

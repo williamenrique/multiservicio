@@ -525,13 +525,42 @@ class ModelFacturacion {
     }
 
     /**
+     * Obtiene los días de garantía aplicables a un repuesto.
+     * Prioridad: dias_garantia del repuesto → dias_garantia_devolucion global → 5 (default)
+     * @param int|null $productoId
+     * @return int
+     */
+    private function obtenerDiasGarantia($productoId) {
+        // 1. Revisar si el repuesto tiene días de garantía específicos
+        if (!empty($productoId)) {
+            $this->db->query("SELECT dias_garantia FROM table_inventario WHERE id = :pid");
+            $this->db->bind(':pid', $productoId);
+            $row = $this->db->single();
+            if ($row && !empty($row->dias_garantia) && $row->dias_garantia > 0) {
+                return (int)$row->dias_garantia;
+            }
+        }
+
+        // 2. Revisar configuración global de la empresa
+        $this->db->query("SELECT dias_garantia_devolucion FROM table_company_settings WHERE id = 1");
+        $row = $this->db->single();
+        if ($row && !empty($row->dias_garantia_devolucion) && $row->dias_garantia_devolucion > 0) {
+            return (int)$row->dias_garantia_devolucion;
+        }
+
+        // 3. Default
+        return 5;
+    }
+
+    /**
      * Procesa la devolución de un ítem específico de una factura.
      * @param int $ventaId ID de la factura
      * @param int $detalleId ID de la línea de detalle
      * @param string $destino Destino del ítem (STOCK o DANADO)
+     * @param string $motivo Motivo de la devolución (opcional)
      * @return bool
      */
-    public function procesarDevolucion($ventaId, $detalleId, $destino) {
+    public function procesarDevolucion($ventaId, $detalleId, $destino, $motivo = '') {
         try {
             // Se elimina beginTransaction de aquí. 
             // La transacción ahora es controlada por BillingService.
@@ -550,8 +579,12 @@ class ModelFacturacion {
             if (!$item) {
                 throw new Exception("El ítem de la factura no existe.");
             }
-            if ($this->calcularDiferenciaDias(date('Y-m-d'), $item->fecha) > 5) {
-                throw new Exception("Plazo de devolución vencido (máximo 5 días desde la compra).");
+
+            // 1.1 Validar plazo de garantía configurable
+            $diasTranscurridos = $this->calcularDiferenciaDias(date('Y-m-d'), $item->fecha);
+            $diasGarantia = $this->obtenerDiasGarantia($item->producto_id);
+            if ($diasTranscurridos > $diasGarantia) {
+                throw new Exception("Plazo de devolución vencido. La garantía para este repuesto es de {$diasGarantia} día(s) y han transcurrido {$diasTranscurridos} día(s).");
             }
 
             // 2. Calcular montos proporcionales (Base + IVA)
@@ -570,20 +603,23 @@ class ModelFacturacion {
                     
                     // Sugerencia: Pasa la conexión de DB actual al modelo de inventario
                     $invModel = new ModelInventario($this->db);
-                    $invModel->registrarMovimiento($item->producto_id, 'ENTRADA_DEVOLUCION', $item->cantidad, $ventaId, "Devolución Factura #$ventaId");
+                    $invModel->registrarMovimiento($item->producto_id, 'DEVOLUCION', $item->cantidad, $ventaId, "Devolución Factura #$ventaId");
                 }
             }
 
             // 3. Registrar en el historial de devoluciones para auditoría
-            $this->db->query("INSERT INTO table_devoluciones (factura_id, producto_id, descripcion, cantidad, monto_devuelto, destino, usuario_id) 
-                              VALUES (:vid, :pid, :desc, :cant, :monto, :dest, :uid)");
+            $this->db->query("INSERT INTO table_devoluciones (factura_id, producto_id, descripcion, cantidad, monto_devuelto, destino, motivo, usuario_id, dias_garantia_aplicado, dias_transcurridos) 
+                              VALUES (:vid, :pid, :desc, :cant, :monto, :dest, :motivo, :uid, :dga, :dt)");
             $this->db->bind(':vid', $ventaId);
             $this->db->bind(':pid', $item->producto_id);
             $this->db->bind(':desc', $item->descripcion);
             $this->db->bind(':cant', $item->cantidad);
             $this->db->bind(':monto', $totalARestar);
             $this->db->bind(':dest', $destino);
+            $this->db->bind(':motivo', $motivo);
             $this->db->bind(':uid', $_SESSION['user_id']);
+            $this->db->bind(':dga', $diasGarantia);
+            $this->db->bind(':dt', $diasTranscurridos);
             $this->db->execute();
 
             // 4. Ajustar la factura (Restar del total y del saldo si es crédito)

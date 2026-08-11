@@ -81,8 +81,8 @@ class ModelInventario {
     }
 
     public function crear($datos) {
-        $this->db->query("INSERT INTO table_inventario (codigo, nombre, marca, categoria, descripcion, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen) 
-                          VALUES (:codigo, :nombre, :marca, :categoria, :descripcion, :stock, :smin, :costo, :cprom, :precio, :imagen)");
+        $this->db->query("INSERT INTO table_inventario (codigo, nombre, marca, categoria, descripcion, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen, dias_garantia) 
+                          VALUES (:codigo, :nombre, :marca, :categoria, :descripcion, :stock, :smin, :costo, :cprom, :precio, :imagen, :diasGarantia)");
         
         $this->db->bind(':codigo', $datos['codigo'] ?? null);
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
@@ -95,6 +95,7 @@ class ModelInventario {
         $this->db->bind(':cprom', $datos['costo_promedio'] ?? $datos['ultimo_costo'] ?? 0);
         $this->db->bind(':precio', $datos['precio']);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
+        $this->db->bind(':diasGarantia', !empty($datos['dias_garantia']) ? (int)$datos['dias_garantia'] : null);
 
         if (!$this->db->execute()) {
             throw new Exception("Error al insertar el producto en la base de datos.");
@@ -114,7 +115,8 @@ class ModelInventario {
                               ultimo_costo = :costo,
                               costo_promedio = :cprom,
                               precio = :precio, 
-                              imagen = :imagen 
+                              imagen = :imagen,
+                              dias_garantia = :diasGarantia
                           WHERE id = :id");
         
         $this->db->bind(':id', $datos['id']);
@@ -129,6 +131,7 @@ class ModelInventario {
         $this->db->bind(':cprom', $datos['costo_promedio'] ?? 0);
         $this->db->bind(':precio', $datos['precio']);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
+        $this->db->bind(':diasGarantia', !empty($datos['dias_garantia']) ? (int)$datos['dias_garantia'] : null);
 
         if (!$this->db->execute()) {
             throw new Exception("Error al actualizar los datos del producto.");

@@ -88,14 +88,28 @@
                         <span class="font-semibold">$<?php echo number_format($data['pedido']->subtotal, 2); ?></span>
                     </div>
                     <div class="flex justify-between text-sm">
-                        <span class="text-slate-400">IVA (0%) <span class="text-xs text-slate-400">— Deshabilitado</span></span>
-                        <span class="font-semibold text-slate-400">$0.00</span>
+                        <span class="text-slate-400">IVA (<span id="iva-percent-display">0</span>%)</span>
+                        <span class="font-semibold text-slate-400" id="iva-display">$0.00</span>
                     </div>
                     <div class="flex justify-between text-lg font-extrabold pt-3 border-t border-slate-200">
                         <span class="text-navy-blue">Total</span>
-                        <span class="text-emerald-600">$<?php echo number_format($data['pedido']->total, 2); ?></span>
+                        <span class="text-emerald-600" id="total-display">$<?php echo number_format($data['pedido']->total, 2); ?></span>
                     </div>
                 </div>
+
+                <?php if ($data['pedido']->estado === 'PENDIENTE'): ?>
+                <!-- Interruptor para Activar/Desactivar IVA al procesar -->
+                <div class="flex items-center justify-between mt-4 mb-2 pb-3 border-b border-slate-100">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest">Impuesto al Valor Agregado</span>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold">Aplicar tarifa del <?php echo $data['iva_defecto'] ?? 0; ?>%</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="catalogo-iva-toggle" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+                <?php endif; ?>
             </div>
 
             <!-- Actions -->
@@ -142,6 +156,8 @@ function procesarPedido(id) {
         if (result.isConfirmed) {
             const formData = new FormData();
             formData.append('pedido_id', id);
+            const ivaToggle = document.getElementById('catalogo-iva-toggle');
+            formData.append('aplicar_iva', (ivaToggle && ivaToggle.checked) ? '1' : '0');
 
             fetch(URLROOT + '/catalogo/procesar-pedido-staff', {
                 method: 'POST',
@@ -195,4 +211,22 @@ function cancelarPedido(id) {
         }
     });
 }
+
+// Listener del toggle de IVA: recalcula totales en pantalla al activar/desactivar
+(function() {
+    const ivaToggle = document.getElementById('catalogo-iva-toggle');
+    if (!ivaToggle) return;
+
+    const subtotalPedido = parseFloat('<?php echo $data['pedido']->subtotal; ?>') || 0;
+    const tasaIva = parseFloat('<?php echo $data['iva_defecto'] ?? 0; ?>') || 0;
+
+    ivaToggle.addEventListener('change', () => {
+        const ivaMonto = ivaToggle.checked ? (subtotalPedido * (tasaIva / 100)) : 0;
+        const totalConIva = subtotalPedido + ivaMonto;
+
+        document.getElementById('iva-percent-display').innerText = ivaToggle.checked ? tasaIva : 0;
+        document.getElementById('iva-display').innerText = '$' + ivaMonto.toFixed(2);
+        document.getElementById('total-display').innerText = '$' + totalConIva.toFixed(2);
+    });
+})();
 </script>

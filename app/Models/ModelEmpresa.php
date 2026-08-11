@@ -30,21 +30,23 @@ class ModelEmpresa {
         $iva = $datos['iva'] ?? 0.00;
         $direccion = mb_strtoupper($datos['direccion'] ?? '', 'UTF-8');
         $telefono = $datos['telefono'] ?? '';
+        $diasGarantia = isset($datos['dias_garantia_devolucion']) && $datos['dias_garantia_devolucion'] !== '' ? (int)$datos['dias_garantia_devolucion'] : 5;
         
         // Si no se envía un logo nuevo en los datos, intentamos mantener el que ya existe en la DB
         $configActual = $this->obtenerConfiguracion();
         $logo = $datos['logo'] ?? ($configActual ? $configActual->logo : null);
 
         // Intentar actualizar, si no existe, insertar
-        $this->db->query("INSERT INTO table_company_settings (id, name, nit, iva, logo, direccion, telefono) 
-                          VALUES (1, :name, :nit, :iva, :logo, :direccion, :telefono)
+        $this->db->query("INSERT INTO table_company_settings (id, name, nit, iva, logo, direccion, telefono, dias_garantia_devolucion) 
+                          VALUES (1, :name, :nit, :iva, :logo, :direccion, :telefono, :diasGarantia)
                           ON DUPLICATE KEY UPDATE
                               name = :name,
                               nit = :nit,
                               iva = :iva,
                               logo = :logo,
                               direccion = :direccion,
-                              telefono = :telefono");
+                              telefono = :telefono,
+                              dias_garantia_devolucion = :diasGarantia");
         
         $this->db->bind(':name', $name);
         $this->db->bind(':nit', $nit);
@@ -52,6 +54,7 @@ class ModelEmpresa {
         $this->db->bind(':logo', $logo);
         $this->db->bind(':direccion', $direccion);
         $this->db->bind(':telefono', $telefono);
+        $this->db->bind(':diasGarantia', $diasGarantia);
 
         return $this->db->execute();
     }
