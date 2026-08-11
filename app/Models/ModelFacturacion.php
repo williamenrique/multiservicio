@@ -280,7 +280,7 @@ class ModelFacturacion {
                                  vh.marca as marca_vehiculo,
                                  COALESCE(st_m.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_nombre,
                                  sv.nombre as vendedor_nombre,
-                                 os.kilometraje, os.nivel_combustible, os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden
+                                 os.kilometraje, os.nivel_combustible, os.diagnostico_entrada as diagnostico_entrada, os.diagnostico_salida as diagnostico_salida, os.observaciones as observaciones_orden
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_staff st_m ON os.mecanico_id = st_m.id

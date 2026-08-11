@@ -96,10 +96,51 @@ class WhatsAppService
 
     /**
      * Normaliza un número de teléfono: elimina espacios, signos +, paréntesis y espacios.
+     * Agrega el código de país 58 (Venezuela) si el número no lo tiene.
+     *
+     * Ejemplos:
+     *  - "04125181629"  → "584125181629"  (formato venezolano local con 0 inicial)
+     *  - "4125181629"   → "584125181629"  (10 dígitos sin código de país)
+     *  - "584125181629" → "584125181629"  (ya tiene código de país)
+     *  - "+58 412-5181629" → "584125181629"
      */
     private function normalizarTelefono(string $telefono): string
     {
-        return preg_replace('/[^0-9]/', '', $telefono);
+        $limpio = preg_replace('/[^0-9]/', '', $telefono);
+
+        if (empty($limpio)) {
+            return '';
+        }
+
+        // Caso patológico: "5804125181629" — alguien ya le prependeó "58" a un
+        // número local que aún conserva el "0" inicial. Quitamos el "580" y
+        // reconstruimos correctamente como "58" + resto (sin el 0).
+        if (str_starts_with($limpio, '580') && (strlen($limpio) === 13 || strlen($limpio) === 14)) {
+            return '58' . substr($limpio, 3);
+        }
+
+        // Si ya tiene código de país 58 y longitud válida (12 dígitos: 58 + 10), dejar tal cual
+        if (str_starts_with($limpio, '58') && strlen($limpio) === 12) {
+            return $limpio;
+        }
+
+        // Formato venezolano local: empieza con "0" (ej: "04125181629" — 11 dígitos)
+        // Quitamos el "0" inicial y agregamos "58"
+        if (str_starts_with($limpio, '0') && strlen($limpio) === 11) {
+            return '58' . substr($limpio, 1);
+        }
+
+        // Número venezolano sin código de país (10 dígitos, ej: "4125181629")
+        if (strlen($limpio) === 10) {
+            return '58' . $limpio;
+        }
+
+        // Si tiene otro formato pero longitud razonable (10-15), devolver tal cual
+        if (strlen($limpio) >= 10 && strlen($limpio) <= 15) {
+            return $limpio;
+        }
+
+        return $limpio;
     }
 
     // ============================================================
@@ -482,6 +523,144 @@ class WhatsAppService
         }
         $lineas[] = "";
         $lineas[] = "¡Gracias por tu preferencia!";
+
+        return implode("\n", $lineas);
+    }
+
+    /**
+     * Notifica al cliente cuando se cierra/finaliza la facturación de una orden de servicio.
+     * Incluye cómo entró el vehículo, qué se le realizó y cómo salió.
+     *
+     * @param array $datos Datos de la venta/orden (ver formatearFacturacionCerrada para claves)
+     * @return array {success: bool, mensaje: string, respuesta: ?string}
+     */
+    public function notificarFacturacionCerrada(array $datos): array
+    {
+        $telefono = $datos['cliente_telefono'] ?? '';
+        $mensaje = $this->formatearFacturacionCerrada($datos);
+        return $this->enviar($telefono, $mensaje);
+    }
+
+    /**
+     * Formatea el mensaje de facturación cerrada (orden de servicio finalizada).
+     * Incluye diagnóstico de entrada, servicios realizados y diagnóstico de salida.
+     */
+    private function formatearFacturacionCerrada(array $d): string
+    {
+        $statusTxt = [
+            'COMPLETADO' => 'Pagado (Completado)',
+            'CREDITO'    => 'Crédito',
+            'PENDIENTE'  => 'Pendiente (Abono)',
+        ];
+        $estadoTxt = $statusTxt[$d['status'] ?? ''] ?? ($d['status'] ?? 'Pendiente');
+
+        $lineas = [];
+        $lineas[] = "🔧 *SERVICIO FINALIZADO — FACTURA*";
+        $lineas[] = "";
+        $lineas[] = "Hola *{$d['cliente_nombre']}*, tu orden de servicio ha sido finalizada:";
+        $lineas[] = "";
+        $lineas[] = "📋 *Factura:* " . ($d['id_formateado'] ?? 'N/A');
+        if (!empty($d['orden_id'])) {
+            $lineas[] = "📝 *Orden de Servicio:* " . ($d['orden_id_formateado'] ?? str_pad((string)$d['orden_id'], 6, '0', STR_PAD_LEFT));
+        }
+        $lineas[] = "🚗 *Vehículo:* " . trim(($d['marca_vehiculo'] ?? '') . ' ' . ($d['modelo_vehiculo'] ?? ''));
+        if (!empty($d['placa'])) {
+            $lineas[] = "🔖 *Placa:* {$d['placa']}";
+        }
+        if (!empty($d['mecanico_nombre'])) {
+            $lineas[] = "👨‍🔧 *Mecánico:* {$d['mecanico_nombre']}";
+        }
+        $lineas[] = "";
+
+        // ── Cómo entró el vehículo ──
+        $entrada = trim((string)($d['diagnostico_entrada'] ?? ''));
+        $obsOrden = trim((string)($d['observaciones_orden'] ?? ''));
+        $lineas[] = "📥 *CÓMO ENTRÓ EL VEHÍCULO:*";
+        if ($entrada !== '') {
+            $lineas[] = $entrada;
+        }
+        if ($obsOrden !== '' && $obsOrden !== $entrada) {
+            $lineas[] = $obsOrden;
+        }
+        if ($entrada === '' && $obsOrden === '') {
+            $lineas[] = "Sin observaciones de entrada registradas.";
+        }
+        if (!empty($d['kilometraje'])) {
+            $lineas[] = "📏 *Kilometraje:* {$d['kilometraje']} km";
+        }
+        if (!empty($d['nivel_combustible'])) {
+            $lineas[] = "⛽ *Combustible:* {$d['nivel_combustible']}";
+        }
+        $lineas[] = "";
+
+        // ── Qué se le realizó ──
+        $items = $d['items'] ?? [];
+        if (!empty($items)) {
+            $lineas[] = "🛠️ *SERVICIOS REALIZADOS:*";
+            foreach ($items as $it) {
+                $it = (array)$it;
+                $desc = $it['descripcion'] ?? 'Ítem';
+                $cant = (int)($it['cantidad'] ?? 1);
+                $sub  = number_format((float)($it['subtotal'] ?? ($it['precio'] ?? 0) * $cant), 2);
+                $lineas[] = "  • {$desc} (x{$cant}) — \${$sub}";
+            }
+            $lineas[] = "";
+        }
+
+        // ── Checklist (si existe) ──
+        $checklist = $d['checklist'] ?? [];
+        if (!empty($checklist)) {
+            $lineas[] = "✅ *CHECKLIST DE REVISIÓN:*";
+            foreach ($checklist as $chk) {
+                $chk = (array)$chk;
+                $item = $chk['item'] ?? '';
+                $obs  = $chk['observacion'] ?? '';
+                $lineas[] = "  • {$item}" . ($obs !== '' ? ": {$obs}" : '');
+            }
+            $lineas[] = "";
+        }
+
+        // ── Cómo salió el vehículo ──
+        $salida = trim((string)($d['diagnostico_salida'] ?? ''));
+        $obsFactura = trim((string)($d['observaciones_factura'] ?? ''));
+        $lineas[] = "📤 *CÓMO SALIÓ EL VEHÍCULO:*";
+        if ($salida !== '') {
+            $lineas[] = $salida;
+        }
+        if ($obsFactura !== '' && $obsFactura !== $salida) {
+            $lineas[] = $obsFactura;
+        }
+        if ($salida === '' && $obsFactura === '') {
+            $lineas[] = "Sin observaciones de salida registradas.";
+        }
+        $lineas[] = "";
+
+        // ── Totales ──
+        $lineas[] = "💰 *Subtotal:* \$" . number_format((float)($d['subtotal'] ?? 0), 2);
+        if (!empty($d['iva_monto']) && (float)$d['iva_monto'] > 0) {
+            $lineas[] = "🧾 *IVA:* \$" . number_format((float)$d['iva_monto'], 2);
+        }
+        $lineas[] = "💵 *TOTAL:* \$" . number_format((float)($d['total'] ?? 0), 2);
+        $lineas[] = "";
+        $lineas[] = "📌 *Estado:* {$estadoTxt}";
+
+        $pef = (float)($d['pago_efectivo'] ?? 0);
+        $ptr = (float)($d['pago_transferencia'] ?? 0);
+        $saldo = (float)($d['saldo_pendiente'] ?? 0);
+        if ($pef > 0 || $ptr > 0) {
+            $lineas[] = "";
+            $lineas[] = "💸 *Pagado:* \$" . number_format($pef + $ptr, 2);
+        }
+        if ($saldo > 0) {
+            $lineas[] = "⏳ *Saldo pendiente:* \$" . number_format($saldo, 2);
+        }
+
+        if (!empty($d['vendedor_nombre'])) {
+            $lineas[] = "";
+            $lineas[] = "👤 *Atendido por:* {$d['vendedor_nombre']}";
+        }
+        $lineas[] = "";
+        $lineas[] = "¡Gracias por confiar en nosotros! 🚙";
 
         return implode("\n", $lineas);
     }

@@ -183,6 +183,51 @@ class ControllerFacturacion extends Controller {
                         $waMsg = $e->getMessage();
                         error_log('ControllerFacturacion: Error al enviar WhatsApp de factura directa: ' . $e->getMessage());
                     }
+                } else {
+                    // ── Factura de TALLER (con orden_id): notificar con detalles de entrada/salida ──
+                    $waOk = true;
+                    $waMsg = '';
+                    try {
+                        $ventaCompleta = $this->facturaModel->obtenerVentaCompleta($ventaId);
+                        if ($ventaCompleta && !empty($ventaCompleta->cliente_telefono)) {
+                            $waService = new \App\Services\WhatsAppService();
+                            $waData = [
+                                'cliente_telefono'      => $ventaCompleta->cliente_telefono,
+                                'cliente_nombre'        => $ventaCompleta->cliente_nombre ?? 'Cliente',
+                                'venta_id'              => $ventaId,
+                                'id_formateado'         => $ventaCompleta->id_formateado ?? null,
+                                'orden_id'              => $datos['orden_id'],
+                                'orden_id_formateado'   => str_pad((string)$datos['orden_id'], 6, '0', STR_PAD_LEFT),
+                                'placa'                 => $ventaCompleta->placa ?? null,
+                                'marca_vehiculo'        => $ventaCompleta->marca_vehiculo ?? null,
+                                'modelo_vehiculo'       => $ventaCompleta->modelo_vehiculo ?? null,
+                                'mecanico_nombre'       => $ventaCompleta->mecanico_nombre ?? null,
+                                'kilometraje'           => $ventaCompleta->kilometraje ?? null,
+                                'nivel_combustible'    => $ventaCompleta->nivel_combustible ?? null,
+                                'diagnostico_entrada'   => $ventaCompleta->diagnostico_entrada ?? null,
+                                'observaciones_orden'   => $ventaCompleta->observaciones_orden ?? null,
+                                'diagnostico_salida'    => $ventaCompleta->diagnostico_salida ?? null,
+                                'observaciones_factura' => $ventaCompleta->observaciones_factura ?? null,
+                                'items'                 => $ventaCompleta->items ?? [],
+                                'checklist'             => $ventaCompleta->checklist ?? [],
+                                'subtotal'              => $ventaCompleta->subtotal ?? 0,
+                                'iva_monto'             => $ventaCompleta->iva_monto ?? 0,
+                                'total'                 => $ventaCompleta->total ?? 0,
+                                'pago_efectivo'         => $ventaCompleta->pago_efectivo ?? 0,
+                                'pago_transferencia'    => $ventaCompleta->pago_transferencia ?? 0,
+                                'saldo_pendiente'       => $ventaCompleta->saldo_pendiente ?? 0,
+                                'status'                 => $ventaCompleta->status ?? 'PENDIENTE',
+                                'vendedor_nombre'       => $ventaCompleta->vendedor_nombre ?? null,
+                            ];
+                            $waResult = $waService->notificarFacturacionCerrada($waData);
+                            $waOk = $waResult['success'] ?? false;
+                            $waMsg = $waResult['mensaje'] ?? '';
+                        }
+                    } catch (\Throwable $e) {
+                        $waOk = false;
+                        $waMsg = $e->getMessage();
+                        error_log('ControllerFacturacion: Error al enviar WhatsApp de facturación cerrada: ' . $e->getMessage());
+                    }
                 }
 
                 $waNotice = $waOk ? '' : ' (WhatsApp no enviado: ' . ($waMsg ?: 'sin teléfono') . ')';
