@@ -1,0 +1,183 @@
+============================================
+ESTRUCTURA DE ARCHIVOS - BusYaracuy
+============================================
+Fecha: 2026-07-14 20:26:24
+Raíz: C:\xampp\htdocs\multiservicio
+Total Items: 172
+Directorios: 38
+Archivos: 134
+Tamaño Total: 81.9 MB
+============================================
+
+📁 app
+  📁 Config
+    📄 config.php (3.5 KB)
+    📄 routes.php (521 B)
+  📁 Controllers
+    📄 ControllerAudit.php (622 B)
+    📄 ControllerAuth.php (10 KB)
+    📄 ControllerCaja.php (491 B)
+    📄 ControllerClientes.php (3.6 KB)
+    📄 ControllerConsultas.php (6.7 KB)
+    📄 ControllerDashboard.php (2.3 KB)
+    📄 ControllerEmpresa.php (3.1 KB)
+    📄 ControllerErrores.php (401 B)
+    📄 ControllerFacturacion.php (18.7 KB)
+    📄 ControllerGastos.php (1.8 KB)
+    📄 ControllerHistorial.php (1.8 KB)
+    📄 ControllerInventario.php (11.4 KB)
+    📄 ControllerPerfil.php (4.3 KB)
+    📄 ControllerPersonal.php (9.2 KB)
+    📄 ControllerProveedores.php (6.4 KB)
+    📄 ControllerRecuperar.php (457 B)
+    📄 ControllerReportes.php (11.8 KB)
+    📄 ControllerSearch.php (1.8 KB)
+    📄 ControllerTaller.php (25.1 KB)
+    📄 ControllerVenta.php (2.8 KB)
+  📁 Core
+    📄 App.php (3 KB)
+    📄 AppException.php (388 B)
+    📄 Controller.php (4.9 KB)
+    📄 Database.php (4.6 KB)
+    📄 Model.php (456 B)
+    📄 StockException.php (113 B)
+    📄 Validator.php (2.3 KB)
+  📁 Helpers
+    📄 helpers.php (3.4 KB)
+    📄 Validator.php (2.2 KB)
+  📁 Middleware
+    📄 AuthGuard.php (2 KB)
+    📄 RoleGuard.php (2.1 KB)
+  📁 Models
+    📄 ModelAudit.php (635 B)
+    📄 ModelCaja.php (819 B)
+    📄 ModelCliente.php (4.8 KB)
+    📄 ModelDashboard.php (8.7 KB)
+    📄 ModelEmpresa.php (2.2 KB)
+    📄 ModelFacturacion.php (35.1 KB)
+    📄 ModelGasto.php (3.6 KB)
+    📄 ModelHistorial.php (4.4 KB)
+    📄 ModelInventario.php (8.6 KB)
+    📄 ModelOrden.php (9.1 KB)
+    📄 ModelPerfil.php (2.1 KB)
+    📄 Modelpersonal.php (8.8 KB)
+    📄 ModelProveedor.php (15.1 KB)
+    📄 ModelReportes.php (26 KB)
+    📄 ModelUsuario.php (3.1 KB)
+    📄 ModelVehiculo.php (2.1 KB)
+  📁 Services
+    📄 BillingService.php (6 KB)
+    📄 CalculadoraFinaciera.php (2 B)
+    📄 CompraService.php (2.2 KB)
+    📄 NotificacionService.php (2 B)
+    📄 PdfService.php (2 KB)
+  📁 Views
+    📁 audit
+      📄 index.php (4.8 KB)
+    📁 auth
+      📄 Login.php (4.9 KB)
+    📁 cliente
+      📄 index.php (7.7 KB)
+    📁 dashboard
+      📄 index.php (18.7 KB)
+    📁 empresa
+      📄 index.php (6.8 KB)
+    📁 errores
+      📄 404.php (921 B)
+    📁 facturacion
+      📄 index.php (17.4 KB)
+    📁 gastos
+      📄 index.php (5 KB)
+    📁 inc
+      📄 footer.php (1.1 KB)
+      📄 header.php (12.9 KB)
+    📁 inventario
+      📄 index.php (9.5 KB)
+      📄 kardex.php (10.4 KB)
+    📁 pdf
+      📁 inc
+        📄 footer.php (412 B)
+        📄 header.php (3.1 KB)
+      📁 templates
+        📄 cartera.php (1.8 KB)
+        📄 factura.php (10.4 KB)
+        📄 kardex_individual.php (6.3 KB)
+        📄 kardex_reporte.php (5.9 KB)
+        📄 orden.php (7.9 KB)
+        📄 recibo_pago.php (8.8 KB)
+        📄 reporte_auditoria.php (6.2 KB)
+        📄 reporte_cartera_proveedores.php (3.9 KB)
+        📄 reporte_gastos.php (6.3 KB)
+        📄 reporte_mostrador.php (2.3 KB)
+        📄 reporte_proveedor_individual.php (6 KB)
+    📁 perfil
+      📄 index.php (7.8 KB)
+    📁 personal
+      📄 index.php (10 KB)
+    📁 proveedor
+      📄 index.php (16.9 KB)
+    📁 public
+      📄 vehicle_history_qr.php (16.7 KB)
+    📁 recuperar
+      📄 index.php (853 B)
+    📁 reportes
+      📄 index.php (31.9 KB)
+    📁 taller
+      📄 cerradas.php (17.4 KB)
+      📄 historial.php (17.8 KB)
+      📄 index.php (17.2 KB)
+      📄 nueva_orden.php (25.3 KB)
+    📁 venta
+      📄 index.php (32.5 KB)
+📁 doc
+  📄 Esquema 2.0.docx (20.1 KB)
+  📄 estructura_final_MVC_multiservicio.txt (3.1 KB)
+  📄 estructura_multiservicio.txt (1.3 KB)
+  📄 info.txt (2.2 KB)
+  📄 resumen_interfaz_elegante.txt (5.2 KB)
+  📄 test_historial_limpio.txt (3.2 KB)
+  📄 test_historial_qr.txt (2 KB)
+📁 public_html
+  📁 css
+    📄 styles.css (10.4 KB)
+    📄 styles.min.css (4.9 KB)
+  📁 img
+    📄 default.png (941 B)
+    📄 logo.png (353.6 KB)
+    📄 logo1.png (1.4 MB)
+  📁 js
+    📄 app.js (63.7 KB)
+    📄 clientes.js (9.5 KB)
+    📄 dashboard.js (29.4 KB)
+    📄 DataTableRefactor.js (5.3 KB)
+    📄 empresa.js (1.9 KB)
+    📄 facturacion.js (47.9 KB)
+    📄 gastos.js (7.2 KB)
+    📄 historial.js (11.8 KB)
+    📄 inventario.js (10.7 KB)
+    📄 login.js (5.7 KB)
+    📄 notifications.js (3.2 KB)
+    📄 perfil.js (2.2 KB)
+    📄 personal.js (12.4 KB)
+    📄 proveedores.js (28.2 KB)
+    📄 recuperar.js (0 B)
+    📄 reportes.js (79.3 KB)
+    📄 taller_nueva_orden.js (9.4 KB)
+    📄 utils.js (5.4 KB)
+  📁 uploads
+    📁 inventario
+      📄 prod_1780684456_90caf2a0.jpg (5.8 KB)
+      📄 prod_1780685695_e5f62c7f.png (36.5 KB)
+      📄 prod_1781009024_e58960db.png (75.3 KB)
+      📄 prod_1781009054_50c5557b.png (35.1 KB)
+      📄 prod_1781009074_c79b071c.png (36.5 KB)
+  📄 estructura.php (31 KB)
+  📄 index.php (5.8 KB)
+  📄 Validator.php (3.1 KB)
+📁 sql
+  📄 database_schema_2.0.sql (18.2 KB)
+  📄 deepseek_sql_20260528_98d7ca.sql (32.5 KB)
+📄 composer.phar (3.5 MB)
+📄 indexx.html (2.6 KB)
+📄 readme.txt (41 B)
+📄 vendor.zip (78.4 MB)

@@ -1,0 +1,44 @@
+Objetivo:
+
+Adaptar el sistema de autenticación en PHP MVC para diferenciar el origen de la petición (WEB vs APP). Actualmente el sistema ya cierra la sesión activa previa, pero debe ajustarse para permitir exactamente 1 sesión WEB y 1 sesión APP de forma simultánea para el mismo usuario, restringiendo el reemplazo/cierre de sesión únicamente cuando el conflicto ocurra en la misma plataforma.
+
+1. Migración de Base de Datos
+Revisa la tabla de sesiones (ej. table_usuario_sessions en docs/database_schema_2.0.sql).
+
+Genera el script de migración SQL para agregar la columna tipo:
+
+SQL
+ALTER TABLE table_usuario_sessions 
+ADD COLUMN tipo ENUM('WEB', 'APP') NOT NULL DEFAULT 'APP' AFTER usuario_id;
+2. Detección del Origen de la Petición (Request / Helper)
+Implementa la lógica para identificar si la solicitud proviene de la aplicación o de la web:
+
+Estrategia recomendada: Leer un Header HTTP personalizado (ej. X-Client-Type: APP o X-Client-Type: WEB) enviándolo desde el cliente, o evaluar los Headers estándar (User-Agent, Content-Type: application/json vs peticiones tradicionales de navegador).
+
+Asigna el valor resultante ('WEB' o 'APP') a la propiedad $tipoClient.
+
+3. Refactorización de la Lógica de Negocio (AuthService / AuthController)
+Modifica la consulta que verifica las sesiones activas existentes antes de iniciar sesión:
+
+Filtrado por Tipo:
+
+Al consultar si el usuario ya tiene una sesión activa, agrega la condición AND tipo = :tipoClient.
+
+Resultado: Si un usuario tiene una sesión WEB activa e intenta ingresar desde la APP, la consulta no detectará conflicto y creará la sesión APP dejando la WEB intacta.
+
+Gestión de Conflicto (Misma Plataforma):
+
+Si la consulta retorna una sesión activa donde el tipo coincide con el $tipoClient de la nueva petición (APP con APP o WEB con WEB):
+
+Ejecuta la lógica existente de aviso/cierre remoto de esa sesión en específico para dar paso a la nueva.
+
+Registro de la Nueva Sesión:
+
+Asegúrate de guardar el valor de $tipoClient ('WEB' o 'APP') al insertar el nuevo registro en la tabla de sesiones.
+
+4. Entregables Esperados
+SQL Migration Script: Con el ALTER TABLE.
+
+Actualización de Modelos y Controlador: Métodos ajustados con la condición tipo = :tipo para la búsqueda, revocación e inserción de sesiones.
+
+Prueba de Flujo: Validación de que un usuario pueda tener el par de sesiones (1 WEB + 1 APP) activas al mismo tiempo en la base de datos.
