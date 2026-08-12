@@ -627,10 +627,13 @@ class ControllerCatalogo extends Controller {
 
         $detalles = $this->modelCatalogo->obtenerDetallesPedido($id);
 
+        $empresa = $this->model('Empresa')->obtenerConfiguracion();
+
         $data = [
             'titulo' => 'Pedido #' . $id,
             'pedido' => $pedido,
-            'detalles' => $detalles
+            'detalles' => $detalles,
+            'iva_defecto' => $empresa->iva ?? 0
         ];
 
         $this->view('catalogo/ver_pedido', $data);

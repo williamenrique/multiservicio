@@ -19,7 +19,7 @@ class ModelFacturacion {
      * @param string $term Término de búsqueda
      */
     public function searchInvoices($term) {
-        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id::text, 3, '0')) as id_formateado, COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre
+        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado, COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
@@ -44,13 +44,8 @@ class ModelFacturacion {
                               WHERE vd.producto_id = i.id AND v.status != 'ANULADO'
                           ), 0)) as stock_disponible
                           FROM table_inventario i
-                          WHERE (i.nombre LIKE :term OR i.categoria LIKE :term OR i.id::text LIKE :term) AND i.estado = 'ACTIVO'
-                          AND (i.stock - COALESCE((
-                              SELECT SUM(vd.cantidad) 
-                              FROM table_facturas_detalle vd 
-                              JOIN table_facturas v ON vd.factura_id = v.id 
-                              WHERE vd.producto_id = i.id AND v.status != 'ANULADO'
-                          ), 0)) > 0
+                          WHERE (i.nombre LIKE :term OR i.categoria LIKE :term OR i.id LIKE :term) AND i.estado = 'ACTIVO'
+                          HAVING stock_disponible > 0
                           LIMIT 15");
         $this->db->bind(':term', "%$termino%");
         return $this->db->resultSet();
@@ -67,7 +62,7 @@ class ModelFacturacion {
     public function obtenerBorradoresCompleto() {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
                                  os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
-                                 CONCAT('FAC-', LPAD(v.id::text, 3, '0')) as id_formateado,
+                                 CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  COALESCE(sm.id, (SELECT vd.mecanico_id FROM table_facturas_detalle vd WHERE vd.factura_id = v.id AND vd.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_id,
                                  COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1), su.nombre, u.username) as usuario_nombre, 
                                  c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
@@ -256,7 +251,7 @@ class ModelFacturacion {
 
         $this->db->query("UPDATE table_ordenes_servicio
                           SET estado = 'ENTREGADO',
-                              fecha_entrega_real = CURRENT_TIMESTAMP,
+                              fecha_entrega_real = NOW(),
                               diagnostico_salida = :diag,
                               observaciones = :obs
                           WHERE id = :oid");
@@ -278,7 +273,7 @@ class ModelFacturacion {
      * Obtiene los detalles completos de una venta para su impresión
      */
     public function obtenerVentaCompleta($id) {
-        $this->db->query("SELECT v.*, v.observaciones as observaciones_factura, CONCAT('FAC-', LPAD(v.id::text, 3, '0')) as id_formateado,
+        $this->db->query("SELECT v.*, v.observaciones as observaciones_factura, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
                                  COALESCE(vh.placa, v.placa) as placa, 
                                  COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
@@ -327,10 +322,10 @@ class ModelFacturacion {
             $where .= " AND (v.id LIKE :search OR c.nombre LIKE :search)";
         }
         if ($desde) {
-            $where .= " AND v.fecha::date >= :desde";
+            $where .= " AND DATE(v.fecha) >= :desde";
         }
         if ($hasta) {
-            $where .= " AND v.fecha::date <= :hasta";
+            $where .= " AND DATE(v.fecha) <= :hasta";
         }
 
         // Obtener total de registros filtrados
@@ -401,7 +396,7 @@ class ModelFacturacion {
         $total = $this->db->single()->total;
 
         // 3. Lista de trabajos con paginación
-        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id::text, 3, '0')) as id_formateado,
+        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  v.fecha, v.total, v.saldo_pendiente, v.status,
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, sv.nombre as vendedor_nombre, 
                                  COALESCE(
@@ -516,7 +511,7 @@ class ModelFacturacion {
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'CREDITO'
                           AND v.saldo_pendiente > 0
-                          AND (CURRENT_DATE - COALESCE(v.fecha::date, CURRENT_DATE)) >= :dias
+                          AND DATEDIFF(CURDATE(), COALESCE(DATE(v.fecha), CURDATE())) >= :dias
                           ORDER BY v.fecha ASC");
         $this->db->bind(':dias', $dias);
         return $this->db->resultSet();
@@ -529,13 +524,6 @@ class ModelFacturacion {
         return round(abs(strtotime($d1) - strtotime($d2)) / 86400);
     }
 
-    /**
-     * Procesa la devolución de un ítem específico de una factura.
-     * @param int $ventaId ID de la factura
-     * @param int $detalleId ID de la línea de detalle
-     * @param string $destino Destino del ítem (STOCK o DANADO)
-     * @return bool
-     */
     /**
      * Obtiene los días de garantía aplicables a un repuesto.
      * Prioridad: dias_garantia del repuesto → dias_garantia_devolucion global → 5 (default)
@@ -564,6 +552,14 @@ class ModelFacturacion {
         return 5;
     }
 
+    /**
+     * Procesa la devolución de un ítem específico de una factura.
+     * @param int $ventaId ID de la factura
+     * @param int $detalleId ID de la línea de detalle
+     * @param string $destino Destino del ítem (STOCK o DANADO)
+     * @param string $motivo Motivo de la devolución (opcional)
+     * @return bool
+     */
     public function procesarDevolucion($ventaId, $detalleId, $destino, $motivo = '') {
         try {
             // Se elimina beginTransaction de aquí. 
@@ -600,7 +596,7 @@ class ModelFacturacion {
             // 2. Si es producto y el destino es REINGRESO, sumar al inventario
             if (!empty($item->producto_id)) {
                 if ($destino === 'STOCK') {
-                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant, updated_at = CURRENT_TIMESTAMP WHERE id = :pid");
+                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant, updated_at = NOW() WHERE id = :pid");
                     $this->db->bind(':cant', $item->cantidad);
                     $this->db->bind(':pid', $item->producto_id);
                     $this->db->execute();
@@ -702,7 +698,7 @@ class ModelFacturacion {
                           FROM table_facturas_detalle vd
                           JOIN table_facturas v ON vd.factura_id = v.id
                           WHERE v.status IN ('COMPLETADO', 'CREDITO')
-                          AND v.fecha::date BETWEEN :desde AND :hasta");
+                          AND DATE(v.fecha) BETWEEN :desde AND :hasta");
         
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);

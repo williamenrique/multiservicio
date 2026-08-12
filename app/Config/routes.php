@@ -31,4 +31,12 @@ return [
     'catalogo/procesar-pedido-staff'   => 'Catalogo@procesarPedidoStaff',
     'catalogo/cancelar-pedido-staff'   => 'Catalogo@cancelarPedidoStaff',
     'catalogo/notificaciones-pedidos'  => 'Catalogo@notificacionesPedidos',
+
+    // Devoluciones
+    'devoluciones'                      => 'Devoluciones@index',
+    'devoluciones/listar-facturas'      => 'Devoluciones@listarFacturas',
+    'devoluciones/get-items'            => 'Devoluciones@getItems',
+    'devoluciones/procesar'            => 'Devoluciones@procesar',
+    'devoluciones/historial'            => 'Devoluciones@historial',
+    'devoluciones/detalle'              => 'Devoluciones@detalle',
 ];

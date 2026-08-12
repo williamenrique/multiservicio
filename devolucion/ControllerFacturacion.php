@@ -159,7 +159,7 @@ class ControllerFacturacion extends Controller {
                                 'observaciones_factura' => $ventaCompleta->observaciones_factura ?? null,
                                 'vendedor_nombre'   => $ventaCompleta->vendedor_nombre ?? null,
                             ];
-                            $emailService = new EmailService();
+                            $emailService = new \App\Services\EmailService();
                             $emailService->notificarFacturaDirecta($emailData);
                         }
                     } catch (\Throwable $e) {
@@ -460,7 +460,8 @@ class ControllerFacturacion extends Controller {
                 throw new Exception(implode(" ", $v->getErrors()));
             }
 
-            $resultado = $this->facturaModel->procesarDevolucion($input['venta_id'], $input['detalle_id'], $input['destino'], $input['motivo'] ?? '');
+            $motivo = trim($input['motivo'] ?? '');
+            $resultado = $this->facturaModel->procesarDevolucion($input['venta_id'], $input['detalle_id'], $input['destino'], $motivo);
 
             return $this->jsonResponse([
                 'success' => $resultado,

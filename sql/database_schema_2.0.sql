@@ -77,7 +77,8 @@ CREATE TABLE `table_company_settings` (
   `iva` decimal(5,2) DEFAULT 19.00,
   `direccion` text,
   `telefono` varchar(50),
-  `logo` varchar(255)
+  `logo` varchar(255),
+  `dias_garantia_devolucion` int(11) DEFAULT 5 -- Días globales de garantía para devoluciones de repuestos
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Maestro de clientes
@@ -130,6 +131,7 @@ CREATE TABLE `table_inventario` (
   `costo_promedio` decimal(15,2) DEFAULT 0.00, -- Pilar para rentabilidad real
   `precio` decimal(15,2) NOT NULL DEFAULT 0.00,
   `imagen` varchar(255) DEFAULT NULL,
+  `dias_garantia` int(11) DEFAULT NULL, -- Días de garantía específicos para este repuesto (NULL = usar global)
   `estado` enum('ACTIVO', 'INACTIVO') DEFAULT 'ACTIVO',
   INDEX (`nombre`),
   INDEX (`categoria`),
@@ -383,9 +385,13 @@ CREATE TABLE `table_devoluciones` (
   `id` int(11) PRIMARY KEY AUTO_INCREMENT,
   `factura_id` int(11),
   `producto_id` int(11),
+  `descripcion` varchar(255) DEFAULT NULL,
   `cantidad` int(11),
   `monto_devuelto` decimal(15,2),
   `destino` enum('STOCK', 'DANADO'),
+  `motivo` varchar(255) DEFAULT NULL,
+  `dias_garantia_aplicado` int(11) DEFAULT NULL,
+  `dias_transcurridos` int(11) DEFAULT NULL,
   `usuario_id` int(11),
   `fecha` timestamp DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`factura_id`) REFERENCES `table_facturas`(`id`),

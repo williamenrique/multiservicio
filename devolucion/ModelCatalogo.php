@@ -127,7 +127,7 @@ class ModelCatalogo {
     public function obtenerDestacados($limit = 8) {
         $this->db->query("SELECT * FROM table_inventario 
                           WHERE estado = 'ACTIVO' AND stock > 0 
-                          ORDER BY RANDOM() LIMIT :limit");
+                          ORDER BY RAND() LIMIT :limit");
         $this->db->bind(':limit', (int)$limit);
         return $this->db->resultSet();
     }
@@ -341,7 +341,7 @@ class ModelCatalogo {
     }
 
     /**
-     * Actualiza el IVA de un pedido de forma dinámica.
+     * Actualiza el IVA y total de un pedido existente (al procesar por staff)
      * Si aplicarIva es true, calcula iva = subtotal * (tasa/100) y total = subtotal + iva
      * Si es false, iva = 0 y total = subtotal
      */
