@@ -60,7 +60,7 @@ class ModelGarantia {
     }
 
     /**
-     * Determina si un item es un lavado (no aplica garantía de servicio).
+     * Determina si un item es lavado o aspirado (no aplica garantía de servicio).
      * @param int $productoId
      * @return bool
      */
@@ -69,8 +69,27 @@ class ModelGarantia {
         $this->db->query("SELECT categoria FROM table_inventario WHERE id = :id");
         $this->db->bind(':id', $productoId);
         $row = $this->db->single();
-        if ($row && strtoupper(trim($row->categoria)) === 'LAVADO') {
-            return true;
+        if ($row) {
+            $cat = strtoupper(trim($row->categoria));
+            return in_array($cat, ['LAVADO', 'ASPIRADO']);
+        }
+        return false;
+    }
+
+    /**
+     * Determina si una descripción corresponde a un lavado o aspirado.
+     * Útil para servicios puros (sin producto_id) que no tienen categoría.
+     * @param string $descripcion
+     * @return bool
+     */
+    public function esLavadoOAspiradoPorDescripcion($descripcion) {
+        if (!$descripcion) return false;
+        $desc = mb_strtoupper(trim($descripcion), 'UTF-8');
+        $palabras = ['LAVADO', 'ASPIRADO', 'LAV', 'ASPIR', 'ASPIRADA'];
+        foreach ($palabras as $p) {
+            if (strpos($desc, $p) !== false) {
+                return true;
+            }
         }
         return false;
     }
@@ -98,12 +117,31 @@ class ModelGarantia {
      * @return array
      */
     public function listarFacturasConGarantia($limit, $offset, $search = null) {
+        // Trae TODAS las facturas COMPLETADAS/CRÉDITO (no anuladas, no de garantía)
+        // que tengan al menos un item de servicio (mano de obra) que NO sea lavado ni aspirado,
+        // o que tengan repuestos (que tienen su propia garantía).
         $sql = "SELECT f.id, f.placa, f.modelo_vehiculo, f.total, f.status, f.origen, f.fecha,
                        c.id AS cliente_id, c.nombre AS cliente
                 FROM table_facturas f
                 LEFT JOIN table_clientes c ON f.cliente_id = c.id
                 WHERE f.status IN ('COMPLETADO','CREDITO')
-                  AND f.origen != 'GARANTIA'";
+                  AND f.origen != 'GARANTIA'
+                  AND EXISTS (
+                      SELECT 1 FROM table_facturas_detalle vd
+                      LEFT JOIN table_inventario i ON vd.producto_id = i.id
+                      WHERE vd.factura_id = f.id
+                      AND (
+                          -- Servicios puros (mano de obra sin repuesto) que NO sean lavado/aspirado por descripción
+                          (vd.producto_id IS NULL
+                           AND UPPER(IFNULL(vd.descripcion,'')) NOT LIKE '%LAVADO%'
+                           AND UPPER(IFNULL(vd.descripcion,'')) NOT LIKE '%ASPIRADO%'
+                           AND UPPER(IFNULL(vd.descripcion,'')) NOT LIKE '%ASPIR%')
+                          OR
+                          -- Repuestos con categoría que NO sea LAVADO ni ASPIRADO
+                          (vd.producto_id IS NOT NULL
+                           AND UPPER(IFNULL(i.categoria,'')) NOT IN ('LAVADO','ASPIRADO'))
+                      )
+                  )";
 
         if ($search) {
             $sql .= " AND (f.id LIKE :search OR f.placa LIKE :search OR c.nombre LIKE :search)";
@@ -129,7 +167,21 @@ class ModelGarantia {
                 FROM table_facturas f
                 LEFT JOIN table_clientes c ON f.cliente_id = c.id
                 WHERE f.status IN ('COMPLETADO','CREDITO')
-                  AND f.origen != 'GARANTIA'";
+                  AND f.origen != 'GARANTIA'
+                  AND EXISTS (
+                      SELECT 1 FROM table_facturas_detalle vd
+                      LEFT JOIN table_inventario i ON vd.producto_id = i.id
+                      WHERE vd.factura_id = f.id
+                      AND (
+                          (vd.producto_id IS NULL
+                           AND UPPER(IFNULL(vd.descripcion,'')) NOT LIKE '%LAVADO%'
+                           AND UPPER(IFNULL(vd.descripcion,'')) NOT LIKE '%ASPIRADO%'
+                           AND UPPER(IFNULL(vd.descripcion,'')) NOT LIKE '%ASPIR%')
+                          OR
+                          (vd.producto_id IS NOT NULL
+                           AND UPPER(IFNULL(i.categoria,'')) NOT IN ('LAVADO','ASPIRADO'))
+                      )
+                  )";
         if ($search) {
             $sql .= " AND (f.id LIKE :search OR f.placa LIKE :search OR c.nombre LIKE :search)";
         }
@@ -187,17 +239,19 @@ class ModelGarantia {
             $it->tipo_item = $esRepuesto ? 'REPUESTO' : 'SERVICIO';
 
             if ($esRepuesto) {
-                $esLavado = (strtoupper(trim($it->producto_categoria)) === 'LAVADO');
+                $cat = strtoupper(trim($it->producto_categoria));
+                $esLavado = in_array($cat, ['LAVADO', 'ASPIRADO']);
                 $it->es_lavado = $esLavado;
-                // Repuesto: garantía por repuesto. Lavados no tienen garantía de servicio.
+                // Repuesto: garantía por repuesto. Lavados/aspirados no tienen garantía de servicio.
                 $diasGarantia = $this->obtenerDiasGarantiaRepuesto($it->producto_id);
                 $it->dias_garantia_aplicado = $diasGarantia;
                 $it->dias_garantia_servicio = $esLavado ? 0 : $diasServicioGlobal;
             } else {
-                // Servicio puro (mano de obra sin repuesto): garantía de servicio.
-                $it->es_lavado = false;
-                $it->dias_garantia_aplicado = $diasServicioGlobal;
-                $it->dias_garantia_servicio = $diasServicioGlobal;
+                // Servicio puro (mano de obra sin repuesto): verificar si es lavado/aspirado por descripción.
+                $esLavado = $this->esLavadoOAspiradoPorDescripcion($it->descripcion);
+                $it->es_lavado = $esLavado;
+                $it->dias_garantia_aplicado = $esLavado ? 0 : $diasServicioGlobal;
+                $it->dias_garantia_servicio = $esLavado ? 0 : $diasServicioGlobal;
             }
 
             $it->dias_transcurridos = $this->calcularDiferenciaDias($fechaFactura, date('Y-m-d H:i:s'));
@@ -231,6 +285,8 @@ class ModelGarantia {
         $destinoRepuesto = mb_strtoupper(trim($datos['destino_repuesto'] ?? 'N/A'), 'UTF-8');
         $items = $datos['items'] ?? [];
         $usuarioId = $_SESSION['user_id'] ?? null;
+        // Monto a cobrar ajustable manualmente (mano de obra no se cobra en garantía por defecto = 0)
+        $montoACobrarManual = isset($datos['monto_a_cobrar']) ? (float)$datos['monto_a_cobrar'] : null;
 
         if (!$facturaId || !$motivo || empty($items)) {
             return ['success' => false, 'mensaje' => 'DATOS INCOMPLETOS PARA PROCESAR LA GARANTÍA'];
@@ -317,11 +373,10 @@ class ModelGarantia {
                 }
 
                 // Acumular totales de la factura de garantía
-                if ($accion === 'AUMENTAR') {
-                    $subtotalGarantia += $baseItem;
-                    $ivaGarantia += $ivaItem;
-                    $totalGarantia += $totalItem;
-                }
+                // LÓGICA: La garantía NO genera cobro (ya se cobró en la factura original).
+                // Los items se registran para trazabilidad pero NO suman al total de la factura de garantía.
+                // Solo el monto_a_cobrar manual (incremento adicional) determina el total a cobrar.
+                // if ($accion === 'AUMENTAR') { ... }  ← ELIMINADO: no se cobra de nuevo
 
                 $detalleInsert[] = [
                     'factura_detalle_id' => (int)$item->detalle_id,
@@ -338,10 +393,32 @@ class ModelGarantia {
                 ];
             }
 
-            $totalGarantia = round($totalGarantia, 2);
+            $totalGarantia = round($totalGarantia, 2); // 0 por defecto (garantía sin cobro)
             $ivaGarantia = round($ivaGarantia, 2);
             $subtotalGarantia = round($subtotalGarantia, 2);
-            $montoTotalGarantia = round($montoManoObra + $montoRepuesto, 2);
+            $montoTotalGarantia = round($montoManoObra + $montoRepuesto, 2); // valor referencial de lo atendido
+
+            // AJUSTE MANUAL DEL MONTO A COBRAR (sistema inteligente):
+            // LÓGICA DE NEGOCIO:
+            // - Por defecto la garantía NO se cobra (totalGarantia = 0): la mano de obra ya se cobró en la
+            //   factura original y los repuestos se reemplazan sin cobro adicional.
+            // - Si el cajero indica un monto_a_cobrar > 0, ese es el ÚNICO monto que se cobra al cliente
+            //   (incremento adicional por trabajo/repuesto extra). Ese monto sí genera ingreso en caja.
+            // - Si monto_a_cobrar = 0 o no se indica, la garantía se atiende sin afectar caja ni transacciones.
+            $ajusteManualAplicado = false;
+            if ($montoACobrarManual !== null && $montoACobrarManual >= 0) {
+                $totalGarantia = round($montoACobrarManual, 2);
+                // Recalcular subtotal e IVA proporcionalmente
+                if ($factorIva > 0) {
+                    $subtotalGarantia = round($totalGarantia / (1 + $factorIva), 2);
+                    $ivaGarantia = round($totalGarantia - $subtotalGarantia, 2);
+                } else {
+                    $subtotalGarantia = $totalGarantia;
+                    $ivaGarantia = 0;
+                }
+                $montoTotalGarantia = $totalGarantia;
+                $ajusteManualAplicado = true;
+            }
 
             // 1. ANULAR FACTURA ORIGINAL
             $this->db->query("UPDATE table_facturas SET status = 'ANULADO', observaciones = CONCAT(IFNULL(observaciones,''), ' | ANULADA POR GARANTIA') WHERE id = :id");
@@ -430,38 +507,36 @@ class ModelGarantia {
             }
 
             // 5. CUADRE EN CAJA (table_transacciones)
-            // Si hay devolución de dinero (DEVOLVER) → EGRESO
-            $montoDevolver = 0.00;
-            $montoAumentar = 0.00;
-            foreach ($detalleInsert as $d) {
-                if ($d['accion'] === 'DEVOLVER') {
-                    $montoDevolver += $d['monto_total'];
-                } elseif ($d['accion'] === 'AUMENTAR') {
-                    $montoAumentar += $d['monto_total'];
-                }
+            // LÓGICA DE NEGOCIO:
+            // - La mano de obra en garantía YA se cobró en la factura original → NO genera nuevo ingreso.
+            // - Los repuestos en garantía se REEMPLAZAN, no se cobran otra vez → NO generan ingreso.
+            // - La garantía NO debe afectar caja ni transacciones como doble cobro.
+            // - SOLO se registra INGRESO si el cajero indica un monto a cobrar ADICIONAL (incremento extra).
+            //   Ese monto adicional sí es un nuevo ingreso legítimo (trabajo/repuesto extra cobrado al cliente).
+            // - La acción DEVOLVER en mano de obra NO genera egreso de dinero (no se devuelve dinero al cliente,
+            //   solo se registra que se atendió la garantía del servicio ya cobrado).
+            //
+            // Si se necesita devolver dinero al cliente, se usa el módulo de DEVOLUCIONES, no GARANTÍA.
+
+            // El único ingreso legítimo en garantía es el monto adicional ajustado manualmente por el cajero
+            // (cuando se cobra algo extra por cubrir la garantía). Por defecto es 0 (no se cobra nada extra).
+            $montoIngresoAdicional = 0.00;
+            if ($montoACobrarManual !== null && $montoACobrarManual > 0) {
+                $montoIngresoAdicional = round($montoACobrarManual, 2);
             }
 
-            if ($montoDevolver > 0) {
-                $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id)
-                                  VALUES (:cid, 'EGRESO', 'GARANTIA', :monto, :ref, :desc, :uid)");
-                $this->db->bind(':cid', 1);
-                $this->db->bind(':monto', $montoDevolver);
-                $this->db->bind(':ref', $garantiaId);
-                $this->db->bind(':desc', mb_strtoupper('EGRESO POR GARANTIA - FACTURA #' . $facturaId, 'UTF-8'));
-                $this->db->bind(':uid', $usuarioId);
-                $this->db->execute();
-            }
-
-            if ($montoAumentar > 0) {
+            if ($montoIngresoAdicional > 0) {
                 $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id)
                                   VALUES (:cid, 'INGRESO', 'GARANTIA', :monto, :ref, :desc, :uid)");
                 $this->db->bind(':cid', 1);
-                $this->db->bind(':monto', $montoAumentar);
+                $this->db->bind(':monto', $montoIngresoAdicional);
                 $this->db->bind(':ref', $garantiaId);
-                $this->db->bind(':desc', mb_strtoupper('INGRESO POR GARANTIA - FACTURA #' . $facturaGarantiaId, 'UTF-8'));
+                $this->db->bind(':desc', mb_strtoupper('INGRESO ADICIONAL POR GARANTIA - FACTURA #' . $facturaGarantiaId, 'UTF-8'));
                 $this->db->bind(':uid', $usuarioId);
                 $this->db->execute();
             }
+            // Si montoIngresoAdicional == 0 → NO se registra ninguna transacción.
+            // La garantía se atiende sin afectar caja (ya se cobró en la factura original).
 
             $this->db->commit();
             return [
@@ -565,5 +640,55 @@ class ModelGarantia {
         $this->db->bind(':gid', $id);
         $garantia->detalle = $this->db->resultset();
         return $garantia;
+    }
+
+    /**
+     * Obtiene la información COMPLETA de la factura original asociada a una garantía:
+     * datos de la factura, cliente, vehículo, usuario que cobró, orden de servicio
+     * (diagnósticos entrada/salida, observaciones, mecánico asignado, kilometraje,
+     * combustible, fechas) y los items con mecánico que ejecutó cada uno.
+     * @param int $facturaId
+     * @return array|null  ['factura' => object, 'items' => array]
+     */
+    public function obtenerFacturaOriginalCompleta($facturaId) {
+        // 1) Factura + cliente + usuario que cobró (vía staff) + orden de servicio
+        $this->db->query("SELECT f.id AS factura_id, f.orden_id, f.cliente_id, f.placa, f.modelo_vehiculo,
+                                 f.usuario_id, f.subtotal, f.iva_monto, f.total, f.status, f.origen,
+                                 f.observaciones, f.fecha,
+                                 c.id AS cliente_cedula, c.nombre AS cliente_nombre, c.telefono AS cliente_telefono,
+                                 sCobro.nombre AS usuario_cobro_nombre,
+                                 os.id AS os_id, os.mecanico_id AS os_mecanico_id,
+                                 os.kilometraje AS os_kilometraje, os.nivel_combustible AS os_combustible,
+                                 os.diagnostico_entrada AS os_diag_entrada,
+                                 os.diagnostico_salida AS os_diag_salida,
+                                 os.observaciones AS os_observaciones,
+                                 os.estado AS os_estado, os.fecha_ingreso AS os_fecha_ingreso,
+                                 os.fecha_entrega_real AS os_fecha_entrega,
+                                 sMec.nombre AS os_mecanico_nombre
+                          FROM table_facturas f
+                          LEFT JOIN table_clientes c ON f.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON f.usuario_id = u.id
+                          LEFT JOIN table_staff sCobro ON u.staff_id = sCobro.id
+                          LEFT JOIN table_ordenes_servicio os ON f.orden_id = os.id
+                          LEFT JOIN table_staff sMec ON os.mecanico_id = sMec.id
+                          WHERE f.id = :id");
+        $this->db->bind(':id', $facturaId);
+        $factura = $this->db->single();
+        if (!$factura) return null;
+
+        // 2) Items de la factura con mecánico que ejecutó cada uno
+        $this->db->query("SELECT vd.id AS detalle_id, vd.producto_id, vd.mecanico_id, vd.descripcion,
+                                 vd.cantidad, vd.precio_unitario, vd.costo_unitario,
+                                 i.nombre AS producto_nombre, i.categoria AS producto_categoria,
+                                 s.nombre AS mecanico_nombre
+                          FROM table_facturas_detalle vd
+                          LEFT JOIN table_inventario i ON vd.producto_id = i.id
+                          LEFT JOIN table_staff s ON vd.mecanico_id = s.id
+                          WHERE vd.factura_id = :fid
+                          ORDER BY vd.id");
+        $this->db->bind(':fid', $facturaId);
+        $items = $this->db->resultset();
+
+        return ['factura' => $factura, 'items' => $items];
     }
 }

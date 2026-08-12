@@ -158,7 +158,13 @@ class ControllerGarantia extends Controller {
             $this->jsonResponse(['success' => false, 'mensaje' => 'GARANTÍA NO ENCONTRADA']);
             return;
         }
-        $this->jsonResponse(['success' => true, 'garantia' => $garantia]);
+        // Información completa de la factura original
+        $facturaOriginal = $this->model('Garantia')->obtenerFacturaOriginalCompleta($garantia->factura_original_id);
+        $this->jsonResponse([
+            'success' => true,
+            'garantia' => $garantia,
+            'factura_original' => $facturaOriginal,
+        ]);
     }
 
     /**

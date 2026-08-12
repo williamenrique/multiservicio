@@ -454,16 +454,36 @@ async function mostrarModalGarantia() {
                         class="swal2-input w-full m-0 text-sm resize-none uppercase"
                         oninput="this.value = this.value.toUpperCase();"></textarea>
                 </div>
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <label class="block text-[10px] font-black text-amber-600 uppercase mb-1">Monto a Cobrar (Incremento Adicional)</label>
+                    <p class="text-[10px] text-amber-600 mb-2">Por defecto es 0.00 (la garantía NO se cobra: mano de obra ya cobrada, repuesto reemplazado). Ingrese un monto SOLO si hay cobro adicional por trabajo/repuesto extra.</p>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-black text-amber-600">Bs.</span>
+                        <input type="number" id="monto-a-cobrar-input" value="0.00" step="0.01" min="0"
+                            class="swal2-input flex-1 m-0 text-sm font-black text-right"
+                            placeholder="0.00">
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1">Si el monto es 0.00, la garantía NO afecta caja ni transacciones. Si es mayor a 0, ese monto se registra como ingreso.</p>
+                </div>
             </div>`,
         showCancelButton: true,
         confirmButtonText: 'PROCESAR GARANTÍA',
         confirmButtonColor: '#0f766e',
         width: '650px',
+        didOpen: () => {
+            // El monto a cobrar es manual: el cajero decide si hay cobro adicional o no.
+            // No hay cálculo automático de total (la garantía por defecto no se cobra).
+        },
         preConfirm: () => {
             const tipoGarantia = document.getElementById('tipo-garantia-select').value;
             const motivo = document.getElementById('motivo-input').value.trim().toUpperCase();
+            const montoACobrar = parseFloat(document.getElementById('monto-a-cobrar-input').value) || 0;
             if (!motivo) {
                 Swal.showValidationMessage('Debe ingresar el motivo de la garantía');
+                return false;
+            }
+            if (montoACobrar < 0) {
+                Swal.showValidationMessage('El monto a cobrar no puede ser negativo');
                 return false;
             }
             const items = recopilarItemsModal();
@@ -471,7 +491,7 @@ async function mostrarModalGarantia() {
                 Swal.showValidationMessage('No hay items seleccionados');
                 return false;
             }
-            return { factura_id: facturaSeleccionada, tipo_garantia: tipoGarantia, motivo, items };
+            return { factura_id: facturaSeleccionada, tipo_garantia: tipoGarantia, motivo, items, monto_a_cobrar: montoACobrar };
         }
     });
 
@@ -580,6 +600,28 @@ async function verDetalleGarantia(id) {
         }
 
         const g = data.garantia;
+        const fo = data.factura_original || null;
+        const f = fo ? fo.factura : null;
+        const fItems = fo ? (fo.items || []) : [];
+
+        // Items de la factura original (repuestos y servicios con mecánico)
+        const itemsFacturaHtml = fItems.map(it => {
+            const esRepuesto = it.producto_id != null && it.producto_id !== '';
+            const tipo = esRepuesto ? 'REPUESTO' : 'SERVICIO';
+            const nombre = esRepuesto ? (it.producto_nombre || 'N/A') : (it.descripcion || 'Servicio');
+            const desc = esRepuesto ? (it.descripcion || '') : '';
+            const monto = (parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0);
+            return `
+            <tr class="border-t border-slate-100">
+                <td class="px-2 py-2 text-xs text-slate-700">${escapeHtml(nombre)}</td>
+                <td class="px-2 py-2 text-center text-xs font-bold ${esRepuesto ? 'text-indigo-600' : 'text-emerald-600'}">${tipo}</td>
+                <td class="px-2 py-2 text-center text-xs text-slate-600">${it.cantidad}</td>
+                <td class="px-2 py-2 text-center text-xs text-slate-600">${escapeHtml(it.mecanico_nombre || '-')}</td>
+                <td class="px-2 py-2 text-right text-xs font-bold text-slate-700">${AppUtils.formatCurrency(monto)}</td>
+            </tr>`;
+        }).join('');
+
+        // Detalle de la garantía (items procesados)
         const detalle = (g.detalle || []).map(d => `
             <tr class="border-t border-slate-100">
                 <td class="px-2 py-2 text-xs text-slate-700">${escapeHtml(d.descripcion)}</td>
@@ -590,24 +632,75 @@ async function verDetalleGarantia(id) {
                 <td class="px-2 py-2 text-right text-xs font-bold text-slate-700">${AppUtils.formatCurrency(d.monto_total)}</td>
             </tr>`).join('');
 
+        // Sección factura original (si existe)
+        const seccionFactura = f ? `
+            <div class="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                <p class="text-[11px] font-black text-blue-700 uppercase mb-2">Factura Original #${f.factura_id} - ${f.status || ''}</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Cliente</p><p class="font-bold text-navy-blue">${escapeHtml(f.cliente_nombre || 'Consumidor Final')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Cédula</p><p class="font-bold">${escapeHtml(f.cliente_cedula || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Teléfono</p><p class="font-bold">${escapeHtml(f.cliente_telefono || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Placa / Modelo</p><p class="font-bold">${escapeHtml(f.placa || '-')} / ${escapeHtml(f.modelo_vehiculo || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Fecha Factura</p><p class="font-bold">${f.fecha ? new Date(f.fecha).toLocaleString() : '-'}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Cobrado Por</p><p class="font-bold">${escapeHtml(f.usuario_cobro_nombre || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Origen</p><p class="font-bold">${escapeHtml(f.origen || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Total Factura</p><p class="font-bold text-blue-700">${AppUtils.formatCurrency(f.total)}</p></div>
+                </div>
+                ${f.observaciones ? `<div class="mt-2"><p class="text-[10px] font-black text-slate-400 uppercase">Observaciones Factura</p><p class="text-xs text-slate-700">${escapeHtml(f.observaciones)}</p></div>` : ''}
+            </div>
+            ${f.os_id ? `
+            <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <p class="text-[11px] font-black text-slate-600 uppercase mb-2">Orden de Servicio #${f.os_id} - ${escapeHtml(f.os_estado || '-')}</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Mecánico Asignado</p><p class="font-bold">${escapeHtml(f.os_mecanico_nombre || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Kilometraje</p><p class="font-bold">${escapeHtml(f.os_kilometraje || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Combustible</p><p class="font-bold">${escapeHtml(f.os_combustible || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Fecha Ingreso</p><p class="font-bold">${f.os_fecha_ingreso ? new Date(f.os_fecha_ingreso).toLocaleString() : '-'}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Fecha Entrega</p><p class="font-bold">${f.os_fecha_entrega ? new Date(f.os_fecha_entrega).toLocaleString() : '-'}</p></div>
+                </div>
+                ${f.os_diag_entrada ? `<div class="mt-2"><p class="text-[10px] font-black text-slate-400 uppercase">Diagnóstico Entrada</p><p class="text-xs text-slate-700">${escapeHtml(f.os_diag_entrada)}</p></div>` : ''}
+                ${f.os_diag_salida ? `<div class="mt-2"><p class="text-[10px] font-black text-slate-400 uppercase">Diagnóstico Salida</p><p class="text-xs text-slate-700">${escapeHtml(f.os_diag_salida)}</p></div>` : ''}
+                ${f.os_observaciones ? `<div class="mt-2"><p class="text-[10px] font-black text-slate-400 uppercase">Observaciones OS</p><p class="text-xs text-slate-700">${escapeHtml(f.os_observaciones)}</p></div>` : ''}
+            </div>` : ''}
+            ${fItems.length ? `
+            <div class="overflow-x-auto">
+                <p class="text-[11px] font-black text-slate-500 uppercase mb-1">Items de la Factura Original</p>
+                <table class="w-full">
+                    <thead class="bg-slate-100">
+                        <tr class="text-[10px] font-black text-slate-500 uppercase">
+                            <th class="px-2 py-2 text-left">Descripción</th>
+                            <th class="px-2 py-2 text-center">Tipo</th>
+                            <th class="px-2 py-2 text-center">Cant.</th>
+                            <th class="px-2 py-2 text-center">Mecánico</th>
+                            <th class="px-2 py-2 text-right">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>${itemsFacturaHtml}</tbody>
+                </table>
+            </div>` : ''}` : '';
+
         Swal.fire({
             title: `GARANTÍA #${g.id}`,
             html: `
-                <div class="text-left space-y-3 text-sm">
+                <div class="text-left space-y-3 text-sm max-h-[60vh] overflow-y-auto pr-1">
                     <div class="grid grid-cols-2 gap-2 bg-slate-50 rounded-xl p-3">
                         <div><p class="text-[10px] font-black text-slate-400 uppercase">Cliente</p><p class="font-bold text-navy-blue">${escapeHtml(g.cliente || 'Consumidor Final')}</p></div>
                         <div><p class="text-[10px] font-black text-slate-400 uppercase">Cédula</p><p class="font-bold">${escapeHtml(g.cliente_cedula || '-')}</p></div>
+                        <div><p class="text-[10px] font-black text-slate-400 uppercase">Teléfono</p><p class="font-bold">${escapeHtml(g.cliente_telefono || '-')}</p></div>
                         <div><p class="text-[10px] font-black text-slate-400 uppercase">Placa</p><p class="font-bold">${escapeHtml(g.placa || '-')}</p></div>
                         <div><p class="text-[10px] font-black text-slate-400 uppercase">Factura Original</p><p class="font-bold">#${g.factura_original_id} (ANULADA)</p></div>
                         <div><p class="text-[10px] font-black text-slate-400 uppercase">Factura Garantía</p><p class="font-bold text-neon-green">#${g.factura_garantia_id || '-'}</p></div>
                         <div><p class="text-[10px] font-black text-slate-400 uppercase">Tipo</p><p class="font-bold">${g.tipo_garantia}</p></div>
-                        <div><p class="text-[10px] font-black text-slate-400 uppercase">Fecha</p><p class="font-bold">${new Date(g.fecha).toLocaleDateString()}</p></div>
+                        <div><p class="text-[10px] font-black text-slate-400 uppercase">Fecha Garantía</p><p class="font-bold">${new Date(g.fecha).toLocaleString()}</p></div>
+                        <div><p class="text-[10px] font-black text-slate-400 uppercase">Procesado Por</p><p class="font-bold">${escapeHtml(g.usuario_nombre || '-')}</p></div>
                     </div>
                     <div class="bg-amber-50 rounded-xl p-3">
                         <p class="text-[10px] font-black text-slate-400 uppercase">Motivo</p>
                         <p class="text-sm font-medium text-slate-700">${escapeHtml(g.motivo || '-')}</p>
                     </div>
+                    ${seccionFactura}
                     <div class="overflow-x-auto">
+                        <p class="text-[11px] font-black text-slate-500 uppercase mb-1">Items Procesados en Garantía</p>
                         <table class="w-full">
                             <thead class="bg-slate-100">
                                 <tr class="text-[10px] font-black text-slate-500 uppercase">
