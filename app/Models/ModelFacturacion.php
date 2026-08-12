@@ -600,7 +600,7 @@ class ModelFacturacion {
             // 2. Si es producto y el destino es REINGRESO, sumar al inventario
             if (!empty($item->producto_id)) {
                 if ($destino === 'STOCK') {
-                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant, updated_at = CURRENT_TIMESTAMP WHERE id = :pid");
+                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant WHERE id = :pid");
                     $this->db->bind(':cant', $item->cantidad);
                     $this->db->bind(':pid', $item->producto_id);
                     $this->db->execute();

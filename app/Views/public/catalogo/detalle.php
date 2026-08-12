@@ -55,7 +55,7 @@
     </style>
 </head>
 
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- NAVBAR -->
     <nav class="nav-blur border-b border-gray-700/50 sticky top-0 z-50">
@@ -88,7 +88,7 @@
     </nav>
 
     <!-- PRODUCT DETAIL -->
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
         <div class="bg-white rounded-2xl shadow-md overflow-hidden">
             <div class="grid md:grid-cols-2 gap-0">
                 <!-- Image -->

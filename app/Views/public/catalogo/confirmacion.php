@@ -30,7 +30,7 @@
     </style>
 </head>
 
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- NAVBAR -->
     <nav class="nav-blur border-b border-gray-700/50 sticky top-0 z-50">
@@ -51,7 +51,7 @@
         </div>
     </nav>
 
-    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-1 w-full">
         <!-- Success message -->
         <div class="text-center mb-8">
             <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -125,7 +125,7 @@
                         <span class="font-medium">$<?php echo number_format($venta->subtotal, 2); ?></span>
                     </div>
                     <div class="flex justify-between text-sm">
-                        <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400">— Deshabilitado</span></span>
+                        <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400" title="El IVA está sujeto a ser activado por parte del administrador">— El IVA está sujeto a ser activado por parte del administrador</span></span>
                         <span class="font-medium text-gray-400">$0.00</span>
                     </div>
                     <div class="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
@@ -195,7 +195,7 @@
                         <span class="font-medium">$<?php echo number_format($pedido->subtotal, 2); ?></span>
                     </div>
                     <div class="flex justify-between text-sm">
-                        <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400">— Deshabilitado</span></span>
+                        <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400" title="El IVA está sujeto a ser activado por parte del administrador">— El IVA está sujeto a ser activado por parte del administrador</span></span>
                         <span class="font-medium text-gray-400">$0.00</span>
                     </div>
                     <div class="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">

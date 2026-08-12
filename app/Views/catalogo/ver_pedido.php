@@ -85,15 +85,31 @@
                 <div class="space-y-2">
                     <div class="flex justify-between text-sm">
                         <span class="text-slate-500">Subtotal</span>
-                        <span class="font-semibold">$<?php echo number_format($data['pedido']->subtotal, 2); ?></span>
+                        <span class="font-semibold" id="txtSubtotalPedido">$<?php echo number_format($data['pedido']->subtotal, 2); ?></span>
                     </div>
+
+                    <?php if ($data['pedido']->estado === 'PENDIENTE'): ?>
+                    <!-- Toggle Activar IVA (inicialmente desactivado) -->
+                    <div class="flex items-center justify-between py-2">
+                        <label class="flex items-center gap-2 text-sm font-semibold text-slate-600 cursor-pointer">
+                            <i data-lucide="receipt" class="w-4 h-4 text-slate-400"></i>
+                            Activar IVA
+                            <span class="text-xs text-slate-400" id="txtTasaIvaPedido"></span>
+                        </label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggleIvaPedido" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                        </label>
+                    </div>
+                    <?php endif; ?>
+
                     <div class="flex justify-between text-sm">
-                        <span class="text-slate-400">IVA (0%) <span class="text-xs text-slate-400">— Deshabilitado</span></span>
-                        <span class="font-semibold text-slate-400">$0.00</span>
+                        <span class="text-slate-400">IVA <span class="text-xs text-slate-400" id="lblIvaPedido">(0%) — Deshabilitado</span></span>
+                        <span class="font-semibold text-slate-400" id="txtIvaPedido">$0.00</span>
                     </div>
                     <div class="flex justify-between text-lg font-extrabold pt-3 border-t border-slate-200">
                         <span class="text-navy-blue">Total</span>
-                        <span class="text-emerald-600">$<?php echo number_format($data['pedido']->total, 2); ?></span>
+                        <span class="text-emerald-600" id="txtTotalPedido">$<?php echo number_format($data['pedido']->total, 2); ?></span>
                     </div>
                 </div>
             </div>
@@ -128,6 +144,34 @@
 </div>
 
 <script>
+const TASA_IVA_PEDIDO = <?php echo isset($data['iva_defecto']) ? (float)$data['iva_defecto'] : 19; ?>;
+const SUBTOTAL_PEDIDO = <?php echo (float)$data['pedido']->subtotal; ?>;
+const inputToggleIvaPedido = document.getElementById('toggleIvaPedido');
+const txtTasaIvaPedido = document.getElementById('txtTasaIvaPedido');
+const lblIvaPedido = document.getElementById('lblIvaPedido');
+const txtIvaPedido = document.getElementById('txtIvaPedido');
+const txtTotalPedido = document.getElementById('txtTotalPedido');
+
+function recalcularTotalesPedido() {
+    if (!inputToggleIvaPedido) return;
+    const ivaActivo = inputToggleIvaPedido.checked;
+    const montoIva = ivaActivo ? (SUBTOTAL_PEDIDO * (TASA_IVA_PEDIDO / 100)) : 0;
+    const totalConIva = SUBTOTAL_PEDIDO + montoIva;
+    if (txtTasaIvaPedido) txtTasaIvaPedido.textContent = '(' + TASA_IVA_PEDIDO + '%)';
+    if (lblIvaPedido) lblIvaPedido.textContent = ivaActivo ? '(' + TASA_IVA_PEDIDO + '%)' : '(0%) — Deshabilitado';
+    if (txtIvaPedido) {
+        txtIvaPedido.textContent = '$ ' + montoIva.toFixed(2);
+        txtIvaPedido.classList.toggle('text-slate-400', !ivaActivo);
+        txtIvaPedido.classList.toggle('text-slate-700', ivaActivo);
+    }
+    if (txtTotalPedido) txtTotalPedido.textContent = '$ ' + totalConIva.toFixed(2);
+}
+
+if (inputToggleIvaPedido) {
+    if (txtTasaIvaPedido) txtTasaIvaPedido.textContent = '(' + TASA_IVA_PEDIDO + '%)';
+    inputToggleIvaPedido.addEventListener('change', recalcularTotalesPedido);
+}
+
 function procesarPedido(id) {
     Swal.fire({
         title: '¿Procesar pedido?',
@@ -142,9 +186,12 @@ function procesarPedido(id) {
         if (result.isConfirmed) {
             const formData = new FormData();
             formData.append('pedido_id', id);
+            formData.append('aplicar_iva', inputToggleIvaPedido && inputToggleIvaPedido.checked ? '1' : '0');
+            formData.append('csrf_token', CSRF_TOKEN);
 
             fetch(URLROOT + '/catalogo/procesar-pedido-staff', {
                 method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
                 body: formData
             })
             .then(r => r.json())

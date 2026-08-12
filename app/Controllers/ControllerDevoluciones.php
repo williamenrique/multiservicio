@@ -31,15 +31,18 @@ class ControllerDevoluciones extends Controller {
     public function listarFacturas() {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
         try {
-            $input = json_decode(file_get_contents('php://input'), true) ?: [];
-            $search = $input['search'] ?? $_GET['search']['value'] ?? $_GET['search'] ?? $_GET['q'] ?? null;
+            $search = $_GET['search']['value'] ?? $_GET['search'] ?? $_GET['q'] ?? null;
             $search = ($search !== '' && $search !== null) ? $search : null;
-            $limit = isset($input['limit']) ? (int)$input['limit'] : (isset($_GET['limit']) ? (int)$_GET['limit'] : 10);
-            $page = isset($input['page']) ? (int)$input['page'] : 1;
-            $offset = isset($input['offset']) ? (int)$input['offset'] : ($page - 1) * $limit;
+            $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+            $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 
             $resultado = $this->devolucionesModel->listarFacturasConRepuestos($limit, $offset, $search);
-            return $this->jsonResponse(['success' => true, 'data' => $resultado['data'], 'total' => $resultado['total']]);
+            return $this->jsonResponse([
+                'success' => true,
+                'data' => $resultado['data'],
+                'total' => $resultado['total'],
+                'totalFiltrados' => $resultado['total']
+            ]);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
@@ -105,22 +108,24 @@ class ControllerDevoluciones extends Controller {
      */
     public function historial() {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
-        // Detectar petición AJAX: POST con JSON, o GET con parámetros de paginación
-        $rawBody = file_get_contents('php://input');
-        $input = json_decode($rawBody, true) ?: [];
-        $isAjax = !empty($input) || isset($_GET['limit']) || isset($_GET['offset']) || isset($_GET['draw']);
+        // Detectar petición AJAX: GET con parámetros de paginación
+        $isAjax = isset($_GET['limit']) || isset($_GET['offset']) || isset($_GET['draw']) || isset($_GET['q']);
         if ($isAjax) {
             try {
-                $search = $input['search'] ?? $_GET['search']['value'] ?? $_GET['search'] ?? $_GET['q'] ?? null;
+                $search = $_GET['search']['value'] ?? $_GET['search'] ?? $_GET['q'] ?? null;
                 $search = ($search !== '' && $search !== null) ? $search : null;
-                $limit = isset($input['limit']) ? (int)$input['limit'] : (isset($_GET['limit']) ? (int)$_GET['limit'] : 10);
-                $page = isset($input['page']) ? (int)$input['page'] : 1;
-                $offset = isset($input['offset']) ? (int)$input['offset'] : ($page - 1) * $limit;
-                $desde = $input['desde'] ?? $_GET['desde'] ?? null;
-                $hasta = $input['hasta'] ?? $_GET['hasta'] ?? null;
+                $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+                $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+                $desde = $_GET['desde'] ?? null;
+                $hasta = $_GET['hasta'] ?? null;
 
                 $resultado = $this->devolucionesModel->listarDevoluciones($limit, $offset, $search, $desde, $hasta);
-                return $this->jsonResponse(['success' => true, 'data' => $resultado['data'], 'total' => $resultado['total']]);
+                return $this->jsonResponse([
+                    'success' => true,
+                    'data' => $resultado['data'],
+                    'total' => $resultado['total'],
+                    'totalFiltrados' => $resultado['total']
+                ]);
             } catch (Exception $e) {
                 return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
             }
@@ -134,9 +139,13 @@ class ControllerDevoluciones extends Controller {
      * Endpoint AJAX: obtiene el detalle de una devolución específica.
      * @param int $id
      */
-    public function detalle($id) {
+    public function detalle($id = null) {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
         try {
+            // Aceptar id desde el parámetro de ruta o desde query string (?id=)
+            if ($id === null) {
+                $id = $_GET['id'] ?? null;
+            }
             $devolucion = $this->devolucionesModel->obtenerDevolucion((int)$id);
             if (!$devolucion) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'Devolución no encontrada.'], 404);

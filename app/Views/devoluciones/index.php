@@ -42,9 +42,9 @@
             <div class="flex items-center gap-4">
                 <div
                     class="px-4 py-2 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-500 shadow-sm">
-                    Total: <span id="totalCountDev" class="text-navy-blue">0</span>
+                    Total: <span id="totalCount" class="text-navy-blue">0</span>
                 </div>
-                <select id="limitSelectorDev"
+                <select id="limitSelector"
                     class="bg-white border border-slate-200 rounded-xl py-2 px-4 text-xs font-bold text-navy-blue outline-none focus:border-neon-green shadow-sm cursor-pointer">
                     <option value="10">10</option>
                     <option value="25">25</option>
@@ -68,7 +68,7 @@
                         <th class="px-4 py-4 text-center">Acción</th>
                     </tr>
                 </thead>
-                <tbody id="facturasDevBody">
+                <tbody id="tableBody">
                     <tr>
                         <td colspan="8" class="text-center py-10 text-slate-400 text-sm">Cargando facturas...</td>
                     </tr>
@@ -77,18 +77,13 @@
         </div>
 
         <!-- Paginación -->
-        <div class="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <button id="btnPrevDev"
-                class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-navy-blue hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                disabled>
-                <i data-lucide="chevron-left" class="w-4 h-4 inline"></i> Anterior
-            </button>
-            <span id="pageInfoDev" class="text-xs font-bold text-slate-500">Página 1</span>
-            <button id="btnNextDev"
-                class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-navy-blue hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                disabled>
-                Siguiente <i data-lucide="chevron-right" class="w-4 h-4 inline"></i>
-            </button>
+        <div class="px-8 py-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Mostrando <span id="startIndex">0</span> - <span id="endIndex">0</span> de <span id="totalItemsDisplay">0</span> facturas
+            </div>
+            <div class="flex items-center gap-2" id="paginationControls">
+                <!-- Los botones de navegación se generan dinámicamente -->
+            </div>
         </div>
     </div>
 </div>
@@ -121,9 +116,9 @@
             </h2>
             <div class="flex items-center gap-4">
                 <div class="px-4 py-2 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-500 shadow-sm">
-                    Total: <span id="totalCountDevHist" class="text-navy-blue">0</span>
+                    Total: <span id="totalCountHist" class="text-navy-blue">0</span>
                 </div>
-                <select id="limitSelectorDevHist" class="bg-white border border-slate-200 rounded-xl py-2 px-4 text-xs font-bold text-navy-blue outline-none focus:border-neon-green shadow-sm cursor-pointer">
+                <select id="limitSelectorHist" class="bg-white border border-slate-200 rounded-xl py-2 px-4 text-xs font-bold text-navy-blue outline-none focus:border-neon-green shadow-sm cursor-pointer">
                     <option value="10">10</option>
                     <option value="25">25</option>
                     <option value="50">50</option>
@@ -147,21 +142,20 @@
                         <th class="px-4 py-4 text-center">Acción</th>
                     </tr>
                 </thead>
-                <tbody id="devHistBody">
+                <tbody id="tableBodyHist">
                     <tr><td colspan="10" class="text-center py-10 text-slate-400 text-sm">Cargando devoluciones...</td></tr>
                 </tbody>
             </table>
         </div>
 
         <!-- Paginación -->
-        <div class="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <button id="btnPrevDevHist" class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-navy-blue hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>
-                <i data-lucide="chevron-left" class="w-4 h-4 inline"></i> Anterior
-            </button>
-            <span id="pageInfoDevHist" class="text-xs font-bold text-slate-500">Página 1</span>
-            <button id="btnNextDevHist" class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-navy-blue hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>
-                Siguiente <i data-lucide="chevron-right" class="w-4 h-4 inline"></i>
-            </button>
+        <div class="px-8 py-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Mostrando <span id="startIndexHist">0</span> - <span id="endIndexHist">0</span> de <span id="totalItemsDisplayHist">0</span> devoluciones
+            </div>
+            <div class="flex items-center gap-2" id="paginationControlsHist">
+                <!-- Los botones de navegación se generan dinámicamente -->
+            </div>
         </div>
     </div>
 </div>
@@ -247,7 +241,7 @@
 </section>
 
 <script>
-(function() {
+window.addEventListener('load', function() {
     // === Estado Tabs ===
     let currentTab = 'procesar';
     let historialLoaded = false;
@@ -275,7 +269,7 @@
             tabProcesar.classList.remove('border-neon-green', 'text-navy-blue', 'bg-slate-50/50');
             if (!historialLoaded) {
                 historialLoaded = true;
-                loadDevoluciones();
+                window.handler_devolucionesHist.reload();
             }
         }
         if (window.lucide) lucide.createIcons();
@@ -285,84 +279,9 @@
     tabHistorial.addEventListener('click', () => switchTab('historial'));
 
     // === Estado Tab Procesar ===
-    let currentPage = 1;
-    let currentLimit = 10;
-    let totalRecords = 0;
     let selectedItem = null;
     let currentFacturaId = null;
     let itemsCache = [];
-
-    const tbody = document.getElementById('facturasDevBody');
-    const totalCountEl = document.getElementById('totalCountDev');
-    const pageInfoEl = document.getElementById('pageInfoDev');
-    const btnPrev = document.getElementById('btnPrevDev');
-    const btnNext = document.getElementById('btnNextDev');
-    const searchInput = document.getElementById('searchFacturasDev');
-    const limitSelector = document.getElementById('limitSelectorDev');
-
-    function loadFacturas() {
-        const search = searchInput.value.trim() || null;
-        const offset = (currentPage - 1) * currentLimit;
-        tbody.innerHTML =
-            '<tr><td colspan="8" class="text-center py-10 text-slate-400 text-sm">Cargando...</td></tr>';
-
-        fetch(
-                `${URLROOT}/devoluciones/listar-facturas?limit=${currentLimit}&offset=${offset}&search=${encodeURIComponent(search || '')}`)
-            .then(r => r.json())
-            .then(res => {
-                if (!res.success) {
-                    tbody.innerHTML =
-                        `<tr><td colspan="8" class="text-center py-10 text-red-500 text-sm">${res.error || 'Error al cargar'}</td></tr>`;
-                    return;
-                }
-                totalRecords = res.total || 0;
-                totalCountEl.textContent = totalRecords;
-                renderFacturas(res.data || []);
-                updatePagination();
-            })
-            .catch(err => {
-                tbody.innerHTML =
-                    `<tr><td colspan="8" class="text-center py-10 text-red-500 text-sm">Error de conexión</td></tr>`;
-            });
-    }
-
-    function renderFacturas(data) {
-        if (!data.length) {
-            tbody.innerHTML =
-                '<tr><td colspan="8" class="text-center py-10 text-slate-400 text-sm">No hay facturas con repuestos devolvibles.</td></tr>';
-            return;
-        }
-        tbody.innerHTML = data.map(f => {
-            const estadoColor = {
-                'COMPLETADO': 'bg-green-100 text-green-700',
-                'CREDITO': 'bg-yellow-100 text-yellow-700',
-                'ANULADO': 'bg-red-100 text-red-700',
-                'PENDIENTE': 'bg-blue-100 text-blue-700'
-            } [f.status] || 'bg-slate-100 text-slate-700';
-            return `<tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                <td class="px-4 py-3 font-black text-navy-blue">#${String(f.id).padStart(6, '0')}</td>
-                <td class="px-4 py-3 text-xs text-slate-600">${formatFecha(f.fecha)}</td>
-                <td class="px-4 py-3 text-xs font-bold text-slate-700 uppercase">${escapeHtml(f.cliente)}</td>
-                <td class="px-4 py-3 text-xs font-bold text-slate-600 uppercase">${escapeHtml(f.placa || '-')}</td>
-                <td class="px-4 py-3 text-center"><span class="bg-navy-blue text-white px-2 py-1 rounded-lg text-[10px] font-black">${f.items_repuestos}</span></td>
-                <td class="px-4 py-3 text-right font-black text-slate-700">$${parseFloat(f.total).toFixed(2)}</td>
-                <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-lg text-[10px] font-black ${estadoColor}">${f.status}</span></td>
-                <td class="px-4 py-3 text-center">
-                    <button onclick="abrirModalItems(${f.id})" class="bg-neon-green text-navy-blue px-3 py-1.5 rounded-lg text-[10px] font-black hover:scale-105 transition-all">
-                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 inline"></i> Devolver
-                    </button>
-                </td>
-            </tr>`;
-        }).join('');
-        if (window.lucide) lucide.createIcons();
-    }
-
-    function updatePagination() {
-        const totalPages = Math.ceil(totalRecords / currentLimit) || 1;
-        pageInfoEl.textContent = `Página ${currentPage} de ${totalPages}`;
-        btnPrev.disabled = currentPage <= 1;
-        btnNext.disabled = currentPage >= totalPages;
-    }
 
     function formatFecha(f) {
         if (!f) return '-';
@@ -384,28 +303,39 @@
         } [c]));
     }
 
-    btnPrev.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            loadFacturas();
+    // === Tabla Facturas (Procesar) con DataTableRefactor ===
+    window.handler_devolucionesFacturas = new DataTableRefactor({
+        tableId: 'facturasDevTable',
+        tableBodyId: 'tableBody',
+        endpoint: `${URLROOT}/devoluciones/listar-facturas`,
+        searchInputId: 'searchFacturasDev',
+        limitSelectorId: 'limitSelector',
+        paginationId: 'paginationControls',
+        totalId: 'totalItemsDisplay',
+        startId: 'startIndex',
+        endId: 'endIndex',
+        renderRow: (f) => {
+            const estadoColor = {
+                'COMPLETADO': 'bg-green-100 text-green-700',
+                'CREDITO': 'bg-yellow-100 text-yellow-700',
+                'ANULADO': 'bg-red-100 text-red-700',
+                'PENDIENTE': 'bg-blue-100 text-blue-700'
+            } [f.status] || 'bg-slate-100 text-slate-700';
+            return `<tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                <td class="px-4 py-3 font-black text-navy-blue">#${String(f.id).padStart(6, '0')}</td>
+                <td class="px-4 py-3 text-xs text-slate-600">${formatFecha(f.fecha)}</td>
+                <td class="px-4 py-3 text-xs font-bold text-slate-700 uppercase">${escapeHtml(f.cliente)}</td>
+                <td class="px-4 py-3 text-xs font-bold text-slate-600 uppercase">${escapeHtml(f.placa || '-')}</td>
+                <td class="px-4 py-3 text-center"><span class="bg-navy-blue text-white px-2 py-1 rounded-lg text-[10px] font-black">${f.items_repuestos}</span></td>
+                <td class="px-4 py-3 text-right font-black text-slate-700">$${parseFloat(f.total).toFixed(2)}</td>
+                <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-lg text-[10px] font-black ${estadoColor}">${f.status}</span></td>
+                <td class="px-4 py-3 text-center">
+                    <button onclick="abrirModalItems(${f.id})" class="bg-neon-green text-navy-blue px-3 py-1.5 rounded-lg text-[10px] font-black hover:scale-105 transition-all">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 inline"></i> Devolver
+                    </button>
+                </td>
+            </tr>`;
         }
-    });
-    btnNext.addEventListener('click', () => {
-        currentPage++;
-        loadFacturas();
-    });
-    limitSelector.addEventListener('change', () => {
-        currentLimit = parseInt(limitSelector.value);
-        currentPage = 1;
-        loadFacturas();
-    });
-    let searchTimer;
-    searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => {
-            currentPage = 1;
-            loadFacturas();
-        }, 400);
     });
 
     // === Modales ===
@@ -541,16 +471,17 @@
             })
             .then(r => r.json())
             .then(res => {
-                alert(res.mensaje || (res.success ? 'Devolución procesada.' : 'Error: ' + (res.error ||
-                    res.mensaje)));
                 if (res.success) {
+                    AppUtils.showToast(res.mensaje || 'Devolución procesada correctamente', 'success');
                     cerrarModalProcesar();
                     cerrarModalItems();
-                    loadFacturas();
+                    window.handler_devolucionesFacturas.reload();
                     historialLoaded = false; // invalidar historial para recarga lazy
+                } else {
+                    AppUtils.showToast(res.mensaje || res.error || 'Error al procesar la devolución', 'error');
                 }
             })
-            .catch(err => alert('Error de conexión'))
+            .catch(err => AppUtils.showToast('Error de conexión', 'error'))
             .finally(() => {
                 this.disabled = false;
                 this.innerHTML =
@@ -560,54 +491,45 @@
     });
 
     // === Estado Tab Historial ===
-    let histCurrentPage = 1;
-    let histCurrentLimit = 10;
-    let histTotalRecords = 0;
+    window.handler_devolucionesHist = new DataTableRefactor({
+        tableId: 'devolucionesHist',
+        tableBodyId: 'tableBodyHist',
+        endpoint: `${URLROOT}/devoluciones/historial`,
+        searchInputId: 'searchDevHist',
+        limitSelectorId: 'limitSelectorHist',
+        paginationId: 'paginationControlsHist',
+        totalId: 'totalItemsDisplayHist',
+        startId: 'startIndexHist',
+        endId: 'endIndexHist',
+        getExtraParams: () => ({
+            desde: document.getElementById('devHist-desde').value,
+            hasta: document.getElementById('devHist-hasta').value
+        }),
+        renderRow: (d) => `
+            <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                <td class="px-4 py-3 font-bold text-navy-blue text-sm">#${d.id}</td>
+                <td class="px-4 py-3 text-xs text-slate-600">${formatFecha(d.fecha)}</td>
+                <td class="px-4 py-3 text-xs text-slate-600">#${d.factura_id || '-'}</td>
+                <td class="px-4 py-3 text-xs font-bold text-slate-700">${d.placa || '-'}</td>
+                <td class="px-4 py-3 text-xs text-slate-600 max-w-[200px] truncate" title="${(d.producto_nombre || '').replace(/"/g, '')}">${d.producto_nombre || '-'}</td>
+                <td class="px-4 py-3 text-center text-xs font-bold text-slate-700">${d.cantidad || 0}</td>
+                <td class="px-4 py-3 text-right text-xs font-bold text-navy-blue">$${(d.monto_devuelto || 0).toLocaleString('es-CO', {minimumFractionDigits: 0})}</td>
+                <td class="px-4 py-3 text-center">
+                    <span class="px-2 py-1 rounded-lg text-[10px] font-black border ${destinoColor(d.destino)}">${d.destino || '-'}</span>
+                </td>
+                <td class="px-4 py-3 text-center">${garantiaBadge(d.garantia_vigente, d.dias_restantes)}</td>
+                <td class="px-4 py-3 text-center">
+                    <button onclick="abrirModalDetalle(${d.id})" class="px-3 py-1.5 bg-navy-blue text-white rounded-lg text-[10px] font-bold hover:bg-opacity-80 transition-all">
+                        <i data-lucide="eye" class="w-3 h-3 inline"></i> Ver
+                    </button>
+                </td>
+            </tr>
+        `
+    });
 
-    const devHistBody = document.getElementById('devHistBody');
-    const totalCountDevHist = document.getElementById('totalCountDevHist');
-    const pageInfoDevHist = document.getElementById('pageInfoDevHist');
-    const btnPrevDevHist = document.getElementById('btnPrevDevHist');
-    const btnNextDevHist = document.getElementById('btnNextDevHist');
-    const searchDevHist = document.getElementById('searchDevHist');
-    const limitSelectorDevHist = document.getElementById('limitSelectorDevHist');
-    const devHistDesde = document.getElementById('devHist-desde');
-    const devHistHasta = document.getElementById('devHist-hasta');
-
-    function loadDevoluciones() {
-        const search = searchDevHist.value.trim() || null;
-        const desde = devHistDesde.value || null;
-        const hasta = devHistHasta.value || null;
-        const offset = (histCurrentPage - 1) * histCurrentLimit;
-        devHistBody.innerHTML =
-            '<tr><td colspan="10" class="text-center py-10 text-slate-400 text-sm">Cargando...</td></tr>';
-
-        let url = `${URLROOT}/devoluciones/historial?limit=${histCurrentLimit}&offset=${offset}`;
-        if (search) url += `&search=${encodeURIComponent(search)}`;
-        if (desde) url += `&desde=${encodeURIComponent(desde)}`;
-        if (hasta) url += `&hasta=${encodeURIComponent(hasta)}`;
-
-        fetch(url)
-            .then(r => r.json())
-            .then(res => {
-                if (res.success) {
-                    histTotalRecords = res.total || 0;
-                    totalCountDevHist.textContent = histTotalRecords;
-                    renderDevoluciones(res.data || []);
-                    const totalPages = Math.ceil(histTotalRecords / histCurrentLimit) || 1;
-                    pageInfoDevHist.textContent = `Página ${histCurrentPage} de ${totalPages}`;
-                    btnPrevDevHist.disabled = histCurrentPage <= 1;
-                    btnNextDevHist.disabled = histCurrentPage >= totalPages;
-                } else {
-                    devHistBody.innerHTML =
-                        `<tr><td colspan="10" class="text-center py-10 text-red-400 text-sm">${res.error || 'Error al cargar'}</td></tr>`;
-                }
-            })
-            .catch(err => {
-                devHistBody.innerHTML =
-                    '<tr><td colspan="10" class="text-center py-10 text-red-400 text-sm">Error de conexión</td></tr>';
-            });
-    }
+    // Filtros de fecha del historial: recargar al cambiar
+    document.getElementById('devHist-desde').addEventListener('change', () => window.handler_devolucionesHist.reload());
+    document.getElementById('devHist-hasta').addEventListener('change', () => window.handler_devolucionesHist.reload());
 
     function destinoColor(destino) {
         const map = {
@@ -625,35 +547,6 @@
         return `<span class="px-2 py-1 rounded-lg text-[10px] font-black border bg-red-100 text-red-700 border-red-200">VENCIDA</span>`;
     }
 
-    function renderDevoluciones(data) {
-        if (!data || data.length === 0) {
-            devHistBody.innerHTML =
-                '<tr><td colspan="10" class="text-center py-10 text-slate-400 text-sm">No hay devoluciones registradas</td></tr>';
-            return;
-        }
-        devHistBody.innerHTML = data.map(d => `
-            <tr class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                <td class="px-4 py-3 font-bold text-navy-blue text-sm">#${d.id}</td>
-                <td class="px-4 py-3 text-xs text-slate-600">${d.fecha_devolucion || '-'}</td>
-                <td class="px-4 py-3 text-xs text-slate-600">#${d.factura_id || '-'}</td>
-                <td class="px-4 py-3 text-xs font-bold text-slate-700">${d.placa || '-'}</td>
-                <td class="px-4 py-3 text-xs text-slate-600 max-w-[200px] truncate" title="${(d.producto || '').replace(/"/g, '')}">${d.producto || '-'}</td>
-                <td class="px-4 py-3 text-center text-xs font-bold text-slate-700">${d.cantidad || 0}</td>
-                <td class="px-4 py-3 text-right text-xs font-bold text-navy-blue">$${(d.monto_total || 0).toLocaleString('es-CO', {minimumFractionDigits: 0})}</td>
-                <td class="px-4 py-3 text-center">
-                    <span class="px-2 py-1 rounded-lg text-[10px] font-black border ${destinoColor(d.destino)}">${d.destino || '-'}</span>
-                </td>
-                <td class="px-4 py-3 text-center">${garantiaBadge(d.garantia_vigente, d.dias_restantes)}</td>
-                <td class="px-4 py-3 text-center">
-                    <button onclick="abrirModalDetalle(${d.id})" class="px-3 py-1.5 bg-navy-blue text-white rounded-lg text-[10px] font-bold hover:bg-opacity-80 transition-all">
-                        <i data-lucide="eye" class="w-3 h-3 inline"></i> Ver
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-        if (window.lucide) lucide.createIcons();
-    }
-
     window.abrirModalDetalle = function(id) {
         const modal = document.getElementById('modalDetalleDev');
         document.getElementById('detalleDevId').textContent = id;
@@ -662,7 +555,7 @@
         modal.classList.remove('hidden');
         modal.classList.add('flex');
 
-        fetch(`${URLROOT}/devoluciones/detalle?id=${id}`)
+        fetch(`${URLROOT}/devoluciones/detalle/${id}`)
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
@@ -692,7 +585,7 @@
                 <div class="bg-slate-50 rounded-xl p-4">
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Devolución</p>
                     <p class="text-lg font-black text-navy-blue">#${d.id || '-'}</p>
-                    <p class="text-xs text-slate-500">${d.fecha_devolucion || '-'}</p>
+                    <p class="text-xs text-slate-500">${formatFecha(d.fecha) || '-'}</p>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Factura</p>
@@ -702,8 +595,8 @@
             </div>
             <div class="border-t border-slate-100 pt-4">
                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Producto</p>
-                <p class="text-sm font-bold text-slate-700">${d.producto || '-'}</p>
-                <p class="text-xs text-slate-500">Código: ${d.codigo || '-'}</p>
+                <p class="text-sm font-bold text-slate-700">${d.producto_nombre || '-'}</p>
+                <p class="text-xs text-slate-500">Código: ${d.producto_codigo || '-'}</p>
             </div>
             <div class="grid grid-cols-3 gap-4 border-t border-slate-100 pt-4">
                 <div>
@@ -712,7 +605,7 @@
                 </div>
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monto Total</p>
-                    <p class="text-sm font-bold text-navy-blue">$${(d.monto_total || 0).toLocaleString('es-CO', {minimumFractionDigits: 0})}</p>
+                    <p class="text-sm font-bold text-navy-blue">$${(d.monto_devuelto || 0).toLocaleString('es-CO', {minimumFractionDigits: 0})}</p>
                 </div>
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Destino</p>
@@ -731,7 +624,7 @@
             <div class="border-t border-slate-100 pt-4 grid grid-cols-2 gap-4">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Procesado por</p>
-                    <p class="text-sm font-bold text-slate-700">${d.procesado_por || '-'}</p>
+                    <p class="text-sm font-bold text-slate-700">${d.usuario_nombre || '-'}</p>
                 </div>
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cliente</p>
@@ -742,29 +635,8 @@
         if (window.lucide) lucide.createIcons();
     }
 
-    // Event listeners Tab Historial
-    btnPrevDevHist.addEventListener('click', () => {
-        if (histCurrentPage > 1) { histCurrentPage--; loadDevoluciones(); }
-    });
-    btnNextDevHist.addEventListener('click', () => {
-        const totalPages = Math.ceil(histTotalRecords / histCurrentLimit) || 1;
-        if (histCurrentPage < totalPages) { histCurrentPage++; loadDevoluciones(); }
-    });
-    limitSelectorDevHist.addEventListener('change', function() {
-        histCurrentLimit = parseInt(this.value);
-        histCurrentPage = 1;
-        loadDevoluciones();
-    });
-    let searchHistTimer = null;
-    searchDevHist.addEventListener('input', () => {
-        clearTimeout(searchHistTimer);
-        searchHistTimer = setTimeout(() => { histCurrentPage = 1; loadDevoluciones(); }, 400);
-    });
-    devHistDesde.addEventListener('change', () => { histCurrentPage = 1; loadDevoluciones(); });
-    devHistHasta.addEventListener('change', () => { histCurrentPage = 1; loadDevoluciones(); });
-
     // Init
-    loadFacturas();
+    window.handler_devolucionesFacturas.reload();
     if (window.lucide) lucide.createIcons();
-})();
+});
 </script>

@@ -170,7 +170,7 @@ class ModelDevoluciones {
             // 4. Si es producto y destino STOCK, reingresar al inventario
             if (!empty($item->producto_id)) {
                 if ($destino === 'STOCK') {
-                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant, updated_at = CURRENT_TIMESTAMP WHERE id = :pid");
+                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant WHERE id = :pid");
                     $this->db->bind(':cant', $item->cantidad);
                     $this->db->bind(':pid', $item->producto_id);
                     $this->db->execute();
@@ -314,7 +314,18 @@ class ModelDevoluciones {
         $this->db->bind(':limit', (int)$limit);
         $this->db->bind(':offset', (int)$offset);
 
-        return ['data' => $this->db->resultSet(), 'total' => $total];
+        $data = $this->db->resultSet();
+        // Enriquecer cada devolución con campos calculados de garantía
+        foreach ($data as $d) {
+            $d->garantia_vigente = ($d->dias_transcurridos !== null && $d->dias_garantia_aplicado !== null)
+                ? ($d->dias_transcurridos <= $d->dias_garantia_aplicado)
+                : null;
+            $d->dias_restantes = ($d->dias_garantia_aplicado !== null && $d->dias_transcurridos !== null)
+                ? max(0, $d->dias_garantia_aplicado - $d->dias_transcurridos)
+                : null;
+        }
+
+        return ['data' => $data, 'total' => $total];
     }
 
     /**
@@ -336,7 +347,16 @@ class ModelDevoluciones {
                           LEFT JOIN table_staff s ON u.staff_id = s.id
                           WHERE d.id = :id");
         $this->db->bind(':id', $id);
-        return $this->db->single();
+        $d = $this->db->single();
+        if ($d) {
+            $d->garantia_vigente = ($d->dias_transcurridos !== null && $d->dias_garantia_aplicado !== null)
+                ? ($d->dias_transcurridos <= $d->dias_garantia_aplicado)
+                : null;
+            $d->dias_restantes = ($d->dias_garantia_aplicado !== null && $d->dias_transcurridos !== null)
+                ? max(0, $d->dias_garantia_aplicado - $d->dias_transcurridos)
+                : null;
+        }
+        return $d;
     }
 
     /**

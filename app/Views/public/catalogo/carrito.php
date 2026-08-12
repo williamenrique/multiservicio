@@ -18,7 +18,7 @@
         .btn-danger:hover { background: #dc2626; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- NAVBAR -->
     <nav class="nav-blur border-b border-gray-700/50 sticky top-0 z-50">
@@ -38,7 +38,7 @@
     </nav>
 
     <!-- CART CONTENT -->
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Carrito de Compras</h1>
 
         <?php if (empty($items)): ?>
@@ -98,7 +98,7 @@
                     <span class="font-semibold" id="subtotalText">$<?php echo number_format($total, 2); ?></span>
                 </div>
                 <div class="flex justify-between text-lg mt-2">
-                    <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400">— Deshabilitado</span></span>
+                    <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400" title="El IVA está sujeto a ser activado por parte del administrador">— El IVA está sujeto a ser activado por parte del administrador</span></span>
                     <span class="font-semibold text-gray-400" id="ivaText">$0.00</span>
                 </div>
                 <div class="flex justify-between text-xl font-bold mt-3 pt-3 border-t border-gray-200">

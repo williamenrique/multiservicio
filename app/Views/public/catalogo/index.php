@@ -64,7 +64,7 @@
     </style>
 </head>
 
-<body>
+<body class="min-h-screen flex flex-col">
 
     <!-- ===== HEADER PÚBLICO ===== -->
     <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
@@ -95,7 +95,7 @@
     </header>
 
     <!-- ===== CONTENIDO PRINCIPAL ===== -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
 
         <!-- Título -->
         <div class="mb-8">

@@ -124,13 +124,25 @@
                     </div>
                 </div>
 
+                <!-- Toggle Activar IVA (inicialmente desactivado) -->
+                <div class="flex items-center justify-between mb-4 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="receipt" class="w-4 h-4 text-slate-400"></i>
+                        <label for="toggleIva" class="text-xs font-bold text-slate-600 uppercase cursor-pointer">Activar IVA</label>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggleIva" class="sr-only peer" <?php echo ($iva_defecto ?? 0) > 0 ? '' : ''; ?>>
+                        <div class="w-11 h-6 bg-slate-300 peer-focus:ring-2 peer-focus:ring-blue-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+
                 <div class="space-y-3 py-6 border-y border-slate-100">
                     <div class="flex justify-between text-sm">
                         <span class="text-slate-400">Subtotal:</span>
                         <span id="txtSubtotal" class="font-bold text-slate-700">$ 0.00</span>
                     </div>
                     <div class="flex justify-between text-sm">
-                        <span class="text-slate-400">Impuestos (IVA):</span>
+                        <span class="text-slate-400">Impuestos (IVA <span id="txtTasaIva">0</span>%):</span>
                         <span id="txtIva" class="font-bold text-slate-700">$ 0.00</span>
                     </div>
                     <div class="flex justify-between items-center pt-4">
@@ -235,6 +247,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let carrito = [];
     let ultimaVentaId = null;
     let lastClientResults = [];
+    const TASA_IVA = <?php echo isset($iva_defecto) ? (float)$iva_defecto : 19; ?>;
+    const inputToggleIva = document.getElementById('toggleIva');
+    const txtTasaIva = document.getElementById('txtTasaIva');
     const inputCliSearch = document.getElementById('clienteSearch');
     const divCliResultados = document.getElementById('clienteResultados');
     const hiddenCliId = document.getElementById('clienteId');
@@ -242,6 +257,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const resultados = document.getElementById('resultadosBusqueda');
     const inputPagoEfectivo = document.getElementById('pagoEfectivo');
     const inputPagoTransferencia = document.getElementById('pagoTransferencia');
+
+    // Mostrar tasa de IVA y recalcular al cambiar el toggle
+    txtTasaIva.textContent = TASA_IVA;
+    inputToggleIva.addEventListener('change', function() {
+        renderizar();
+    });
 
     // 1. Inicializar fechas con el mes cursante ANTES de crear la tabla
     const d = new Date();
@@ -434,9 +455,15 @@ document.addEventListener('DOMContentLoaded', function() {
         placeholder.style.display = carrito.length > 0 ? 'none' : 'flex';
         document.getElementById('btnProcesar').disabled = carrito.length === 0;
         
-        const totalValue = subtotal.toFixed(2);
+        // Cálculo de IVA dinámico (solo si el toggle está activado)
+        const ivaActivo = inputToggleIva.checked;
+        const montoIva = ivaActivo ? (subtotal * (TASA_IVA / 100)) : 0;
+        const totalConIva = subtotal + montoIva;
+        const totalValue = totalConIva.toFixed(2);
+        
         document.getElementById('txtSubtotal').innerText = `$ ${subtotal.toFixed(2)}`;
-        document.getElementById('txtTotal').innerText = `$ ${subtotal.toFixed(2)}`;
+        document.getElementById('txtIva').innerText = `$ ${montoIva.toFixed(2)}`;
+        document.getElementById('txtTotal').innerText = `$ ${totalConIva.toFixed(2)}`;
         
         // Auto-completar el pago en efectivo por defecto si es una venta nueva
         if (carrito.length > 0 && parseFloat(inputPagoEfectivo.value || 0) === 0 && parseFloat(inputPagoTransferencia.value || 0) === 0) {
@@ -566,7 +593,8 @@ document.addEventListener('DOMContentLoaded', function() {
             pago_transferencia: parseFloat(document.getElementById('pagoTransferencia').value || 0),
             mecanico_id: null,
             placa: '',
-            iva_activo: false // Por defecto en mostrador no se aplica IVA a menos que se implemente el switch
+            iva_activo: inputToggleIva.checked,
+            tasa_iva: TASA_IVA
         };
 
         try {

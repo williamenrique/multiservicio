@@ -16,7 +16,7 @@
         .input-error { border-color: #ef4444; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- NAVBAR -->
     <nav class="nav-blur border-b border-gray-700/50 sticky top-0 z-50">
@@ -35,7 +35,7 @@
         </div>
     </nav>
 
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Finalizar Pedido</h1>
 
         <!-- Errores -->
@@ -109,7 +109,7 @@
                             <span class="font-medium">$<?php echo number_format($total, 2); ?></span>
                         </div>
                         <div class="flex justify-between text-sm">
-                            <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400">— Deshabilitado</span></span>
+                            <span class="text-gray-400">IVA (0%) <span class="text-xs text-gray-400" title="El IVA está sujeto a ser activado por parte del administrador">— El IVA está sujeto a ser activado por parte del administrador</span></span>
                             <span class="font-medium text-gray-400">$0.00</span>
                         </div>
                         <div class="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
