@@ -24,17 +24,17 @@ class PdfService {
         // Iniciamos el buffer de salida para capturar el HTML
         ob_start();
 
-        // En el sistema 2.0, la factura maneja su propio layout fijo para Dompdf.
+        // En el sistema 2.0, la factura y la garantía manejan su propio layout fijo para Dompdf.
         // Los demás reportes siguen el flujo secuencial tradicional.
-        $isFactura = ($view === 'factura');
+        $isFullLayout = in_array($view, ['factura', 'garantia'], true);
 
-        if (!$isFactura) {
+        if (!$isFullLayout) {
             require APPROOT . '/Views/pdf/inc/header.php';
         }
 
         require APPROOT . '/Views/pdf/templates/' . $view . '.php';
         
-        if (!$isFactura) {
+        if (!$isFullLayout) {
             require APPROOT . '/Views/pdf/inc/footer.php';
         }
         

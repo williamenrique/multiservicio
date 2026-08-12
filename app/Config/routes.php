@@ -7,6 +7,13 @@
  * Formato: 'url-amigable' => 'Controlador@metodo'
  */
 return [
+    // Garantías
+    'garantia'           => 'Garantia@index',
+    'garantia/historial' => 'Garantia@historial',
+    'garantia/detalle'   => 'Garantia@detalle',
+    'garantia/pdf'       => 'Garantia@pdf',
+    'garantia/imprimir'  => 'Garantia@imprimir',
+
     // Auth
     'login'      => 'Auth@index',
     'logout'     => 'Auth@logout',

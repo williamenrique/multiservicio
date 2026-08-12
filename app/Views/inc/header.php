@@ -59,6 +59,9 @@
                     <a href="<?php echo URLROOT; ?>/devoluciones" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'devoluciones') !== false) ? 'active' : ''; ?>" data-section="devoluciones">
                         <i data-lucide="undo-2"></i> <span>Devoluciones</span>
                     </a>
+                    <a href="<?php echo URLROOT; ?>/garantia" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'garantia') !== false) ? 'active' : ''; ?>" data-section="garantia">
+                        <i data-lucide="shield-check"></i> <span>Garantías</span>
+                    </a>
                     <a href="<?php echo URLROOT; ?>/taller" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'taller') !== false) ? 'active' : ''; ?>" data-section="taller">
                         <i data-lucide="wrench"></i> <span>Taller</span>
                     </a>

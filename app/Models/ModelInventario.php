@@ -184,7 +184,7 @@ class ModelInventario {
         $stock_anterior = $prod->stock;
         
         // Calcular stock actual basado en el tipo
-        $es_entrada = in_array($tipo, ['ENTRADA_COMPRA', 'DEVOLUCION']);
+        $es_entrada = in_array($tipo, ['ENTRADA_COMPRA', 'DEVOLUCION', 'GARANTIA']);
         $stock_actual = $es_entrada ? ($stock_anterior + $cantidad) : ($stock_anterior - $cantidad);
 
         $this->db->query("INSERT INTO table_kardex (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_actual, referencia_id, usuario_id, observacion) 
