@@ -12,18 +12,17 @@
         </div>
     </div>
 
-    <?php if (empty($data['pedidos'])): ?>
-        <div class="glass-card rounded-2xl p-16 text-center shadow-xl">
-            <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i data-lucide="package-check" class="w-10 h-10 text-emerald-600"></i>
-            </div>
-            <h2 class="text-xl font-bold text-slate-700 mb-2">No hay pedidos pendientes</h2>
-            <p class="text-slate-400">Todos los pedidos han sido procesados. Los nuevos pedidos de clientes aparecerán aquí.</p>
+    <div id="empty-state" class="glass-card rounded-2xl p-16 text-center shadow-xl <?php echo empty($data['pedidos']) ? '' : 'hidden'; ?>">
+        <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i data-lucide="package-check" class="w-10 h-10 text-emerald-600"></i>
         </div>
-    <?php else: ?>
-        <div class="grid gap-4">
-            <?php foreach ($data['pedidos'] as $pedido): ?>
-                <div class="glass-card rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all">
+        <h2 class="text-xl font-bold text-slate-700 mb-2">No hay pedidos pendientes</h2>
+        <p class="text-slate-400">Todos los pedidos han sido procesados. Los nuevos pedidos de clientes aparecerán aquí.</p>
+    </div>
+
+    <div id="lista-pedidos" class="grid gap-4 <?php echo empty($data['pedidos']) ? 'hidden' : ''; ?>">
+        <?php foreach ($data['pedidos'] as $pedido): ?>
+            <div id="pedido-card-<?php echo $pedido->id; ?>" class="glass-card rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all">
                     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <!-- Info -->
                         <div class="flex-1 min-w-0">
@@ -74,12 +73,29 @@
                         </div>
                     </div>
                 </div>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
+        <?php endforeach; ?>
+    </div>
 </div>
 
 <script>
+// Elimina una tarjeta con animación y muestra el estado vacío si no quedan pedidos
+function removerTarjetaPedido(id) {
+    const card = document.getElementById('pedido-card-' + id);
+    if (!card) return;
+    card.style.transition = 'opacity .35s ease, transform .35s ease';
+    card.style.opacity = '0';
+    card.style.transform = 'translateX(40px)';
+    setTimeout(() => {
+        card.remove();
+        const lista = document.getElementById('lista-pedidos');
+        if (lista && lista.querySelectorAll('[id^="pedido-card-"]').length === 0) {
+            lista.classList.add('hidden');
+            document.getElementById('empty-state').classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+    }, 350);
+}
+
 function procesarPedido(id) {
     Swal.fire({
         title: '¿Procesar pedido?',
@@ -102,13 +118,14 @@ function procesarPedido(id) {
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire('Procesado', data.mensaje, 'success').then(() => location.reload());
+                    AppUtils.showToast(data.mensaje, 'success');
+                    removerTarjetaPedido(id);
                 } else {
-                    Swal.fire('Error', data.mensaje, 'error');
+                    AppUtils.showToast(data.mensaje || 'Error al procesar.', 'error');
                 }
             })
             .catch(() => {
-                Swal.fire('Error', 'Error de conexión.', 'error');
+                AppUtils.showToast('Error de conexión.', 'error');
             });
         }
     });
@@ -136,13 +153,14 @@ function cancelarPedido(id) {
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire('Cancelado', data.mensaje, 'success').then(() => location.reload());
+                    AppUtils.showToast(data.mensaje, 'success');
+                    removerTarjetaPedido(id);
                 } else {
-                    Swal.fire('Error', data.mensaje, 'error');
+                    AppUtils.showToast(data.mensaje || 'Error al cancelar.', 'error');
                 }
             })
             .catch(() => {
-                Swal.fire('Error', 'Error de conexión.', 'error');
+                AppUtils.showToast('Error de conexión.', 'error');
             });
         }
     });

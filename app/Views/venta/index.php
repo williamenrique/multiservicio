@@ -331,19 +331,27 @@ document.addEventListener('DOMContentLoaded', function() {
         resultados.innerHTML = '';
         if (items.length > 0) {
             items.forEach(item => {
+                const sinStock = Number(item.stock_disponible) <= 0;
                 const div = document.createElement('div');
-                div.className = 'flex items-center justify-between p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-50 transition-colors last:border-0';
+                div.className = sinStock
+                    ? 'flex items-center justify-between p-4 bg-slate-50/60 border-b border-slate-100 last:border-0 cursor-not-allowed opacity-60'
+                    : 'flex items-center justify-between p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-50 transition-colors last:border-0';
+                const stockLabel = sinStock
+                    ? '<span class="text-red-500 font-black">SIN STOCK</span>'
+                    : `<span class="text-emerald-600 font-black">${item.stock_disponible} DISP.</span>`;
                 div.innerHTML = `
                     <div class="flex-1">
-                        <div class="text-sm font-bold text-slate-700 uppercase">${item.nombre}</div>
-                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">STOCK: ${item.stock_disponible} | ${item.categoria}</div>
+                        <div class="text-sm font-bold text-slate-700 uppercase ${sinStock ? 'line-through text-slate-400' : ''}">${item.nombre}</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">STOCK: ${stockLabel} | ${item.categoria}</div>
                     </div>
-                    <div class="text-sm font-black text-blue-600">$ ${item.precio}</div>
+                    <div class="text-sm font-black ${sinStock ? 'text-slate-300' : 'text-blue-600'}">$ ${item.precio}</div>
                 `;
-                div.onclick = () => {
-                    agregarAlCarrito(item);
-                    resultados.classList.add('hidden');
-                };
+                if (!sinStock) {
+                    div.onclick = () => {
+                        agregarAlCarrito(item);
+                        resultados.classList.add('hidden');
+                    };
+                }
                 resultados.appendChild(div);
             });
             resultados.classList.remove('hidden');
@@ -400,6 +408,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function agregarAlCarrito(item) {
+        if (Number(item.stock_disponible) <= 0) {
+            AppUtils.showToast('Este repuesto está SIN STOCK', 'error');
+            return;
+        }
         const existe = carrito.find(i => i.id === item.id);
         if (existe) {
             if (existe.cantidad < item.stock_disponible) existe.cantidad++;

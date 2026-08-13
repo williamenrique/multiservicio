@@ -41,12 +41,12 @@ class ModelFacturacion {
                               SELECT SUM(vd.cantidad) 
                               FROM table_facturas_detalle vd 
                               JOIN table_facturas v ON vd.factura_id = v.id 
-                              WHERE vd.producto_id = i.id AND v.status != 'ANULADO'
+                              WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
                           ), 0)) as stock_disponible
                           FROM table_inventario i
                           WHERE (i.nombre LIKE :term OR i.categoria LIKE :term OR i.id LIKE :term) AND i.estado = 'ACTIVO'
-                          HAVING stock_disponible > 0
-                          LIMIT 15");
+                          ORDER BY (stock_disponible > 0) DESC, i.nombre ASC
+                          LIMIT 30");
         $this->db->bind(':term', "%$termino%");
         return $this->db->resultSet();
     }

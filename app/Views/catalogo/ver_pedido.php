@@ -14,7 +14,7 @@
                     <h1 class="text-2xl font-extrabold tracking-tight">Pedido #<?php echo $data['pedido']->id; ?></h1>
                     <p class="text-emerald-100 text-sm mt-1">Realizado el <?php echo date('d/m/Y h:i A', strtotime($data['pedido']->fecha_pedido)); ?></p>
                 </div>
-                <span class="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-black uppercase tracking-wider">
+                <span id="estado-badge" class="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-black uppercase tracking-wider">
                     <?php echo s($data['pedido']->estado); ?>
                 </span>
             </div>
@@ -113,8 +113,9 @@
             </div>
 
             <!-- Actions -->
+            <div id="acciones-pedido">
             <?php if ($data['pedido']->estado === 'PENDIENTE'): ?>
-                <div class="mt-8 pt-6 border-t border-slate-200 flex flex-wrap gap-3">
+                <div id="acciones-botones" class="mt-8 pt-6 border-t border-slate-200 flex flex-wrap gap-3">
                     <button onclick="procesarPedido(<?php echo $data['pedido']->id; ?>)" 
                             class="bg-emerald-500 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-emerald-600 font-bold shadow-lg shadow-emerald-500/30">
                         <i data-lucide="check-circle" class="w-5 h-5"></i>
@@ -126,17 +127,15 @@
                         Cancelar Pedido
                     </button>
                 </div>
-            <?php elseif ($data['pedido']->estado === 'PROCESADO' && $data['pedido']->usuario_procesa): ?>
-                <div class="mt-8 pt-6 border-t border-slate-200 p-4 bg-emerald-50 rounded-xl">
-                    <p class="text-sm text-emerald-700 flex items-center gap-2">
-                        <i data-lucide="user-check" class="w-4 h-4"></i>
-                        Procesado por usuario ID: <?php echo $data['pedido']->usuario_procesa; ?>
-                        <?php if ($data['pedido']->fecha_procesado): ?>
-                            el <?php echo date('d/m/Y h:i A', strtotime($data['pedido']->fecha_procesado)); ?>
-                        <?php endif; ?>
-                    </p>
-                </div>
             <?php endif; ?>
+            <div id="info-procesado" class="mt-8 pt-6 border-t border-slate-200 p-4 bg-emerald-50 rounded-xl <?php echo ($data['pedido']->estado === 'PROCESADO' && $data['pedido']->usuario_procesa) ? '' : 'hidden'; ?>">
+                <p class="text-sm text-emerald-700 flex items-center gap-2">
+                    <i data-lucide="user-check" class="w-4 h-4"></i>
+                    Procesado por usuario ID: <span id="usuario-procesa"><?php echo $data['pedido']->usuario_procesa ?? ''; ?></span>
+                    <span id="fecha-procesado"><?php if ($data['pedido']->fecha_procesado): ?>el <?php echo date('d/m/Y h:i A', strtotime($data['pedido']->fecha_procesado)); ?><?php endif; ?></span>
+                </p>
+            </div>
+            </div>
         </div>
     </div>
 </div>
@@ -166,13 +165,14 @@ function procesarPedido(id) {
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire('Procesado', data.mensaje, 'success').then(() => location.reload());
+                    AppUtils.showToast(data.mensaje, 'success');
+                    actualizarEstadoPedido('PROCESADO');
                 } else {
-                    Swal.fire('Error', data.mensaje, 'error');
+                    AppUtils.showToast(data.mensaje || 'Error al procesar.', 'error');
                 }
             })
             .catch(() => {
-                Swal.fire('Error', 'Error de conexión.', 'error');
+                AppUtils.showToast('Error de conexión.', 'error');
             });
         }
     });
@@ -200,16 +200,48 @@ function cancelarPedido(id) {
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire('Cancelado', data.mensaje, 'success').then(() => location.reload());
+                    AppUtils.showToast(data.mensaje, 'success');
+                    actualizarEstadoPedido('CANCELADO');
                 } else {
-                    Swal.fire('Error', data.mensaje, 'error');
+                    AppUtils.showToast(data.mensaje || 'Error al cancelar.', 'error');
                 }
             })
             .catch(() => {
-                Swal.fire('Error', 'Error de conexión.', 'error');
+                AppUtils.showToast('Error de conexión.', 'error');
             });
         }
     });
+}
+
+// Actualiza dinámicamente el badge de estado, oculta los botones de acción y muestra info de procesado
+function actualizarEstadoPedido(nuevoEstado) {
+    const badge = document.getElementById('estado-badge');
+    if (badge) badge.innerText = nuevoEstado;
+
+    const botones = document.getElementById('acciones-botones');
+    if (botones) {
+        botones.style.transition = 'opacity .3s ease';
+        botones.style.opacity = '0';
+        setTimeout(() => botones.remove(), 300);
+    }
+
+    const ivaToggleWrap = document.querySelector('[class*="border-b border-slate-100"]');
+    if (ivaToggleWrap) ivaToggleWrap.remove();
+
+    if (nuevoEstado === 'PROCESADO') {
+        const info = document.getElementById('info-procesado');
+        const userSpan = document.getElementById('usuario-procesa');
+        const fechaSpan = document.getElementById('fecha-procesado');
+        if (userSpan) userSpan.innerText = '<?php echo $_SESSION["user_id"] ?? ""; ?>';
+        if (fechaSpan) {
+            const ahora = new Date();
+            const opts = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true };
+            fechaSpan.innerText = 'el ' + ahora.toLocaleString('es-ES', opts).replace(',', '');
+        }
+        if (info) info.classList.remove('hidden');
+    }
+
+    if (window.lucide) lucide.createIcons();
 }
 
 // Listener del toggle de IVA: recalcula totales en pantalla al activar/desactivar

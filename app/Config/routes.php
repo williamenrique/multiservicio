@@ -38,4 +38,5 @@ return [
     'catalogo/procesar-pedido-staff'   => 'Catalogo@procesarPedidoStaff',
     'catalogo/cancelar-pedido-staff'   => 'Catalogo@cancelarPedidoStaff',
     'catalogo/notificaciones-pedidos'  => 'Catalogo@notificacionesPedidos',
+    'catalogo/listar-pedidos-pendientes-api' => 'Catalogo@listarPedidosPendientesApi',
 ];

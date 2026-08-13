@@ -777,4 +777,23 @@ class ControllerCatalogo extends Controller {
             'data' => $pedidos
         ]);
     }
+
+    /**
+     * Listar pedidos pendientes (AJAX) - devuelve JSON con PENDIENTE y CONFIRMADO
+     * GET /catalogo/listar-pedidos-pendientes-api
+     */
+    public function listarPedidosPendientesApi() {
+        if (!isset($_SESSION['user_id'])) {
+            $this->jsonResponse(['success' => false, 'mensaje' => 'No autorizado.'], 401);
+            return;
+        }
+
+        $pedidos = $this->modelCatalogo->listarPedidosPendientes();
+
+        $this->jsonResponse([
+            'success' => true,
+            'total' => count($pedidos),
+            'data' => $pedidos
+        ]);
+    }
 }
