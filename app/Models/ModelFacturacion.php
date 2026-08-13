@@ -19,13 +19,23 @@ class ModelFacturacion {
      * @param string $term Término de búsqueda
      */
     public function searchInvoices($term) {
-        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado, COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre
+        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                                  COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre,
+                                  v.status, v.origen, v.total,
+                                  (SELECT COUNT(*) FROM table_devoluciones d WHERE d.factura_id = v.id) as tiene_devolucion,
+                                  (SELECT COUNT(*) FROM table_garantias g WHERE g.factura_original_id = v.id OR g.factura_garantia_id = v.id) as tiene_garantia
                           FROM table_facturas v
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE (v.id LIKE :term OR os.id LIKE :term OR vh.placa LIKE :term OR c.nombre LIKE :term OR v.placa LIKE :term)
-                          AND v.status IN ('COMPLETADO', 'CREDITO') LIMIT 5");
+                          WHERE (CAST(v.id AS CHAR) LIKE :term
+                                 OR CONCAT('FAC-', LPAD(v.id, 3, '0')) LIKE :term
+                                 OR CAST(os.id AS CHAR) LIKE :term
+                                 OR vh.placa LIKE :term
+                                 OR c.nombre LIKE :term
+                                 OR v.placa LIKE :term)
+                          AND v.status != 'ANULADO'
+                          ORDER BY v.id DESC LIMIT 8");
         $this->db->bind(':term', "%$term%");
         return $this->db->resultSet();
     }

@@ -74,6 +74,18 @@ class ModelInventario {
         return $this->db->resultSet();
     }
 
+    /**
+     * Busca repuestos por código, nombre o categoría para el buscador global.
+     */
+    public function searchRepuestos($term) {
+        $this->db->query("SELECT id, codigo, nombre, categoria, stock FROM table_inventario
+                          WHERE (codigo LIKE :term OR nombre LIKE :term OR categoria LIKE :term OR id LIKE :term)
+                          AND estado = 'ACTIVO'
+                          ORDER BY nombre ASC LIMIT 5");
+        $this->db->bind(':term', "%$term%");
+        return $this->db->resultSet();
+    }
+
     public function obtenerPorId($id) {
         $this->db->query("SELECT * FROM table_inventario WHERE id = :id");
         $this->db->bind(':id', $id);

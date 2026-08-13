@@ -962,7 +962,7 @@ function initGlobalSearch() {
         clearTimeout(timeout);
         const term = e.target.value.trim();
 
-        if (term.length < 3) {
+        if (term.length < 2) {
             results.classList.add('hidden');
             return;
         }
@@ -977,12 +977,18 @@ function initGlobalSearch() {
 
                 const data = await res.json();
                 if (data.results && data.results.length > 0) {
-                    results.innerHTML = data.results.map(item => `
+                    results.innerHTML = data.results.map(item => {
+                        const subtitleHtml = item.subtitle
+                            ? `<p class="text-[10px] font-semibold text-slate-500 mt-0.5 normal-case tracking-normal">${item.subtitle}</p>`
+                            : '';
+                        return `
                         <a href="${item.link}" class="block p-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
                             <p class="text-[10px] font-black text-neon-green uppercase tracking-widest">${item.type}</p>
                             <p class="text-xs font-bold text-navy-blue">${item.title}</p>
+                            ${subtitleHtml}
                         </a>
-                    `).join('');
+                        `;
+                    }).join('');
                     results.classList.remove('hidden');
                 } else {
                     results.innerHTML = '<div class="p-4 text-xs text-slate-400 text-center">Sin resultados</div>';

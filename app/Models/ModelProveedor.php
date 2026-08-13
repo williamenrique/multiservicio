@@ -36,6 +36,17 @@ class ModelProveedor {
         return $this->db->resultSet();
     }
 
+    /**
+     * Busca proveedores por ID, nombre, teléfono o email para el buscador global.
+     */
+    public function searchProveedores($term) {
+        $this->db->query("SELECT id, nombre, telefono, email FROM table_proveedores
+                          WHERE (id LIKE :term OR nombre LIKE :term OR telefono LIKE :term OR email LIKE :term)
+                          ORDER BY nombre ASC LIMIT 5");
+        $this->db->bind(':term', "%$term%");
+        return $this->db->resultSet();
+    }
+
     public function contarTotal() {
         $this->db->query("SELECT COUNT(*) as total FROM table_proveedores");
         return (int)$this->db->single()->total;
