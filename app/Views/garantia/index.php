@@ -57,7 +57,7 @@
                             <th class="px-4 py-3 text-left">Placa</th>
                             <th class="px-4 py-3 text-left">Fecha</th>
                             <th class="px-4 py-3 text-right">Total</th>
-                            <th class="px-4 py-3 text-center">Acción</th>
+                            <th class="px-4 py-3 text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tbody-facturas" class="divide-y divide-slate-100">
@@ -232,10 +232,18 @@ async function cargarFacturasGarantia(pagina = 1) {
                     <td class="px-4 py-3 text-sm text-slate-500">${new Date(f.fecha).toLocaleDateString()}</td>
                     <td class="px-4 py-3 text-sm font-bold text-right text-slate-700">${AppUtils.formatCurrency(f.total)}</td>
                     <td class="px-4 py-3 text-center">
-                        <button onclick="seleccionarFacturaGarantia(${f.id})"
-                            class="bg-navy-blue text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase hover:bg-neon-green hover:text-black transition-all">
-                            <i data-lucide="eye" class="w-3 h-3 inline"></i> Ver Items
-                        </button>
+                        <div class="flex gap-1 justify-center">
+                            <button onclick="seleccionarFacturaGarantia(${f.id})"
+                                class="bg-navy-blue text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase hover:bg-neon-green hover:text-black transition-all"
+                                title="Ver items para procesar garantía">
+                                <i data-lucide="eye" class="w-3 h-3 inline"></i> Ver Items
+                            </button>
+                            <button onclick="verDetalleFacturaGarantia(${f.id})"
+                                class="bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase hover:bg-neon-green hover:text-black transition-all"
+                                title="Ver toda la información de la factura">
+                                <i data-lucide="file-text" class="w-3 h-3 inline"></i> Ver Detalle
+                            </button>
+                        </div>
                     </td>
                 </tr>`).join('');
         }
@@ -585,6 +593,109 @@ async function cargarHistorialGarantias(pagina = 1) {
     } catch (e) {
         console.error(e);
         tbody.innerHTML = '<tr><td colspan="9" class="text-center py-10 text-rose-500 font-medium">Error de conexión</td></tr>';
+    }
+}
+
+/* ==================== DETALLE FACTURA COMPLETO ==================== */
+async function verDetalleFacturaGarantia(facturaId) {
+    try {
+        AppUtils.showLoading('Cargando detalle de factura...');
+        const res = await fetch(`${URLROOT}/garantia/getDetalleFactura/${facturaId}`);
+        const data = await res.json();
+        AppUtils.hideLoading();
+
+        if (!data.success || !data.factura) {
+            AppUtils.showToast(data.mensaje || 'No se pudo cargar el detalle de la factura', 'error');
+            return;
+        }
+
+        const f = data.factura;
+        const items = data.items || [];
+
+        // Construir tabla de items
+        const itemsHtml = items.map(it => {
+            const esRepuesto = it.producto_id != null && it.producto_id !== '';
+            const tipo = esRepuesto ? 'REPUESTO' : 'SERVICIO';
+            const nombre = esRepuesto ? (it.producto_nombre || 'N/A') : (it.descripcion || 'Servicio');
+            const monto = (parseFloat(it.cantidad) || 0) * (parseFloat(it.precio_unitario) || 0);
+            return `
+            <tr class="border-t border-slate-100">
+                <td class="px-2 py-2 text-xs text-slate-700">${escapeHtml(nombre)}</td>
+                <td class="px-2 py-2 text-center text-xs font-bold ${esRepuesto ? 'text-indigo-600' : 'text-emerald-600'}">${tipo}</td>
+                <td class="px-2 py-2 text-center text-xs text-slate-600">${it.cantidad}</td>
+                <td class="px-2 py-2 text-center text-xs text-slate-600">${escapeHtml(it.mecanico_nombre || '-')}</td>
+                <td class="px-2 py-2 text-right text-xs font-bold text-slate-700">${AppUtils.formatCurrency(monto)}</td>
+            </tr>`;
+        }).join('');
+
+        // Sección de Orden de Servicio (si existe)
+        const seccionOS = f.os_id ? `
+            <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <p class="text-[11px] font-black text-slate-600 uppercase mb-2">Orden de Servicio #${f.os_id} - ${escapeHtml(f.os_estado || '-')}</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Mecánico Asignado</p><p class="font-bold">${escapeHtml(f.os_mecanico_nombre || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Kilometraje</p><p class="font-bold">${escapeHtml(f.os_kilometraje || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Combustible</p><p class="font-bold">${escapeHtml(f.os_combustible || '-')}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Fecha Ingreso</p><p class="font-bold">${f.os_fecha_ingreso ? new Date(f.os_fecha_ingreso).toLocaleString() : '-'}</p></div>
+                    <div><p class="text-[10px] font-black text-slate-400 uppercase">Fecha Entrega</p><p class="font-bold">${f.os_fecha_entrega ? new Date(f.os_fecha_entrega).toLocaleString() : '-'}</p></div>
+                </div>
+                ${f.os_diag_entrada ? `<div class="mt-2"><p class="text-[10px] font-black text-slate-400 uppercase">Diagnóstico Entrada</p><p class="text-xs text-slate-700">${escapeHtml(f.os_diag_entrada)}</p></div>` : ''}
+                ${f.os_diag_salida ? `<div class="mt-2"><p class="text-[10px] font-black text-slate-400 uppercase">Diagnóstico Salida</p><p class="text-xs text-slate-700">${escapeHtml(f.os_diag_salida)}</p></div>` : ''}
+                ${f.os_observaciones ? `<div class="mt-2"><p class="text-[10px] font-black text-slate-400 uppercase">Observaciones OS</p><p class="text-xs text-slate-700">${escapeHtml(f.os_observaciones)}</p></div>` : ''}
+            </div>` : '';
+
+        Swal.fire({
+            title: `DETALLE FACTURA #${f.factura_id}`,
+            html: `
+                <div class="text-left space-y-3 text-sm max-h-[60vh] overflow-y-auto pr-1">
+                    <div class="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                        <p class="text-[11px] font-black text-blue-700 uppercase mb-2">Información de la Factura - ${escapeHtml(f.status || '')}</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Cliente</p><p class="font-bold text-navy-blue">${escapeHtml(f.cliente_nombre || 'Consumidor Final')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Cédula</p><p class="font-bold">${escapeHtml(f.cliente_cedula || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Teléfono</p><p class="font-bold">${escapeHtml(f.cliente_telefono || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Placa / Modelo</p><p class="font-bold">${escapeHtml(f.placa || '-')} / ${escapeHtml(f.modelo_vehiculo || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Fecha Factura</p><p class="font-bold">${f.fecha ? new Date(f.fecha).toLocaleString() : '-'}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Cobrado Por</p><p class="font-bold">${escapeHtml(f.usuario_cobro_nombre || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Atendido Por</p><p class="font-bold">${escapeHtml(f.os_mecanico_nombre || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Origen</p><p class="font-bold">${escapeHtml(f.origen || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Total Factura</p><p class="font-bold text-blue-700">${AppUtils.formatCurrency(f.total)}</p></div>
+                        </div>
+                        ${f.observaciones ? `<div class="mt-2"><p class="text-[10px] font-black text-slate-400 uppercase">Observaciones</p><p class="text-xs text-slate-700">${escapeHtml(f.observaciones)}</p></div>` : ''}
+                    </div>
+                    ${seccionOS}
+                    ${items.length ? `
+                    <div class="overflow-x-auto">
+                        <p class="text-[11px] font-black text-slate-500 uppercase mb-1">Items de la Factura</p>
+                        <table class="w-full">
+                            <thead class="bg-slate-100">
+                                <tr class="text-[10px] font-black text-slate-500 uppercase">
+                                    <th class="px-2 py-2 text-left">Descripción</th>
+                                    <th class="px-2 py-2 text-center">Tipo</th>
+                                    <th class="px-2 py-2 text-center">Cant.</th>
+                                    <th class="px-2 py-2 text-center">Mecánico</th>
+                                    <th class="px-2 py-2 text-right">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>${itemsHtml}</tbody>
+                        </table>
+                    </div>` : '<p class="text-center text-slate-400 text-xs py-4">Esta factura no tiene items registrados.</p>'}
+                </div>`,
+            showCancelButton: true,
+            confirmButtonText: '<i data-lucide="printer" class="w-4 h-4 inline mr-1"></i> IMPRIMIR',
+            cancelButtonText: 'CERRAR',
+            confirmButtonColor: '#1d4ed8',
+            cancelButtonColor: '#0f766e',
+            width: '700px'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.open(`${URLROOT}/facturacion/imprimir/${f.factura_id}`, '_blank');
+            }
+        });
+    } catch (e) {
+        AppUtils.hideLoading();
+        console.error(e);
+        AppUtils.showToast('Error de conexión', 'error');
     }
 }
 

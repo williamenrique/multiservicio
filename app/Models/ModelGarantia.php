@@ -203,9 +203,21 @@ class ModelGarantia {
      * @return object|null
      */
     public function obtenerFacturaCompleta($facturaId) {
-        $this->db->query("SELECT f.*, c.id AS cliente_cedula, c.nombre AS cliente_nombre, c.telefono AS cliente_telefono
+        $this->db->query("SELECT f.*, f.id AS factura_id,
+                                 c.id AS cliente_cedula, c.nombre AS cliente_nombre, c.telefono AS cliente_telefono,
+                                 u.username AS usuario_cobro_username, s.nombre AS usuario_cobro_nombre,
+                                 os.id AS os_id, os.estado AS os_estado, os.kilometraje AS os_kilometraje,
+                                 os.nivel_combustible AS os_combustible, os.diagnostico_entrada AS os_diag_entrada,
+                                 os.diagnostico_salida AS os_diag_salida, os.observaciones AS os_observaciones,
+                                 os.fecha_ingreso AS os_fecha_ingreso, os.fecha_entrega_estimada AS os_fecha_estimada,
+                                 os.fecha_entrega_real AS os_fecha_entrega,
+                                 osm.nombre AS os_mecanico_nombre
                           FROM table_facturas f
                           LEFT JOIN table_clientes c ON f.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON f.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          LEFT JOIN table_ordenes_servicio os ON f.orden_id = os.id
+                          LEFT JOIN table_staff osm ON os.mecanico_id = osm.id
                           WHERE f.id = :id");
         $this->db->bind(':id', $facturaId);
         return $this->db->single();
