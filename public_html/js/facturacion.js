@@ -1,14 +1,22 @@
 /**
  * Lógica de Facturación con Gestión de Colas
  * 
+ * v2.5 (2026-10-09):
+ *   • FIX CSRF: Todas las peticiones POST ahora envían 'X-CSRF-TOKEN'.
+ *     El registro rápido de cliente (btnQuickClient) fallaba con 403
+ *     "Token CSRF no válido o sesión expirada" porque no incluía el header.
+ *   • FIX: Se eliminó doble llamada updateActiveData('cliente_id', ...).
+ *   • FIX: Al registrar cliente desde el POS, ahora se vincula correctamente
+ *     al select oculto, al input de búsqueda, a la factura activa y se
+ *     sincroniza con el servidor.
+ *   • initNewInvoice también envía CSRF al llamar sincronizarBorrador.
+ * 
  * v2.4 (2026-10-08):
  *   • El panel del presupuesto anexado ahora se muestra automáticamente
- *     cuando la factura activa tiene presupuesto_activo_id (aunque venga
- *     de una Orden de Servicio).
- *   • Se cargan los detalles completos del presupuesto (numero, cliente,
- *     teléfono, total, estado) desde /presupuesto/obtener/{id} para
- *     poblar el panel verde correctamente.
- *   • Se agrega un flag de "ya cargado" para no refetchear en cada re-render.
+ *     cuando la factura activa tiene presupuesto_activo_id.
+ *   • Se cargan los detalles completos del presupuesto desde
+ *     /presupuesto/obtener/{id} para poblar el panel verde.
+ *   • Flag de "ya cargado" para no refetchear en cada re-render.
  */
 document.addEventListener('DOMContentLoaded', () => {
     const inputPlaca = document.getElementById('pos-placa');
@@ -37,6 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const IVA_PERCENT = (typeof IVA_RATE !== 'undefined') ? (IVA_RATE * 100) : 0;
 
+    // Token CSRF seguro (con fallback a cadena vacía para entornos sin sesión)
+    const CSRF = (typeof CSRF_TOKEN !== 'undefined' && CSRF_TOKEN) ? CSRF_TOKEN : '';
+
     let syncTimeout = null;
     let openInvoices = [];
     let activeInvoiceId = null;
@@ -45,13 +56,27 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastClientResults = [];
 
     // Set de presupuestos cuyos detalles ya se cargaron desde el backend.
-    // Evita refetchear en cada re-render de la factura.
     const presupuestosDetallesCache = new Set();
 
     document.addEventListener('userLoaded', () => {
         renderQueue();
         renderInvoice();
     });
+
+    // ───────────────────────────────────────────────────────────────────────
+    // HELPERS DE RED (inyectan CSRF automáticamente)
+    // ───────────────────────────────────────────────────────────────────────
+    const postJSON = async (url, body) => {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+    };
 
     const loadInvoicesFromServer = async () => {
         try {
@@ -139,6 +164,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ───────────────────────────────────────────────────────────────────────
+    // REGISTRO RÁPIDO DE CLIENTE (CORREGIDO: incluye CSRF y vincula a la factura)
+    // ───────────────────────────────────────────────────────────────────────
     btnQuickClient.addEventListener('click', async () => {
         const { value: formValues } = await Swal.fire({
             title: 'REGISTRO DE CLIENTE',
@@ -169,47 +197,88 @@ document.addEventListener('DOMContentLoaded', () => {
                 htmlContainer: 'swal2-html-compact'
             },
             preConfirm: () => {
+                const id = document.getElementById('swal-input1').value.trim();
+                const nombre = document.getElementById('swal-input2').value.trim();
+                if (!id || !nombre) {
+                    Swal.showValidationMessage('Cédula/NIT y Nombre son obligatorios');
+                    return false;
+                }
                 return [
-                    document.getElementById('swal-input1').value.trim(),
-                    document.getElementById('swal-input2').value.trim(),
+                    id,
+                    nombre,
                     document.getElementById('swal-input3').value.trim(),
                     document.getElementById('swal-input4').value.trim(),
                     document.getElementById('swal-input5').value.trim()
-                ]
+                ];
             }
         });
 
         if (formValues && formValues[0] && formValues[1]) {
-            const res = await fetch(`${URLROOT}/clientes/guardar`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            try {
+                AppUtils.showLoading('Registrando cliente...');
+                const res = await postJSON(`${URLROOT}/clientes/guardar`, {
                     id: formValues[0],
                     nombre: formValues[1],
                     email: formValues[3],
                     telefono: formValues[2],
                     direccion: formValues[4]
-                })
-            });
-            const data = await res.json();
-            if (data.success) {
-                inputCliente.value = formValues[0];
-                const newOption = document.createElement('option');
-                newOption.value = formValues[0];
-                newOption.textContent = formValues[1];
-                inputCliente.appendChild(newOption);
+                });
+                AppUtils.hideLoading();
 
-                inputCliente.value = formValues[0];
-                if (clientSearchInput) clientSearchInput.value = formValues[1];
-                updateActiveData('cliente_id', formValues[0]);
-                updateActiveData('cliente_id', formValues[0]);
-                openInvoices.find(i => i.id === activeInvoiceId).cliente_nombre = formValues[1];
+                if (res.status === 403) {
+                    AppUtils.showAlert('Sesión expirada', 'El token de seguridad no es válido. Recargue la página e intente de nuevo.', 'error');
+                    return;
+                }
 
-                renderInvoice();
+                const data = await res.json();
 
-                AppUtils.showToast('Cliente registrado');
-            } else {
-                AppUtils.showToast(data.mensaje, 'error');
+                if (data.success) {
+                    const clienteId = formValues[0].toUpperCase();
+                    const clienteNombre = formValues[1].toUpperCase();
+
+                    // 1) Agregar/actualizar opción en el <select> oculto
+                    let option = inputCliente.querySelector(`option[value="${clienteId}"]`);
+                    if (!option) {
+                        option = document.createElement('option');
+                        option.value = clienteId;
+                        option.textContent = clienteNombre;
+                        inputCliente.appendChild(option);
+                    } else {
+                        option.textContent = clienteNombre;
+                    }
+                    inputCliente.value = clienteId;
+
+                    // 2) Reflejar en el input de búsqueda visual
+                    if (clientSearchInput) clientSearchInput.value = clienteNombre;
+
+                    // 3) Vincular a la factura activa
+                    const activeInv = openInvoices.find(i => i.id === activeInvoiceId);
+                    if (activeInv) {
+                        activeInv.cliente_id = clienteId;
+                        activeInv.cliente_nombre = clienteNombre;
+                    } else {
+                        // Si no hay factura activa, crear una nueva primero
+                        await initNewInvoice(true);
+                        const nueva = openInvoices.find(i => i.id === activeInvoiceId);
+                        if (nueva) {
+                            nueva.cliente_id = clienteId;
+                            nueva.cliente_nombre = clienteNombre;
+                        }
+                    }
+
+                    // 4) Sincronizar con el servidor y re-renderizar
+                    await syncActiveInvoice(true);
+                    renderQueue();
+                    renderInvoice();
+
+                    AppUtils.showToast('Cliente registrado y vinculado a la factura');
+                } else {
+                    AppUtils.showToast(data.mensaje || 'Error al registrar cliente', 'error');
+                }
+            } catch (e) {
+                AppUtils.hideLoading();
+                console.error("Error registrando cliente:", e);
+                AppUtils.showToast('Error de conexión al registrar cliente', 'error');
             }
         }
     });
@@ -272,11 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const res = await fetch(`${URLROOT}/facturacion/sincronizarBorrador`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(invData)
-            });
+            const res = await postJSON(`${URLROOT}/facturacion/sincronizarBorrador`, invData);
             const result = await res.json();
 
             if (result.success) {
@@ -409,11 +474,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let presupuestoSeleccionadoIdFacturacion = null;
     let searchTimeoutPresupuestoFacturacion = null;
 
-    /**
-     * Carga los detalles completos de un presupuesto anexado y puebla el panel verde.
-     * Se usa cuando el activeInvoice trae presupuesto_activo_id (ej: factura creada
-     * desde una O.S. con presupuesto anexado).
-     */
     async function cargarDetallesPresupuestoAnexado(presupuestoId) {
         if (!presupuestoId) return;
         if (presupuestosDetallesCache.has(String(presupuestoId))) return;
@@ -443,7 +503,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.lucide) lucide.createIcons();
         } catch (e) {
             console.warn('No se pudieron cargar los detalles del presupuesto #' + presupuestoId, e);
-            // Si falla, quitamos del caché para reintentar en el próximo render
             presupuestosDetallesCache.delete(String(presupuestoId));
         }
     }
@@ -483,7 +542,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Delegación de eventos para los resultados
         resultsContainerPresupuesto.addEventListener('click', (e) => {
             const item = e.target.closest('[data-presupuesto-id]');
             if (!item) return;
@@ -547,9 +605,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) lucide.createIcons();
     }
 
-    /**
-     * Selecciona un presupuesto y carga sus items directamente al carrito del POS.
-     */
     window.seleccionarPresupuestoActivoFacturacion = async (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
         const activeInvoice = openInvoices.find(i => i.id === activeInvoiceId);
         if (!activeInvoice) {
@@ -567,16 +622,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             AppUtils.showLoading('Anexando presupuesto...');
-            const resEstado = await fetch(`${URLROOT}/presupuesto/iniciarProceso/${id}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': CSRF_TOKEN
-                },
-                body: JSON.stringify({
-                    modulo: 'FACTURACION',
-                    crear_reservas: false
-                })
+            const resEstado = await postJSON(`${URLROOT}/presupuesto/iniciarProceso/${id}`, {
+                modulo: 'FACTURACION',
+                crear_reservas: false
             });
             const resultEstado = await resEstado.json();
             AppUtils.hideLoading();
@@ -658,9 +706,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /**
-     * Desanexa el presupuesto activo.
-     */
     window.desanexarPresupuestoFacturacion = async () => {
         const activeInvoice = openInvoices.find(i => i.id === activeInvoiceId);
         const presupuestoId = activeInvoice?.presupuesto_activo_id || presupuestoSeleccionadoIdFacturacion;
@@ -668,13 +713,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (presupuestoId) {
             try {
                 AppUtils.showLoading('Liberando presupuesto...');
-                const res = await fetch(`${URLROOT}/presupuesto/liberarInventario/${presupuestoId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': CSRF_TOKEN
-                    },
-                    body: JSON.stringify({ motivo: 'DESANEXADO_DESDE_POS' })
+                const res = await postJSON(`${URLROOT}/presupuesto/liberarInventario/${presupuestoId}`, {
+                    motivo: 'DESANEXADO_DESDE_POS'
                 });
                 const result = await res.json();
                 AppUtils.hideLoading();
@@ -790,13 +830,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (inv.presupuesto_activo_id) {
             try {
-                await fetch(`${URLROOT}/presupuesto/liberarInventario/${inv.presupuesto_activo_id}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': CSRF_TOKEN
-                    },
-                    body: JSON.stringify({ motivo: 'BORRADOR_CANCELADO' })
+                await postJSON(`${URLROOT}/presupuesto/liberarInventario/${inv.presupuesto_activo_id}`, {
+                    motivo: 'BORRADOR_CANCELADO'
                 });
             } catch (e) {
                 console.error('Error liberando presupuesto al cerrar factura:', e);
@@ -805,10 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (inv.id_db) {
             AppUtils.confirmAction('¿Eliminar borrador?', 'Esta acción cancelará la orden y liberará el stock.', async () => {
-                const res = await fetch(`${URLROOT}/facturacion/eliminarBorrador/${inv.id_db}`, {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
-                });
+                const res = await postJSON(`${URLROOT}/facturacion/eliminarBorrador/${inv.id_db}`, {});
                 const data = await res.json();
                 if (data.success) {
                     proceedWithClosing();
@@ -896,14 +928,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const res = await fetch(`${URLROOT}/facturacion/sincronizarBorrador`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': CSRF_TOKEN
-                },
-                body: JSON.stringify(inv)
-            });
+            const res = await postJSON(`${URLROOT}/facturacion/sincronizarBorrador`, inv);
 
             if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
 
@@ -1039,21 +1064,16 @@ document.addEventListener('DOMContentLoaded', () => {
             inputPagoTransferencia.value = activeInvoice.pago_transferencia || 0;
         }
 
-        // ─────────────────────────────────────────────────────────────────
         // Sincronizar panel del presupuesto anexado
-        // ─────────────────────────────────────────────────────────────────
         if (activeInvoice.presupuesto_activo_id && inputPresupuestoFacturacion && seleccionadoContainerPresupuesto) {
             const pid = activeInvoice.presupuesto_activo_id;
 
-            // Preseleccionar id para que desanexar sepa qué liberar
             presupuestoSeleccionadoIdFacturacion = pid;
 
-            // Si no hay texto en el input, poner un placeholder inmediato
             if (!inputPresupuestoFacturacion.value) {
                 inputPresupuestoFacturacion.value = 'Presupuesto #' + pid + (activeInvoice.orden_id ? ' (desde O.S.)' : '');
             }
 
-            // Placeholder mientras llegan los detalles completos
             if (infoElementPresupuesto && !presupuestosDetallesCache.has(String(pid))) {
                 infoElementPresupuesto.textContent = 'Presupuesto #' + pid + ' anexado';
             }
@@ -1063,12 +1083,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             seleccionadoContainerPresupuesto.classList.remove('hidden');
 
-            // Cargar detalles completos (una sola vez por presupuesto)
             if (!presupuestosDetallesCache.has(String(pid))) {
                 cargarDetallesPresupuestoAnexado(pid);
             }
         } else if (seleccionadoContainerPresupuesto) {
-            // Sin presupuesto: ocultar panel (salvo que esté en proceso de anexado manual)
             if (!presupuestoSeleccionadoIdFacturacion) {
                 seleccionadoContainerPresupuesto.classList.add('hidden');
             }
@@ -1200,14 +1218,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.total = subtotal + ivaMonto;
             activeInvoice.saldo_pendiente = activeInvoice.total - (activeInvoice.pago_efectivo + activeInvoice.pago_transferencia);
 
-            const res = await fetch(`${URLROOT}/facturacion/procesar`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': CSRF_TOKEN
-                },
-                body: JSON.stringify(activeInvoice)
-            });
+            const res = await postJSON(`${URLROOT}/facturacion/procesar`, activeInvoice);
             const data = await res.json();
 
             if (data.success) {
@@ -1306,6 +1317,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     loadInvoicesFromServer();
+    loadClients();
 
     setInterval(loadInvoicesFromServer, 10000);
 
