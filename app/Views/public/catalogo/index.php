@@ -129,18 +129,52 @@
         <!-- Filtro de categorías -->
         <?php if (!empty($categorias)): ?>
         <div class="flex flex-wrap gap-2 mb-8">
-            <a href="<?php echo URLROOT; ?>/catalogo<?php echo $busqueda ? '?busqueda='.urlencode($busqueda) : ''; ?>"
-                class="category-pill px-4 py-2 rounded-full border border-gray-300 text-sm font-medium transition <?php echo !$categoriaSeleccionada ? 'active' : 'text-gray-600 hover:border-blue-400'; ?>">
+            <a href="<?php echo URLROOT; ?>/catalogo<?php echo $busqueda ? '?busqueda='.urlencode($busqueda) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
+                class="category-pill px-4 py-2 rounded-full border border-gray-300 text-sm font-medium transition <?php echo !$categoriaSeleccionada && !$ofertaSeleccionada ? 'active' : 'text-gray-600 hover:border-blue-400'; ?>">
                 Todas
             </a>
             <?php foreach ($categorias as $cat): ?>
-            <a href="<?php echo URLROOT; ?>/catalogo?categoria=<?php echo urlencode($cat->categoria); ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?>"
+            <a href="<?php echo URLROOT; ?>/catalogo?categoria=<?php echo urlencode($cat->categoria); ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
                 class="category-pill px-4 py-2 rounded-full border text-sm font-medium transition <?php echo $categoriaSeleccionada === $cat->categoria ? 'active' : 'border-gray-300 text-gray-600 hover:border-blue-400'; ?>">
                 <?php echo s($cat->categoria); ?>
             </a>
             <?php endforeach; ?>
         </div>
         <?php endif; ?>
+
+        <!-- Botón Flotante de Ofertas -->
+        <a href="<?php echo URLROOT; ?>/catalogo<?php echo $busqueda ? '?busqueda='.urlencode($busqueda) : '?'; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?><?php echo $ofertaSeleccionada ? '' : '&oferta=1'; ?>"
+            id="btnOfertasFlotante"
+            class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3 rounded-full shadow-xl transition-all duration-300 
+                <?php echo $ofertaSeleccionada 
+                    ? 'bg-navy-blue text-[#00ff00] ring-4 ring-navy-blue/20' 
+                    : 'bg-[#00ff00] text-navy-blue hover:bg-[#00e600] hover:scale-105'; ?>
+                animate-<?php echo $ofertaSeleccionada ? 'pulse' : 'bounce'; ?>">
+            <i data-lucide="tag" class="w-5 h-5 flex-shrink-0"></i>
+            <span class="font-black text-sm uppercase tracking-wider hidden sm:inline">Ofertas</span>
+            <?php if ($ofertaSeleccionada): ?>
+            <i data-lucide="check" class="w-4 h-4 flex-shrink-0 animate-pop"></i>
+            <?php endif; ?>
+        </a>
+
+        <style>
+        @keyframes pop {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop { animation: pop 0.3s ease-out; }
+        @keyframes bounce-subtle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        .animate-bounce { animation: bounce-subtle 2s ease-in-out infinite; }
+        @keyframes pulse-subtle {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.4); }
+            50% { box-shadow: 0 0 0 12px rgba(0, 255, 0, 0); }
+        }
+        .animate-pulse { animation: pulse-subtle 2s ease-in-out infinite; }
+        </style>
 
         <!-- Resultados -->
         <?php if (!empty($repuestos)): ?>
@@ -233,21 +267,21 @@
         <?php if ($totalPaginas > 1): ?>
         <div class="flex justify-center items-center gap-2 mt-10">
             <?php if ($paginaActual > 1): ?>
-            <a href="<?php echo URLROOT; ?>/catalogo?pagina=<?php echo $paginaActual - 1; ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?>"
+            <a href="<?php echo URLROOT; ?>/catalogo?pagina=<?php echo $paginaActual - 1; ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
                 class="pagination-btn px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 transition">
                 <i data-lucide="chevron-left" class="w-4 h-4 inline"></i> Anterior
             </a>
             <?php endif; ?>
 
             <?php for ($i = 1; $i <= $totalPaginas; $i++): ?>
-            <a href="<?php echo URLROOT; ?>/catalogo?pagina=<?php echo $i; ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?>"
+            <a href="<?php echo URLROOT; ?>/catalogo?pagina=<?php echo $i; ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
                 class="pagination-btn w-10 h-10 flex items-center justify-center border rounded-lg text-sm font-medium transition <?php echo $i === $paginaActual ? 'bg-blue-700 text-white border-blue-700' : 'border-gray-300 text-gray-600 hover:bg-blue-50'; ?>">
                 <?php echo $i; ?>
             </a>
             <?php endfor; ?>
 
             <?php if ($paginaActual < $totalPaginas): ?>
-            <a href="<?php echo URLROOT; ?>/catalogo?pagina=<?php echo $paginaActual + 1; ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?>"
+            <a href="<?php echo URLROOT; ?>/catalogo?pagina=<?php echo $paginaActual + 1; ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
                 class="pagination-btn px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 transition">
                 Siguiente <i data-lucide="chevron-right" class="w-4 h-4 inline"></i>
             </a>

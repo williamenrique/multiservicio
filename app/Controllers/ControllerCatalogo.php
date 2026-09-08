@@ -23,12 +23,13 @@ class ControllerCatalogo extends Controller {
     public function index() {
         $busqueda = $_GET['busqueda'] ?? null;
         $categoria = $_GET['categoria'] ?? null;
+        $oferta = isset($_GET['oferta']) ? (int)$_GET['oferta'] : 0;
         $pagina = max(1, (int)($_GET['pagina'] ?? 1));
         $limit = 12;
         $offset = ($pagina - 1) * $limit;
 
-        $repuestos = $this->modelCatalogo->listarRepuestos($busqueda, $categoria, $limit, $offset);
-        $total = $this->modelCatalogo->contarRepuestos($busqueda, $categoria);
+        $repuestos = $this->modelCatalogo->listarRepuestos($busqueda, $categoria, $limit, $offset, $oferta);
+        $total = $this->modelCatalogo->contarRepuestos($busqueda, $categoria, $oferta);
         $categorias = $this->modelCatalogo->obtenerCategorias();
         $totalPaginas = max(1, ceil($total / $limit));
 
@@ -40,6 +41,7 @@ class ControllerCatalogo extends Controller {
             'categorias' => $categorias,
             'busqueda' => $busqueda,
             'categoriaSeleccionada' => $categoria,
+            'ofertaSeleccionada' => $oferta,
             'paginaActual' => $pagina,
             'totalPaginas' => $totalPaginas,
             'total' => $total,

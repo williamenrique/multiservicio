@@ -15,7 +15,7 @@ class ModelCatalogo {
      * Lista repuestos activos con búsqueda y filtro por categoría
      * Incluye cálculo de precio con oferta si está activa y vigente
      */
-    public function listarRepuestos($busqueda = null, $categoria = null, $limit = 12, $offset = 0) {
+    public function listarRepuestos($busqueda = null, $categoria = null, $limit = 12, $offset = 0, $oferta = 0) {
         $sql = "SELECT i.*,
                 -- Calcular precio con oferta si está activa y vigente
                 CASE 
@@ -49,6 +49,14 @@ class ModelCatalogo {
             $params[':categoria'] = $categoria;
         }
 
+        // Filtrar solo productos en oferta activa y vigente
+        if ($oferta) {
+            $sql .= " AND i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())";
+        }
+
         $sql .= " ORDER BY i.nombre ASC LIMIT :limit OFFSET :offset";
         $params[':limit'] = (int)$limit;
         $params[':offset'] = (int)$offset;
@@ -64,7 +72,7 @@ class ModelCatalogo {
     /**
      * Cuenta total de repuestos activos (para paginación)
      */
-    public function contarRepuestos($busqueda = null, $categoria = null) {
+    public function contarRepuestos($busqueda = null, $categoria = null, $oferta = 0) {
         $sql = "SELECT COUNT(*) as total FROM table_inventario WHERE estado = 'ACTIVO'";
         $params = [];
 
@@ -76,6 +84,14 @@ class ModelCatalogo {
         if ($categoria) {
             $sql .= " AND categoria = :categoria";
             $params[':categoria'] = $categoria;
+        }
+
+        // Filtrar solo productos en oferta activa y vigente
+        if ($oferta) {
+            $sql .= " AND oferta_activa = 1 
+                         AND oferta_porcentaje > 0 
+                         AND (oferta_fecha_inicio IS NULL OR oferta_fecha_inicio <= CURDATE())
+                         AND (oferta_fecha_fin IS NULL OR oferta_fecha_fin >= CURDATE())";
         }
 
         $this->db->query($sql);
