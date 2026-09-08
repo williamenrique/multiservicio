@@ -278,4 +278,24 @@ class ModelDashboard {
                           FROM table_inventario");
         return $this->db->single();
     }
+
+    /**
+     * Obtiene productos con oferta activa y vigente para el dashboard
+     * @param int $limit Límite de productos a retornar (default 10)
+     */
+    public function getProductsOnOffer($limit = 10) {
+        $this->db->query("SELECT i.id, i.codigo, i.nombre, i.marca, i.categoria, i.precio, i.stock, i.imagen,
+                                 i.oferta_porcentaje, i.oferta_fecha_inicio, i.oferta_fecha_fin,
+                                 ROUND(i.precio * (1 - i.oferta_porcentaje / 100), 2) as precio_final
+                          FROM table_inventario i
+                          WHERE i.estado = 'ACTIVO'
+                            AND i.oferta_activa = 1
+                            AND i.oferta_porcentaje > 0
+                            AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                            AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                          ORDER BY i.oferta_porcentaje DESC, i.nombre ASC
+                          LIMIT :limit");
+        $this->db->bind(':limit', (int)$limit);
+        return $this->db->resultSet();
+    }
 }

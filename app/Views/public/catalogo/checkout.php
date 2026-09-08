@@ -16,7 +16,7 @@
         .input-error { border-color: #ef4444; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- NAVBAR -->
     <nav class="nav-blur border-b border-gray-700/50 sticky top-0 z-50">
@@ -35,7 +35,7 @@
         </div>
     </nav>
 
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Finalizar Pedido</h1>
 
         <!-- Errores -->
@@ -97,7 +97,15 @@
                             <div class="py-3 flex justify-between text-sm">
                                 <div class="flex-1 min-w-0">
                                     <p class="font-medium text-gray-800 truncate"><?php echo s($item['nombre']); ?></p>
+                                    <?php if (!empty($item['en_oferta']) && $item['en_oferta']): ?>
+                                    <div class="flex flex-col items-start gap-0.5 mt-0.5">
+                                        <span class="text-gray-400 line-through text-xs"><?php echo $item['cantidad']; ?> x $<?php echo number_format($item['precio_original'], 2); ?></span>
+                                        <span class="text-xs font-bold text-amber-600"><?php echo $item['cantidad']; ?> x $<?php echo number_format($item['precio'], 2); ?></span>
+                                        <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold uppercase">Oferta <?php echo (int)$item['oferta_porcentaje']; ?>% OFF</span>
+                                    </div>
+                                    <?php else: ?>
                                     <p class="text-gray-400 text-xs"><?php echo $item['cantidad']; ?> x $<?php echo number_format($item['precio'], 2); ?></p>
+                                    <?php endif; ?>
                                 </div>
                                 <span class="font-medium text-gray-800 ml-2">$<?php echo number_format($item['subtotal'], 2); ?></span>
                             </div>
@@ -120,7 +128,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </main>
 
     <!-- FOOTER -->
     <footer class="bg-slate-900 text-gray-400 py-8 mt-12">

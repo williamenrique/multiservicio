@@ -33,8 +33,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const stockDisponible = parseFloat(item.stock_disponible ?? item.stock);
             const reservado = stockFisico - stockDisponible;
 
+            // LÓGICA DE OFERTA
+            const tieneOferta = item.oferta_activa && item.oferta_porcentaje > 0;
+            const ofertaVigente = tieneOferta &&
+                (!item.oferta_fecha_inicio || new Date(item.oferta_fecha_inicio) <= new Date()) &&
+                (!item.oferta_fecha_fin || new Date(item.oferta_fecha_fin) >= new Date());
+            const precioFinal = ofertaVigente
+                ? Math.round(item.precio * (1 - item.oferta_porcentaje / 100) * 100) / 100
+                : item.precio;
+
             return `
-                <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300">
+                <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300 ${ofertaVigente ? 'bg-amber-50/50' : ''}">
                     <td class="px-8 py-5 align-middle">
                         <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 ${imgUrl ? 'cursor-zoom-in hover:opacity-80 transition-all shadow-sm' : ''}" 
                              ${imgUrl ? `onclick="AppUtils.viewImage(this.querySelector('img').src, '${item.nombre.replace(/'/g, "\\'")}')"` : ''}>
@@ -53,7 +62,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="${isLow ? 'text-red-500 font-black' : 'text-slate-700 font-bold'}">${item.stock} uds</span>
                         ${reservado > 0 ? `<div class="text-xs text-orange-500 font-black uppercase tracking-tighter">Reservado: ${reservado}</div>` : ''}
                     </td>
-                    <td class="px-8 py-5 align-middle font-black text-lg text-navy-blue">${AppUtils.formatCurrency(item.precio)}</td>
+                    <td class="px-8 py-5 align-middle font-black text-lg">
+                        ${ofertaVigente ? `
+                            <div class="flex flex-col items-end">
+                                <span class="text-navy-blue line-through text-base">${AppUtils.formatCurrency(item.precio)}</span>
+                                <span class="text-amber-600 font-extrabold text-lg">${AppUtils.formatCurrency(precioFinal)}</span>
+                                <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-black uppercase">${item.oferta_porcentaje}% OFF</span>
+                            </div>
+                        ` : `
+                            <span class="text-navy-blue">${AppUtils.formatCurrency(item.precio)}</span>
+                        `}
+                    </td>
+                    <td class="px-8 py-5 align-middle">
+                        ${ofertaVigente ? `
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="px-3 py-1 rounded-full text-xs font-black uppercase bg-amber-100 text-amber-800 animate-pulse">
+                                    <i data-lucide="tag" class="w-3 h-3 inline mr-1"></i> OFERTA
+                                </span>
+                                <span class="text-[10px] text-amber-700 font-bold">
+                                    ${item.oferta_fecha_inicio ? `Desde: ${new Date(item.oferta_fecha_inicio).toLocaleDateString('es-ES')}` : 'Activa'}
+                                    ${item.oferta_fecha_fin ? ` | Hasta: ${new Date(item.oferta_fecha_fin).toLocaleDateString('es-ES')}` : ''}
+                                </span>
+                            </div>
+                        ` : `
+                            <span class="px-3 py-1 rounded-full text-xs font-black uppercase bg-slate-100 text-slate-500">
+                                SIN OFERTA
+                            </span>
+                        `}
+                    </td>
                     <td class="px-8 py-5 align-middle">
                         <span class="px-3 py-1 rounded-full text-xs font-black uppercase ${isLow ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}">
                             ${isLow ? (item.stock == 0 ? 'AGOTADO' : 'CRÍTICO') : 'OK'}
@@ -65,10 +101,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <a href="${URLROOT}/inventario/kardex/${item.id}" class="flex items-center justify-center w-9 h-9 bg-slate-100 hover:bg-navy-blue text-slate-500 hover:text-neon-green rounded-xl transition-all shadow-sm" title="Ver Kardex">
                                     <i data-lucide="history" class="w-4 h-4"></i>
                                 </a>
-                                <button onclick="editItem(${item.id})" class="flex items-center justify-center w-9 h-9 bg-slate-100 hover:bg-neon-green text-slate-500 hover:text-black rounded-xl transition-all shadow-sm">
+                                <button onclick="editItem(${item.id})" class="flex items-center justify-center w-9 h-9 bg-slate-100 hover:bg-neon-green text-slate-500 hover:text-black rounded-xl transition-all shadow-sm" title="Editar Producto">
                                     <i data-lucide="edit-3" class="w-4 h-4"></i>
                                 </button>
-                                <button onclick="deleteItem(${item.id})" class="flex items-center justify-center w-9 h-9 bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white rounded-xl transition-all shadow-sm">
+                                <button onclick="openOfertaModal(${item.id})" class="flex items-center justify-center w-9 h-9 bg-slate-100 hover:bg-amber-500 text-slate-500 hover:text-white rounded-xl transition-all shadow-sm ${item.stock <= 1 ? 'opacity-50 cursor-not-allowed' : ''}" title="${item.stock <= 1 ? 'Stock insuficiente para oferta (mín. 2 unidades)' : 'Configurar Oferta'}">
+                                    <i data-lucide="tag" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="deleteItem(${item.id})" class="flex items-center justify-center w-9 h-9 bg-slate-100 hover:bg-red-500 text-slate-500 hover:text-white rounded-xl transition-all shadow-sm" title="Eliminar Producto">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 </button>
                             </div>
@@ -404,4 +443,111 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     };
+
+    // ===== OFERTA MODAL LOGIC =====
+    const ofertaModal = document.getElementById('ofertaModal');
+    const formOferta = document.getElementById('formOferta');
+    const btnCloseOfertaModal = document.getElementById('btnCloseOfertaModal');
+    const btnCancelOferta = document.getElementById('btnCancelOferta');
+
+    const toggleOfertaModal = (show) => {
+        ofertaModal.classList.toggle('hidden', !show);
+        if (!show) {
+            formOferta.reset();
+            document.getElementById('ofertaProdId').value = '';
+            document.getElementById('ofertaActiva').value = '1';
+            document.getElementById('ofertaPorcentaje').value = '';
+            document.getElementById('ofertaFechaInicio').value = '';
+            document.getElementById('ofertaFechaFin').value = '';
+            document.getElementById('ofertaProdNombre').textContent = '-';
+            document.getElementById('ofertaProdStock').textContent = 'Stock: -';
+            document.getElementById('ofertaProdPrecio').textContent = 'Precio: -';
+            if (window.lucide) lucide.createIcons();
+        }
+    };
+
+    window.openOfertaModal = (id) => {
+        const item = window.currentData.find(i => i.id == id);
+        if (!item) return;
+
+        // Verificar stock > 1
+        if (item.stock <= 1) {
+            AppUtils.showToast('El producto debe tener stock mayor a 1 unidad para poder ponerlo en oferta', 'error');
+            return;
+        }
+
+        document.getElementById('ofertaProdId').value = item.id;
+        document.getElementById('ofertaProdNombre').textContent = item.nombre;
+        document.getElementById('ofertaProdStock').textContent = `Stock: ${item.stock} unidades`;
+        document.getElementById('ofertaProdPrecio').textContent = `Precio: ${AppUtils.formatCurrency(item.precio)}`;
+
+        // Si ya tiene oferta activa, cargar los datos
+        if (item.oferta_activa && item.oferta_porcentaje > 0) {
+            document.getElementById('ofertaPorcentaje').value = item.oferta_porcentaje;
+            document.getElementById('ofertaFechaInicio').value = item.oferta_fecha_inicio || '';
+            document.getElementById('ofertaFechaFin').value = item.oferta_fecha_fin || '';
+            document.getElementById('ofertaModalTitle').textContent = 'Editar Oferta';
+        } else {
+            document.getElementById('ofertaPorcentaje').value = '';
+            document.getElementById('ofertaFechaInicio').value = '';
+            document.getElementById('ofertaFechaFin').value = '';
+            document.getElementById('ofertaModalTitle').textContent = 'Configurar Oferta';
+        }
+
+        toggleOfertaModal(true);
+    };
+
+    btnCloseOfertaModal?.addEventListener('click', () => toggleOfertaModal(false));
+    btnCancelOferta?.addEventListener('click', () => toggleOfertaModal(false));
+
+    formOferta.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const btnSave = formOferta.querySelector('button[type="submit"]');
+        const originalText = btnSave.innerHTML;
+
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
+        if (window.lucide) lucide.createIcons();
+
+        const formData = new FormData(formOferta);
+        formData.append('csrf_token', CSRF_TOKEN);
+
+        try {
+            const res = await fetch(`${URLROOT}/inventario/oferta`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
+                body: formData
+            });
+
+            if (!res.ok) throw new Error('Error en la comunicación con el servidor');
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) throw new Error('El servidor devolvió una respuesta inválida (HTML)');
+
+            const result = await res.json();
+            if (result.success) {
+                toggleOfertaModal(false);
+                if (window.handler_inventario) window.handler_inventario.reload();
+                AppUtils.showToast(result.mensaje);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al guardar la oferta', 'error');
+            }
+        } catch (error) {
+            AppUtils.showToast('Error de conexión', 'error');
+        } finally {
+            btnSave.disabled = false;
+            btnSave.innerHTML = originalText;
+            if (window.lucide) lucide.createIcons();
+        }
+    });
+
+    // Cerrar modal al hacer clic fuera
+    ofertaModal?.addEventListener('click', (e) => {
+        if (e.target === ofertaModal) {
+            toggleOfertaModal(false);
+        }
+    });
 });

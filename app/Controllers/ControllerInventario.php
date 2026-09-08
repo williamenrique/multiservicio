@@ -177,8 +177,17 @@ class ControllerInventario extends Controller {
         RoleGuard::isAdmin();
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Detectar si los datos vienen por JSON o por FormData (POST tradicional)
-            $json = json_decode(file_get_contents('php://input'), true);
-            $input = $json ?? $_POST;
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            $input = [];
+            
+            if (strpos($contentType, 'application/json') !== false) {
+                // Para JSON, leer del input stream
+                $json = json_decode(file_get_contents('php://input'), true);
+                $input = $json ?? [];
+            } else {
+                // Para FormData (multipart/form-data) y application/x-www-form-urlencoded, usar $_POST
+                $input = $_POST;
+            }
 
             if (empty($input['nombre']) || !isset($input['precio'])) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'Nombre y precio son requeridos'], 400);
@@ -302,5 +311,79 @@ class ControllerInventario extends Controller {
         RoleGuard::isAdmin();
         $res = $this->inventarioModel->eliminar($id);
         return $this->jsonResponse(['success' => $res, 'mensaje' => $res ? 'Producto inactivado correctamente' : 'Error al procesar la solicitud']);
+    }
+
+    /**
+     * Configurar oferta para un producto
+     * POST /inventario/oferta
+     */
+    public function oferta() {
+        RoleGuard::isAdmin();
+        
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Método no permitido'], 405);
+        }
+
+        // Leer input según Content-Type
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+        $input = [];
+        
+        if (strpos($contentType, 'application/json') !== false) {
+            // Para JSON, leer del input stream
+            $json = json_decode(file_get_contents('php://input'), true);
+            $input = $json ?? [];
+        } else {
+            // Para FormData (multipart/form-data) y application/x-www-form-urlencoded, usar $_POST
+            $input = $_POST;
+        }
+
+        $id = (int)($input['id'] ?? 0);
+        if (!$id) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de producto requerido'], 400);
+        }
+
+        // Verificar que el producto existe y tiene stock > 1
+        $producto = $this->inventarioModel->obtenerPorId($id);
+        if (!$producto) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Producto no encontrado'], 404);
+        }
+
+        if ($producto->stock <= 1) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'El producto debe tener stock mayor a 1 unidad para poder ponerlo en oferta'], 400);
+        }
+
+        $ofertaActiva = isset($input['oferta_activa']) ? (int)$input['oferta_activa'] : 0;
+        $ofertaPorcentaje = isset($input['oferta_porcentaje']) ? (float)$input['oferta_porcentaje'] : 0.00;
+        $ofertaFechaInicio = !empty($input['oferta_fecha_inicio']) ? $input['oferta_fecha_inicio'] : null;
+        $ofertaFechaFin = !empty($input['oferta_fecha_fin']) ? $input['oferta_fecha_fin'] : null;
+
+        // Validaciones
+        if ($ofertaActiva) {
+            if ($ofertaPorcentaje <= 0 || $ofertaPorcentaje > 100) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'El porcentaje de oferta debe estar entre 1 y 100'], 400);
+            }
+            
+            if ($ofertaFechaInicio && $ofertaFechaFin && $ofertaFechaInicio > $ofertaFechaFin) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'La fecha de inicio no puede ser posterior a la fecha de fin'], 400);
+            }
+        }
+
+        try {
+            $res = $this->inventarioModel->actualizarOferta(
+                $id,
+                $ofertaActiva,
+                $ofertaPorcentaje,
+                $ofertaFechaInicio,
+                $ofertaFechaFin
+            );
+            
+            $mensaje = $ofertaActiva 
+                ? 'Oferta activada correctamente' 
+                : 'Oferta desactivada correctamente';
+
+            return $this->jsonResponse(['success' => $res, 'mensaje' => $mensaje]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
     }
 } 

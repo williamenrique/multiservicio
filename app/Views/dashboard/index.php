@@ -25,6 +25,26 @@
                         <!-- Cards generated via JS -->
                     </div>
 
+                    <!-- Sección de Productos en Oferta -->
+                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2">
+                        <i data-lucide="tag" class="text-amber-500"></i> Productos en Oferta
+                    </h3>
+                    <div class="glass-card rounded-xl overflow-hidden">
+                        <div class="p-4 border-b border-slate-100">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-slate-500">Productos con oferta activa y vigente</span>
+                                <span id="offer-count" class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">0</span>
+                            </div>
+                        </div>
+                        <div id="products-on-offer-list" class="max-h-64 overflow-y-auto divide-y divide-slate-100">
+                            <!-- Productos en oferta generados via JS -->
+                            <div class="p-4 text-center text-slate-400 text-sm">
+                                <i data-lucide="loader" class="w-5 h-5 mx-auto animate-spin mb-2"></i>
+                                Cargando ofertas...
+                            </div>
+                        </div>
+                    </div>
+
                     <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2">
                         <i data-lucide="clock" id="pending-bills-icon"></i> Facturas en Proceso (Borradores)
                     </h3>

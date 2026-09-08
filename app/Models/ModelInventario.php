@@ -47,6 +47,90 @@ class ModelInventario {
     }
 
     /**
+     * Lista productos con información de ofertas (para catálogo público)
+     */
+    public function listarConOfertas($limit = null, $offset = null, $search = null, $categoria = null) {
+        $sql = "SELECT i.*, 
+                (i.stock - COALESCE((
+                    SELECT SUM(vd.cantidad) 
+                    FROM table_facturas_detalle vd 
+                    JOIN table_facturas v ON vd.factura_id = v.id 
+                    WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
+                ), 0)) as stock_disponible,
+                -- Calcular precio con oferta si está activa y vigente
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN ROUND(i.precio * (1 - i.oferta_porcentaje / 100), 2)
+                    ELSE i.precio
+                END as precio_final,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN 1
+                    ELSE 0
+                END as en_oferta_vigente
+                FROM table_inventario i
+                WHERE i.estado = 'ACTIVO'";
+        
+        $params = [];
+        
+        if ($search) {
+            $sql .= " AND (i.nombre LIKE :search OR i.categoria LIKE :search)";
+            $params[':search'] = "%$search%";
+        }
+        
+        if ($categoria) {
+            $sql .= " AND i.categoria = :categoria";
+            $params[':categoria'] = $categoria;
+        }
+
+        $sql .= " ORDER BY i.nombre ASC";
+        
+        if ($limit !== null && $offset !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+            $params[':limit'] = (int)$limit;
+            $params[':offset'] = (int)$offset;
+        }
+        
+        $this->db->query($sql);
+        foreach ($params as $key => $val) {
+            $this->db->bind($key, $val);
+        }
+
+        return $this->db->resultSet();
+    }
+
+    /**
+     * Cuenta total de productos con ofertas (para paginación catálogo)
+     */
+    public function contarConOfertas($search = null, $categoria = null) {
+        $sql = "SELECT COUNT(*) as total FROM table_inventario i WHERE i.estado = 'ACTIVO'";
+        $params = [];
+        
+        if ($search) {
+            $sql .= " AND (i.nombre LIKE :search OR i.categoria LIKE :search)";
+            $params[':search'] = "%$search%";
+        }
+        
+        if ($categoria) {
+            $sql .= " AND i.categoria = :categoria";
+            $params[':categoria'] = $categoria;
+        }
+
+        $this->db->query($sql);
+        foreach ($params as $key => $val) {
+            $this->db->bind($key, $val);
+        }
+
+        return (int)$this->db->single()->total;
+    }
+
+    /**
      * Retorna la cantidad total de registros en el inventario
      */
     public function contarTotal() {
@@ -93,8 +177,8 @@ class ModelInventario {
     }
 
     public function crear($datos) {
-        $this->db->query("INSERT INTO table_inventario (codigo, nombre, marca, categoria, descripcion, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen, dias_garantia) 
-                          VALUES (:codigo, :nombre, :marca, :categoria, :descripcion, :stock, :smin, :costo, :cprom, :precio, :imagen, :diasGarantia)");
+        $this->db->query("INSERT INTO table_inventario (codigo, nombre, marca, categoria, descripcion, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen, dias_garantia, oferta_activa, oferta_porcentaje, oferta_fecha_inicio, oferta_fecha_fin) 
+                          VALUES (:codigo, :nombre, :marca, :categoria, :descripcion, :stock, :smin, :costo, :cprom, :precio, :imagen, :diasGarantia, :ofertaActiva, :ofertaPorcentaje, :ofertaFechaInicio, :ofertaFechaFin)");
         
         $this->db->bind(':codigo', $datos['codigo'] ?? null);
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
@@ -108,6 +192,10 @@ class ModelInventario {
         $this->db->bind(':precio', $datos['precio']);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
         $this->db->bind(':diasGarantia', !empty($datos['dias_garantia']) ? (int)$datos['dias_garantia'] : null);
+        $this->db->bind(':ofertaActiva', isset($datos['oferta_activa']) ? (int)$datos['oferta_activa'] : 0);
+        $this->db->bind(':ofertaPorcentaje', isset($datos['oferta_porcentaje']) ? (float)$datos['oferta_porcentaje'] : 0.00);
+        $this->db->bind(':ofertaFechaInicio', !empty($datos['oferta_fecha_inicio']) ? $datos['oferta_fecha_inicio'] : null);
+        $this->db->bind(':ofertaFechaFin', !empty($datos['oferta_fecha_fin']) ? $datos['oferta_fecha_fin'] : null);
 
         if (!$this->db->execute()) {
             throw new Exception("Error al insertar el producto en la base de datos.");
@@ -116,6 +204,19 @@ class ModelInventario {
     }
 
     public function actualizar($datos) {
+        // Si solo se pasan campos de oferta (id + campos de oferta), obtener el producto actual y fusionar
+        $camposOferta = ['oferta_activa', 'oferta_porcentaje', 'oferta_fecha_inicio', 'oferta_fecha_fin'];
+        $soloOferta = isset($datos['id']) && count(array_diff(array_keys($datos), array_merge(['id'], $camposOferta))) === 0;
+        
+        if ($soloOferta) {
+            $productoActual = $this->obtenerPorId($datos['id']);
+            if (!$productoActual) {
+                throw new Exception("Producto no encontrado.");
+            }
+            // Fusionar datos actuales con los nuevos campos de oferta
+            $datos = array_merge((array)$productoActual, $datos);
+        }
+        
         $this->db->query("UPDATE table_inventario 
                           SET codigo = :codigo,
                               nombre = :nombre,
@@ -128,25 +229,57 @@ class ModelInventario {
                               costo_promedio = :cprom,
                               precio = :precio, 
                               imagen = :imagen,
-                              dias_garantia = :diasGarantia
+                              dias_garantia = :diasGarantia,
+                              oferta_activa = :ofertaActiva,
+                              oferta_porcentaje = :ofertaPorcentaje,
+                              oferta_fecha_inicio = :ofertaFechaInicio,
+                              oferta_fecha_fin = :ofertaFechaFin
                           WHERE id = :id");
         
         $this->db->bind(':id', $datos['id']);
         $this->db->bind(':codigo', $datos['codigo'] ?? null);
-        $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
+        $this->db->bind(':nombre', isset($datos['nombre']) ? mb_strtoupper($datos['nombre'], 'UTF-8') : '');
         $this->db->bind(':marca', !empty($datos['marca']) ? mb_strtoupper($datos['marca'], 'UTF-8') : null);
-        $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
+        $this->db->bind(':categoria', isset($datos['categoria']) ? mb_strtoupper($datos['categoria'], 'UTF-8') : '');
         $this->db->bind(':descripcion', !empty($datos['descripcion']) ? mb_strtoupper($datos['descripcion'], 'UTF-8') : null);
-        $this->db->bind(':stock', $datos['stock']);
+        $this->db->bind(':stock', $datos['stock'] ?? 0);
         $this->db->bind(':smin', $datos['stock_minimo'] ?? 5);
         $this->db->bind(':costo', $datos['ultimo_costo'] ?? 0);
         $this->db->bind(':cprom', $datos['costo_promedio'] ?? 0);
-        $this->db->bind(':precio', $datos['precio']);
+        $this->db->bind(':precio', $datos['precio'] ?? 0);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
         $this->db->bind(':diasGarantia', !empty($datos['dias_garantia']) ? (int)$datos['dias_garantia'] : null);
+        $this->db->bind(':ofertaActiva', isset($datos['oferta_activa']) ? (int)$datos['oferta_activa'] : 0);
+        $this->db->bind(':ofertaPorcentaje', isset($datos['oferta_porcentaje']) ? (float)$datos['oferta_porcentaje'] : 0.00);
+        $this->db->bind(':ofertaFechaInicio', !empty($datos['oferta_fecha_inicio']) ? $datos['oferta_fecha_inicio'] : null);
+        $this->db->bind(':ofertaFechaFin', !empty($datos['oferta_fecha_fin']) ? $datos['oferta_fecha_fin'] : null);
 
         if (!$this->db->execute()) {
             throw new Exception("Error al actualizar los datos del producto.");
+        }
+        return true;
+    }
+
+    /**
+     * Actualiza solo los campos de oferta de un producto
+     * Evita problemas de merge con datos parciales
+     */
+    public function actualizarOferta($id, $ofertaActiva, $ofertaPorcentaje, $ofertaFechaInicio, $ofertaFechaFin) {
+        $this->db->query("UPDATE table_inventario 
+                          SET oferta_activa = :ofertaActiva,
+                              oferta_porcentaje = :ofertaPorcentaje,
+                              oferta_fecha_inicio = :ofertaFechaInicio,
+                              oferta_fecha_fin = :ofertaFechaFin
+                          WHERE id = :id");
+        
+        $this->db->bind(':id', $id);
+        $this->db->bind(':ofertaActiva', (int)$ofertaActiva);
+        $this->db->bind(':ofertaPorcentaje', (float)$ofertaPorcentaje);
+        $this->db->bind(':ofertaFechaInicio', !empty($ofertaFechaInicio) ? $ofertaFechaInicio : null);
+        $this->db->bind(':ofertaFechaFin', !empty($ofertaFechaFin) ? $ofertaFechaFin : null);
+
+        if (!$this->db->execute()) {
+            throw new Exception("Error al actualizar la oferta del producto.");
         }
         return true;
     }

@@ -138,8 +138,14 @@ CREATE TABLE `table_inventario` (
   `imagen` varchar(255) DEFAULT NULL,
   `dias_garantia` int(11) DEFAULT NULL, -- Días de garantía específicos para este repuesto (NULL = usar global)
   `estado` enum('ACTIVO', 'INACTIVO') DEFAULT 'ACTIVO',
+  -- Campos para OFERTAS
+  `oferta_activa` tinyint(1) DEFAULT 0, -- 1 = en oferta, 0 = sin oferta
+  `oferta_porcentaje` decimal(5,2) DEFAULT 0.00, -- Porcentaje de descuento (ej: 15.00 = 15%)
+  `oferta_fecha_inicio` date DEFAULT NULL, -- Fecha de inicio de la oferta
+  `oferta_fecha_fin` date DEFAULT NULL, -- Fecha de fin de la oferta
   INDEX (`nombre`),
   INDEX (`categoria`),
+  INDEX (`oferta_activa`), -- Índice para filtrar ofertas activas
   UNIQUE KEY `uk_codigo` (`codigo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 

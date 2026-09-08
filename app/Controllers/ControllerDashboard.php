@@ -52,4 +52,21 @@ class ControllerDashboard extends Controller {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Endpoint API para obtener productos con oferta activa
+     */
+    public function getProductsOnOffer() {
+        try {
+            $limit = (int)($_GET['limit'] ?? 10);
+            $products = $this->dashboardModel->getProductsOnOffer($limit);
+            
+            return $this->jsonResponse([
+                'success' => true,
+                'products' => $products
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
 }

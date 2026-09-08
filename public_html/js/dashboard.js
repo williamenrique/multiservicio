@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             renderDashboard(data);
+
+            // Cargar productos en oferta
+            loadProductsOnOffer();
         } catch (error) {
             console.error('Error actualizando Dashboard:', error);
         }
@@ -403,6 +406,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Reinicializar iconos de Lucide para los elementos inyectados
         if (window.lucide) lucide.createIcons();
+    };
+
+    /**
+     * Carga y renderiza los productos con oferta activa
+     */
+    const loadProductsOnOffer = async () => {
+        const container = document.getElementById('products-on-offer-list');
+        const countEl = document.getElementById('offer-count');
+        if (!container) return;
+
+        try {
+            const response = await fetch(`${URLROOT}/dashboard/getProductsOnOffer?limit=10`);
+            if (!response.ok) throw new Error('Error al obtener productos en oferta');
+
+            const data = await response.json();
+            if (!data.success) throw new Error(data.error || 'Error en la respuesta');
+
+            const products = data.products || [];
+
+            // Actualizar contador
+            if (countEl) {
+                countEl.textContent = products.length;
+            }
+
+            if (products.length === 0) {
+                container.innerHTML = `
+                    <div class="p-6 text-center text-slate-400">
+                        <i data-lucide="tag" class="w-10 h-10 mx-auto mb-2 opacity-20"></i>
+                        <p class="text-sm font-medium">No hay productos en oferta activa</p>
+                        <p class="text-xs text-slate-500 mt-1">Configura ofertas desde el inventario</p>
+                    </div>`;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+
+            container.innerHTML = products.map(p => {
+                const precioOriginal = parseFloat(p.precio);
+                const precioFinal = parseFloat(p.precio_final);
+                const porcentaje = parseInt(p.oferta_porcentaje);
+                const imagen = p.imagen ? `${URLROOT}/${p.imagen}` : null;
+                const tieneImagen = imagen && !imagen.startsWith('data:') && !imagen.startsWith('http');
+
+                return `
+                    <div class="p-3 hover:bg-slate-50/50 transition-colors flex items-center gap-3">
+                        <!-- Imagen -->
+                        <div class="w-12 h-12 flex-shrink-0 rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center">
+                            ${tieneImagen ? `<img src="${imagen}" alt="${p.nombre}" class="w-full h-full object-cover">` : `<i data-lucide="package" class="w-5 h-5 text-slate-300"></i>`}
+                        </div>
+                        <!-- Info -->
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-slate-800 truncate">${p.nombre}</p>
+                            <p class="text-xs text-slate-400 truncate">${p.categoria} ${p.marca ? '• ' + p.marca : ''}</p>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-xs font-bold text-amber-600">${precioFinal.toFixed(2)}</span>
+                                <span class="text-xs text-slate-400 line-through">${precioOriginal.toFixed(2)}</span>
+                                <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">${porcentaje}% OFF</span>
+                            </div>
+                        </div>
+                        <!-- Stock -->
+                        <div class="text-right flex-shrink-0">
+                            <span class="text-xs ${p.stock > 0 ? 'text-emerald-600' : 'text-rose-600'} font-bold">
+                                ${p.stock > 0 ? p.stock + ' disp.' : 'Agotado'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (window.lucide) lucide.createIcons();
+        } catch (error) {
+            console.error('Error cargando productos en oferta:', error);
+            container.innerHTML = `
+                <div class="p-4 text-center text-rose-500 text-sm">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 mx-auto mb-1"></i>
+                    Error al cargar ofertas
+                </div>`;
+        }
     };
 
     /**

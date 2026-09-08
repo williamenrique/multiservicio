@@ -50,6 +50,7 @@
                         <th class="px-8 py-6">Categoría</th>
                         <th class="px-8 py-6">Stock</th>
                         <th class="px-8 py-6">Precio Unitario</th>
+                        <th class="px-8 py-6">Oferta</th>
                         <th class="px-8 py-6">Estado</th>
                         <th class="px-8 py-6 text-right">Acciones</th>
                     </tr>
@@ -185,6 +186,65 @@
             <div class="pt-2 flex gap-3">
                 <button type="button" id="btnCancel" class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 uppercase text-xs">Cancelar</button>
                 <button type="submit" class="flex-1 bg-neon-green text-black font-black py-3 rounded-xl hover:scale-[1.02] uppercase text-xs flex items-center justify-center gap-2">Guardar Item</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Oferta -->
+<div id="ofertaModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 hidden overflow-y-auto">
+    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden my-auto">
+        <div class="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
+            <h2 id="ofertaModalTitle" class="text-lg sm:text-xl font-bold text-navy-blue uppercase tracking-wider">Configurar Oferta</h2>
+            <button id="btnCloseOfertaModal" class="text-gray-500 hover:text-navy-blue"><i data-lucide="x" class="w-6 h-6"></i></button>
+        </div>
+        
+        <form id="formOferta" class="p-4 sm:p-6 space-y-5">
+            <input type="hidden" name="id" id="ofertaProdId">
+            <input type="hidden" name="oferta_activa" id="ofertaActiva" value="1">
+            
+            <div id="ofertaProductoInfo" class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p class="text-xs font-bold text-slate-400 uppercase mb-1">Producto seleccionado</p>
+                <p id="ofertaProdNombre" class="font-bold text-slate-700 uppercase">-</p>
+                <p id="ofertaProdStock" class="text-sm text-slate-500">Stock: -</p>
+                <p id="ofertaProdPrecio" class="text-sm text-navy-blue font-bold">Precio: -</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Porcentaje de Descuento (%)</label>
+                <div class="relative">
+                    <input type="number" step="0.01" min="1" max="100" name="oferta_porcentaje" id="ofertaPorcentaje" required 
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all text-center text-xl font-bold">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">Ej: 15 = 15% de descuento. Máximo 100%.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Fecha Inicio</label>
+                    <input type="date" name="oferta_fecha_inicio" id="ofertaFechaInicio" 
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
+                    <p class="text-[10px] text-slate-400 mt-1">Vacío = inicio inmediato</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Fecha Fin</label>
+                    <input type="date" name="oferta_fecha_fin" id="ofertaFechaFin" 
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
+                    <p class="text-[10px] text-slate-400 mt-1">Vacío = sin fecha de fin</p>
+                </div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                <i data-lucide="alert-triangle" class="w-4 h-4 inline mr-1"></i>
+                <strong>Requisito:</strong> El producto debe tener stock mayor a 1 unidad para activar oferta.
+            </div>
+
+            <div class="pt-2 flex gap-3">
+                <button type="button" id="btnCancelOferta" class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 uppercase text-xs">Cancelar</button>
+                <button type="submit" class="flex-1 bg-amber-500 text-white font-black py-3 rounded-xl hover:scale-[1.02] uppercase text-xs flex items-center justify-center gap-2">
+                    <i data-lucide="tag" class="w-4 h-4"></i> Guardar Oferta
+                </button>
             </div>
         </form>
     </div>

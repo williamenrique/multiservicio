@@ -55,7 +55,7 @@
     </style>
 </head>
 
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- NAVBAR -->
     <nav class="nav-blur border-b border-gray-700/50 sticky top-0 z-50">
@@ -88,7 +88,7 @@
     </nav>
 
     <!-- PRODUCT DETAIL -->
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <div class="bg-white rounded-2xl shadow-md overflow-hidden">
             <div class="grid md:grid-cols-2 gap-0">
                 <!-- Image -->
@@ -101,6 +101,18 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                             d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
+                    <?php endif; ?>
+                    
+                    <!-- Badge de Oferta en la imagen -->
+                    <?php if (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente): ?>
+                    <div class="absolute top-4 left-4 z-10">
+                        <span class="bg-amber-500 text-white text-sm font-bold px-3 py-1.5 rounded-full flex items-center gap-2 animate-pulse shadow-lg">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                            <?php echo (int)$repuesto->oferta_porcentaje; ?>% OFF
+                        </span>
+                    </div>
                     <?php endif; ?>
                 </div>
                 <!-- Info -->
@@ -122,8 +134,18 @@
 
                     <!-- Precio destacado -->
                     <div class="mt-4 mb-2">
+                        <?php if (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente): ?>
+                        <!-- Precio con oferta -->
+                        <div class="flex flex-col items-start gap-1">
+                            <span class="text-gray-400 line-through text-xl">$<?php echo number_format($repuesto->precio, 2); ?></span>
+                            <span class="text-3xl font-bold text-amber-600">$<?php echo number_format($repuesto->precio_final, 2); ?></span>
+                            <span class="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold uppercase">Oferta <?php echo (int)$repuesto->oferta_porcentaje; ?>% OFF</span>
+                        </div>
+                        <?php else: ?>
+                        <!-- Precio normal -->
                         <span class="text-3xl font-bold text-emerald-600">$<?php echo number_format($repuesto->precio, 2); ?></span>
                         <span class="text-sm text-gray-400 ml-1">c/u</span>
+                        <?php endif; ?>
                     </div>
 
                     <!-- Stock badge -->
@@ -158,7 +180,7 @@
                             <!-- Subtotal dinámico -->
                             <div class="flex items-center gap-2">
                                 <span class="text-sm text-gray-500">Subtotal:</span>
-                                <span id="subtotalDetalle" data-precio="<?php echo $repuesto->precio; ?>" class="text-xl font-bold text-emerald-600">$<?php echo number_format($repuesto->precio, 2); ?></span>
+                                <span id="subtotalDetalle" data-precio="<?php echo (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente) ? $repuesto->precio_final : $repuesto->precio; ?>" class="text-xl font-bold text-emerald-600">$<?php echo number_format((!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente) ? $repuesto->precio_final : $repuesto->precio, 2); ?></span>
                             </div>
                         </div>
                         <!-- Botón agregar -->
@@ -179,7 +201,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </main>
 
     <!-- FOOTER -->
     <footer class="bg-slate-900 text-gray-400 py-8 mt-12">

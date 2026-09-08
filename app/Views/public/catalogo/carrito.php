@@ -18,7 +18,7 @@
         .btn-danger:hover { background: #dc2626; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- NAVBAR -->
     <nav class="nav-blur border-b border-gray-700/50 sticky top-0 z-50">
@@ -38,7 +38,7 @@
     </nav>
 
     <!-- CART CONTENT -->
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="flex-1 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Carrito de Compras</h1>
 
         <?php if (empty($items)): ?>
@@ -68,7 +68,15 @@
                             <!-- Info -->
                             <div class="flex-1 min-w-0">
                                 <h3 class="font-semibold text-gray-800 truncate"><?php echo s($item['nombre']); ?></h3>
+                                <?php if (!empty($item['en_oferta']) && $item['en_oferta']): ?>
+                                <div class="flex flex-col items-start gap-0.5 mt-1">
+                                    <span class="text-gray-400 line-through text-sm">$<?php echo number_format($item['precio_original'], 2); ?> c/u</span>
+                                    <span class="text-sm font-bold text-amber-600">$<?php echo number_format($item['precio'], 2); ?> c/u</span>
+                                    <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">Oferta <?php echo (int)$item['oferta_porcentaje']; ?>% OFF</span>
+                                </div>
+                                <?php else: ?>
                                 <p class="text-sm text-gray-500 mt-1">$<?php echo number_format($item['precio'], 2); ?> c/u</p>
+                                <?php endif; ?>
                             </div>
                             <!-- Quantity controls -->
                             <div class="flex items-center border border-gray-300 rounded-lg">
@@ -118,7 +126,7 @@
                 </div>
             </div>
         <?php endif; ?>
-    </div>
+    </main>
 
     <!-- FOOTER -->
     <footer class="bg-slate-900 text-gray-400 py-8 mt-12">

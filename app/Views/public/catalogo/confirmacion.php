@@ -30,7 +30,7 @@
     </style>
 </head>
 
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- NAVBAR -->
     <nav class="nav-blur border-b border-gray-700/50 sticky top-0 z-50">
@@ -51,7 +51,7 @@
         </div>
     </nav>
 
-    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <main class="flex-1 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full">
         <!-- Success message -->
         <div class="text-center mb-8">
             <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -220,7 +220,7 @@
                 Seguir Comprando
             </a>
         </div>
-    </div>
+    </main>
 
     <!-- FOOTER -->
     <footer class="bg-slate-900 text-gray-400 py-8 mt-12">

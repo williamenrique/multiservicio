@@ -88,13 +88,20 @@ class ControllerCatalogo extends Controller {
             foreach ($carrito as $id => $cantidad) {
                 $repuesto = $this->modelCatalogo->obtenerRepuesto($id);
                 if ($repuesto) {
-                    $subtotal = $repuesto->precio * $cantidad;
+                    // Usar precio_final si hay oferta vigente, sino precio normal
+                    $precioVenta = (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente) 
+                        ? $repuesto->precio_final 
+                        : $repuesto->precio;
+                    $subtotal = $precioVenta * $cantidad;
                     $total += $subtotal;
                     $items[] = [
                         'id' => $repuesto->id,
                         'nombre' => $repuesto->nombre,
                         'codigo' => $repuesto->codigo,
-                        'precio' => $repuesto->precio,
+                        'precio' => $precioVenta,
+                        'precio_original' => $repuesto->precio,
+                        'en_oferta' => (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente),
+                        'oferta_porcentaje' => $repuesto->oferta_porcentaje ?? 0,
                         'cantidad' => $cantidad,
                         'subtotal' => $subtotal,
                         'imagen' => $repuesto->imagen,
@@ -211,7 +218,10 @@ class ControllerCatalogo extends Controller {
         if ($cantidad > 0) {
             $repuesto = $this->modelCatalogo->buscarPorId($id);
             if ($repuesto) {
-                $subtotalItem = $repuesto->precio * $cantidad;
+                $precioVenta = (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente) 
+                    ? $repuesto->precio_final 
+                    : $repuesto->precio;
+                $subtotalItem = $precioVenta * $cantidad;
             }
         }
 
@@ -221,7 +231,10 @@ class ControllerCatalogo extends Controller {
             $repuestos = $this->modelCatalogo->buscarPorIds($ids);
             foreach ($repuestos as $r) {
                 $qty = $_SESSION['carrito_publico'][$r->id] ?? 0;
-                $subtotalCarrito += $r->precio * $qty;
+                $precioVenta = (!empty($r->en_oferta_vigente) && $r->en_oferta_vigente) 
+                    ? $r->precio_final 
+                    : $r->precio;
+                $subtotalCarrito += $precioVenta * $qty;
             }
         }
         $iva = 0; // IVA deshabilitado temporalmente

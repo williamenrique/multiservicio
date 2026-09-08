@@ -13,23 +13,43 @@ class ModelCatalogo {
 
     /**
      * Lista repuestos activos con búsqueda y filtro por categoría
+     * Incluye cálculo de precio con oferta si está activa y vigente
      */
     public function listarRepuestos($busqueda = null, $categoria = null, $limit = 12, $offset = 0) {
-        $sql = "SELECT * FROM table_inventario WHERE estado = 'ACTIVO'";
+        $sql = "SELECT i.*,
+                -- Calcular precio con oferta si está activa y vigente
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN ROUND(i.precio * (1 - i.oferta_porcentaje / 100), 2)
+                    ELSE i.precio
+                END as precio_final,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN 1
+                    ELSE 0
+                END as en_oferta_vigente
+                FROM table_inventario i
+                WHERE i.estado = 'ACTIVO'";
         $params = [];
 
         if ($busqueda) {
-            $sql .= " AND (nombre LIKE :busqueda 
-                      OR categoria LIKE :busqueda)";
+            $sql .= " AND (i.nombre LIKE :busqueda 
+                      OR i.categoria LIKE :busqueda)";
             $params[':busqueda'] = "%$busqueda%";
         }
 
         if ($categoria) {
-            $sql .= " AND categoria = :categoria";
+            $sql .= " AND i.categoria = :categoria";
             $params[':categoria'] = $categoria;
         }
 
-        $sql .= " ORDER BY nombre ASC LIMIT :limit OFFSET :offset";
+        $sql .= " ORDER BY i.nombre ASC LIMIT :limit OFFSET :offset";
         $params[':limit'] = (int)$limit;
         $params[':offset'] = (int)$offset;
 
@@ -77,19 +97,55 @@ class ModelCatalogo {
     }
 
     /**
-     * Obtiene un repuesto por su ID
+     * Obtiene un repuesto por su ID con información de oferta
      */
     public function obtenerRepuesto($id) {
-        $this->db->query("SELECT * FROM table_inventario WHERE id = :id AND estado = 'ACTIVO'");
+        $this->db->query("SELECT i.*,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN ROUND(i.precio * (1 - i.oferta_porcentaje / 100), 2)
+                    ELSE i.precio
+                END as precio_final,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN 1
+                    ELSE 0
+                END as en_oferta_vigente
+                FROM table_inventario i
+                WHERE i.id = :id AND i.estado = 'ACTIVO'");
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
 
     /**
-     * Busca repuestos por ID exacto
+     * Busca repuestos por ID exacto con información de oferta
      */
     public function buscarPorCodigo($id) {
-        $this->db->query("SELECT * FROM table_inventario WHERE id = :id AND estado = 'ACTIVO'");
+        $this->db->query("SELECT i.*,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN ROUND(i.precio * (1 - i.oferta_porcentaje / 100), 2)
+                    ELSE i.precio
+                END as precio_final,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN 1
+                    ELSE 0
+                END as en_oferta_vigente
+                FROM table_inventario i
+                WHERE i.id = :id AND i.estado = 'ACTIVO'");
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
@@ -102,7 +158,7 @@ class ModelCatalogo {
     }
 
     /**
-     * Busca múltiples repuestos por sus IDs
+     * Busca múltiples repuestos por sus IDs con información de oferta
      */
     public function buscarPorIds($ids) {
         if (empty($ids)) return [];
@@ -114,7 +170,25 @@ class ModelCatalogo {
             $params[$key] = (int)$id;
         }
         $in = implode(',', $placeholders);
-        $this->db->query("SELECT * FROM table_inventario WHERE id IN ($in) AND estado = 'ACTIVO'");
+        $this->db->query("SELECT i.*,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN ROUND(i.precio * (1 - i.oferta_porcentaje / 100), 2)
+                    ELSE i.precio
+                END as precio_final,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN 1
+                    ELSE 0
+                END as en_oferta_vigente
+                FROM table_inventario i
+                WHERE i.id IN ($in) AND i.estado = 'ACTIVO'");
         foreach ($params as $key => $val) {
             $this->db->bind($key, $val);
         }
@@ -122,12 +196,29 @@ class ModelCatalogo {
     }
 
     /**
-     * Obtiene repuestos destacados (con stock > 0, aleatorio)
+     * Obtiene repuestos destacados (con stock > 0, aleatorio) con información de oferta
      */
     public function obtenerDestacados($limit = 8) {
-        $this->db->query("SELECT * FROM table_inventario 
-                          WHERE estado = 'ACTIVO' AND stock > 0 
-                          ORDER BY RAND() LIMIT :limit");
+        $this->db->query("SELECT i.*,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN ROUND(i.precio * (1 - i.oferta_porcentaje / 100), 2)
+                    ELSE i.precio
+                END as precio_final,
+                CASE 
+                    WHEN i.oferta_activa = 1 
+                         AND i.oferta_porcentaje > 0 
+                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                    THEN 1
+                    ELSE 0
+                END as en_oferta_vigente
+                FROM table_inventario i
+                WHERE i.estado = 'ACTIVO' AND i.stock > 0 
+                ORDER BY RAND() LIMIT :limit");
         $this->db->bind(':limit', (int)$limit);
         return $this->db->resultSet();
     }

@@ -64,7 +64,7 @@
     </style>
 </head>
 
-<body>
+<body class="min-h-screen flex flex-col bg-gray-50">
 
     <!-- ===== HEADER PÚBLICO ===== -->
     <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
@@ -95,7 +95,7 @@
     </header>
 
     <!-- ===== CONTENIDO PRINCIPAL ===== -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
 
         <!-- Título -->
         <div class="mb-8">
@@ -156,13 +156,23 @@
             <div class="product-card bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
                 <!-- Imagen -->
                 <a href="<?php echo URLROOT; ?>/catalogo/detalle/<?php echo $repuesto->id; ?>"
-                    class="block h-48 bg-gray-100 overflow-hidden">
+                    class="block h-48 bg-gray-100 overflow-hidden relative">
                     <?php if (!empty($repuesto->imagen) && file_exists(APPROOT . '/../public_html/' . $repuesto->imagen)): ?>
                     <img src="<?php echo URLROOT . '/' . s($repuesto->imagen); ?>"
                         alt="<?php echo s($repuesto->nombre); ?>" class="w-full h-full object-cover">
                     <?php else: ?>
                     <div class="w-full h-full flex items-center justify-center text-gray-300">
                         <i data-lucide="package" class="w-16 h-16"></i>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <!-- Badge de Oferta en la imagen -->
+                    <?php if (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente): ?>
+                    <div class="absolute top-3 left-3 z-10">
+                        <span class="bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 animate-pulse shadow-lg">
+                            <i data-lucide="tag" class="w-3 h-3"></i>
+                            <?php echo (int)$repuesto->oferta_porcentaje; ?>% OFF
+                        </span>
                     </div>
                     <?php endif; ?>
                 </a>
@@ -185,8 +195,18 @@
 
                     <div class="mt-auto pt-3 flex items-center justify-between">
                         <div>
+                            <?php if (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente): ?>
+                            <!-- Precio con oferta -->
+                            <div class="flex flex-col items-start">
+                                <span class="text-gray-400 line-through text-sm">$<?php echo number_format($repuesto->precio, 2); ?></span>
+                                <span class="text-lg font-bold text-amber-600">$<?php echo number_format($repuesto->precio_final, 2); ?></span>
+                                <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase mt-0.5">Oferta <?php echo (int)$repuesto->oferta_porcentaje; ?>% OFF</span>
+                            </div>
+                            <?php else: ?>
+                            <!-- Precio normal -->
                             <span class="text-lg font-bold text-gray-900">$<?php echo number_format($repuesto->precio, 2); ?></span>
-                            <p class="text-xs <?php echo $repuesto->stock > 0 ? 'text-emerald-600' : 'text-red-500'; ?> font-medium">
+                            <?php endif; ?>
+                            <p class="text-xs <?php echo $repuesto->stock > 0 ? 'text-emerald-600' : 'text-red-500'; ?> font-medium mt-1">
                                 <?php if ($repuesto->stock > 0): ?>
                                     <i data-lucide="package-check" class="w-3 h-3 inline"></i> <?php echo $repuesto->stock; ?> disponible(s)
                                 <?php else: ?>
