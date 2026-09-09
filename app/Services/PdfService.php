@@ -28,10 +28,7 @@ class PdfService {
         // Los demás reportes siguen el flujo secuencial tradicional.
         $isFullLayout = in_array($view, ['factura', 'garantia'], true);
 
-        if (!$isFullLayout) {
-            require APPROOT . '/Views/pdf/inc/header.php';
-        }
-
+        // El template se encarga de incluir header.php (después de definir las variables necesarias)
         require APPROOT . '/Views/pdf/templates/' . $view . '.php';
         
         if (!$isFullLayout) {

@@ -1,13 +1,12 @@
 <style>
     .main-footer {
-        position: fixed;
-        bottom: -20px;
         width: 100%;
         text-align: center;
-        font-size: 9px;
+        font-size: 8px;
         color: #94a3b8;
         border-top: 1px solid #e2e8f0;
-        padding-top: 5px;
+        padding-top: 2px;
+        margin-top: 2px;
     }
 </style>
 <div class="main-footer">

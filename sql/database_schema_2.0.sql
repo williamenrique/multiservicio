@@ -201,6 +201,20 @@ CREATE TABLE `table_orden_checklist` (
   FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Servicios / Revisiones de la Orden de Servicio
+CREATE TABLE `table_orden_servicios` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `orden_id` int(11) NOT NULL,
+  `descripcion` varchar(255) NOT NULL, -- Descripción del servicio/revisión
+  `estado` enum('PENDIENTE', 'EN_PROCESO', 'COMPLETADO', 'CANCELADO') DEFAULT 'PENDIENTE',
+  `orden_visual` int(11) DEFAULT 0, -- Orden de visualización (1, 2, 3...)
+  `fecha_creacion` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `fecha_actualizacion` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE CASCADE,
+  INDEX (`orden_id`),
+  INDEX (`estado`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- Historial de estados de la orden
 CREATE TABLE `table_orden_estados_log` (
   `id` int(11) PRIMARY KEY AUTO_INCREMENT,

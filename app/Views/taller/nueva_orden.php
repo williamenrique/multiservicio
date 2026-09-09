@@ -1,14 +1,16 @@
 <script>
-    // Definir URLROOT solo si no ha sido definida por el header para evitar SyntaxError
-    if (typeof URLROOT === 'undefined') {
-        window.URLROOT = '<?php echo URLROOT; ?>';
-    }
+// Definir URLROOT solo si no ha sido definida por el header para evitar SyntaxError
+if (typeof URLROOT === 'undefined') {
+    window.URLROOT = '<?php echo URLROOT; ?>';
+}
 </script>
 
 <div class="space-y-6">
-    <div class="bg-navy-blue p-6 rounded-xl border border-gray-800 shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
+    <div
+        class="bg-navy-blue p-6 rounded-xl border border-gray-800 shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
         <div class="flex items-center gap-4">
-            <a href="<?php echo URLROOT; ?>/taller" class="text-gray-400 hover:text-white transition-colors" title="Volver">
+            <a href="<?php echo URLROOT; ?>/taller" class="text-gray-400 hover:text-white transition-colors"
+                title="Volver">
                 <i data-lucide="arrow-left" class="w-8 h-8"></i>
             </a>
             <div>
@@ -19,13 +21,16 @@
             </div>
         </div>
         <div class="flex gap-2 w-full md:w-auto">
-            <a href="<?php echo URLROOT; ?>/taller" class="flex-1 md:flex-none justify-center bg-white/10 border border-white/20 text-white font-bold px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 uppercase text-[10px]">
+            <a href="<?php echo URLROOT; ?>/taller"
+                class="flex-1 md:flex-none justify-center bg-white/10 border border-white/20 text-white font-bold px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 uppercase text-[10px]">
                 <i data-lucide="layout-dashboard" class="w-4 h-4 text-neon-green"></i> Taller Activo
             </a>
-            <a href="<?php echo URLROOT; ?>/taller/cerradas" class="flex-1 sm:flex-none justify-center bg-white border border-slate-200 text-navy-blue font-bold px-4 py-2 rounded-lg hover:bg-slate-50 transition-all flex items-center gap-2 uppercase text-xs">
+            <a href="<?php echo URLROOT; ?>/taller/cerradas"
+                class="flex-1 sm:flex-none justify-center bg-white border border-slate-200 text-navy-blue font-bold px-4 py-2 rounded-lg hover:bg-slate-50 transition-all flex items-center gap-2 uppercase text-xs">
                 <i data-lucide="archive" class="w-4 h-4"></i> Historial
             </a>
-            <a href="<?php echo URLROOT; ?>/taller/cerradas" class="flex-1 md:flex-none justify-center bg-white/10 border border-white/20 text-white font-bold px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 uppercase text-[10px]">
+            <a href="<?php echo URLROOT; ?>/taller/cerradas"
+                class="flex-1 md:flex-none justify-center bg-white/10 border border-white/20 text-white font-bold px-4 py-2 rounded-lg hover:bg-white/20 transition-all flex items-center gap-2 uppercase text-[10px]">
                 <i data-lucide="archive" class="w-4 h-4"></i> Ver Cerradas
             </a>
         </div>
@@ -36,81 +41,101 @@
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <?php if(isset($data['vehiculo']) && $data['vehiculo']): ?>
-                    <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <p class="text-xs font-bold text-green-800 uppercase tracking-wider flex items-center gap-2">
-                            <i data-lucide="car" class="w-4 h-4"></i> VEHÍCULO ENCONTRADO DESDE HISTORIAL QR
-                        </p>
-                        <p class="text-sm text-green-700 mt-1">Los datos del vehículo han sido pre-cargados automáticamente.</p>
-                    </div>
+                <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p class="text-xs font-bold text-green-800 uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="car" class="w-4 h-4"></i> VEHÍCULO ENCONTRADO DESDE HISTORIAL QR
+                    </p>
+                    <p class="text-sm text-green-700 mt-1">Los datos del vehículo han sido pre-cargados automáticamente.
+                    </p>
+                </div>
                 <?php endif; ?>
-                
+
                 <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2">Información del Vehículo</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="relative">
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Placa *</label>
-                        <input type="text" name="placa" id="inputPlaca" required class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none font-bold text-navy-blue" placeholder="ABC-123" 
-                               value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->placa) : ''; ?>">
-                        <div id="placa_results" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
+                        <input type="text" name="placa" id="inputPlaca" required
+                            class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none font-bold text-navy-blue"
+                            placeholder="ABC-123"
+                            value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->placa) : ''; ?>">
+                        <div id="placa_results"
+                            class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1">
+                        </div>
                     </div>
                     <div class="relative">
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Identificación Cliente *</label>
-                        <input type="text" name="cliente_id" id="cliente_id" required placeholder="Cédula o NIT" autocomplete="off" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
-                               value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] && isset($data['vehiculo']->cliente_id) ? htmlspecialchars($data['vehiculo']->cliente_id) : ''; ?>">
-                        <div id="cliente_results" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Identificación Cliente
+                            *</label>
+                        <input type="text" name="cliente_id" id="cliente_id" required placeholder="Cédula o NIT"
+                            autocomplete="off"
+                            class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                            value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] && isset($data['vehiculo']->cliente_id) ? htmlspecialchars($data['vehiculo']->cliente_id) : ''; ?>">
+                        <div id="cliente_results"
+                            class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200 rounded-xl shadow-2xl bg-white z-[100] py-1">
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre del Cliente</label>
-                        <input type="text" id="cliente_nombre" readonly class="w-full bg-slate-100 border border-gray-200 rounded-lg px-4 py-2 outline-none font-bold text-navy-blue italic" placeholder="Ingrese ID para buscar..."
-                               value="<?php echo isset($data['cliente']) && $data['cliente'] ? htmlspecialchars($data['cliente']->nombre) : (isset($data['vehiculo']) && $data['vehiculo'] && isset($data['vehiculo']->cliente_nombre) ? htmlspecialchars($data['vehiculo']->cliente_nombre) : ''); ?>">
+                        <input type="text" id="cliente_nombre" readonly
+                            class="w-full bg-slate-100 border border-gray-200 rounded-lg px-4 py-2 outline-none font-bold text-navy-blue italic"
+                            placeholder="Ingrese ID para buscar..."
+                            value="<?php echo isset($data['cliente']) && $data['cliente'] ? htmlspecialchars($data['cliente']->nombre) : (isset($data['vehiculo']) && $data['vehiculo'] && isset($data['vehiculo']->cliente_nombre) ? htmlspecialchars($data['vehiculo']->cliente_nombre) : ''); ?>">
                         <?php if(isset($data['vehiculo']) && $data['vehiculo'] && isset($data['vehiculo']->cliente_id)): ?>
-                            <div class="mt-1">
-                                <?php if(isset($data['cliente']) && $data['cliente']): ?>
-                                    <span class="text-xs text-green-600 font-medium flex items-center gap-1">
-                                        <i data-lucide="check-circle" class="w-3 h-3"></i> Cliente verificado
-                                    </span>
-                                <?php else: ?>
-                                    <span class="text-xs text-yellow-600 font-medium flex items-center gap-1">
-                                        <i data-lucide="alert-circle" class="w-3 h-3"></i> Cliente encontrado en BD
-                                    </span>
-                                <?php endif; ?>
-                            </div>
+                        <div class="mt-1">
+                            <?php if(isset($data['cliente']) && $data['cliente']): ?>
+                            <span class="text-xs text-green-600 font-medium flex items-center gap-1">
+                                <i data-lucide="check-circle" class="w-3 h-3"></i> Cliente verificado
+                            </span>
+                            <?php else: ?>
+                            <span class="text-xs text-yellow-600 font-medium flex items-center gap-1">
+                                <i data-lucide="alert-circle" class="w-3 h-3"></i> Cliente encontrado en BD
+                            </span>
+                            <?php endif; ?>
+                        </div>
                         <?php endif; ?>
                     </div>
                     <div class="md:col-span-3">
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Mecánico Asignado</label>
-                        <select name="mecanico_id" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none font-bold text-navy-blue">
+                        <select name="mecanico_id"
+                            class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none font-bold text-navy-blue">
                             <option value="">-- ASIGNAR MÁS TARDE --</option>
                             <?php foreach($data['staff'] as $s): ?>
-                                <option value="<?php echo $s->id; ?>"><?php echo $s->nombre; ?> (<?php echo $s->cargo; ?>)</option>
+                            <option value="<?php echo $s->id; ?>"><?php echo $s->nombre; ?> (<?php echo $s->cargo; ?>)
+                            </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Marca *</label>
-                        <input type="text" name="marca" required placeholder="Ej: Toyota" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
-                               value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->marca) : ''; ?>">
+                        <input type="text" name="marca" required placeholder="Ej: Toyota"
+                            class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                            value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->marca) : ''; ?>">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Modelo *</label>
-                        <input type="text" name="modelo" required placeholder="Ej: Corolla" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
-                               value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->modelo) : ''; ?>">
+                        <input type="text" name="modelo" required placeholder="Ej: Corolla"
+                            class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                            value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->modelo) : ''; ?>">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Año / Color</label>
                         <div class="flex gap-2">
-                            <input type="number" name="anio" placeholder="Año" class="w-1/2 bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
-                                   value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->anio) : ''; ?>">
-                            <input type="text" name="color" placeholder="Color" class="w-1/2 bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
-                                   value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->color) : ''; ?>">
+                            <input type="number" name="anio" placeholder="Año"
+                                class="w-1/2 bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                                value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->anio) : ''; ?>">
+                            <input type="text" name="color" placeholder="Color"
+                                class="w-1/2 bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                                value="<?php echo isset($data['vehiculo']) && $data['vehiculo'] ? htmlspecialchars($data['vehiculo']->color) : ''; ?>">
                         </div>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Kilometraje *</label>
-                        <input type="number" name="kilometraje" required class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
+                        <input type="number" name="kilometraje" required
+                            class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nivel de Combustible</label>
-                        <select name="nivel_combustible" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
+                        <select name="nivel_combustible"
+                            class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
                             <option value="E">Vacío (E)</option>
                             <option value="1/4">1/4</option>
                             <option value="1/2">1/2</option>
@@ -119,14 +144,36 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Entrega Estimada</label>
-                        <input type="datetime-local" name="fecha_entrega" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Entrega
+                            Estimada</label>
+                        <input type="datetime-local" name="fecha_entrega"
+                            class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none">
                     </div>
                 </div>
 
                 <div class="mt-6">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Motivo de Ingreso / Observaciones</label>
-                    <textarea name="observaciones_entrada" rows="4" class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none" placeholder="Describa el problema o el servicio solicitado..."></textarea>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Motivo de Ingreso /
+                        Observaciones</label>
+                    <textarea name="observaciones_entrada" rows="4"
+                        class="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-neon-green outline-none"
+                        placeholder="Describa el problema o el servicio solicitado..."></textarea>
+                </div>
+
+                <!-- Servicios / Revisiones a Realizar -->
+                <div class="mt-6">
+                    <div class="flex justify-between items-center mb-4 border-b pb-2">
+                        <h3 class="text-lg font-bold text-slate-800">Servicios / Revisiones a Realizar</h3>
+                        <button type="button" onclick="agregarFilaServicio()"
+                            class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded-lg font-black uppercase hover:scale-105 transition-all">
+                            + Agregar Servicio
+                        </button>
+                    </div>
+                    <div id="servicios-container" class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                        <!-- Las filas se insertan aquí -->
+                        <div class="text-center py-4 text-slate-400 text-xs italic" id="empty-servicios-msg">
+                            No hay servicios agregados
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -136,7 +183,8 @@
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <div class="flex justify-between items-center mb-4 border-b pb-2">
                     <h3 class="text-lg font-bold text-slate-800">Checklist</h3>
-                    <button type="button" onclick="agregarFilaChecklist()" class="text-[10px] bg-navy-blue text-neon-green px-2 py-1 rounded-lg font-black uppercase hover:scale-105 transition-all">
+                    <button type="button" onclick="agregarFilaChecklist()"
+                        class="text-[10px] bg-navy-blue text-neon-green px-2 py-1 rounded-lg font-black uppercase hover:scale-105 transition-all">
                         + Agregar
                     </button>
                 </div>
@@ -148,7 +196,8 @@
                 </div>
             </div>
 
-            <button type="submit" class="w-full bg-neon-green text-navy-blue font-black py-4 rounded-xl shadow-lg hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
+            <button type="submit"
+                class="w-full bg-neon-green text-navy-blue font-black py-4 rounded-xl shadow-lg hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
                 <i data-lucide="save"></i> Crear Orden de Servicio
             </button>
         </div>
@@ -172,19 +221,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (inputPlaca && inputPlaca.value.trim().length >= 3) {
         // Aplicar estilos visuales para indicar que los datos son pre-cargados
         inputPlaca.classList.add('bg-green-50', 'border-green-300');
-        
+
         // Marcar campos del vehículo como pre-cargados
-        document.querySelectorAll('[name="marca"], [name="modelo"], [name="anio"], [name="color"]').forEach(input => {
-            if (input.value) {
-                input.classList.add('bg-green-50', 'border-green-300');
-            }
-        });
-        
+        document.querySelectorAll('[name="marca"], [name="modelo"], [name="anio"], [name="color"]').forEach(
+            input => {
+                if (input.value) {
+                    input.classList.add('bg-green-50', 'border-green-300');
+                }
+            });
+
         if (inputClienteNombre && inputClienteNombre.value) {
             inputClienteNombre.classList.add('bg-green-50', 'border-green-300');
             inputClienteId.classList.add('bg-green-50', 'border-green-300');
         }
-        
+
         // Simular el evento blur para buscar el último kilometraje automáticamente
         setTimeout(() => {
             if (inputPlaca.value.trim()) {
@@ -213,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const resp = await fetch(`${URLROOT}/taller/obtenerVehiculoPorPlaca/${placa}`);
             const res = await resp.json();
-            
+
             if (res.success && res.data) {
                 const v = res.data;
                 // Llenar campos del vehículo
@@ -221,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelector('[name="modelo"]').value = v.modelo || '';
                 document.querySelector('[name="anio"]').value = v.anio || '';
                 document.querySelector('[name="color"]').value = v.color || '';
-                
+
                 // Llenar datos del cliente asociado
                 if (v.cliente_id) {
                     inputClienteId.value = v.cliente_id;
@@ -238,10 +288,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const inputKilometraje = document.querySelector('[name="kilometraje"]');
                 if (inputKilometraje && res.ultimo_kilometraje) {
                     inputKilometraje.value = res.ultimo_kilometraje;
-                    AppUtils.showToast(`Vehículo encontrado. Último kilometraje: ${res.ultimo_kilometraje}`, 'success');
+                    AppUtils.showToast(
+                        `Vehículo encontrado. Último kilometraje: ${res.ultimo_kilometraje}`,
+                        'success');
                 } else {
                     AppUtils.showToast('Vehículo encontrado: Datos cargados', 'success');
-                }            } else {
+                }
+            } else {
                 // Vehicle not found, clear fields and show toast
                 document.querySelector('[name="marca"]').value = '';
                 document.querySelector('[name="modelo"]').value = '';
@@ -279,9 +332,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         searchTimerPlaca = setTimeout(async () => {
             try {
-                const resp = await fetch(`${URLROOT}/taller/buscar?q=${encodeURIComponent(term)}`);
+                const resp = await fetch(
+                    `${URLROOT}/taller/buscar?q=${encodeURIComponent(term)}`);
                 const data = await resp.json();
-                
+
                 if (data.success && data.results) {
                     const vehicles = data.results.filter(r => r.tipo === 'placa');
                     if (vehicles.length > 0) {
@@ -297,60 +351,155 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         `).join('');
                         placaResults.classList.remove('hidden');
-                        if(window.lucide) lucide.createIcons();
-                    } else { placaResults.classList.add('hidden'); }
+                        if (window.lucide) lucide.createIcons();
+                    } else {
+                        placaResults.classList.add('hidden');
+                    }
                 }
-            } catch (e) { console.error("Error searching plates:", e); }
+            } catch (e) {
+                console.error("Error searching plates:", e);
+            }
         }, 300);
     });
 
     // Cerrar resultados al hacer click fuera
     document.addEventListener('click', (e) => {
-        if (!placaResults.contains(e.target) && e.target !== inputPlaca) placaResults.classList.add('hidden');
-        if (!clienteResults.contains(e.target) && e.target !== inputClienteId) clienteResults.classList.add('hidden');
+        if (!placaResults.contains(e.target) && e.target !== inputPlaca) placaResults.classList.add(
+            'hidden');
+        if (!clienteResults.contains(e.target) && e.target !== inputClienteId) clienteResults.classList
+            .add('hidden');
     });
+
+    // Convertir a mayúsculas mientras se escribe en observaciones_entrada
+    const observacionesEntrada = document.querySelector('textarea[name="observaciones_entrada"]');
+    if (observacionesEntrada) {
+        observacionesEntrada.addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
+        });
+    }
 });
 
 function agregarFilaChecklist() {
     const container = document.getElementById('checklist-container');
     const emptyMsg = document.getElementById('empty-checklist-msg');
-    if(emptyMsg) emptyMsg.remove();
+    if (emptyMsg) emptyMsg.remove();
 
     const div = document.createElement('div');
-    div.className = "flex flex-col gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 animate-in slide-in-from-right-2 duration-200";
+    div.className =
+        "flex flex-col gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 animate-in slide-in-from-right-2 duration-200";
     div.innerHTML = `
         <div class="flex justify-between items-center">
-            <input type="text" placeholder="¿Qué recibe? (Ej: Llaves)" class="text-xs font-black text-navy-blue uppercase bg-transparent outline-none flex-1 checklist-item-name">
+            <input type="text" placeholder="¿Qué recibe? (Ej: Llaves)" class="text-xs font-black text-navy-blue bg-transparent outline-none flex-1 checklist-item-name">
             <button type="button" onclick="this.parentElement.parentElement.remove()" class="text-rose-500 hover:text-rose-700">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
         </div>
-        <input type="text" placeholder="Observación o estado..." class="text-[10px] w-full border-b border-slate-200 focus:border-neon-green outline-none bg-transparent checklist-item-note uppercase">
+        <input type="text" placeholder="Observación o estado..." class="text-[10px] w-full border-b border-slate-200 focus:border-neon-green outline-none bg-transparent checklist-item-note">
     `;
     container.appendChild(div);
-    if(window.lucide) lucide.createIcons();
-    
+    if (window.lucide) lucide.createIcons();
+
+    // Convertir a mayúsculas mientras se escribe
+    const itemNameInput = div.querySelector('.checklist-item-name');
+    const itemNoteInput = div.querySelector('.checklist-item-note');
+
+    itemNameInput.addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+    itemNoteInput.addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+
     // Autofocus al input de nombre del item para escritura rápida
-    div.querySelector('.checklist-item-name').focus();
-    
+    itemNameInput.focus();
+
     // Hacer scroll al final para ver el nuevo item
     container.scrollTop = container.scrollHeight;
 }
 
+function agregarFilaServicio() {
+    const container = document.getElementById('servicios-container');
+    const emptyMsg = document.getElementById('empty-servicios-msg');
+    if (emptyMsg) emptyMsg.remove();
+
+    // Calcular el número de orden automático
+    const existingRows = container.querySelectorAll('.servicio-row');
+    const ordenVisual = existingRows.length + 1;
+
+    const div = document.createElement('div');
+    div.className = "servicio-row flex flex-col gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100 animate-in slide-in-from-right-2 duration-200";
+    div.innerHTML = `
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-black text-blue-700 bg-blue-100 px-2 py-0.5 rounded w-6 text-center" data-orden="${ordenVisual}">${ordenVisual}</span>
+                <textarea placeholder="Descripción del servicio / revisión (Ej: Cambio de aceite y filtro)" class="text-xs font-medium text-navy-blue bg-transparent outline-none flex-1 resize-none servicio-descripcion" rows="1" style="min-height: 28px;"></textarea>
+            </div>
+            <button type="button" onclick="eliminarFilaServicio(this)" class="text-rose-500 hover:text-rose-700">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+    `;
+    container.appendChild(div);
+    if (window.lucide) lucide.createIcons();
+
+    // Autofocus al textarea de descripción
+    const textarea = div.querySelector('.servicio-descripcion');
+    textarea.focus();
+
+    // Convertir a mayúsculas mientras se escribe
+    textarea.addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+
+    // Auto-resize del textarea
+    textarea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+
+    // Hacer scroll al final para ver el nuevo item
+    container.scrollTop = container.scrollHeight;
+}
+
+function eliminarFilaServicio(btn) {
+    const row = btn.parentElement.parentElement;
+    row.remove();
+
+    // Reordenar números visuales
+    const container = document.getElementById('servicios-container');
+    const rows = container.querySelectorAll('.servicio-row');
+    rows.forEach((r, index) => {
+        const ordenSpan = r.querySelector('[data-orden]');
+        if (ordenSpan) {
+            ordenSpan.textContent = index + 1;
+            ordenSpan.dataset.orden = index + 1;
+        }
+    });
+
+    // Mostrar mensaje vacío si no hay filas
+    if (rows.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.id = 'empty-servicios-msg';
+        emptyMsg.className = 'text-center py-4 text-slate-400 text-xs italic';
+        emptyMsg.textContent = 'No hay servicios agregados';
+        container.appendChild(emptyMsg);
+    }
+}
+
 document.getElementById('formNuevaOrden').addEventListener('submit', async function(e) {
     e.preventDefault();
-    
+
     const submitBtn = this.querySelector('button[type="submit"]');
     const originalContent = submitBtn.innerHTML;
 
     // Bloquear el botón para evitar doble clic
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i data-lucide="loader" class="animate-spin w-5 h-5 mr-2"></i> Procesando...';
-    if(window.lucide) lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
 
     const formData = new FormData(this);
     const checklist = [];
-    
+
     document.querySelectorAll('#checklist-container > div').forEach((row) => {
         // Validación de seguridad: verificamos que el input exista antes de leer su valor
         const itemInput = row.querySelector('.checklist-item-name');
@@ -360,6 +509,21 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
             checklist.push({
                 item: item,
                 nota: noteInput ? noteInput.value.trim() : ''
+            });
+        }
+    });
+
+    // Recopilar servicios / revisiones
+    const servicios = [];
+    document.querySelectorAll('#servicios-container > .servicio-row').forEach((row) => {
+        const descInput = row.querySelector('.servicio-descripcion');
+        const ordenSpan = row.querySelector('[data-orden]');
+
+        if (descInput && descInput.value.trim()) {
+            servicios.push({
+                descripcion: descInput.value.trim(),
+                estado: 'PENDIENTE',
+                orden_visual: ordenSpan ? parseInt(ordenSpan.dataset.orden) : servicios.length + 1
             });
         }
     });
@@ -377,33 +541,40 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
         nivel_combustible: formData.get('nivel_combustible'),
         observaciones_entrada: formData.get('observaciones_entrada'),
         checklist: checklist,
+        servicios: servicios,
         items: checklist // Sincronizamos con items para que el controlador procese los detalles de la orden
     };
 
     try {
         const resp = await fetch(`${URLROOT}/taller/guardarOrden`, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': '<?php echo $_SESSION['csrf_token']; ?>'
             },
             body: JSON.stringify(data)
         });
         const res = await resp.json();
-        
+
         if (res.success) {
             AppUtils.showToast(res.mensaje, 'success');
-            
+
             // Mejora: Limpiar formulario y resetear interfaz sin redirigir
             this.reset();
-            
+
             // Limpiar checklist
-            const container = document.getElementById('checklist-container');
-            if(container) container.innerHTML = '<div class="text-center py-4 text-slate-400 text-xs italic" id="empty-checklist-msg">No hay items agregados</div>';
-            
+            const checklistContainer = document.getElementById('checklist-container');
+            if (checklistContainer) checklistContainer.innerHTML =
+                '<div class="text-center py-4 text-slate-400 text-xs italic" id="empty-checklist-msg">No hay items agregados</div>';
+
+            // Limpiar servicios
+            const serviciosContainer = document.getElementById('servicios-container');
+            if (serviciosContainer) serviciosContainer.innerHTML =
+                '<div class="text-center py-4 text-slate-400 text-xs italic" id="empty-servicios-msg">No hay servicios agregados</div>';
+
             // Resetear estilos de cliente
             const inputNombre = document.getElementById('cliente_nombre');
-            if(inputNombre) {
+            if (inputNombre) {
                 inputNombre.value = '';
                 inputNombre.classList.remove('bg-green-50');
                 inputNombre.classList.add('bg-slate-100');
@@ -417,13 +588,13 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
             // Re-habilitar el botón en caso de error del servidor
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalContent;
-            if(window.lucide) lucide.createIcons();
+            if (window.lucide) lucide.createIcons();
         }
-    } catch (err) { 
+    } catch (err) {
         AppUtils.showToast('Error de conexión', 'error');
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalContent;
-        if(window.lucide) lucide.createIcons();
+        if (window.lucide) lucide.createIcons();
     }
 });
 </script>

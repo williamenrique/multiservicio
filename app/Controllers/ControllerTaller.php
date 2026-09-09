@@ -87,6 +87,9 @@ class ControllerTaller extends Controller {
             // Cargar el Checklist de entrada para el PDF
             $orden->checklist = $this->ordenModel->obtenerChecklist($id);
             
+            // Cargar los Servicios / Revisiones de la orden para el PDF
+            $orden->servicios = $this->ordenModel->obtenerServicios($id);
+            
             // Cargar los ítems de la orden (si existen en el borrador de factura)
             $orden->items = $this->ordenModel->obtenerItemsOrden($id);
 
@@ -280,6 +283,11 @@ class ControllerTaller extends Controller {
                     $this->ordenModel->guardarChecklist($ordenId, $input['checklist']);
                 }
 
+                // Guardar Servicios / Revisiones de la orden
+                if (!empty($input['servicios'])) {
+                    $this->ordenModel->guardarServicios($ordenId, $input['servicios']);
+                }
+
                 // Punto 1: Guardar ítems dinámicos.
                 // En el esquema 2.0, los ítems (repuestos/servicios) de una O.S. se persisten como 
                 // un borrador de factura vinculado para reservar stock y preparar el cobro.
@@ -449,6 +457,9 @@ class ControllerTaller extends Controller {
                 }
             }
 
+            // Cargar servicios / revisiones de la orden
+            $servicios = $this->ordenModel->obtenerServicios($id);
+
             // Información técnica adicional requerida por el modal
             $logs = $this->ordenModel->obtenerLogsEstado($id);
             $checklist = $this->ordenModel->obtenerChecklist($id);
@@ -457,6 +468,7 @@ class ControllerTaller extends Controller {
                 'success' => true, 
                 'data' => $orden,
                 'items' => $items,
+                'servicios' => $servicios,
                 'staff' => $staff,
                 'logs' => $logs,
                 'checklist' => $checklist
@@ -584,6 +596,10 @@ class ControllerTaller extends Controller {
             }
 
             $comentario = !empty($input['comentario']) ? $input['comentario'] : 'Vehículo entregado al cliente.';
+            
+            // Antes de cerrar la orden, marcar todos los servicios pendientes como COMPLETADO
+            $this->ordenModel->completarServiciosPendientes($input['id']);
+            
             if ($this->ordenModel->actualizarEstado($input['id'], 'ENTREGADO', $comentario)) {
                 // ─── Enviar email de notificación: vehículo listo ───
                 try {
@@ -689,6 +705,78 @@ class ControllerTaller extends Controller {
                 return $this->jsonResponse(['success' => true, 'mensaje' => 'Mecánico asignado correctamente']);
             }
             return $this->jsonResponse(['success' => false, 'error' => 'Error al actualizar el registro']);
+        }
+    }
+
+    /**
+     * Endpoint para obtener los servicios/revisiones de la orden (AJAX)
+     */
+    public function obtenerServicios($id) {
+        $servicios = $this->ordenModel->obtenerServicios($id);
+        return $this->jsonResponse(['success' => true, 'data' => $servicios]);
+    }
+
+    /**
+     * Endpoint para actualizar el estado de un servicio específico (AJAX)
+     */
+    public function actualizarEstadoServicio() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            if (empty($input['id']) || empty($input['estado'])) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Datos incompletos'], 400);
+            }
+
+            $estadosValidos = ['PENDIENTE', 'EN_PROCESO', 'COMPLETADO', 'CANCELADO'];
+            if (!in_array($input['estado'], $estadosValidos)) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Estado inválido'], 400);
+            }
+
+            if ($this->ordenModel->actualizarEstadoServicio($input['id'], $input['estado'])) {
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Estado del servicio actualizado']);
+            }
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al actualizar el servicio']);
+        }
+    }
+
+    /**
+     * Agrega un nuevo servicio/revisión a una orden existente (AJAX)
+     */
+    public function guardarServicio() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            if (empty($input['orden_id']) || empty($input['descripcion'])) {
+                return $this->jsonResponse(['success' => false, 'error' => 'Datos incompletos'], 400);
+            }
+
+            $servicio = [
+                'descripcion' => $input['descripcion'],
+                'estado' => $input['estado'] ?? 'PENDIENTE'
+            ];
+
+            if ($this->ordenModel->agregarServicio($input['orden_id'], $servicio)) {
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Servicio agregado correctamente']);
+            }
+            return $this->jsonResponse(['success' => false, 'error' => 'Error al agregar el servicio']);
+        }
+    }
+
+    /**
+     * Elimina un servicio específico (AJAX)
+     */
+    public function eliminarServicio() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            if (empty($input['id'])) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de servicio requerido'], 400);
+            }
+
+            if ($this->ordenModel->eliminarServicio($input['id'])) {
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Servicio eliminado correctamente']);
+            }
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al eliminar el servicio']);
         }
     }
 }

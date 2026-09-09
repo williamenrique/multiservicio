@@ -133,6 +133,11 @@
                                 <button onclick="verDetalle(<?php echo $o->id; ?>)" class="text-navy-blue hover:bg-slate-100 p-2 rounded-lg transition-all" title="Detalles">
                                     <i data-lucide="external-link" class="w-5 h-5"></i>
                                 </button>
+                                
+                                <a href="<?php echo URLROOT; ?>/taller/imprimir/<?php echo $o->id; ?>" target="_blank" 
+                                   class="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all" title="Imprimir Orden de Servicio">
+                                    <i data-lucide="printer" class="w-5 h-5"></i>
+                                </a>
                             </div>
                         </td>
                     </tr>
