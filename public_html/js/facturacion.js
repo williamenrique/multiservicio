@@ -143,18 +143,40 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     btnQuickClient.addEventListener('click', async () => {
         const { value: formValues } = await Swal.fire({
-            title: 'REGISTRO RÁPIDO DE CLIENTE',
-            html:
-                '<input id="swal-input1" class="swal2-input" placeholder="NIT / CÉDULA">' +
-                '<input id="swal-input2" class="swal2-input" placeholder="NOMBRE COMPLETO">',
+            title: 'REGISTRO DE CLIENTE',
+            html: `
+                <style>
+                    .swal2-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+                    .swal2-full { grid-column: span 2; }
+                    .swal2-input { padding: 8px 12px !important; font-size: 13px !important; }
+                    .swal2-compact .swal2-title { font-size: 16px !important; padding: 0.5em 0 0.3em !important; }
+                    .swal2-compact .swal2-html-container { margin: 0.5em 0 0 !important; padding: 0 !important; }
+                    .swal2-compact .swal2-actions { padding: 0.5em 0 0 !important; gap: 8px !important; }
+                    .swal2-compact .swal2-confirm, .swal2-compact .swal2-cancel { padding: 8px 16px !important; font-size: 13px !important; }
+                </style>
+                <div class="swal2-grid">
+                    <input id="swal-input1" class="swal2-input swal2-full" placeholder="NIT / CÉDULA *">
+                    <input id="swal-input2" class="swal2-input swal2-full" placeholder="NOMBRE COMPLETO *">
+                    <input id="swal-input3" class="swal2-input" type="tel" placeholder="TELÉFONO">
+                    <input id="swal-input4" class="swal2-input" type="email" placeholder="EMAIL">
+                    <input id="swal-input5" class="swal2-input swal2-full" placeholder="DIRECCIÓN">
+                </div>
+            `,
             focusConfirm: false,
             showCancelButton: true,
             confirmButtonText: 'REGISTRAR',
             confirmButtonColor: '#10b981',
+            customClass: {
+                popup: 'swal2-compact',
+                htmlContainer: 'swal2-html-compact'
+            },
             preConfirm: () => {
                 return [
                     document.getElementById('swal-input1').value.trim(),
-                    document.getElementById('swal-input2').value.trim()
+                    document.getElementById('swal-input2').value.trim(),
+                    document.getElementById('swal-input3').value.trim(),
+                    document.getElementById('swal-input4').value.trim(),
+                    document.getElementById('swal-input5').value.trim()
                 ]
             }
         });
@@ -166,7 +188,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     id: formValues[0],
                     nombre: formValues[1],
-                    email: '', telefono: '', direccion: ''
+                    email: formValues[3],
+                    telefono: formValues[2],
+                    direccion: formValues[4]
                 })
             });
             const data = await res.json();
@@ -187,6 +211,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 4. Actualizar el borrador activo con el nuevo cliente y forzar sincronización
                 updateActiveData('cliente_id', formValues[0]); // Esto también llama a debounceSync
                 openInvoices.find(i => i.id === activeInvoiceId).cliente_nombre = formValues[1]; // Actualizar nombre en el objeto local
+
+                // 5. Re-renderizar la factura para mostrar el cliente en la UI
+                renderInvoice();
+
                 AppUtils.showToast('Cliente registrado');
             } else {
                 AppUtils.showToast(data.mensaje, 'error');
