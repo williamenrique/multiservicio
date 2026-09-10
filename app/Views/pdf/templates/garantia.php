@@ -40,40 +40,40 @@
     <meta charset="UTF-8">
     <title><?php echo strtoupper($titulo_pestaña); ?></title>
 <style>
-    @page { margin: 20px 25px; }
-    body { font-family: 'Helvetica', sans-serif; color: #1e293b; font-size: 8.5px; line-height: 1.2; }
+    @page { margin: 15px 20px; }
+    body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1e293b; font-size: 10px; line-height: 1.5; }
 
     /* Estilos de Bloques */
-    .header-table { width: 100%; border-bottom: 3px solid #0f172a; margin-bottom: 15px; padding-bottom: 10px; }
-    .section-box { margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; }
-    .section-title { background: #f1f5f9; padding: 4px 8px; font-size: 7.5px; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; color: #334155; }
-    .section-content { padding: 8px; }
+    .header-table { width: 100%; border-bottom: 2px solid #0f172a; margin-bottom: 8px; padding-bottom: 5px; }
+    .section-box { margin: 6px 0 8px 0; padding: 6px 4px; border-radius: 2px; background: #fafbfc; }
+    .section-title { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #1e40af; border-bottom: 1.5px solid #dbeafe; padding: 4px 8px; margin: 0 0 6px 0; background: #f0f4ff; border-radius: 2px 2px 0 0; }
+    .section-content { padding: 6px; }
 
-    .label-min { font-size: 7px; color: #64748b; text-transform: uppercase; font-weight: bold; margin-bottom: 1px; line-height: 1; }
-    .val-text { font-size: 9px; font-weight: bold; color: #0f172a; text-transform: uppercase; line-height: 1.2; }
+    .label-min { font-size: 8px; color: #6b7280; text-transform: uppercase; font-weight: 700; letter-spacing: 0.3px; }
+    .val-text { font-size: 11px; font-weight: 700; color: #111827; }
 
     .items-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
-    .items-table th { background: #0f172a; color: white; padding: 5px; text-align: left; font-size: 7.5px; text-transform: uppercase; }
-    .items-table td { padding: 6px 5px; border-bottom: 1px solid #e2e8f0; font-size: 8.5px; }
+    .items-table th { background: #0f172a; color: white; padding: 5px; text-align: left; font-size: 8px; text-transform: uppercase; }
+    .items-table td { padding: 6px 5px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }
 
-    .obs-box { background: #f8fafc; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 8px; line-height: 1.4; color: #334155; }
+    .obs-box { background: #f8fafc; padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 9px; line-height: 1.4; color: #334155; }
 
     /* Badge garantía */
-    .badge-garantia { display: inline-block; background: #f59e0b; color: #fff; padding: 3px 10px; border-radius: 3px; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
-    .badge-anulada { display: inline-block; background: #e11d48; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 8px; font-weight: 900; text-transform: uppercase; }
+    .badge-garantia { display: inline-block; background: #f59e0b; color: #fff; padding: 3px 10px; border-radius: 3px; font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+    .badge-anulada { display: inline-block; background: #e11d48; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 9px; font-weight: 900; text-transform: uppercase; }
 
     /* Motivo destacado */
-    .motivo-box { background: #fef3c7; border: 1px solid #f59e0b; border-left: 4px solid #f59e0b; padding: 8px 10px; border-radius: 4px; font-size: 9px; line-height: 1.4; color: #78350f; }
+    .motivo-box { background: #fef3c7; border: 1px solid #f59e0b; border-left: 4px solid #f59e0b; padding: 8px 10px; border-radius: 4px; font-size: 10px; line-height: 1.4; color: #78350f; }
 
     /* Totales */
     .total-label { font-weight: bold; color: #4b5563; text-transform: uppercase; font-size: 9px; margin-right: 10px; }
-    .total-val { font-weight: bold; font-size: 9.5px; }
-    .grand-total { font-size: 13px; border-top: 2px solid #0f172a; padding-top: 4px; color: #0f172a; }
+    .total-val { font-weight: bold; font-size: 11px; }
+    .grand-total { font-size: 14px; border-top: 2px solid #0f172a; padding-top: 4px; color: #0f172a; }
     .text-right { text-align: right; }
     .text-center { text-align: center; }
 
     /* Badges pequeños en tabla */
-    .pill { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 7px; font-weight: 900; text-transform: uppercase; color: #fff; }
+    .pill { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 8px; font-weight: 900; text-transform: uppercase; color: #fff; }
     .pill-servicio { background: #f59e0b; }
     .pill-repuesto { background: #3b82f6; }
     .pill-devolver { background: #e11d48; }
