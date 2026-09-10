@@ -59,15 +59,21 @@ CREATE TABLE `table_usuarios` (
   FOREIGN KEY (`role_id`) REFERENCES `table_roles`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Control de sesiones activas (Single Session)
-CREATE TABLE `table_usuario_sessions` (
-  `usuario_id` int(11) PRIMARY KEY,
+-- Control de sesiones activas (Single Session) - Soporte multi-plataforma (WEB/APP)
+CREATE TABLE IF NOT EXISTS `table_usuario_sessions` (
+  `usuario_id` int(11) NOT NULL,
+  `tipo` enum('WEB','APP') NOT NULL DEFAULT 'APP',
   `session_id` varchar(255) NOT NULL,
-  `ip_address` varchar(45),
-  `usuario_agent` text,
-  `last_activity` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`) ON DELETE CASCADE
+  `ip_address` varchar(45) DEFAULT NULL,
+  `usuario_agent` text DEFAULT NULL,
+  `last_activity` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`usuario_id`,`tipo`),
+  UNIQUE KEY `uk_usuario_tipo` (`usuario_id`,`tipo`),
+  KEY `idx_sessions_tipo` (`tipo`),
+  CONSTRAINT `table_usuario_sessions_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
 
 -- =============================================================================
 -- BLOQUE 2: ENTIDADES MAESTRAS
