@@ -1,4 +1,6 @@
 <style>
+    @page { margin: 15px 20px; }
+    body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1e293b; font-size: 10px; line-height: 1.5; }
     .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     .table th, .table td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 10px; }
     .table th { background-color: #f8fafc; font-weight: bold; text-transform: uppercase; color: #1e293b; }
