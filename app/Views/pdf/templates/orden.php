@@ -29,6 +29,10 @@
     .page-content {
         width: 100%;
         box-sizing: border-box;
+        position: relative;
+        min-height: 100vh;
+        padding-bottom: 100px;
+        /* Espacio para firmas y footer */
     }
 
     /* ===== CABECERA ===== */
@@ -275,7 +279,10 @@
 
     /* ===== FIRMAS ===== */
     .signature-section {
-        margin-top: 30px;
+        position: absolute;
+        bottom: 60px;
+        left: 20px;
+        right: 20px;
         padding-top: 10px;
         border-top: 1px solid #e2e8f0;
     }
@@ -356,23 +363,23 @@
             font-size: 10px;
             background: #ffffff;
         }
-        
+
         .page-content {
             padding: 0;
         }
-        
+
         .section-box {
             background: #ffffff;
             page-break-inside: avoid;
         }
-        
+
         .servicios-table th,
         .items-table th {
             background: #f1f5f9 !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
         }
-        
+
         .estado-badge {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
@@ -384,7 +391,7 @@
 <body>
     <!-- CONTENEDOR PRINCIPAL CON MÁRGENES -->
     <div class="page-content">
-        
+
         <!-- CABECERA (INCLUIDA DESDE ARCHIVO EXTERNO) -->
         <?php if(file_exists(APPROOT . '/Views/pdf/inc/header.php')): ?>
         <?php 
@@ -501,9 +508,11 @@
                     <tbody>
                         <?php foreach($orden->items as $item): ?>
                         <tr>
-                            <td style="text-transform: uppercase;"><?php echo $item->descripcion ?? $item->nombre; ?></td>
+                            <td style="text-transform: uppercase;"><?php echo $item->descripcion ?? $item->nombre; ?>
+                            </td>
                             <td style="text-align: center;"><?php echo $item->cantidad; ?></td>
-                            <td class="text-right">$ <?php echo number_format($item->precio_unitario ?? $item->precio, 2); ?>
+                            <td class="text-right">$
+                                <?php echo number_format($item->precio_unitario ?? $item->precio, 2); ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -527,7 +536,7 @@
         <div class="main-footer">
             Taller Pro 2.0 - Gestión Inteligente | Generado el: <?php echo date('d/m/Y h:i A'); ?> | Soporte: @tallerpro
         </div>
-        
+
     </div>
     <!-- FIN CONTENEDOR PRINCIPAL -->
 </body>
