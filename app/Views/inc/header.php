@@ -56,6 +56,9 @@
                     <a href="<?php echo URLROOT; ?>/facturacion" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'facturacion') !== false) ? 'active' : ''; ?>" data-section="facturacion">
                         <i data-lucide="receipt"></i> <span>Facturación</span>
                     </a>
+                    <a href="<?php echo URLROOT; ?>/facturas" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'facturas') !== false) ? 'active' : ''; ?>" data-section="facturas">
+                        <i data-lucide="file-text"></i> <span>Facturas</span>
+                    </a>
                     <a href="<?php echo URLROOT; ?>/devoluciones" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'devoluciones') !== false) ? 'active' : ''; ?>" data-section="devoluciones">
                         <i data-lucide="undo-2"></i> <span>Devoluciones</span>
                     </a>
