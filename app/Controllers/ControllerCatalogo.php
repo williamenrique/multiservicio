@@ -520,12 +520,22 @@ class ControllerCatalogo extends Controller {
                 // No interrumpir el flujo si falla el email
             }
 
-            // --- 6. Enviar notificación por WhatsApp al ADMIN ---
+            // --- 6. Enviar notificación por WhatsApp (ADMIN + CLIENTE) ---
             try {
                 $whatsappService = new \App\Services\WhatsAppService();
-                $resultadoWhatsapp = $whatsappService->notificarPedidoCatalogoAdmin($datosEmail);
-                if (!$resultadoWhatsapp['success']) {
-                    $_SESSION['whatsapp_warning'] = 'El pedido se registró correctamente, pero el servidor de WhatsApp no está disponible en este momento. Te notificaremos por correo.';
+                // Enviar notificación a ambos: administrador y cliente
+                $resultadoWhatsapp = $whatsappService->notificarPedidoCatalogo($datosEmail);
+                
+                $warnings = [];
+                if (!$resultadoWhatsapp['admin']['success']) {
+                    $warnings[] = 'No se pudo notificar al administrador por WhatsApp.';
+                }
+                if (!$resultadoWhatsapp['cliente']['success']) {
+                    $warnings[] = 'No se pudo notificar al cliente por WhatsApp.';
+                }
+                
+                if (!empty($warnings)) {
+                    $_SESSION['whatsapp_warning'] = 'El pedido se registró correctamente. ' . implode(' ', $warnings) . ' Te notificaremos por correo.';
                 }
             } catch (\Throwable $whatsappEx) {
                 error_log("ERROR WHATSAPP CATÁLOGO: " . $whatsappEx->getMessage());
