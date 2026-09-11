@@ -242,6 +242,9 @@
 
             <div class="pt-2 flex gap-3">
                 <button type="button" id="btnCancelOferta" class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 uppercase text-xs">Cancelar</button>
+                <button type="button" id="btnEliminarOferta" class="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:scale-[1.02] uppercase text-xs flex items-center justify-center gap-2 hidden">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> Eliminar Oferta
+                </button>
                 <button type="submit" class="flex-1 bg-amber-500 text-white font-black py-3 rounded-xl hover:scale-[1.02] uppercase text-xs flex items-center justify-center gap-2">
                     <i data-lucide="tag" class="w-4 h-4"></i> Guardar Oferta
                 </button>

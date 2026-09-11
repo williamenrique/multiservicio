@@ -449,6 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formOferta = document.getElementById('formOferta');
     const btnCloseOfertaModal = document.getElementById('btnCloseOfertaModal');
     const btnCancelOferta = document.getElementById('btnCancelOferta');
+    const btnEliminarOferta = document.getElementById('btnEliminarOferta');
 
     const toggleOfertaModal = (show) => {
         ofertaModal.classList.toggle('hidden', !show);
@@ -462,6 +463,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ofertaProdNombre').textContent = '-';
             document.getElementById('ofertaProdStock').textContent = 'Stock: -';
             document.getElementById('ofertaProdPrecio').textContent = 'Precio: -';
+            // Ocultar botón de eliminar oferta al cerrar
+            if (btnEliminarOferta) btnEliminarOferta.classList.add('hidden');
             if (window.lucide) lucide.createIcons();
         }
     };
@@ -487,11 +490,15 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ofertaFechaInicio').value = item.oferta_fecha_inicio || '';
             document.getElementById('ofertaFechaFin').value = item.oferta_fecha_fin || '';
             document.getElementById('ofertaModalTitle').textContent = 'Editar Oferta';
+            // Mostrar botón de eliminar oferta
+            if (btnEliminarOferta) btnEliminarOferta.classList.remove('hidden');
         } else {
             document.getElementById('ofertaPorcentaje').value = '';
             document.getElementById('ofertaFechaInicio').value = '';
             document.getElementById('ofertaFechaFin').value = '';
             document.getElementById('ofertaModalTitle').textContent = 'Configurar Oferta';
+            // Ocultar botón de eliminar oferta
+            if (btnEliminarOferta) btnEliminarOferta.classList.add('hidden');
         }
 
         toggleOfertaModal(true);
@@ -542,6 +549,31 @@ document.addEventListener('DOMContentLoaded', () => {
             btnSave.innerHTML = originalText;
             if (window.lucide) lucide.createIcons();
         }
+    });
+
+    // Handler para eliminar oferta
+    btnEliminarOferta?.addEventListener('click', async () => {
+        const id = document.getElementById('ofertaProdId').value;
+        if (!id) return;
+
+        AppUtils.confirmAction('¿Eliminar oferta?', 'Esta acción eliminará la oferta del producto permanentemente.', async () => {
+            try {
+                const res = await fetch(`${URLROOT}/inventario/eliminar-oferta/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
+                });
+                const result = await res.json();
+                if (result.success) {
+                    AppUtils.showToast('Oferta eliminada correctamente');
+                    toggleOfertaModal(false);
+                    if (window.handler_inventario) window.handler_inventario.reload();
+                } else {
+                    AppUtils.showToast(result.mensaje || 'Error al eliminar la oferta', 'error');
+                }
+            } catch (error) {
+                AppUtils.showToast('Error de conexión', 'error');
+            }
+        });
     });
 
     // Cerrar modal al hacer clic fuera

@@ -208,11 +208,16 @@ class ModelInventario {
         $camposOferta = ['oferta_activa', 'oferta_porcentaje', 'oferta_fecha_inicio', 'oferta_fecha_fin'];
         $soloOferta = isset($datos['id']) && count(array_diff(array_keys($datos), array_merge(['id'], $camposOferta))) === 0;
         
-        if ($soloOferta) {
+        // Obtener producto actual para preservar campos de oferta si no se envían en la actualización
+        $productoActual = null;
+        if (isset($datos['id'])) {
             $productoActual = $this->obtenerPorId($datos['id']);
             if (!$productoActual) {
                 throw new Exception("Producto no encontrado.");
             }
+        }
+        
+        if ($soloOferta) {
             // Fusionar datos actuales con los nuevos campos de oferta
             $datos = array_merge((array)$productoActual, $datos);
         }
@@ -249,10 +254,12 @@ class ModelInventario {
         $this->db->bind(':precio', $datos['precio'] ?? 0);
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
         $this->db->bind(':diasGarantia', !empty($datos['dias_garantia']) ? (int)$datos['dias_garantia'] : null);
-        $this->db->bind(':ofertaActiva', isset($datos['oferta_activa']) ? (int)$datos['oferta_activa'] : 0);
-        $this->db->bind(':ofertaPorcentaje', isset($datos['oferta_porcentaje']) ? (float)$datos['oferta_porcentaje'] : 0.00);
-        $this->db->bind(':ofertaFechaInicio', !empty($datos['oferta_fecha_inicio']) ? $datos['oferta_fecha_inicio'] : null);
-        $this->db->bind(':ofertaFechaFin', !empty($datos['oferta_fecha_fin']) ? $datos['oferta_fecha_fin'] : null);
+        
+        // Preservar valores de oferta existentes si no se proporcionan en la actualización
+        $this->db->bind(':ofertaActiva', isset($datos['oferta_activa']) ? (int)$datos['oferta_activa'] : (int)($productoActual->oferta_activa ?? 0));
+        $this->db->bind(':ofertaPorcentaje', isset($datos['oferta_porcentaje']) ? (float)$datos['oferta_porcentaje'] : (float)($productoActual->oferta_porcentaje ?? 0.00));
+        $this->db->bind(':ofertaFechaInicio', !empty($datos['oferta_fecha_inicio']) ? $datos['oferta_fecha_inicio'] : ($productoActual->oferta_fecha_inicio ?? null));
+        $this->db->bind(':ofertaFechaFin', !empty($datos['oferta_fecha_fin']) ? $datos['oferta_fecha_fin'] : ($productoActual->oferta_fecha_fin ?? null));
 
         if (!$this->db->execute()) {
             throw new Exception("Error al actualizar los datos del producto.");

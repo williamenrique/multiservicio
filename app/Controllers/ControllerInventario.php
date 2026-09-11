@@ -359,8 +359,14 @@ class ControllerInventario extends Controller {
 
         // Validaciones
         if ($ofertaActiva) {
+            // Validar que se proporcione porcentaje de descuento
             if ($ofertaPorcentaje <= 0 || $ofertaPorcentaje > 100) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'El porcentaje de oferta debe estar entre 1 y 100'], 400);
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'El porcentaje de oferta es obligatorio y debe estar entre 1 y 100'], 400);
+            }
+            
+            // Validar que se proporcione al menos fecha de inicio o fecha de fin
+            if (empty($ofertaFechaInicio) && empty($ofertaFechaFin)) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Debe especificar al menos una fecha (inicio o fin) para la oferta'], 400);
             }
             
             if ($ofertaFechaInicio && $ofertaFechaFin && $ofertaFechaInicio > $ofertaFechaFin) {
@@ -382,6 +388,44 @@ class ControllerInventario extends Controller {
                 : 'Oferta desactivada correctamente';
 
             return $this->jsonResponse(['success' => $res, 'mensaje' => $mensaje]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Elimina la oferta de un producto (la desactiva y limpia los campos)
+     * DELETE /inventario/oferta/{id}
+     */
+    public function eliminarOferta($id) {
+        RoleGuard::isAdmin();
+        
+        if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Método no permitido'], 405);
+        }
+
+        $id = (int)$id;
+        if (!$id) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de producto requerido'], 400);
+        }
+
+        // Verificar que el producto existe
+        $producto = $this->inventarioModel->obtenerPorId($id);
+        if (!$producto) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Producto no encontrado'], 404);
+        }
+
+        try {
+            // Desactivar oferta y limpiar campos
+            $res = $this->inventarioModel->actualizarOferta(
+                $id,
+                0,           // oferta_activa = 0
+                0.00,        // oferta_porcentaje = 0
+                null,        // oferta_fecha_inicio = null
+                null         // oferta_fecha_fin = null
+            );
+            
+            return $this->jsonResponse(['success' => $res, 'mensaje' => 'Oferta eliminada correctamente']);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
