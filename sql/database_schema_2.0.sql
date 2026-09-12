@@ -487,7 +487,115 @@ CREATE TABLE `table_garantias_detalle` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- =============================================================================
--- BLOQUE 10: CATÁLOGO PÚBLICO Y PEDIDOS EN LÍNEA
+-- BLOQUE 10: EMAILS Y COMUNICACIONES
+-- =============================================================================
+
+-- Registro de emails enviados desde el sistema
+CREATE TABLE `table_emails` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `tipo` enum('FACTURA','PRESUPUESTO','NOTIFICACION','RECUPERACION','OTRO') NOT NULL DEFAULT 'OTRO',
+  `destinatario_email` varchar(150) NOT NULL,
+  `destinatario_nombre` varchar(150) DEFAULT NULL,
+  `asunto` varchar(255) NOT NULL,
+  `cuerpo_html` longtext NOT NULL,
+  `cuerpo_texto` longtext DEFAULT NULL,
+  `adjuntos` json DEFAULT NULL COMMENT 'Array de rutas de archivos adjuntos',
+  `referencia_tipo` enum('FACTURA','PRESUPUESTO','ORDEN','CLIENTE','NINGUNO') DEFAULT 'NINGUNO',
+  `referencia_id` int(11) DEFAULT NULL,
+  `estado` enum('ENVIADO','FALLIDO','PENDIENTE') NOT NULL DEFAULT 'PENDIENTE',
+  `error_mensaje` text DEFAULT NULL,
+  `usuario_id` int(11) DEFAULT NULL COMMENT 'Usuario que envió el email',
+  `fecha_envio` timestamp NULL DEFAULT NULL,
+  `fecha_creacion` timestamp DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`),
+  INDEX (`tipo`),
+  INDEX (`estado`),
+  INDEX (`fecha_creacion`),
+  INDEX (`referencia_tipo`, `referencia_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Plantillas de email predefinidas
+CREATE TABLE `table_email_templates` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `nombre` varchar(100) NOT NULL,
+  `tipo` enum('FACTURA','PRESUPUESTO','NOTIFICACION','RECUPERACION','OTRO') NOT NULL DEFAULT 'OTRO',
+  `asunto` varchar(255) NOT NULL,
+  `cuerpo_html` longtext NOT NULL,
+  `variables_disponibles` json DEFAULT NULL COMMENT 'Lista de variables que se pueden usar en la plantilla',
+  `activo` tinyint(1) DEFAULT 1,
+  `fecha_creacion` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `fecha_actualizacion` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX (`tipo`),
+  INDEX (`activo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- =============================================================================
+-- BLOQUE 11: PRESUPUESTOS / COTIZACIONES
+-- =============================================================================
+
+-- Cabecera de presupuestos
+CREATE TABLE `table_presupuestos` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `numero` varchar(20) NOT NULL COMMENT 'Formato: PRES-YYYY-XXXX',
+  `cliente_id` varchar(50) DEFAULT NULL COMMENT 'Referencia a table_clientes.id (varchar)',
+  `cliente_nombre` varchar(150) NOT NULL,
+  `cliente_cedula` varchar(20) DEFAULT NULL,
+  `cliente_telefono` varchar(20) DEFAULT NULL,
+  `cliente_email` varchar(150) DEFAULT NULL,
+  `cliente_direccion` text DEFAULT NULL,
+  `vehiculo_placa` varchar(20) DEFAULT NULL,
+  `vehiculo_marca` varchar(50) DEFAULT NULL,
+  `vehiculo_modelo` varchar(100) DEFAULT NULL,
+  `vehiculo_anio` int(4) DEFAULT NULL,
+  `vehiculo_color` varchar(30) DEFAULT NULL,
+  `subtotal` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `iva_monto` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `total` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `iva_activo` tinyint(1) DEFAULT 1 COMMENT 'Si se aplica IVA',
+  `tasa_iva` decimal(5,2) DEFAULT 19.00 COMMENT 'Porcentaje de IVA aplicado',
+  `estado` enum('BORRADOR','ENVIADO','ACEPTADO','RECHAZADO','EXPIRADO','CONVERTIDO') DEFAULT 'BORRADOR',
+  `validez_dias` int(11) DEFAULT 30 COMMENT 'Días de validez del presupuesto',
+  `fecha_emision` date NOT NULL DEFAULT (CURRENT_DATE),
+  `fecha_vencimiento` date DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `condiciones` text DEFAULT NULL COMMENT 'Términos y condiciones del presupuesto',
+  `usuario_id` int(11) NOT NULL COMMENT 'Usuario que creó el presupuesto',
+  `fecha_creacion` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `fecha_actualizacion` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes`(`id`),
+  FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`),
+  UNIQUE KEY `uk_numero` (`numero`),
+  INDEX (`cliente_id`),
+  INDEX (`estado`),
+  INDEX (`fecha_emision`),
+  INDEX (`fecha_vencimiento`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Detalle de items del presupuesto
+CREATE TABLE `table_presupuestos_detalle` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `presupuesto_id` int(11) NOT NULL,
+  `producto_id` int(11) DEFAULT NULL COMMENT 'NULL si es servicio manual',
+  `tipo_item` enum('PRODUCTO','SERVICIO') NOT NULL DEFAULT 'PRODUCTO',
+  `descripcion` varchar(255) NOT NULL,
+  `cantidad` int(11) NOT NULL DEFAULT 1,
+  `precio_unitario` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `descuento_porcentaje` decimal(5,2) DEFAULT 0.00 COMMENT 'Descuento por item',
+  `descuento_monto` decimal(15,2) DEFAULT 0.00 COMMENT 'Descuento en moneda',
+  `subtotal` decimal(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Cantidad * Precio - Descuento',
+  `iva_porcentaje` decimal(5,2) DEFAULT 0.00 COMMENT 'IVA aplicado a este item',
+  `iva_monto` decimal(15,2) DEFAULT 0.00,
+  `total` decimal(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Subtotal + IVA',
+  `orden_visual` int(11) DEFAULT 0 COMMENT 'Orden de visualización',
+  `notas` text DEFAULT NULL COMMENT 'Notas específicas del item',
+  FOREIGN KEY (`presupuesto_id`) REFERENCES `table_presupuestos`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`producto_id`) REFERENCES `table_inventario`(`id`),
+  INDEX (`presupuesto_id`),
+  INDEX (`producto_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- =============================================================================
+-- BLOQUE 12: CATÁLOGO PÚBLICO Y PEDIDOS EN LÍNEA
 -- =============================================================================
 
 -- Pedidos realizados desde el catálogo público

@@ -150,4 +150,68 @@ class ControllerDevoluciones extends Controller {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * AJAX: Genera el PDF de una devolución y devuelve la URL temporal.
+     */
+    public function pdf($id = null) {
+        RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
+        $devolucionId = (int)$id;
+        if (!$devolucionId) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'ID DE DEVOLUCIÓN REQUERIDO'], 400);
+        }
+
+        $devolucion = $this->devolucionesModel->obtenerDevolucion($devolucionId);
+        if (!$devolucion) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'DEVOLUCIÓN NO ENCONTRADA'], 404);
+        }
+
+        try {
+            $pdfService = new PdfService();
+            $doc_name = 'DEV-' . str_pad($devolucion->id, 4, '0', STR_PAD_LEFT);
+            $filename = $doc_name . '_' . time() . '.pdf';
+            $filePath = $pdfService->generarDocumento('devolucion', [
+                'devolucion' => $devolucion,
+            ], $filename, false);
+
+            return $this->jsonResponse(['success' => true, 'pdf_url' => URLROOT . '/' . $filePath]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Sirve el PDF de la devolución directamente en el navegador (URL: /devoluciones/imprimir/ID).
+     */
+    public function imprimir($id = null) {
+        RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
+        if (!$id) {
+            throw new AppException("ID de devolución o archivo no proporcionado.", 400);
+        }
+
+        // 1. Si el parámetro es un nombre de archivo (.pdf), servimos el archivo temporal
+        if (strpos($id, '.pdf') !== false) {
+            $filePath = APPROOT . '/../public/temp_pdfs/' . $id;
+            if (file_exists($filePath)) {
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: inline; filename="' . $id . '"');
+                readfile($filePath);
+                exit;
+            }
+        }
+
+        // 2. Si es ID numérico, generamos el PDF en tiempo real
+        $devolucionId = (int)$id;
+        $devolucion = $this->devolucionesModel->obtenerDevolucion($devolucionId);
+        if (!$devolucion) {
+            throw new AppException("La devolución #$devolucionId no existe o el documento solicitado no se encontró.", 404);
+        }
+
+        $pdfService = new PdfService();
+        $doc_name = 'DEV-' . str_pad($devolucion->id, 4, '0', STR_PAD_LEFT);
+        $pdfService->generarDocumento('devolucion', [
+            'devolucion' => $devolucion,
+        ], $doc_name . '.pdf'); // Stream to browser por defecto
+        exit;
+    }
 }

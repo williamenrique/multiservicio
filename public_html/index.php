@@ -81,16 +81,16 @@ try {
         // o validación estricta
         $url = $_GET['url'] ?? '';
 
-        // Rutas excluidas de validación CSRF (Login y módulos con fallas de token reportadas)
+        // Rutas excluidas de validación CSRF (Login, recuperación y catálogo público)
         $excludedRoutes = [
             'auth/login',
             'auth/solicitarRecuperacion',
-            'proveedores',
-            'empresa',
-            'clientes',
-            'facturacion',
-            'reportes',
-            'catalogo'
+            'catalogo/procesar-pedido',      // Checkout público (sin autenticación)
+            'catalogo/agregar-carrito',      // Carrito público
+            'catalogo/actualizar-carrito',   // Carrito público
+            'catalogo/eliminar-carrito',     // Carrito público
+            'catalogo/limpiar-carrito',      // Carrito público
+            'catalogo/contar-carrito'        // Carrito público
         ];
         $isExcluded = false;
         foreach ($excludedRoutes as $route) {

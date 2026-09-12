@@ -110,6 +110,7 @@ function procesarPedido(id) {
         if (result.isConfirmed) {
             const formData = new FormData();
             formData.append('pedido_id', id);
+            formData.append('csrf_token', '<?php echo $_SESSION['csrf_token'] ?? ''; ?>');
 
             fetch(URLROOT + '/catalogo/procesar-pedido-staff', {
                 method: 'POST',
@@ -145,6 +146,7 @@ function cancelarPedido(id) {
         if (result.isConfirmed) {
             const formData = new FormData();
             formData.append('pedido_id', id);
+            formData.append('csrf_token', '<?php echo $_SESSION['csrf_token'] ?? ''; ?>');
 
             fetch(URLROOT + '/catalogo/cancelar-pedido-staff', {
                 method: 'POST',

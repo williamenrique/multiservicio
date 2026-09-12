@@ -14,6 +14,43 @@ return [
     'garantia/pdf'       => 'Garantia@pdf',
     'garantia/imprimir'  => 'Garantia@imprimir',
 
+    // Devoluciones
+    'devoluciones'           => 'Devoluciones@index',
+    'devoluciones/historial' => 'Devoluciones@historial',
+    'devoluciones/detalle'   => 'Devoluciones@detalle',
+    'devoluciones/pdf'       => 'Devoluciones@pdf',
+    'devoluciones/imprimir'  => 'Devoluciones@imprimir',
+
+    // Emails
+    'email'                    => 'Email@index',
+    'email/listar'             => 'Email@listar',
+    'email/compose'            => 'Email@compose',
+    'email/enviar'             => 'Email@enviar',
+    'email/enviar-plantilla'   => 'Email@enviarConPlantilla',
+    'email/getClientes'        => 'Email@getClientes',
+    'email/plantillas'         => 'Email@plantillas',
+    'email/plantillas/listar'  => 'Email@plantillas',
+    'email/plantillas/guardar' => 'Email@guardarPlantilla',
+    'email/plantillas/eliminar' => 'Email@eliminarPlantilla',
+    'email/plantillas/obtener' => 'Email@obtenerPlantilla',
+
+    // Presupuestos
+    'presupuesto'                    => 'Presupuesto@index',
+    'presupuesto/listar'             => 'Presupuesto@listar',
+    'presupuesto/crear'              => 'Presupuesto@crear',
+    'presupuesto/editar'             => 'Presupuesto@editar',
+    'presupuesto/ver'                => 'Presupuesto@ver',
+    'presupuesto/guardar'            => 'Presupuesto@guardar',
+    'presupuesto/actualizar'         => 'Presupuesto@actualizar',
+    'presupuesto/cambiarEstado'      => 'Presupuesto@cambiarEstado',
+    'presupuesto/eliminar'           => 'Presupuesto@eliminar',
+    'presupuesto/pdf'                => 'Presupuesto@pdf',
+    'presupuesto/imprimir'           => 'Presupuesto@imprimir',
+    'presupuesto/enviarEmail'        => 'Presupuesto@enviarEmail',
+    'presupuesto/buscarProductos'    => 'Presupuesto@buscarProductos',
+    'presupuesto/buscarClientes'     => 'Presupuesto@buscarClientes',
+    'presupuesto/getStats'           => 'Presupuesto@getStats',
+
     // Auth
     'login'      => 'Auth@index',
     'logout'     => 'Auth@logout',

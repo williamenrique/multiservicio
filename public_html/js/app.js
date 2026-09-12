@@ -1073,6 +1073,7 @@ const AppNotifications = {
 async function initPedidosAlerts() {
     const containerBell = document.getElementById('pedidos-bell-container');
     const badge = document.getElementById('pedidos-notif-badge');
+    const sidebarBadge = document.getElementById('sidebar-pedidos-badge');
     const lista = document.getElementById('pedidos-notif-list');
 
     if (!containerBell) return;
@@ -1097,6 +1098,16 @@ async function initPedidosAlerts() {
                     badge.classList.remove('hidden');
                 } else {
                     badge.classList.add('hidden');
+                }
+            }
+
+            // Actualizar badge en sidebar
+            if (sidebarBadge) {
+                if (result.total > 0) {
+                    sidebarBadge.textContent = result.total;
+                    sidebarBadge.classList.remove('hidden');
+                } else {
+                    sidebarBadge.classList.add('hidden');
                 }
             }
 

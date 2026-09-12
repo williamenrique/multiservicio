@@ -155,6 +155,7 @@ function procesarPedido(id) {
         if (result.isConfirmed) {
             const formData = new FormData();
             formData.append('pedido_id', id);
+            formData.append('csrf_token', '<?php echo $_SESSION['csrf_token'] ?? ''; ?>');
             const ivaToggle = document.getElementById('catalogo-iva-toggle');
             formData.append('aplicar_iva', (ivaToggle && ivaToggle.checked) ? '1' : '0');
 
@@ -192,6 +193,7 @@ function cancelarPedido(id) {
         if (result.isConfirmed) {
             const formData = new FormData();
             formData.append('pedido_id', id);
+            formData.append('csrf_token', '<?php echo $_SESSION['csrf_token'] ?? ''; ?>');
 
             fetch(URLROOT + '/catalogo/cancelar-pedido-staff', {
                 method: 'POST',

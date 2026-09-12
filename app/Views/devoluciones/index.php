@@ -149,6 +149,7 @@
                             <th class="px-3 py-3 text-center">Garantía</th>
                             <th class="px-3 py-3 text-left">Motivo</th>
                             <th class="px-3 py-3 text-left">Usuario</th>
+                            <th class="px-3 py-3 text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tbody-historial" class="divide-y divide-slate-100">
@@ -512,7 +513,7 @@ async function cargarHistorialDevoluciones(pagina = 1) {
         totalPaginasHistorial = Math.ceil(total / limit) || 1;
 
         if (lista.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-10 text-slate-400 font-medium">No hay devoluciones registradas</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-10 text-slate-400 font-medium">No hay devoluciones registradas</td></tr>';
         } else {
             tbody.innerHTML = lista.map(d => {
                 const destinoBadge = d.destino === 'STOCK'
@@ -531,6 +532,15 @@ async function cargarHistorialDevoluciones(pagina = 1) {
                     <td class="px-3 py-3 text-center text-xs text-slate-500">${garantiaTxt}</td>
                     <td class="px-3 py-3 text-xs text-slate-600">${escapeHtml(d.motivo || '-')}</td>
                     <td class="px-3 py-3 text-xs text-slate-500">${escapeHtml(d.usuario_nombre || '-')}</td>
+                    <td class="px-3 py-3 text-center">
+                        <div class="flex gap-1 justify-center">
+                            <button onclick="verDetalleDevolucion(${d.id})"
+                                class="bg-navy-blue text-white px-2 py-1 rounded-lg text-xs font-bold uppercase hover:bg-neon-green hover:text-black transition-all"
+                                title="Ver detalle y PDF">
+                                <i data-lucide="eye" class="w-3 h-3 inline"></i>
+                            </button>
+                        </div>
+                    </td>
                 </tr>`;
             }).join('');
         }
@@ -568,7 +578,68 @@ function escapeHtml(str) {
 function escapeAttr(str) {
     return escapeHtml(str).replace(/'/g, '&#39;');
 }
+/* ==================== DETALLE DEVOLUCIÓN ==================== */
+async function verDetalleDevolucion(devolucionId) {
+    try {
+        AppUtils.showLoading('Cargando detalle de devolución...');
+        const res = await fetch(`${URLROOT}/devoluciones/detalle/${devolucionId}`);
+        const data = await res.json();
+        AppUtils.hideLoading();
 
+        if (!data.success || !data.data) {
+            AppUtils.showToast(data.mensaje || 'No se pudo cargar el detalle de la devolución', 'error');
+            return;
+        }
+
+        const d = data.data;
+
+        const destinoBadge = d.destino === 'STOCK'
+            ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">Reingresado a Stock</span>`
+            : `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700">Marcado como Dañado</span>`;
+
+        const garantiaTxt = `${d.dias_transcurridos}/${d.dias_garantia_aplicado} días`;
+
+        Swal.fire({
+            title: `DETALLE DEVOLUCIÓN #${d.id}`,
+            html: `
+                <div class="text-left space-y-3 text-sm max-h-[60vh] overflow-y-auto pr-1">
+                    <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                        <p class="text-[11px] font-black text-slate-600 uppercase mb-2">Información de la Devolución</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Fecha</p><p class="font-bold">${new Date(d.fecha).toLocaleString()}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Factura Original</p><p class="font-bold text-navy-blue">#${d.factura_id}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Cliente</p><p class="font-bold text-navy-blue">${escapeHtml(d.cliente || 'Consumidor Final')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Cédula</p><p class="font-bold">${escapeHtml(d.cliente_id || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Teléfono</p><p class="font-bold">${escapeHtml(d.cliente_telefono || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Placa / Modelo</p><p class="font-bold">${escapeHtml(d.placa || '-')} / ${escapeHtml(d.modelo_vehiculo || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Repuesto</p><p class="font-bold">${escapeHtml(d.producto_nombre || d.descripcion || '-')}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Cantidad</p><p class="font-bold">${d.cantidad}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Precio Unitario</p><p class="font-bold">${AppUtils.formatCurrency(d.precio_unitario || 0)}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Monto Devuelto</p><p class="font-bold text-rose-600">${AppUtils.formatCurrency(d.monto_devuelto || 0)}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Destino</p><p class="font-bold">${destinoBadge}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Garantía (días transcurridos/aplicados)</p><p class="font-bold">${garantiaTxt}</p></div>
+                            <div><p class="text-[10px] font-black text-slate-400 uppercase">Procesado Por</p><p class="font-bold">${escapeHtml(d.usuario_nombre || '-')}</p></div>
+                        </div>
+                        ${d.motivo ? `<div class="mt-2"><p class="text-[10px] font-black text-slate-400 uppercase">Motivo</p><p class="text-xs text-slate-700">${escapeHtml(d.motivo)}</p></div>` : ''}
+                    </div>
+                </div>`,
+            showCancelButton: true,
+            confirmButtonText: '<i data-lucide="printer" class="w-4 h-4 inline mr-1"></i> IMPRIMIR PDF',
+            cancelButtonText: 'CERRAR',
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#0f766e',
+            width: '600px'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.open(`${URLROOT}/devoluciones/imprimir/${d.id}`, '_blank');
+            }
+        });
+    } catch (e) {
+        AppUtils.hideLoading();
+        console.error(e);
+        AppUtils.showToast('Error de conexión', 'error');
+    }
+}
 /* ==================== INIT ==================== */
 document.addEventListener('DOMContentLoaded', () => {
     cargarFacturasDevolucion(1);

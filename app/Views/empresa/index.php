@@ -95,6 +95,7 @@ document.getElementById('formConfigEmpresa').addEventListener('submit', function
     e.preventDefault();
 
     const formData = new FormData(this);
+    formData.append('csrf_token', '<?php echo $_SESSION['csrf_token'] ?? ''; ?>');
     const btnSave = this.querySelector('button[type="submit"]');
 
     // Feedback visual en el botón

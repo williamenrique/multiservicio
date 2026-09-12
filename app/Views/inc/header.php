@@ -76,6 +76,13 @@
                     </a>
                     <a href="<?php echo URLROOT; ?>/catalogo/pedidos-pendientes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'catalogo/pedidos') !== false || strpos($_GET['url'] ?? '', 'catalogo/ver-pedido') !== false) ? 'active' : ''; ?>" data-section="pedidos-clientes">
                         <i data-lucide="clipboard-list"></i> <span>Pedidos Clientes</span>
+                        <span id="sidebar-pedidos-badge" class="ml-auto bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full hidden">0</span>
+                    </a>
+                    <a href="<?php echo URLROOT; ?>/presupuesto" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'presupuesto') !== false) ? 'active' : ''; ?>" data-section="presupuestos">
+                        <i data-lucide="file-text"></i> <span>Presupuestos</span>
+                    </a>
+                    <a href="<?php echo URLROOT; ?>/email" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'email') !== false) ? 'active' : ''; ?>" data-section="emails">
+                        <i data-lucide="mail"></i> <span>Emails</span>
                     </a>
                     <?php if($_SESSION['user_role'] === 'ADMINISTRADOR'): ?>
                     <a href="<?php echo URLROOT; ?>/reportes" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'reportes') !== false) ? 'active' : ''; ?>" data-section="reportes">
@@ -121,10 +128,10 @@
                     <div id="low-stock-notifications-container" class="hidden"></div>
                     <div id="credit-notifications-container" class="hidden"></div>
                     <div id="notifications-area" class="hidden"></div>
-                    <!-- Notificaciones de Pedidos Pendientes (Icono de Campana) -->
+                    <!-- Notificaciones de Pedidos Pendientes (Icono de Carrito) -->
                     <div id="pedidos-bell-container" class="relative group hidden">
                         <button id="btn-notificaciones-pedidos" class="p-2 bg-slate-800/50 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-amber-400 transition-all relative">
-                            <i data-lucide="bell" class="w-5 h-5"></i>
+                            <i data-lucide="shopping-cart" class="w-5 h-5"></i>
                             <span id="pedidos-notif-badge" class="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-black px-1.5 rounded-full border-2 border-navy-blue hidden">0</span>
                         </button>
                         <!-- Dropdown -->

@@ -55,6 +55,7 @@
                 <div class="bg-white rounded-2xl shadow-md p-6">
                     <h2 class="text-lg font-semibold text-gray-800 mb-4">Tus Datos</h2>
                     <form action="<?php echo URLROOT; ?>/catalogo/procesar-pedido" method="POST" id="checkoutForm">
+                        <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token'] ?? ''; ?>">
                         <div class="grid sm:grid-cols-2 gap-4">
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo *</label>
@@ -81,8 +82,12 @@
                                 <textarea name="notas" rows="3" class="input-field" placeholder="Notas adicionales..."><?php echo s($formData['notas'] ?? ''); ?></textarea>
                             </div>
                         </div>
-                        <button type="submit" class="btn-primary w-full py-3 mt-6 text-base font-semibold">
-                            Confirmar Pedido
+                        <button type="submit" id="btnConfirmarPedido" class="btn-primary w-full py-3 mt-6 text-base font-semibold flex items-center justify-center gap-2" disabled>
+                            <span id="btnText">Confirmar Pedido</span>
+                            <svg id="btnSpinner" class="animate-spin h-5 w-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
                         </button>
                     </form>
                 </div>
@@ -136,5 +141,63 @@
             <p class="text-sm">&copy; <?php echo date('Y'); ?> <?php echo SITENAME; ?>. Todos los derechos reservados.</p>
         </div>
     </footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('checkoutForm');
+    const btn = document.getElementById('btnConfirmarPedido');
+    const btnText = document.getElementById('btnText');
+    const btnSpinner = document.getElementById('btnSpinner');
+    
+    // Habilitar el botón si el formulario es válido
+    const inputs = form.querySelectorAll('input[required], textarea[required]');
+    
+    function checkFormValidity() {
+        let isValid = true;
+        inputs.forEach(input => {
+            if (!input.value.trim()) {
+                isValid = false;
+            }
+        });
+        
+        // Validar email
+        const emailInput = form.querySelector('input[name="correo"]');
+        if (emailInput && emailInput.value) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(emailInput.value)) {
+                isValid = false;
+            }
+        }
+        
+        btn.disabled = !isValid;
+        btn.classList.toggle('opacity-50', !isValid);
+        btn.classList.toggle('cursor-not-allowed', !isValid);
+    }
+    
+    // Verificar al cargar y en cada input
+    checkFormValidity();
+    inputs.forEach(input => {
+        input.addEventListener('input', checkFormValidity);
+        input.addEventListener('change', checkFormValidity);
+    });
+    
+    // Manejar envío del formulario
+    form.addEventListener('submit', function(e) {
+        // Validar una vez más antes de enviar
+        if (!form.checkValidity()) {
+            return;
+        }
+        
+        // Deshabilitar botón y mostrar spinner
+        btn.disabled = true;
+        btnText.textContent = 'Procesando...';
+        btnSpinner.classList.remove('hidden');
+        
+        // El formulario se envía normalmente (POST)
+        // Si hay error, el servidor redirigirá de vuelta y el botón se restaurará
+    });
+});
+</script>
+
 </body>
 </html>
