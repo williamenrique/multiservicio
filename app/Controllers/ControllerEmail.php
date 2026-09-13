@@ -263,4 +263,105 @@ class ControllerEmail extends Controller {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * AJAX: Obtiene una plantilla por ID
+     */
+    public function obtenerPlantilla($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $plantilla = $this->emailModel->obtenerPlantilla((int)$id);
+            if (!$plantilla) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Plantilla no encontrada'], 404);
+            }
+
+            return $this->jsonResponse(['success' => true, 'plantilla' => $plantilla]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Obtiene un email por ID para ver detalle
+     */
+    public function obtener($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $email = $this->emailModel->obtenerPorId((int)$id);
+            if (!$email) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Email no encontrado'], 404);
+            }
+
+            return $this->jsonResponse(['success' => true, 'email' => $email]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Reenvía un email fallido
+     */
+    public function reenviar($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $email = $this->emailModel->obtenerPorId((int)$id);
+            if (!$email) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Email no encontrado'], 404);
+            }
+
+            if ($email->estado !== 'FALLIDO') {
+                return $this->jsonResponse(['success' => false, 'mensaje': 'Solo se pueden reenviar emails fallidos'], 400);
+            }
+
+            // Reenviar email
+            $config = $this->model('Empresa')->obtenerConfiguracion();
+            $emailData = [
+                'to' => $email->destinatario_email,
+                'to_name' => $email->destinatario_nombre,
+                'subject' => $email->asunto,
+                'body_html' => $email->cuerpo_html,
+                'body_text' => $email->cuerpo_texto,
+                'attachments' => $email->adjuntos ? json_decode($email->adjuntos, true) : [],
+                'from_name' => $config->name ?? 'Taller Pro',
+                'from_email' => $config->email ?? 'noreply@tallerpro.com'
+            ];
+
+            $emailService = new \App\Services\EmailService();
+            $result = $emailService->enviarEmailGenerico($emailData);
+
+            // Actualizar estado del email original
+            $nuevoEstado = $result['success'] ? 'ENVIADO' : 'FALLIDO';
+            $this->emailModel->actualizarEstado($email->id, $nuevoEstado, $result['success'] ? null : ($result['mensaje'] ?? 'Error al reenviar'));
+
+            // Registrar nuevo intento
+            $this->emailModel->registrar([
+                'tipo' => $email->tipo,
+                'destinatario_email' => $email->destinatario_email,
+                'destinatario_nombre' => $email->destinatario_nombre,
+                'asunto' => $email->asunto,
+                'cuerpo_html' => $email->cuerpo_html,
+                'cuerpo_texto' => $email->cuerpo_texto,
+                'adjuntos' => $email->adjuntos,
+                'referencia_tipo' => $email->referencia_tipo,
+                'referencia_id' => $email->referencia_id,
+                'estado' => $nuevoEstado,
+                'error_mensaje' => $result['success'] ? null : ($result['mensaje'] ?? 'Error al reenviar'),
+                'usuario_id' => $_SESSION['user_id'],
+                'fecha_envio' => $result['success'] ? date('Y-m-d H:i:s') : null
+            ]);
+
+            return $this->jsonResponse($result);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
 }

@@ -28,6 +28,8 @@ return [
     'email/enviar'             => 'Email@enviar',
     'email/enviar-plantilla'   => 'Email@enviarConPlantilla',
     'email/getClientes'        => 'Email@getClientes',
+    'email/obtener'            => 'Email@obtener',
+    'email/reenviar'           => 'Email@reenviar',
     'email/plantillas'         => 'Email@plantillas',
     'email/plantillas/listar'  => 'Email@plantillas',
     'email/plantillas/guardar' => 'Email@guardarPlantilla',
