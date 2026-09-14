@@ -124,6 +124,35 @@
                     </div>
                 </div>
 
+                <!-- Buscar y Anexar Presupuesto Activo -->
+                <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-bold text-blue-800 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-5 h-5"></i> Anexar Presupuesto Activo
+                        </h3>
+                        <span class="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full font-bold">Opcional</span>
+                    </div>
+                    <p class="text-xs text-blue-700 mb-3">Busque un presupuesto en estado ACTIVO para anexarlo a esta venta. Los items se cargarán automáticamente y el stock quedará reservado.</p>
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400"></i>
+                        <input type="text" id="buscarPresupuestoActivoVenta" placeholder="Buscar por # presupuesto, cliente, placa..." 
+                            class="w-full pl-10 pr-4 py-2 bg-white border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm">
+                        <div id="presupuesto-activo-results-venta" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-blue-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
+                    </div>
+                    <div id="presupuesto-seleccionado-venta" class="mt-3 hidden p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-xs font-bold text-green-800 uppercase tracking-wider">Presupuesto Seleccionado</p>
+                                <p id="presupuesto-info-venta" class="text-sm font-bold text-green-700"></p>
+                                <p id="presupuesto-cliente-venta" class="text-xs text-green-600"></p>
+                            </div>
+                            <button type="button" onclick="desanexarPresupuestoVenta()" class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-lg font-bold uppercase hover:bg-red-200 transition-all">
+                                <i data-lucide="x" class="w-3 h-3 inline mr-1"></i> Quitar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="space-y-3 py-6 border-y border-slate-100">
                     <div class="flex justify-between text-sm">
                         <span class="text-slate-400">Subtotal:</span>
@@ -401,10 +430,128 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
+    /* ==================== BÚSQUEDA DE PRESUPUESTOS ACTIVOS ==================== */
+    const inputPresupuestoVenta = document.getElementById('buscarPresupuestoActivoVenta');
+    const resultsContainerPresupuesto = document.getElementById('presupuesto-activo-results-venta');
+    const seleccionadoContainerPresupuesto = document.getElementById('presupuesto-seleccionado-venta');
+    const infoElementPresupuesto = document.getElementById('presupuesto-info-venta');
+    const clienteElementPresupuesto = document.getElementById('presupuesto-cliente-venta');
+    let presupuestoSeleccionadoIdVenta = null;
+    let searchTimeoutPresupuestoVenta = null;
+
+    if (inputPresupuestoVenta && resultsContainerPresupuesto) {
+        inputPresupuestoVenta.addEventListener('input', () => {
+            clearTimeout(searchTimeoutPresupuestoVenta);
+            const term = inputPresupuestoVenta.value.trim().toLowerCase();
+
+            if (term.length < 2) {
+                if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+                return;
+            }
+
+            searchTimeoutPresupuestoVenta = setTimeout(async () => {
+                try {
+                    const res = await fetch(`${URLROOT}/presupuesto/buscarActivos?q=${encodeURIComponent(term)}`);
+                    const result = await res.json();
+                    
+                    if (result.success && result.data) {
+                        renderPresupuestoResultsVenta(result.data, term);
+                    } else {
+                        resultsContainerPresupuesto.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos activos</div>';
+                        resultsContainerPresupuesto.classList.remove('hidden');
+                    }
+                } catch (e) {
+                    console.error("Error buscando presupuestos:", e);
+                    resultsContainerPresupuesto.innerHTML = '<div class="p-4 text-center text-red-400 text-xs italic">Error al buscar</div>';
+                    resultsContainerPresupuesto.classList.remove('hidden');
+                }
+            }, 300);
+        });
+
+        // Cerrar resultados al hacer clic fuera
+        document.addEventListener('click', (e) => {
+            if (resultsContainerPresupuesto && !resultsContainerPresupuesto.contains(e.target) && e.target !== inputPresupuestoVenta) {
+                resultsContainerPresupuesto.classList.add('hidden');
+            }
+        });
+    }
+
+    function renderPresupuestoResultsVenta(presupuestos, term) {
+        if (!resultsContainerPresupuesto) return;
+
+        let html = '';
+        if (presupuestos.length > 0) {
+            html = presupuestos.map(p => {
+                const estadoBadge = p.estado === 'ACTIVO' 
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">ACTIVO</span>'
+                    : '';
+                
+                return `
+                    <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0" 
+                         onclick="seleccionarPresupuestoActivoVenta('${p.id}', '${p.numero}', '${p.cliente_nombre.replace(/'/g, "\\'")}', '${p.cliente_telefono || ''}', '${p.total}', '${p.fecha_activacion || p.fecha_emision}')">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-bold text-xs uppercase text-navy-blue">${p.numero} ${estadoBadge}</p>
+                                <p class="text-[10px] text-slate-400 font-mono">${p.cliente_nombre}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] text-amber-600 font-mono font-bold">$${parseFloat(p.total).toLocaleString('es-CO', {minimumFractionDigits: 2})}</p>
+                                <p class="text-[9px] text-slate-500">${p.fecha_activacion ? new Date(p.fecha_activacion).toLocaleDateString('es-ES') : new Date(p.fecha_emision).toLocaleDateString('es-ES')}</p>
+                            </div>
+                        </div>`;
+            }).join('');
+        } else {
+            html = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos activos</div>';
+        }
+
+        resultsContainerPresupuesto.innerHTML = html;
+        resultsContainerPresupuesto.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    window.seleccionarPresupuestoActivoVenta = (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
+        presupuestoSeleccionadoIdVenta = id;
+        inputPresupuestoVenta.value = `${numero} - ${clienteNombre}`;
+        if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+        
+        // Mostrar info del presupuesto seleccionado
+        infoElementPresupuesto.textContent = `${numero} | Total: $${parseFloat(total).toLocaleString('es-CO', {minimumFractionDigits: 2})}`;
+        clienteElementPresupuesto.textContent = `Cliente: ${clienteNombre} | Tel: ${clienteTelefono || 'N/A'} | Activado: ${fecha ? new Date(fecha).toLocaleDateString('es-ES') : 'N/A'}`;
+        seleccionadoContainerPresupuesto.classList.remove('hidden');
+        
+        // Guardar el ID en un campo hidden para enviarlo con el formulario
+        let hiddenInput = document.getElementById('presupuesto_activo_id_venta');
+        if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'presupuesto_activo_id';
+            hiddenInput.id = 'presupuesto_activo_id_venta';
+            document.getElementById('formVenta').appendChild(hiddenInput);
+        }
+        hiddenInput.value = id;
+        
+        if (window.AppUtils) AppUtils.showToast(`Presupuesto ${numero} anexado correctamente`);
+    };
+
+    window.desanexarPresupuestoVenta = () => {
+        presupuestoSeleccionadoIdVenta = null;
+        inputPresupuestoVenta.value = '';
+        if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+        if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+        
+        const hiddenInput = document.getElementById('presupuesto_activo_id_venta');
+        if (hiddenInput) hiddenInput.remove();
+        
+        if (window.AppUtils) AppUtils.showToast('Presupuesto desanexado');
+    };
+
     // Cerrar resultados al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (!divCliResultados.contains(e.target) && e.target !== inputCliSearch) divCliResultados.classList.add('hidden');
         if (!resultados.contains(e.target) && e.target !== inputBusqueda) resultados.classList.add('hidden');
+        if (resultsContainerPresupuesto && !resultsContainerPresupuesto.contains(e.target) && e.target !== inputPresupuestoVenta) {
+            resultsContainerPresupuesto.classList.add('hidden');
+        }
     });
 
     function agregarAlCarrito(item) {

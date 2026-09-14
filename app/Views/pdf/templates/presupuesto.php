@@ -56,6 +56,8 @@
     .badge-estado { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 9px; font-weight: 900; text-transform: uppercase; }
     .badge-borrador { background: #e5e7eb; color: #374151; }
     .badge-enviado { background: #fef3c7; color: #92400e; }
+    .badge-activo { background: #d1fae5; color: #065f46; }
+    .badge-en_proceso { background: #dbeafe; color: #1e40af; }
     .badge-aceptado { background: #d1fae5; color: #065f46; }
     .badge-rechazado { background: #fee2e2; color: #991b1b; }
     .badge-expirado { background: #fee2e2; color: #991b1b; }
@@ -153,6 +155,8 @@
                             $estadoColors = [
                                 'BORRADOR' => '#9ca3af',
                                 'ENVIADO' => '#f59e0b',
+                                'ACTIVO' => '#10b981',
+                                'EN_PROCESO' => '#3b82f6',
                                 'ACEPTADO' => '#10b981',
                                 'RECHAZADO' => '#ef4444',
                                 'EXPIRADO' => '#ef4444',

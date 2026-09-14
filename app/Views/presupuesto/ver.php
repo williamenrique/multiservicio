@@ -40,6 +40,8 @@
                         $estadoColors = [
                             'BORRADOR' => 'bg-slate-200 text-slate-700',
                             'ENVIADO' => 'bg-amber-200 text-amber-800',
+                            'ACTIVO' => 'bg-emerald-200 text-emerald-800',
+                            'EN_PROCESO' => 'bg-blue-200 text-blue-800',
                             'ACEPTADO' => 'bg-emerald-200 text-emerald-800',
                             'RECHAZADO' => 'bg-red-200 text-red-800',
                             'EXPIRADO' => 'bg-red-200 text-red-800',
@@ -174,6 +176,8 @@
                             $estadoColors = [
                                 'BORRADOR' => 'bg-slate-100 text-slate-700',
                                 'ENVIADO' => 'bg-amber-100 text-amber-800',
+                                'ACTIVO' => 'bg-emerald-100 text-emerald-800',
+                                'EN_PROCESO' => 'bg-blue-100 text-blue-800',
                                 'ACEPTADO' => 'bg-emerald-100 text-emerald-800',
                                 'RECHAZADO' => 'bg-red-100 text-red-800',
                                 'EXPIRADO' => 'bg-red-100 text-red-800',
@@ -323,6 +327,28 @@
                     <i data-lucide="send" class="w-5 h-5"></i> Guardar y Enviar
                 </button>
                 <?php endif; ?>
+                
+                <?php if (in_array($presupuesto->estado, ['BORRADOR', 'ENVIADO'])): ?>
+                <button onclick="activarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-neon-green text-navy-blue px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:brightness-110 font-semibold shadow-lg shadow-neon-green/20">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i> Aplicar Presupuesto
+                </button>
+                <?php endif; ?>
+                
+                <?php if ($presupuesto->estado === 'ACTIVO'): ?>
+                <button onclick="iniciarProcesoPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-blue-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-blue-700 font-semibold shadow-sm">
+                    <i data-lucide="play-circle" class="w-5 h-5"></i> Iniciar Proceso
+                </button>
+                <button onclick="liberarInventarioPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-amber-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-amber-700 font-semibold shadow-sm">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i> Liberar Inventario
+                </button>
+                <?php endif; ?>
+                
+                <?php if ($presupuesto->estado === 'EN_PROCESO'): ?>
+                <span class="px-4 py-3 bg-blue-100 text-blue-800 rounded-xl font-semibold text-sm flex items-center gap-2">
+                    <i data-lucide="loader" class="w-4 h-4 animate-spin"></i> En Proceso
+                </span>
+                <?php endif; ?>
+                
                 <button onclick="generarPDFPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-purple-700 font-semibold shadow-sm">
                     <i data-lucide="download" class="w-5 h-5"></i> Descargar PDF
                 </button>
@@ -410,6 +436,147 @@ async function generarPDFPresupuesto(id) {
     } catch (e) {
         AppUtils.hideLoading();
         AppUtils.showToast('Error de conexión', 'error');
+    }
+}
+
+async function activarPresupuesto(id) {
+    const result = await Swal.fire({
+        title: '¿Activar Presupuesto?',
+        text: 'Se reservará el stock de los productos en inventario. El presupuesto pasará a estado ACTIVO.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Sí, activar',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (result.isConfirmed) {
+        AppUtils.showLoading('Activando presupuesto y reservando stock...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/activar/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al activar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function iniciarProcesoPresupuesto(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Iniciar Proceso',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Módulo *</label>
+                    <select id="proceso-modulo" class="swal2-input w-full m-0 text-sm">
+                        <option value="OS">Orden de Servicio</option>
+                        <option value="FACTURACION">Facturación</option>
+                        <option value="VENTA">Venta Repuestos</option>
+                        <option value="OTRO">Otro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">ID de Referencia (opcional)</label>
+                    <input type="text" id="proceso-referencia" class="swal2-input w-full m-0 text-sm" placeholder="ID de la OS, Factura o Venta">
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'INICIAR PROCESO',
+        confirmButtonColor: '#3b82f6',
+        preConfirm: () => {
+            const modulo = document.getElementById('proceso-modulo').value;
+            const referenciaId = document.getElementById('proceso-referencia').value;
+            return { modulo, referencia_id: referenciaId || null };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Iniciando proceso...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/iniciarProceso/${<?php echo $presupuesto->id; ?>}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify(formValues)
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al iniciar proceso', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function liberarInventarioPresupuesto(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Liberar Inventario',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Motivo *</label>
+                    <select id="liberar-motivo" class="swal2-input w-full m-0 text-sm">
+                        <option value="CANCELACION_CLIENTE">Cancelación por Cliente</option>
+                        <option value="ERROR_STOCK">Error en Stock</option>
+                        <option value="CAMBIO_PRESUPUESTO">Cambio de Presupuesto</option>
+                        <option value="OTRO">Otro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Detalles</label>
+                    <textarea id="liberar-detalles" rows="3" class="swal2-input w-full m-0 text-sm" placeholder="Detalles adicionales..."></textarea>
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'LIBERAR INVENTARIO',
+        confirmButtonColor: '#f59e0b',
+        preConfirm: () => {
+            const motivo = document.getElementById('liberar-motivo').value;
+            const detalles = document.getElementById('liberar-detalles').value;
+            return { motivo: `${motivo}${detalles ? ' - ' + detalles : ''}` };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Liberando inventario...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/liberarInventario/${<?php echo $presupuesto->id; ?>}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ motivo: formValues.motivo })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al liberar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
     }
 }
 

@@ -351,13 +351,16 @@ function mostrarSugerenciasEmail(input) {
         return;
     }
     
-    suggestions.innerHTML = matches.map(c => `
+    suggestions.innerHTML = matches.map(c => {
+        const nombreEscapado = c.nombre.replace(/'/g, "&#39;");
+        return `
         <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0" 
-             onclick="seleccionarClienteEmail('${c.email}', '${c.nombre.replace(/'/g, "\\'")}', '${c.id}')">
+             onclick="seleccionarClienteEmail('${c.email}', '${nombreEscapado}', '${c.id}')">
             <div class="font-medium text-slate-700">${c.nombre}</div>
             <div class="text-xs text-slate-500">${c.email} · ${c.id}</div>
         </div>
-    `).join('');
+    `;
+    }).join('');
     suggestions.classList.remove('hidden');
 }
 
@@ -465,7 +468,7 @@ async function verEmail(id) {
                         <div><p class="font-black text-slate-400 uppercase">Estado</p><p class="font-bold">${estadoBadge}</p></div>
                         <div><p class="font-black text-slate-400 uppercase">Fecha</p><p class="font-bold">${new Date(e.fecha_creacion).toLocaleString()}</p></div>
                         <div><p class="font-black text-slate-400 uppercase">Enviado por</p><p class="font-bold">${e.usuario_nombre || 'Sistema'}</p></div>
-                        <div class="sm:col-span-2"><p class="font-black text-slate-400 uppercase">Para</p><p class="font-bold">${e.destinatario_nombre || e.destinatario_email} <${e.destinatario_email}></p></div>
+                        <div class="sm:col-span-2"><p class="font-black text-slate-400 uppercase">Para</p><p class="font-bold">${e.destinatario_nombre || e.destinatario_email} &lt;${e.destinatario_email}&gt;</p></div>
                         <div class="sm:col-span-2"><p class="font-black text-slate-400 uppercase">Asunto</p><p class="font-bold">${e.asunto}</p></div>
                         ${e.referencia_tipo !== 'NINGUNO' ? `<div class="sm:col-span-2"><p class="font-black text-slate-400 uppercase">Referencia</p><p class="font-bold">${e.referencia_tipo} #${e.referencia_id}</p></div>` : ''}
                         ${e.error_mensaje ? `<div class="sm:col-span-2"><p class="font-black text-slate-400 uppercase">Error</p><p class="font-bold text-red-600">${e.error_mensaje}</p></div>` : ''}

@@ -52,6 +52,12 @@ return [
     'presupuesto/buscarProductos'    => 'Presupuesto@buscarProductos',
     'presupuesto/buscarClientes'     => 'Presupuesto@buscarClientes',
     'presupuesto/getStats'           => 'Presupuesto@getStats',
+    'presupuesto/activar'            => 'Presupuesto@activar',
+    'presupuesto/buscarActivos'      => 'Presupuesto@buscarActivos',
+    'presupuesto/obtenerActivoCompleto' => 'Presupuesto@obtenerActivoCompleto',
+    'presupuesto/liberarInventario'  => 'Presupuesto@liberarInventario',
+    'presupuesto/iniciarProceso'     => 'Presupuesto@iniciarProceso',
+    'presupuesto/obtenerReservas'    => 'Presupuesto@obtenerReservas',
 
     // Auth
     'login'      => 'Auth@index',
@@ -59,8 +65,12 @@ return [
     'mi-perfil'  => 'Perfil@index',
     'solicitudes-acceso' => 'Auth@solicitudes',
     
+    // Venta - Buscar presupuestos activos
+    'venta/buscarPresupuestosActivos' => 'Venta@buscarPresupuestosActivos',
+    
     // Taller - Corrección de rutas con guiones bajos
     'taller/nueva_orden' => 'Taller@nuevaOrden',
+    'taller/buscarPresupuestosActivos' => 'Taller@buscarPresupuestosActivos',
 
     // Catálogo público - rutas con guiones
     'catalogo/procesar-pedido'         => 'Catalogo@procesarPedido',

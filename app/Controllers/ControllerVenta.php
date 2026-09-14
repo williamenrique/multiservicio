@@ -85,4 +85,23 @@ class ControllerVenta extends Controller {
         ], 'Factura_Repuestos_' . $id . '.pdf');
         exit;
     }
+
+    /**
+     * Busca presupuestos en estado ACTIVO para anexar a una venta de mostrador
+     * GET /venta/buscarPresupuestosActivos?q=termino
+     */
+    public function buscarPresupuestosActivos() {
+        try {
+            $search = $_GET['q'] ?? '';
+            $presupuestoModel = $this->model('Presupuesto');
+            $presupuestos = $presupuestoModel->buscarActivos($search);
+            
+            return $this->jsonResponse([
+                'success' => true,
+                'data' => $presupuestos
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
 }

@@ -424,6 +424,121 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    /* ==================== BÚSQUEDA DE PRESUPUESTOS ACTIVOS ==================== */
+    const inputPresupuestoFacturacion = document.getElementById('buscarPresupuestoActivoFacturacion');
+    const resultsContainerPresupuesto = document.getElementById('presupuesto-activo-results-facturacion');
+    const seleccionadoContainerPresupuesto = document.getElementById('presupuesto-seleccionado-facturacion');
+    const infoElementPresupuesto = document.getElementById('presupuesto-info-facturacion');
+    const clienteElementPresupuesto = document.getElementById('presupuesto-cliente-facturacion');
+    let presupuestoSeleccionadoIdFacturacion = null;
+    let searchTimeoutPresupuestoFacturacion = null;
+
+    if (inputPresupuestoFacturacion && resultsContainerPresupuesto) {
+        inputPresupuestoFacturacion.addEventListener('input', () => {
+            clearTimeout(searchTimeoutPresupuestoFacturacion);
+            const term = inputPresupuestoFacturacion.value.trim().toLowerCase();
+
+            if (term.length < 2) {
+                if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+                return;
+            }
+
+            searchTimeoutPresupuestoFacturacion = setTimeout(async () => {
+                try {
+                    const res = await fetch(`${URLROOT}/presupuesto/buscarActivos?q=${encodeURIComponent(term)}`);
+                    const result = await res.json();
+
+                    if (result.success && result.data) {
+                        renderPresupuestoResultsFacturacion(result.data, term);
+                    } else {
+                        resultsContainerPresupuesto.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos activos</div>';
+                        resultsContainerPresupuesto.classList.remove('hidden');
+                    }
+                } catch (e) {
+                    console.error("Error buscando presupuestos:", e);
+                    resultsContainerPresupuesto.innerHTML = '<div class="p-4 text-center text-red-400 text-xs italic">Error al buscar</div>';
+                    resultsContainerPresupuesto.classList.remove('hidden');
+                }
+            }, 300);
+        });
+
+        // Cerrar resultados al hacer clic fuera
+        document.addEventListener('click', (e) => {
+            if (resultsContainerPresupuesto && !resultsContainerPresupuesto.contains(e.target) && e.target !== inputPresupuestoFacturacion) {
+                resultsContainerPresupuesto.classList.add('hidden');
+            }
+        });
+    }
+
+    function renderPresupuestoResultsFacturacion(presupuestos, term) {
+        if (!resultsContainerPresupuesto) return;
+
+        let html = '';
+        if (presupuestos.length > 0) {
+            html = presupuestos.map(p => {
+                const estadoBadge = p.estado === 'ACTIVO'
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">ACTIVO</span>'
+                    : '';
+
+                return `
+                    <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0" 
+                         onclick="seleccionarPresupuestoActivoFacturacion('${p.id}', '${p.numero}', '${p.cliente_nombre.replace(/'/g, "\\'")}', '${p.cliente_telefono || ''}', '${p.total}', '${p.fecha_activacion || p.fecha_emision}')">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-bold text-xs uppercase text-navy-blue">${p.numero} ${estadoBadge}</p>
+                                <p class="text-[10px] text-slate-400 font-mono">${p.cliente_nombre}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] text-amber-600 font-mono font-bold">$${parseFloat(p.total).toLocaleString('es-CO', { minimumFractionDigits: 2 })}</p>
+                                <p class="text-[9px] text-slate-500">${p.fecha_activacion ? new Date(p.fecha_activacion).toLocaleDateString('es-ES') : new Date(p.fecha_emision).toLocaleDateString('es-ES')}</p>
+                            </div>
+                        </div>`;
+            }).join('');
+        } else {
+            html = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos activos</div>';
+        }
+
+        resultsContainerPresupuesto.innerHTML = html;
+        resultsContainerPresupuesto.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    window.seleccionarPresupuestoActivoFacturacion = (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
+        presupuestoSeleccionadoIdFacturacion = id;
+        inputPresupuestoFacturacion.value = `${numero} - ${clienteNombre}`;
+        if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+
+        // Mostrar info del presupuesto seleccionado
+        infoElementPresupuesto.textContent = `${numero} | Total: $${parseFloat(total).toLocaleString('es-CO', { minimumFractionDigits: 2 })}`;
+        clienteElementPresupuesto.textContent = `Cliente: ${clienteNombre} | Tel: ${clienteTelefono || 'N/A'} | Activado: ${fecha ? new Date(fecha).toLocaleDateString('es-ES') : 'N/A'}`;
+        seleccionadoContainerPresupuesto.classList.remove('hidden');
+
+        // Guardar el ID en un campo hidden para enviarlo con el formulario
+        let hiddenInput = document.getElementById('presupuesto_activo_id_facturacion');
+        if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'presupuesto_activo_id';
+            hiddenInput.id = 'presupuesto_activo_id_facturacion';
+            document.getElementById('formFacturacion').appendChild(hiddenInput);
+        }
+        hiddenInput.value = id;
+
+        if (window.AppUtils) AppUtils.showToast(`Presupuesto ${numero} anexado correctamente`);
+    };
+
+    window.desanexarPresupuestoFacturacion = () => {
+        presupuestoSeleccionadoIdFacturacion = null;
+        inputPresupuestoFacturacion.value = '';
+        if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+        if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+
+        const hiddenInput = document.getElementById('presupuesto_activo_id_facturacion');
+        if (hiddenInput) hiddenInput.remove();
+
+        if (window.AppUtils) AppUtils.showToast('Presupuesto desanexado');
+    };
+
     if (inputIvaToggle) {
         inputIvaToggle.addEventListener('change', (e) => {
             updateActiveData('iva_activo', e.target.checked);

@@ -11,7 +11,7 @@
     </div>
 
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-4">
         <div class="glass-card p-4 rounded-2xl border-l-4 border-blue-500 shadow-sm">
             <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total</p>
             <h2 id="stat-total" class="text-xl font-black text-blue-600"><?php echo $data['stats']->total ?? 0; ?></h2>
@@ -23,6 +23,14 @@
         <div class="glass-card p-4 rounded-2xl border-l-4 border-amber-500 shadow-sm">
             <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Enviados</p>
             <h2 id="stat-enviados" class="text-xl font-black text-amber-600"><?php echo $data['stats']->enviados ?? 0; ?></h2>
+        </div>
+        <div class="glass-card p-4 rounded-2xl border-l-4 border-emerald-500 shadow-sm">
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Activos</p>
+            <h2 id="stat-activos" class="text-xl font-black text-emerald-600"><?php echo $data['stats']->activos ?? 0; ?></h2>
+        </div>
+        <div class="glass-card p-4 rounded-2xl border-l-4 border-blue-500 shadow-sm">
+            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">En Proceso</p>
+            <h2 id="stat-en-proceso" class="text-xl font-black text-blue-600"><?php echo $data['stats']->en_proceso ?? 0; ?></h2>
         </div>
         <div class="glass-card p-4 rounded-2xl border-l-4 border-emerald-500 shadow-sm">
             <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Aceptados</p>
@@ -47,6 +55,8 @@
                     <option value="">Todos</option>
                     <option value="BORRADOR">Borrador</option>
                     <option value="ENVIADO">Enviado</option>
+                    <option value="ACTIVO">Activo</option>
+                    <option value="EN_PROCESO">En Proceso</option>
                     <option value="ACEPTADO">Aceptado</option>
                     <option value="RECHAZADO">Rechazado</option>
                     <option value="EXPIRADO">Expirado</option>
@@ -329,6 +339,8 @@ async function cargarPresupuestos(page = 1) {
             const estadoColors = {
                 'BORRADOR': 'bg-slate-100 text-slate-600',
                 'ENVIADO': 'bg-amber-100 text-amber-700',
+                'ACTIVO': 'bg-emerald-100 text-emerald-700',
+                'EN_PROCESO': 'bg-blue-100 text-blue-700',
                 'ACEPTADO': 'bg-emerald-100 text-emerald-700',
                 'RECHAZADO': 'bg-red-100 text-red-700',
                 'EXPIRADO': 'bg-red-100 text-red-700',
@@ -380,6 +392,20 @@ async function cargarPresupuestos(page = 1) {
                                     <button onclick="cambiarEstadoPresupuesto(${p.id}, 'RECHAZADO')" class="p-2 bg-red-100 hover:bg-red-500 hover:text-black text-red-600 rounded-lg transition-all" title="Marcar Rechazado">
                                         <i data-lucide="x-circle" class="w-4 h-4"></i>
                                     </button>
+                                ` : ''}
+                                ${p.estado === 'ACTIVO' ? `
+                                    <button onclick="activarPresupuestoDesdeTabla(${p.id})" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Ver Reservas">
+                                        <i data-lucide="package" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="iniciarProcesoDesdeTabla(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Iniciar Proceso">
+                                        <i data-lucide="play-circle" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="liberarInventarioDesdeTabla(${p.id})" class="p-2 bg-amber-100 hover:bg-amber-500 hover:text-black text-amber-600 rounded-lg transition-all" title="Liberar Inventario">
+                                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                                    </button>
+                                ` : ''}
+                                ${p.estado === 'EN_PROCESO' ? `
+                                    <span class="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-black rounded-lg">En Proceso</span>
                                 ` : ''}
                                 <a href="${URLROOT}/presupuesto/ver/${p.id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
                                     <i data-lucide="eye" class="w-4 h-4"></i>
@@ -945,6 +971,148 @@ async function eliminarPresupuesto(id) {
                 AppUtils.showToast(data.mensaje || 'Error al eliminar', 'error');
             }
         } catch (e) {
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+/* ==================== ACCIONES DESDE TABLA (NUEVOS ESTADOS) ==================== */
+async function activarPresupuestoDesdeTabla(id) {
+    const result = await Swal.fire({
+        title: '¿Activar Presupuesto?',
+        text: 'Se reservará el stock de los productos en inventario. El presupuesto pasará a estado ACTIVO.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Sí, activar',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (result.isConfirmed) {
+        AppUtils.showLoading('Activando presupuesto y reservando stock...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/activar/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al activar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function iniciarProcesoDesdeTabla(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Iniciar Proceso',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Módulo *</label>
+                    <select id="proceso-modulo" class="swal2-input w-full m-0 text-sm">
+                        <option value="OS">Orden de Servicio</option>
+                        <option value="FACTURACION">Facturación</option>
+                        <option value="VENTA">Venta Repuestos</option>
+                        <option value="OTRO">Otro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">ID de Referencia (opcional)</label>
+                    <input type="text" id="proceso-referencia" class="swal2-input w-full m-0 text-sm" placeholder="ID de la OS, Factura o Venta">
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'INICIAR PROCESO',
+        confirmButtonColor: '#3b82f6',
+        preConfirm: () => {
+            const modulo = document.getElementById('proceso-modulo').value;
+            const referenciaId = document.getElementById('proceso-referencia').value;
+            return { modulo, referencia_id: referenciaId || null };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Iniciando proceso...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/iniciarProceso/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify(formValues)
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al iniciar proceso', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function liberarInventarioDesdeTabla(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Liberar Inventario',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Motivo *</label>
+                    <select id="liberar-motivo" class="swal2-input w-full m-0 text-sm">
+                        <option value="CANCELACION_CLIENTE">Cancelación por Cliente</option>
+                        <option value="ERROR_STOCK">Error en Stock</option>
+                        <option value="CAMBIO_PRESUPUESTO">Cambio de Presupuesto</option>
+                        <option value="OTRO">Otro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Detalles</label>
+                    <textarea id="liberar-detalles" rows="3" class="swal2-input w-full m-0 text-sm" placeholder="Detalles adicionales..."></textarea>
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'LIBERAR INVENTARIO',
+        confirmButtonColor: '#f59e0b',
+        preConfirm: () => {
+            const motivo = document.getElementById('liberar-motivo').value;
+            const detalles = document.getElementById('liberar-detalles').value;
+            return { motivo: `${motivo}${detalles ? ' - ' + detalles : ''}` };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Liberando inventario...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/liberarInventario/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ motivo: formValues.motivo })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al liberar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
             AppUtils.showToast('Error de conexión', 'error');
         }
     }

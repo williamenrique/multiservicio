@@ -319,7 +319,7 @@ class ControllerEmail extends Controller {
             }
 
             if ($email->estado !== 'FALLIDO') {
-                return $this->jsonResponse(['success' => false, 'mensaje': 'Solo se pueden reenviar emails fallidos'], 400);
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Solo se pueden reenviar emails fallidos'], 400);
             }
 
             // Reenviar email

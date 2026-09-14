@@ -22,7 +22,8 @@ class ControllerPresupuesto extends Controller {
     public function index() {
         $data = [
             'titulo' => 'Presupuestos / Cotizaciones',
-            'stats' => $this->presupuestoModel->obtenerEstadisticas()
+            'stats' => $this->presupuestoModel->obtenerEstadisticas(),
+            'config_iva' => $this->model('Empresa')->obtenerConfiguracion()->iva ?? 19.00
         ];
         $this->view('presupuesto/index', $data);
     }
@@ -475,6 +476,140 @@ class ControllerPresupuesto extends Controller {
             $hasta = $_GET['hasta'] ?? null;
             $stats = $this->presupuestoModel->obtenerEstadisticas($desde, $hasta);
             return $this->jsonResponse(['success' => true, 'data' => $stats]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Activa un presupuesto y reserva inventario
+     */
+    public function activar($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $result = $this->presupuestoModel->activar((int)$id, $_SESSION['user_id']);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'mensaje' => 'Presupuesto activado correctamente. Stock reservado en inventario.',
+                'redirect' => URLROOT . '/presupuesto/ver/' . $id
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Busca presupuestos en estado ACTIVO para anexar a OS/Facturación/Venta
+     */
+    public function buscarActivos() {
+        try {
+            $search = $_GET['q'] ?? '';
+            $presupuestos = $this->presupuestoModel->buscarActivos($search);
+            return $this->jsonResponse(['success' => true, 'data' => $presupuestos]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Obtiene detalle completo de un presupuesto activo con reservas
+     */
+    public function obtenerActivoCompleto($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $presupuesto = $this->presupuestoModel->obtenerActivoCompleto((int)$id);
+            if (!$presupuesto) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Presupuesto no encontrado o no está activo'], 404);
+            }
+
+            return $this->jsonResponse(['success' => true, 'data' => $presupuesto]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Libera inventario reservado (cancelar activación)
+     */
+    public function liberarInventario($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            $motivo = $input['motivo'] ?? 'CANCELACION_MANUAL';
+
+            $this->presupuestoModel->liberarInventario((int)$id, $_SESSION['user_id'], $motivo);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'mensaje' => 'Inventario liberado correctamente. Presupuesto vuelto a BORRADOR.',
+                'redirect' => URLROOT . '/presupuesto/ver/' . $id
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Pasa un presupuesto de ACTIVO a EN_PROCESO cuando se anexa a OS/Facturación/Venta
+     */
+    public function iniciarProceso($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            $modulo = $input['modulo'] ?? 'OTRO'; // OS, FACTURACION, VENTA
+            $referenciaId = $input['referencia_id'] ?? null;
+
+            if (!$this->presupuestoModel->puedeAnexar((int)$id)) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'El presupuesto no está en estado ACTIVO'], 400);
+            }
+
+            $this->presupuestoModel->iniciarProceso((int)$id);
+
+            // Registrar en auditoría
+            $modulosNombres = [
+                'OS' => 'Orden de Servicio',
+                'FACTURACION' => 'Facturación',
+                'VENTA' => 'Venta Repuestos',
+                'OTRO' => 'Otro'
+            ];
+            $moduloNombre = $modulosNombres[$modulo] ?? $modulo;
+
+            logAction('PRESUPUESTO', 'ANEXAR', "Presupuesto anexado a {$moduloNombre} #{$referenciaId}");
+
+            return $this->jsonResponse([
+                'success' => true,
+                'mensaje' => 'Presupuesto anexado correctamente. Estado cambiado a EN_PROCESO.',
+                'redirect' => URLROOT . '/presupuesto/ver/' . $id
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Obtiene las reservas de un presupuesto
+     */
+    public function obtenerReservas($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $reservas = $this->presupuestoModel->obtenerReservas((int)$id);
+            return $this->jsonResponse(['success' => true, 'data' => $reservas]);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }

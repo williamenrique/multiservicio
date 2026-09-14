@@ -116,10 +116,12 @@ CREATE TABLE IF NOT EXISTS `table_presupuestos` (
   `total` decimal(15,2) NOT NULL DEFAULT 0.00,
   `iva_activo` tinyint(1) DEFAULT 1 COMMENT 'Si se aplica IVA',
   `tasa_iva` decimal(5,2) DEFAULT 19.00 COMMENT 'Porcentaje de IVA aplicado',
-  `estado` enum('BORRADOR','ENVIADO','ACEPTADO','RECHAZADO','EXPIRADO','CONVERTIDO') DEFAULT 'BORRADOR',
+  `estado` enum('BORRADOR','ENVIADO','ACTIVO','EN_PROCESO','ACEPTADO','RECHAZADO','EXPIRADO','CONVERTIDO') DEFAULT 'BORRADOR',
   `validez_dias` int(11) DEFAULT 30 COMMENT 'Días de validez del presupuesto',
   `fecha_emision` date NOT NULL DEFAULT (CURRENT_DATE),
   `fecha_vencimiento` date DEFAULT NULL,
+  `fecha_activacion` datetime DEFAULT NULL COMMENT 'Fecha cuando se activó el presupuesto (aplicó reserva)',
+  `usuario_activacion_id` int(11) DEFAULT NULL COMMENT 'Usuario que activó el presupuesto',
   `observaciones` text DEFAULT NULL,
   `condiciones` text DEFAULT NULL COMMENT 'Términos y condiciones del presupuesto',
   `usuario_id` int(11) NOT NULL COMMENT 'Usuario que creó el presupuesto',
@@ -127,6 +129,7 @@ CREATE TABLE IF NOT EXISTS `table_presupuestos` (
   `fecha_actualizacion` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes`(`id`),
   FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios`(`id`),
+  FOREIGN KEY (`usuario_activacion_id`) REFERENCES `table_usuarios`(`id`),
   UNIQUE KEY `uk_numero` (`numero`),
   INDEX (`cliente_id`),
   INDEX (`estado`),
@@ -157,7 +160,48 @@ CREATE TABLE IF NOT EXISTS `table_presupuestos_detalle` (
   INDEX (`producto_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-SET FOREIGN_KEY_CHECKS = 1;
+-- Reservas de inventario por presupuesto (para items en estado ACTIVO/EN_PROCESO)
+CREATE TABLE IF NOT EXISTS `table_presupuestos_reservas` (
+  `id` int(11) PRIMARY KEY AUTO_INCREMENT,
+  `presupuesto_id` int(11) NOT NULL,
+  `producto_id` int(11) NOT NULL,
+  `cantidad_reservada` int(11) NOT NULL DEFAULT 0,
+  `cantidad_liberada` int(11) DEFAULT 0 COMMENT 'Cantidad liberada al facturar o cancelar',
+  `estado` enum('RESERVADA','LIBERADA','FACTURADA') DEFAULT 'RESERVADA',
+  `fecha_reserva` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `fecha_liberacion` datetime DEFAULT NULL,
+  `usuario_liberacion_id` int(11) DEFAULT NULL,
+  FOREIGN KEY (`presupuesto_id`) REFERENCES `table_presupuestos`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`producto_id`) REFERENCES `table_inventario`(`id`),
+  FOREIGN KEY (`usuario_liberacion_id`) REFERENCES `table_usuarios`(`id`),
+  INDEX (`presupuesto_id`),
+  INDEX (`producto_id`),
+  INDEX (`estado`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Actualizar enum de estado en tabla existente si ya existe
+ALTER TABLE `table_presupuestos` 
+MODIFY COLUMN `estado` enum('BORRADOR','ENVIADO','ACTIVO','EN_PROCESO','ACEPTADO','RECHAZADO','EXPIRADO','CONVERTIDO') DEFAULT 'BORRADOR';
+
+-- Agregar columnas nuevas si no existen
+ALTER TABLE `table_presupuestos` 
+ADD COLUMN IF NOT EXISTS `fecha_activacion` datetime DEFAULT NULL COMMENT 'Fecha cuando se activó el presupuesto (aplicó reserva)',
+ADD COLUMN IF NOT EXISTS `usuario_activacion_id` int(11) DEFAULT NULL COMMENT 'Usuario que activó el presupuesto';
+
+-- Agregar foreign key si no existe (MySQL no soporta IF NOT EXISTS en ADD CONSTRAINT)
+-- Eliminamos primero si existe para evitar error
+SET @fk_exists = (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS 
+    WHERE CONSTRAINT_SCHEMA = DATABASE() 
+    AND TABLE_NAME = 'table_presupuestos' 
+    AND CONSTRAINT_NAME = 'fk_presupuesto_usuario_activacion');
+
+SET @sql = IF(@fk_exists = 0, 
+    'ALTER TABLE `table_presupuestos` ADD CONSTRAINT `fk_presupuesto_usuario_activacion` FOREIGN KEY (`usuario_activacion_id`) REFERENCES `table_usuarios`(`id`)', 
+    'SELECT "Foreign key already exists" as msg');
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- =============================================================================
 -- FIN DEL SCRIPT DE MIGRACIÓN

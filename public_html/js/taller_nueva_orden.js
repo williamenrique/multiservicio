@@ -197,3 +197,120 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+/* ==================== BÚSQUEDA DE PRESUPUESTOS ACTIVOS ==================== */
+document.addEventListener('DOMContentLoaded', () => {
+    const inputPresupuesto = document.getElementById('buscarPresupuestoActivo');
+    const resultsContainer = document.getElementById('presupuesto-activo-results');
+    const seleccionadoContainer = document.getElementById('presupuesto-seleccionado');
+    const infoElement = document.getElementById('presupuesto-info');
+    const clienteElement = document.getElementById('presupuesto-cliente');
+    let presupuestoSeleccionadoId = null;
+    let searchTimeoutPresupuesto = null;
+
+    if (inputPresupuesto && resultsContainer) {
+        inputPresupuesto.addEventListener('input', () => {
+            clearTimeout(searchTimeoutPresupuesto);
+            const term = inputPresupuesto.value.trim().toLowerCase();
+
+            if (term.length < 2) {
+                if (resultsContainer) resultsContainer.classList.add('hidden');
+                return;
+            }
+
+            searchTimeoutPresupuesto = setTimeout(async () => {
+                try {
+                    const res = await fetch(`${URLROOT}/presupuesto/buscarActivos?q=${encodeURIComponent(term)}`);
+                    const result = await res.json();
+
+                    if (result.success && result.data) {
+                        renderPresupuestoResults(result.data, term);
+                    } else {
+                        resultsContainer.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos activos</div>';
+                        resultsContainer.classList.remove('hidden');
+                    }
+                } catch (e) {
+                    console.error("Error buscando presupuestos:", e);
+                    resultsContainer.innerHTML = '<div class="p-4 text-center text-red-400 text-xs italic">Error al buscar</div>';
+                    resultsContainer.classList.remove('hidden');
+                }
+            }, 300);
+        });
+
+        // Cerrar resultados al hacer clic fuera
+        document.addEventListener('click', (e) => {
+            if (resultsContainer && !resultsContainer.contains(e.target) && e.target !== inputPresupuesto) {
+                resultsContainer.classList.add('hidden');
+            }
+        });
+    }
+
+    function renderPresupuestoResults(presupuestos, term) {
+        if (!resultsContainer) return;
+
+        let html = '';
+        if (presupuestos.length > 0) {
+            html = presupuestos.map(p => {
+                const estadoBadge = p.estado === 'ACTIVO'
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">ACTIVO</span>'
+                    : '';
+
+                return `
+                    <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0" 
+                         onclick="seleccionarPresupuestoActivo('${p.id}', '${p.numero}', '${p.cliente_nombre.replace(/'/g, "\\'")}', '${p.cliente_telefono || ''}', '${p.total}', '${p.fecha_activacion || p.fecha_emision}')">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-bold text-xs uppercase text-navy-blue">${p.numero} ${estadoBadge}</p>
+                                <p class="text-[10px] text-slate-400 font-mono">${p.cliente_nombre}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] text-amber-600 font-bold font-mono">$${parseFloat(p.total).toLocaleString('es-CO', { minimumFractionDigits: 2 })}</p>
+                                <p class="text-[9px] text-slate-500">${p.fecha_activacion ? new Date(p.fecha_activacion).toLocaleDateString('es-ES') : new Date(p.fecha_emision).toLocaleDateString('es-ES')}</p>
+                            </div>
+                        </div>`;
+            }).join('');
+        } else {
+            html = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos activos</div>';
+        }
+
+        resultsContainer.innerHTML = html;
+        resultsContainer.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    window.seleccionarPresupuestoActivo = (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
+        presupuestoSeleccionadoId = id;
+        inputPresupuesto.value = `${numero} - ${clienteNombre}`;
+        if (resultsContainer) resultsContainer.classList.add('hidden');
+
+        // Mostrar info del presupuesto seleccionado
+        infoElement.textContent = `${numero} | Total: $${parseFloat(total).toLocaleString('es-CO', { minimumFractionDigits: 2 })}`;
+        clienteElement.textContent = `Cliente: ${clienteNombre} | Tel: ${clienteTelefono || 'N/A'} | Activado: ${fecha ? new Date(fecha).toLocaleDateString('es-ES') : 'N/A'}`;
+        seleccionadoContainer.classList.remove('hidden');
+
+        // Guardar el ID en un campo hidden para enviarlo con el formulario
+        let hiddenInput = document.getElementById('presupuesto_activo_id');
+        if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'presupuesto_activo_id';
+            hiddenInput.id = 'presupuesto_activo_id';
+            document.getElementById('formNuevaOrden').appendChild(hiddenInput);
+        }
+        hiddenInput.value = id;
+
+        if (window.AppUtils) AppUtils.showToast(`Presupuesto ${numero} anexado correctamente`);
+    };
+
+    window.desanexarPresupuesto = () => {
+        presupuestoSeleccionadoId = null;
+        inputPresupuesto.value = '';
+        if (resultsContainer) resultsContainer.classList.add('hidden');
+        if (seleccionadoContainer) seleccionadoContainer.classList.add('hidden');
+
+        const hiddenInput = document.getElementById('presupuesto_activo_id');
+        if (hiddenInput) hiddenInput.remove();
+
+        if (window.AppUtils) AppUtils.showToast('Presupuesto desanexado');
+    };
+});

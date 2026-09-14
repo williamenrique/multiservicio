@@ -62,7 +62,36 @@
                         <?php endif; ?>
                     </select>
                 </div>
-                
+
+                <!-- Buscar y Anexar Presupuesto Activo -->
+                <div class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-bold text-blue-800 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-5 h-5"></i> Anexar Presupuesto Activo
+                        </h3>
+                        <span class="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full font-bold">Opcional</span>
+                    </div>
+                    <p class="text-xs text-blue-700 mb-3">Busque un presupuesto en estado ACTIVO para anexarlo a esta factura. Los items se cargarán automáticamente y el stock quedará reservado.</p>
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400"></i>
+                        <input type="text" id="buscarPresupuestoActivoFacturacion" placeholder="Buscar por # presupuesto, cliente, placa..." 
+                            class="w-full pl-10 pr-4 py-2 bg-white border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm">
+                        <div id="presupuesto-activo-results-facturacion" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-blue-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
+                    </div>
+                    <div id="presupuesto-seleccionado-facturacion" class="mt-3 hidden p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-xs font-bold text-green-800 uppercase tracking-wider">Presupuesto Seleccionado</p>
+                                <p id="presupuesto-info-facturacion" class="text-sm font-bold text-green-700"></p>
+                                <p id="presupuesto-cliente-facturacion" class="text-xs text-green-600"></p>
+                            </div>
+                            <button type="button" onclick="desanexarPresupuestoFacturacion()" class="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-lg font-bold uppercase hover:bg-red-200 transition-all">
+                                <i data-lucide="x" class="w-3 h-3 inline mr-1"></i> Quitar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Información de Diagnóstico de Orden (UI Inteligente) -->
                 <div id="container-diag-os" class="p-3 bg-blue-50/50 border border-blue-100 rounded-lg <?php echo !isset($data['orden']) ? 'hidden' : ''; ?>">
                     <label class="block text-[9px] font-black text-blue-500 mb-1 uppercase tracking-widest">Diagnóstico de Entrada (O.S.)</label>

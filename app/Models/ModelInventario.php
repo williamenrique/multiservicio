@@ -19,6 +19,11 @@ class ModelInventario {
                     FROM table_facturas_detalle vd 
                     JOIN table_facturas v ON vd.factura_id = v.id 
                     WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
+                ), 0) - COALESCE((
+                    SELECT SUM(pr.cantidad_reservada) 
+                    FROM table_presupuestos_reservas pr
+                    JOIN table_presupuestos p ON pr.presupuesto_id = p.id
+                    WHERE pr.producto_id = i.id AND pr.estado = 'RESERVADA' AND p.estado IN ('ACTIVO', 'EN_PROCESO')
                 ), 0)) as stock_disponible
                 FROM table_inventario i";
         
@@ -56,6 +61,11 @@ class ModelInventario {
                     FROM table_facturas_detalle vd 
                     JOIN table_facturas v ON vd.factura_id = v.id 
                     WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
+                ), 0) - COALESCE((
+                    SELECT SUM(pr.cantidad_reservada) 
+                    FROM table_presupuestos_reservas pr
+                    JOIN table_presupuestos p ON pr.presupuesto_id = p.id
+                    WHERE pr.producto_id = i.id AND pr.estado = 'RESERVADA' AND p.estado IN ('ACTIVO', 'EN_PROCESO')
                 ), 0)) as stock_disponible,
                 -- Calcular precio con oferta si está activa y vigente
                 CASE 

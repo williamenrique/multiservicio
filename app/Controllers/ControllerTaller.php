@@ -779,4 +779,23 @@ class ControllerTaller extends Controller {
             return $this->jsonResponse(['success' => false, 'mensaje' => 'Error al eliminar el servicio']);
         }
     }
+
+    /**
+     * Busca presupuestos en estado ACTIVO para anexar a una Orden de Servicio
+     * GET /taller/buscarPresupuestosActivos?q=termino
+     */
+    public function buscarPresupuestosActivos() {
+        try {
+            $search = $_GET['q'] ?? '';
+            $presupuestoModel = $this->model('Presupuesto');
+            $presupuestos = $presupuestoModel->buscarActivos($search);
+            
+            return $this->jsonResponse([
+                'success' => true,
+                'data' => $presupuestos
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
 }
