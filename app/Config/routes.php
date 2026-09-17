@@ -58,6 +58,9 @@ return [
     'presupuesto/liberarInventario'  => 'Presupuesto@liberarInventario',
     'presupuesto/iniciarProceso'     => 'Presupuesto@iniciarProceso',
     'presupuesto/obtenerReservas'    => 'Presupuesto@obtenerReservas',
+    'presupuesto/obtener'            => 'Presupuesto@obtener',
+    'presupuesto/aceptar'            => 'Presupuesto@aceptar',
+    'presupuesto/convertirAVenta'    => 'Presupuesto@convertirAVenta',
 
     // Auth
     'login'      => 'Auth@index',

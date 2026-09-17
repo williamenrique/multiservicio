@@ -353,21 +353,28 @@ function mostrarSugerenciasEmail(input) {
     
     suggestions.innerHTML = matches.map(c => {
         const nombreEscapado = c.nombre.replace(/'/g, "&#39;");
+        const direccionEscapada = (c.direccion || '').replace(/'/g, "'");
         return `
         <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0" 
-             onclick="seleccionarClienteEmail('${c.email}', '${nombreEscapado}', '${c.id}')">
+             onclick="seleccionarClienteEmail('${c.email}', '${nombreEscapado}', '${c.id}', '${direccionEscapada}')">
             <div class="font-medium text-slate-700">${c.nombre}</div>
             <div class="text-xs text-slate-500">${c.email} · ${c.id}</div>
+            ${c.direccion ? `<div class="text-[10px] text-slate-400">${c.direccion}</div>` : ''}
         </div>
     `;
     }).join('');
     suggestions.classList.remove('hidden');
 }
 
-function seleccionarClienteEmail(email, nombre, id) {
+function seleccionarClienteEmail(email, nombre, id, direccion = '') {
     document.getElementById('compose-email').value = email;
     document.getElementById('compose-email-nombre').value = nombre;
     document.getElementById('compose-ref-id').value = id;
+    // Si existe un campo de dirección en el formulario, llenarlo
+    const direccionField = document.getElementById('compose-direccion') || document.getElementById('cliente_direccion');
+    if (direccionField && direccion) {
+        direccionField.value = direccion;
+    }
     document.getElementById('email-suggestions').classList.add('hidden');
 }
 

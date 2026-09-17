@@ -74,7 +74,7 @@ class ControllerPresupuesto extends Controller {
     }
 
     /**
-     * Vista para editar presupuesto
+     * Vista para editar presupuesto - redirige al index con parámetro de edición
      */
     public function editar($id = null) {
         if (!$id) {
@@ -92,13 +92,8 @@ class ControllerPresupuesto extends Controller {
             redirect('presupuesto/ver/' . $id);
         }
 
-        $data = [
-            'titulo' => 'Editar Presupuesto',
-            'presupuesto' => $presupuesto,
-            'empresa' => $this->model('Empresa')->obtenerConfiguracion(),
-            'config_iva' => $this->model('Empresa')->obtenerConfiguracion()->iva ?? 19.00
-        ];
-        $this->view('presupuesto/crear', $data);
+        // Redirigir al index con parámetro para editar
+        redirect('presupuesto?edit=' . $id);
     }
 
     /**
@@ -124,11 +119,129 @@ class ControllerPresupuesto extends Controller {
     }
 
     /**
+     * Procesa la entrada del request (soporta JSON y FormData)
+     */
+    private function procesarInput() {
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+        
+        if (strpos($contentType, 'application/json') !== false) {
+            $input = json_decode(file_get_contents('php://input'), true);
+            return $input ?: [];
+        }
+        
+        // Para FormData (multipart/form-data), usar $_POST y procesar items
+        $input = $_POST;
+        
+        // Procesar items anidados (items[1][descripcion], etc.)
+        $items = [];
+        foreach ($input as $key => $value) {
+            if (preg_match('/^items\[(\d+)\]\[(.+)\]$/', $key, $matches)) {
+                $index = $matches[1];
+                $field = $matches[2];
+                $items[$index][$field] = $value;
+            }
+        }
+        
+        if (!empty($items)) {
+            // Reordenar items por índice numérico
+            ksort($items);
+            $input['items'] = array_values($items);
+        }
+        
+        // Convertir checkboxes - IVA activo por defecto (1 = sí, 0 = no)
+        $input['iva_activo'] = isset($input['iva_activo']) ? (int)$input['iva_activo'] : 1;
+        
+        return $input;
+    }
+
+    /**
+     * Procesa cliente y vehículo: crea si no existen
+     */
+    private function procesarClienteVehiculo($data) {
+        $clienteModel = $this->model('Cliente');
+        $vehiculoModel = $this->model('Vehiculo');
+        
+        $clienteId = $data['cliente_id'] ?? null;
+        $clienteCedula = $data['cliente_cedula'] ?? null;
+        $clienteNombre = $data['cliente_nombre'] ?? null;
+        
+        // Si no hay cliente_id pero hay cédula, buscar si existe
+        if (!$clienteId && $clienteCedula) {
+            $clienteExistente = $clienteModel->obtenerPorId($clienteCedula);
+            if ($clienteExistente) {
+                $clienteId = $clienteExistente->id;
+            }
+        }
+        
+        // Si no existe cliente, crearlo
+        if (!$clienteId && $clienteNombre) {
+            // Usar cédula como ID si está disponible, sino generar uno único
+            $nuevoClienteId = $clienteCedula ?: 'CLI_' . date('YmdHis') . '_' . rand(1000, 9999);
+            
+            $clienteData = [
+                'id' => $nuevoClienteId,
+                'nombre' => mb_strtoupper($clienteNombre, 'UTF-8'),
+                'email' => mb_strtolower($data['cliente_email'] ?? '', 'UTF-8'),
+                'telefono' => $data['cliente_telefono'] ?? '',
+                'direccion' => mb_strtoupper($data['cliente_direccion'] ?? '', 'UTF-8')
+            ];
+            
+            if ($clienteModel->crear($clienteData)) {
+                $clienteId = $clienteData['id'];
+            }
+        }
+        
+        // Actualizar data con cliente_id
+        $data['cliente_id'] = $clienteId;
+        
+        // Procesar vehículo si hay datos de placa
+        $vehiculoPlaca = $data['vehiculo_placa'] ?? null;
+        if ($vehiculoPlaca && $clienteId) {
+            // Verificar si el vehículo ya existe
+            $vehiculoExistente = $vehiculoModel->buscarPorPlaca($vehiculoPlaca);
+            if (!$vehiculoExistente) {
+                $vehiculoData = [
+                    'placa' => strtoupper($vehiculoPlaca),
+                    'marca' => mb_strtoupper($data['vehiculo_marca'] ?? '', 'UTF-8'),
+                    'modelo' => mb_strtoupper($data['vehiculo_modelo'] ?? '', 'UTF-8'),
+                    'anio' => $data['vehiculo_anio'] ?? null,
+                    'color' => mb_strtoupper($data['vehiculo_color'] ?? '', 'UTF-8'),
+                    'cliente_id' => $clienteId
+                ];
+                $vehiculoModel->registrar($vehiculoData);
+            }
+        }
+        
+        return $data;
+    }
+
+    /**
+     * Convierte campos de texto a mayúsculas
+     */
+    private function convertirAMayusculas($data) {
+        $camposMayusculas = ['observaciones', 'condiciones', 'cliente_nombre', 'cliente_direccion', 
+                            'vehiculo_marca', 'vehiculo_modelo', 'vehiculo_color'];
+        
+        foreach ($camposMayusculas as $campo) {
+            if (isset($data[$campo]) && $data[$campo] !== null) {
+                $data[$campo] = mb_strtoupper($data[$campo], 'UTF-8');
+            }
+        }
+        
+        // Email a minúsculas
+        if (isset($data['cliente_email'])) {
+            $data['cliente_email'] = mb_strtolower($data['cliente_email'], 'UTF-8');
+        }
+        
+        return $data;
+    }
+
+    /**
      * AJAX: Crea un nuevo presupuesto
      */
     public function guardar() {
         try {
-            $input = json_decode(file_get_contents('php://input'), true);
+            $input = $this->procesarInput();
             
             $v = new Validator($input);
             $v->required(['cliente_nombre', 'items']);
@@ -137,6 +250,12 @@ class ControllerPresupuesto extends Controller {
             if (!$v->success()) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => implode(' ', $v->getErrors())], 400);
             }
+
+            // Convertir campos a mayúsculas
+            $input = $this->convertirAMayusculas($input);
+            
+            // Procesar cliente y vehículo
+            $input = $this->procesarClienteVehiculo($input);
 
             $data = array_merge($input, ['usuario_id' => $_SESSION['user_id']]);
             $presupuestoId = $this->presupuestoModel->crear($data);
@@ -161,7 +280,7 @@ class ControllerPresupuesto extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
             }
 
-            $input = json_decode(file_get_contents('php://input'), true);
+            $input = $this->procesarInput();
             
             $v = new Validator($input);
             $v->required(['cliente_nombre', 'items']);
@@ -170,6 +289,12 @@ class ControllerPresupuesto extends Controller {
             if (!$v->success()) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => implode(' ', $v->getErrors())], 400);
             }
+
+            // Convertir campos a mayúsculas
+            $input = $this->convertirAMayusculas($input);
+            
+            // Procesar cliente y vehículo
+            $input = $this->procesarClienteVehiculo($input);
 
             $this->presupuestoModel->actualizar((int)$id, $input);
 
@@ -596,6 +721,75 @@ class ControllerPresupuesto extends Controller {
             ]);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Acepta un presupuesto y reserva inventario
+     * Cambia estado a ACEPTADO
+     */
+    public function aceptar($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $result = $this->presupuestoModel->aceptar((int)$id, $_SESSION['user_id']);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'mensaje' => 'Presupuesto aceptado correctamente. Stock reservado en inventario.',
+                'redirect' => URLROOT . '/presupuesto/ver/' . $id
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Convierte un presupuesto en una venta (factura)
+     * Descuenta inventario y crea registro de venta
+     */
+    public function convertirAVenta($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            $datosPago = $input['datos_pago'] ?? [];
+
+            $result = $this->presupuestoModel->convertirAVenta((int)$id, $_SESSION['user_id'], $datosPago);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'mensaje' => 'Presupuesto convertido a venta correctamente.',
+                'venta_id' => $result['venta_id'],
+                'status' => $result['status'],
+                'redirect' => URLROOT . '/facturacion/ver/' . $result['venta_id']
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * AJAX: Obtiene un presupuesto completo para editar
+     */
+    public function obtener($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $presupuesto = $this->presupuestoModel->obtenerCompleto((int)$id);
+            if (!$presupuesto) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Presupuesto no encontrado'], 404);
+            }
+
+            return $this->jsonResponse(['success' => true, 'data' => $presupuesto]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 

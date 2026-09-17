@@ -29,11 +29,11 @@
     </div>
 
     <!-- Header del Presupuesto -->
-    <div class="bg-gradient-to-r from-navy-blue to-slate-800 text-white rounded-3xl p-6 sm:p-8 shadow-xl">
+    <div class="bg-gradient-to-r from-navy-blue to-slate-800 text-white rounded-3xl p-6 sm:p-8 shadow-xl" style="background: linear-gradient(to right, #1e3a5f, #1e293b);">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <div class="flex items-center gap-3 mb-2">
-                    <span class="bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full text-sm font-black uppercase tracking-wider">
+                    <span class="bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full text-sm font-black uppercase tracking-wider text-white">
                         <?php echo s($presupuesto->numero); ?>
                     </span>
                     <span class="px-3 py-1.5 rounded-full text-sm font-black uppercase tracking-wider <?php 
@@ -57,11 +57,11 @@
                     <span class="px-3 py-1.5 rounded-full text-sm font-black uppercase tracking-wider bg-red-200 text-red-800">VENCIDO</span>
                     <?php endif; ?>
                 </div>
-                <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Presupuesto / Cotización</h2>
+                <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2 text-white">Presupuesto / Cotización</h2>
                 <p class="text-slate-200 text-sm">Creado el <?php echo date('d/m/Y', strtotime($presupuesto->fecha_creacion)); ?> por <?php echo s($presupuesto->usuario_nombre ?? 'Sistema'); ?></p>
             </div>
             <div class="text-right md:text-left">
-                <div class="text-4xl font-extrabold text-neon-green">$<?php echo number_format($presupuesto->total, 2, ',', '.'); ?></div>
+                <div class="text-4xl font-extrabold text-neon-green">$<?php echo number_format($presupuesto->total ?? 0, 2, ',', '.'); ?></div>
                 <p class="text-slate-300 text-sm mt-1">Total con IVA</p>
             </div>
         </div>
@@ -69,22 +69,22 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-white/20">
             <div>
                 <p class="text-[10px] font-black text-slate-300 uppercase tracking-wider">Fecha Emisión</p>
-                <p class="font-bold"><?php echo date('d/m/Y', strtotime($presupuesto->fecha_emision)); ?></p>
+                <p class="font-bold text-white"><?php echo date('d/m/Y', strtotime($presupuesto->fecha_emision)); ?></p>
             </div>
             <div>
                 <p class="text-[10px] font-black text-slate-300 uppercase tracking-wider">Vencimiento</p>
-                <p class="font-bold <?php echo $vencido ? 'text-red-300' : ''; ?>">
+                <p class="font-bold text-white <?php echo $vencido ? 'text-red-300' : ''; ?>">
                     <?php echo $presupuesto->fecha_vencimiento ? date('d/m/Y', strtotime($presupuesto->fecha_vencimiento)) : 'N/A'; ?>
                     <?php if ($vencido): ?><span class="ml-1 text-red-300 text-xs">(VENCIDO)</span><?php endif; ?>
                 </p>
             </div>
             <div>
                 <p class="text-[10px] font-black text-slate-300 uppercase tracking-wider">Validez</p>
-                <p class="font-bold"><?php echo $presupuesto->validez_dias; ?> días</p>
+                <p class="font-bold text-white"><?php echo $presupuesto->validez_dias; ?> días</p>
             </div>
             <div>
                 <p class="text-[10px] font-black text-slate-300 uppercase tracking-wider">IVA</p>
-                <p class="font-bold"><?php echo $presupuesto->iva_activo ? $presupuesto->tasa_iva . '%' : 'No aplica'; ?></p>
+                <p class="font-bold text-white"><?php echo ($presupuesto->iva_activo && $presupuesto->tasa_iva) ? $presupuesto->tasa_iva . '%' : 'No aplica'; ?></p>
             </div>
         </div>
     </div>
@@ -205,7 +205,7 @@
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">IVA</span>
-                        <span class="font-bold"><?php echo $presupuesto->iva_activo ? $presupuesto->tasa_iva . '%' : 'No aplica'; ?></span>
+                        <span class="font-bold text-slate-700"><?php echo $presupuesto->iva_activo ? $presupuesto->tasa_iva . '%' : 'No aplica'; ?></span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Creado por</span>
@@ -244,31 +244,37 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            <?php foreach ($detalles as $index => $detalle): ?>
-                            <tr class="hover:bg-slate-50 transition-colors">
-                                <td class="px-6 py-4 text-center text-xs font-bold text-slate-500"><?php echo $index + 1; ?></td>
-                                <td class="px-6 py-4">
-                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase <?php echo $detalle->tipo_item === 'SERVICIO' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'; ?>">
-                                        <?php echo s($detalle->tipo_item); ?>
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <p class="font-medium text-slate-700"><?php echo s($detalle->descripcion); ?></p>
-                                    <?php if ($detalle->notas): ?>
-                                    <p class="text-[10px] text-slate-400 italic mt-1"><?php echo s($detalle->notas); ?></p>
-                                    <?php endif; ?>
-                                    <?php if ($detalle->producto_id): ?>
-                                    <p class="text-[10px] text-slate-400 font-mono">Ref: <?php echo s($detalle->producto_codigo ?? 'ID:' . $detalle->producto_id); ?></p>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="px-6 py-4 text-center font-bold text-slate-700"><?php echo $detalle->cantidad; ?></td>
-                                <td class="px-6 py-4 text-right font-bold text-slate-700">$<?php echo number_format($detalle->precio_unitario, 2, ',', '.'); ?></td>
-                                <td class="px-6 py-4 text-center text-xs font-bold text-slate-600"><?php echo $detalle->descuento_porcentaje > 0 ? $detalle->descuento_porcentaje . '%' : '-'; ?></td>
-                                <td class="px-6 py-4 text-right font-bold text-slate-700">$<?php echo number_format($detalle->subtotal, 2, ',', '.'); ?></td>
-                                <td class="px-6 py-4 text-center text-xs font-bold text-slate-600"><?php echo $detalle->iva_porcentaje > 0 ? $detalle->iva_porcentaje . '%' : '-'; ?></td>
-                                <td class="px-6 py-4 text-right font-extrabold text-navy-blue">$<?php echo number_format($detalle->total, 2, ',', '.'); ?></td>
-                            </tr>
-                            <?php endforeach; ?>
+                            <?php if (!empty($presupuesto->items)): ?>
+                                <?php foreach ($presupuesto->items as $index => $detalle): ?>
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="px-6 py-4 text-center text-xs font-bold text-slate-500"><?php echo $index + 1; ?></td>
+                                    <td class="px-6 py-4">
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase <?php echo $detalle->tipo_item === 'SERVICIO' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'; ?>">
+                                            <?php echo s($detalle->tipo_item); ?>
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <p class="font-medium text-slate-700"><?php echo s($detalle->descripcion); ?></p>
+                                        <?php if ($detalle->notas): ?>
+                                        <p class="text-[10px] text-slate-400 italic mt-1"><?php echo s($detalle->notas); ?></p>
+                                        <?php endif; ?>
+                                        <?php if ($detalle->producto_id): ?>
+                                        <p class="text-[10px] text-slate-400 font-mono">Ref: <?php echo s($detalle->producto_codigo ?? 'ID:' . $detalle->producto_id); ?></p>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="px-6 py-4 text-center font-bold text-slate-700"><?php echo $detalle->cantidad; ?></td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-700">$<?php echo number_format($detalle->precio_unitario, 2, ',', '.'); ?></td>
+                                    <td class="px-6 py-4 text-center text-xs font-bold text-slate-600"><?php echo $detalle->descuento_porcentaje > 0 ? $detalle->descuento_porcentaje . '%' : '-'; ?></td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-700">$<?php echo number_format($detalle->subtotal, 2, ',', '.'); ?></td>
+                                    <td class="px-6 py-4 text-center text-xs font-bold text-slate-600"><?php echo $detalle->iva_porcentaje > 0 ? $detalle->iva_porcentaje . '%' : '-'; ?></td>
+                                    <td class="px-6 py-4 text-right font-extrabold text-navy-blue">$<?php echo number_format($detalle->total, 2, ',', '.'); ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="9" class="px-6 py-16 text-center text-slate-400 italic">No hay items en este presupuesto</td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -276,23 +282,23 @@
 
             <!-- Totales -->
             <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-100">
-                <div class="p-6 bg-gradient-to-r from-navy-blue to-slate-800 text-white rounded-t-2xl">
+                <div class="p-6 bg-gradient-to-r from-navy-blue to-slate-800 text-white rounded-t-2xl" style="background: linear-gradient(to right, #1e3a5f, #1e293b);">
                     <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                         <div class="text-center">
-                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70">Subtotal</p>
-                            <p class="text-2xl font-extrabold">$<?php echo number_format($presupuesto->subtotal, 2, ',', '.'); ?></p>
+                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70 text-white">Subtotal</p>
+                            <p class="text-2xl font-extrabold text-white">$<?php echo number_format($presupuesto->subtotal ?? 0, 2, ',', '.'); ?></p>
                         </div>
                         <div class="text-center">
-                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70">Descuentos</p>
-                            <p class="text-2xl font-extrabold">-$<?php echo number_format(array_sum(array_column($detalles, 'descuento_monto')), 2, ',', '.'); ?></p>
+                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70 text-white">Descuentos</p>
+                            <p class="text-2xl font-extrabold text-white">-$<?php echo number_format(!empty($presupuesto->items) ? array_sum(array_column($presupuesto->items, 'descuento_monto')) : 0, 2, ',', '.'); ?></p>
                         </div>
                         <div class="text-center">
-                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70">IVA (<?php echo $presupuesto->tasa_iva; ?>%)</p>
-                            <p class="text-2xl font-extrabold">$<?php echo number_format($presupuesto->iva_monto, 2, ',', '.'); ?></p>
+                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70 text-white">IVA (<?php echo $presupuesto->tasa_iva ?? 0; ?>%)</p>
+                            <p class="text-2xl font-extrabold text-white">$<?php echo number_format($presupuesto->iva_monto ?? 0, 2, ',', '.'); ?></p>
                         </div>
                         <div class="text-center">
-                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70">Total</p>
-                            <p class="text-3xl font-extrabold text-neon-green">$<?php echo number_format($presupuesto->total, 2, ',', '.'); ?></p>
+                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70 text-white">Total</p>
+                            <p class="text-3xl font-extrabold text-neon-green">$<?php echo number_format($presupuesto->total ?? 0, 2, ',', '.'); ?></p>
                         </div>
                     </div>
                 </div>
@@ -331,6 +337,15 @@
                 <?php if (in_array($presupuesto->estado, ['BORRADOR', 'ENVIADO'])): ?>
                 <button onclick="activarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-neon-green text-navy-blue px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:brightness-110 font-semibold shadow-lg shadow-neon-green/20">
                     <i data-lucide="check-circle" class="w-5 h-5"></i> Aplicar Presupuesto
+                </button>
+                <button onclick="aceptarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-emerald-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-emerald-700 font-semibold shadow-lg shadow-emerald-600/20">
+                    <i data-lucide="check-check" class="w-5 h-5"></i> Aceptar
+                </button>
+                <?php endif; ?>
+                
+                <?php if (in_array($presupuesto->estado, ['BORRADOR', 'ENVIADO', 'ACTIVO', 'ACEPTADO'])): ?>
+                <button onclick="convertirPresupuestoAVenta(<?php echo $presupuesto->id; ?>)" class="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-purple-700 font-semibold shadow-lg shadow-purple-600/20">
+                    <i data-lucide="shopping-cart" class="w-5 h-5"></i> Convertir a Venta
                 </button>
                 <?php endif; ?>
                 
@@ -653,4 +668,124 @@ async function guardarYEnviarPresupuesto(id) {
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
 });
+
+/* ==================== NUEVAS ACCIONES: ACEPTAR Y CONVERTIR A VENTA ==================== */
+async function aceptarPresupuesto(id) {
+    const result = await Swal.fire({
+        title: '¿Aceptar Presupuesto?',
+        text: 'Se reservará el stock de los productos en inventario. El presupuesto pasará a estado ACEPTADO.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Sí, aceptar',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (result.isConfirmed) {
+        AppUtils.showLoading('Aceptando presupuesto y reservando stock...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/aceptar/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al aceptar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function convertirPresupuestoAVenta(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Convertir a Venta',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Pago en Efectivo</label>
+                    <input type="number" id="venta-efectivo" class="swal2-input w-full m-0 text-sm" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Pago por Transferencia</label>
+                    <input type="number" id="venta-transferencia" class="swal2-input w-full m-0 text-sm" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="bg-slate-50 p-3 rounded-lg">
+                    <p class="text-xs font-bold text-slate-600">Total del presupuesto: <span id="venta-total-display" class="text-neon-green"></span></p>
+                    <p class="text-xs font-bold text-slate-600">Saldo pendiente: <span id="venta-saldo-display" class="text-red-600"></span></p>
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'CONVERTIR A VENTA',
+        confirmButtonColor: '#7c3aed',
+        didOpen: () => {
+            // Obtener el total del presupuesto desde la vista
+            const total = <?php echo $presupuesto->total ?? 0; ?>;
+            document.getElementById('venta-total-display').textContent = '$' + total.toLocaleString('es-CO', {minimumFractionDigits: 2});
+            document.getElementById('venta-efectivo').value = total.toFixed(2);
+            
+            const updateSaldo = () => {
+                const efectivo = parseFloat(document.getElementById('venta-efectivo').value) || 0;
+                const transferencia = parseFloat(document.getElementById('venta-transferencia').value) || 0;
+                const total = <?php echo $presupuesto->total ?? 0; ?>;
+                const saldo = Math.max(0, total - (efectivo + transferencia));
+                document.getElementById('venta-saldo-display').textContent = '$' + saldo.toLocaleString('es-CO', {minimumFractionDigits: 2});
+            };
+            
+            document.getElementById('venta-efectivo').addEventListener('input', updateSaldo);
+            document.getElementById('venta-transferencia').addEventListener('input', updateSaldo);
+            updateSaldo();
+        },
+        preConfirm: () => {
+            const efectivo = parseFloat(document.getElementById('venta-efectivo').value) || 0;
+            const transferencia = parseFloat(document.getElementById('venta-transferencia').value) || 0;
+            const total = <?php echo $presupuesto->total ?? 0; ?>;
+            
+            if (efectivo + transferencia > total) {
+                Swal.showValidationMessage('El pago total no puede exceder el monto del presupuesto');
+                return false;
+            }
+            
+            return { 
+                pago_efectivo: efectivo, 
+                pago_transferencia: transferencia 
+            };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Convirtiendo presupuesto a venta...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/convertirAVenta/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ datos_pago: formValues })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                if (result.redirect) {
+                    setTimeout(() => window.location.href = result.redirect, 1500);
+                } else {
+                    setTimeout(() => location.reload(), 1500);
+                }
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al convertir a venta', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
 </script>
