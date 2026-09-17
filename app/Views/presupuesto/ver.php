@@ -58,7 +58,7 @@
                     <?php endif; ?>
                 </div>
                 <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2 text-white">Presupuesto / Cotización</h2>
-                <p class="text-slate-200 text-sm">Creado el <?php echo date('d/m/Y', strtotime($presupuesto->fecha_creacion)); ?> por <?php echo s($presupuesto->usuario_nombre ?? 'Sistema'); ?></p>
+                <p class="text-slate-200 text-sm">Creado el <?php echo date('d/m/Y', strtotime($presupuesto->fecha_creacion)); ?> por <?php echo s($presupuesto->staff_nombre ?? $presupuesto->usuario_nombre ?? 'Sistema'); ?></p>
             </div>
             <div class="text-right md:text-left">
                 <div class="text-4xl font-extrabold text-neon-green">$<?php echo number_format($presupuesto->total ?? 0, 2, ',', '.'); ?></div>
@@ -209,7 +209,7 @@
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Creado por</span>
-                        <span class="font-bold"><?php echo s($presupuesto->usuario_nombre ?? 'Sistema'); ?></span>
+                        <span class="font-bold"><?php echo s($presupuesto->staff_nombre ?? $presupuesto->usuario_nombre ?? 'Sistema'); ?></span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500">Fecha Creación</span>

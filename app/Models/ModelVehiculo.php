@@ -9,7 +9,7 @@ class ModelVehiculo {
     public function buscarPorPlaca($placa) {
         $this->db->query("SELECT v.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono 
                           FROM table_vehiculos v 
-                          INNER JOIN table_clientes c ON v.cliente_id = c.id 
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id 
                           WHERE v.placa = :placa");
         $this->db->bind(':placa', $placa);
         return $this->db->single();
@@ -18,6 +18,22 @@ class ModelVehiculo {
     public function registrar($data) {
         $this->db->query("INSERT INTO table_vehiculos (placa, marca, modelo, anio, color, cliente_id) 
                           VALUES (:placa, :marca, :modelo, :anio, :color, :cliente_id)");
+        $this->db->bind(':placa', strtoupper($data['placa']));
+        $this->db->bind(':marca', mb_strtoupper($data['marca'], 'UTF-8'));
+        $this->db->bind(':modelo', mb_strtoupper($data['modelo'], 'UTF-8'));
+        $this->db->bind(':anio', $data['anio']);
+        $this->db->bind(':color', mb_strtoupper($data['color'], 'UTF-8'));
+        $this->db->bind(':cliente_id', $data['cliente_id']);
+        return $this->db->execute();
+    }
+
+    /**
+     * Actualiza un vehículo existente
+     */
+    public function actualizar($data) {
+        $this->db->query("UPDATE table_vehiculos 
+                          SET marca = :marca, modelo = :modelo, anio = :anio, color = :color, cliente_id = :cliente_id
+                          WHERE placa = :placa");
         $this->db->bind(':placa', strtoupper($data['placa']));
         $this->db->bind(':marca', mb_strtoupper($data['marca'], 'UTF-8'));
         $this->db->bind(':modelo', mb_strtoupper($data['modelo'], 'UTF-8'));

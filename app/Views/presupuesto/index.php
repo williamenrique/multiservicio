@@ -433,7 +433,7 @@ async function cargarPresupuestos(page = 1) {
                 '';
 
             return `
-                <tr class="hover:bg-slate-50 transition-colors">
+                <tr class="hover:bg-slate-50 transition-colors" data-id="${p.id}">
                     <td class="px-6 py-4 font-black text-navy-blue">${p.numero}</td>
                     <td class="px-6 py-4">
                         <div class="flex flex-col">
@@ -449,9 +449,6 @@ async function cargarPresupuestos(page = 1) {
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="flex gap-1 justify-end">
-                            <a href="${URLROOT}/presupuesto/ver/${p.id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
-                                <i data-lucide="eye" class="w-4 h-4"></i>
-                            </a>
                             ${p.estado === 'BORRADOR' ? `
                                 <button onclick="editarPresupuesto(${p.id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Editar">
                                     <i data-lucide="edit-3" class="w-4 h-4"></i>
@@ -487,6 +484,14 @@ async function cargarPresupuestos(page = 1) {
                                 ` : ''}
                                 ${p.estado === 'EN_PROCESO' ? `
                                     <span class="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-black rounded-lg">En Proceso</span>
+                                ` : ''}
+                                ${p.estado === 'ACEPTADO' ? `
+                                    <button onclick="convertirPresupuestoAVenta(${p.id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="Convertir a Venta">
+                                        <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="iniciarProcesoDesdeTabla(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Iniciar Proceso (OS/Facturación/Venta)">
+                                        <i data-lucide="play-circle" class="w-4 h-4"></i>
+                                    </button>
                                 ` : ''}
                                 <a href="${URLROOT}/presupuesto/ver/${p.id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
                                     <i data-lucide="eye" class="w-4 h-4"></i>
@@ -558,13 +563,16 @@ function abrirModalCrear() {
     document.getElementById('presupuesto-estado').value = 'BORRADOR';
     document.getElementById('presupuesto-fecha-emision').value = new Date().toISOString().split('T')[0];
     document.getElementById('presupuesto-validez-dias').value = 30;
-    document.getElementById('presupuesto-iva-activo').checked = true;
+    document.getElementById('presupuesto-iva-activo').checked = false;
     document.getElementById('presupuesto-tasa-iva').value = '<?php echo $config_iva; ?>';
     document.getElementById('presupuesto-items-body').innerHTML =
         '<tr id="empty-items-row"><td colspan="10" class="px-4 py-16 text-center text-slate-400 italic">No hay items agregados</td></tr>';
     itemCounter = 0;
     actualizarTotalesPresupuesto();
     lucide.createIcons();
+
+    // Mostrar campos de vehículo (presupuesto normal)
+    ocultarCamposVehiculo(false);
 
     // Cargar sugerencias de clientes
     cargarSugerenciasClientes();
@@ -696,7 +704,7 @@ async function agregarItemPresupuesto(item = null) {
                 <select name="items[${itemCounter}][producto_id]" id="item-producto-${itemCounter}" class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm outline-none focus:border-neon-green" onchange="seleccionarProductoPresupuesto(this, ${itemCounter})">
                     ${productosOptions}
                 </select>
-                <input type="text" name="items[${itemCounter}][descripcion]" id="item-descripcion-${itemCounter}" placeholder="Descripción manual" class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm outline-none focus:border-neon-green hidden mt-1" oninput="actualizarSubtotalItem(${itemCounter})">
+                <input type="text" name="items[${itemCounter}][descripcion]" id="item-descripcion-${itemCounter}" placeholder="Descripción manual" class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm outline-none focus:border-neon-green hidden mt-1 uppercase" oninput="actualizarSubtotalItem(${itemCounter})">
             </div>
         </td>
         <td class="px-4 py-3 text-center">
@@ -755,6 +763,8 @@ function actualizarTipoItem(select, itemId) {
         // Para servicios, el precio es editable
         precioInput.readOnly = false;
         precioInput.classList.remove('bg-slate-100', 'cursor-not-allowed');
+        // Limpiar producto_id para servicios (no debe enviarse a la BD)
+        productoSelect.value = '';
     } else {
         productoSelect.classList.remove('hidden');
         descripcionInput.classList.add('hidden');
@@ -854,10 +864,14 @@ function actualizarTotalesPresupuesto() {
 
     document.querySelectorAll('#presupuesto-items-body tr[data-item-id]').forEach(row => {
         const itemId = row.dataset.itemId;
-        const subtotalItem = parseFloat(document.getElementById(`item-subtotal-${itemId}`).textContent.replace(
-            '$', '').replace(/,/g, '')) || 0;
-        const totalItem = parseFloat(document.getElementById(`item-total-${itemId}`).textContent.replace('$',
-            '').replace(/,/g, '')) || 0;
+        // Parsear formato es-CO: "1.234,56" -> 1234.56
+        // Quitar $, quitar puntos (miles), cambiar coma (decimal) por punto
+        const parseEsCO = (text) => {
+            return parseFloat(text.replace('$', '').replace(/\./g, '').replace(',', '.')) || 0;
+        };
+        
+        const subtotalItem = parseEsCO(document.getElementById(`item-subtotal-${itemId}`).textContent);
+        const totalItem = parseEsCO(document.getElementById(`item-total-${itemId}`).textContent);
         const ivaItem = totalItem - subtotalItem;
 
         subtotal += subtotalItem;
@@ -1058,6 +1072,134 @@ async function generarPDFPresupuesto(id) {
     }
 }
 
+/**
+ * Actualiza una fila de la tabla dinámicamente sin recargar la página
+ * @param {number} id - ID del presupuesto
+ * @param {Object} data - Datos actualizados del presupuesto
+ */
+function actualizarFilaPresupuesto(id, data) {
+    const row = document.querySelector(`#presupuestos-body tr[data-id="${id}"]`);
+    if (!row) return;
+
+    // Actualizar estado badge
+    const estadoColors = {
+        'BORRADOR': 'bg-slate-100 text-slate-600',
+        'ENVIADO': 'bg-amber-100 text-amber-700',
+        'ACTIVO': 'bg-emerald-100 text-emerald-700',
+        'EN_PROCESO': 'bg-blue-100 text-blue-700',
+        'ACEPTADO': 'bg-emerald-100 text-emerald-700',
+        'RECHAZADO': 'bg-red-100 text-red-700',
+        'EXPIRADO': 'bg-red-100 text-red-700',
+        'CONVERTIDO': 'bg-purple-100 text-purple-700'
+    };
+    const estadoColor = estadoColors[data.estado] || 'bg-slate-100 text-slate-600';
+    
+    const estadoCell = row.querySelector('td:nth-child(6) span');
+    if (estadoCell) {
+        estadoCell.className = `px-2 py-0.5 rounded-full text-[10px] font-black ${estadoColor}`;
+        estadoCell.textContent = data.estado;
+    }
+
+    // Actualizar botones de acciones según el nuevo estado
+    const actionsCell = row.querySelector('td:last-child .flex');
+    if (actionsCell && data.estado) {
+        const estado = data.estado;
+        let actionsHtml = '';
+        
+        if (estado === 'BORRADOR') {
+            actionsHtml = `
+                <button onclick="editarPresupuesto(${id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Editar">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                </button>
+                <button onclick="enviarPresupuestoEmail(${id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
+                    <i data-lucide="mail" class="w-4 h-4"></i>
+                </button>
+                <button onclick="generarPDFPresupuesto(${id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="PDF">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                </button>
+                <button onclick="eliminarPresupuesto(${id})" class="p-2 bg-slate-100 hover:bg-red-500 hover:text-black text-slate-500 rounded-lg transition-all" title="Eliminar">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            `;
+        } else if (estado === 'ENVIADO') {
+            actionsHtml = `
+                <button onclick="cambiarEstadoPresupuesto(${id}, 'ACEPTADO')" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Marcar Aceptado">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                </button>
+                <button onclick="cambiarEstadoPresupuesto(${id}, 'RECHAZADO')" class="p-2 bg-red-100 hover:bg-red-500 hover:text-black text-red-600 rounded-lg transition-all" title="Marcar Rechazado">
+                    <i data-lucide="x-circle" class="w-4 h-4"></i>
+                </button>
+                <a href="${URLROOT}/presupuesto/ver/${id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                </a>
+                <button onclick="generarPDFPresupuesto(${id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="PDF">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                </button>
+            `;
+        } else if (estado === 'ACTIVO') {
+            actionsHtml = `
+                <button onclick="activarPresupuestoDesdeTabla(${id})" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Ver Reservas">
+                    <i data-lucide="package" class="w-4 h-4"></i>
+                </button>
+                <button onclick="iniciarProcesoDesdeTabla(${id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Iniciar Proceso">
+                    <i data-lucide="play-circle" class="w-4 h-4"></i>
+                </button>
+                <button onclick="liberarInventarioDesdeTabla(${id})" class="p-2 bg-amber-100 hover:bg-amber-500 hover:text-black text-amber-600 rounded-lg transition-all" title="Liberar Inventario">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                </button>
+                <a href="${URLROOT}/presupuesto/ver/${id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                </a>
+                <button onclick="generarPDFPresupuesto(${id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="PDF">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                </button>
+            `;
+        } else if (estado === 'ACEPTADO') {
+            actionsHtml = `
+                <button onclick="convertirPresupuestoAVenta(${id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="Convertir a Venta">
+                    <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                </button>
+                <button onclick="iniciarProcesoDesdeTabla(${id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Iniciar Proceso (OS/Facturación/Venta)">
+                    <i data-lucide="play-circle" class="w-4 h-4"></i>
+                </button>
+                <a href="${URLROOT}/presupuesto/ver/${id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                </a>
+                <button onclick="generarPDFPresupuesto(${id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="PDF">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                </button>
+            `;
+        } else if (estado === 'EN_PROCESO') {
+            actionsHtml = `
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-black rounded-lg">En Proceso</span>
+                <a href="${URLROOT}/presupuesto/ver/${id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                </a>
+                <button onclick="generarPDFPresupuesto(${id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="PDF">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                </button>
+            `;
+        } else {
+            actionsHtml = `
+                <a href="${URLROOT}/presupuesto/ver/${id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                </a>
+                <button onclick="generarPDFPresupuesto(${id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="PDF">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                </button>
+            `;
+        }
+        
+        actionsCell.innerHTML = actionsHtml;
+        if (window.lucide) lucide.createIcons();
+    }
+
+    // Actualizar data-id si cambió
+    if (data.id) {
+        row.dataset.id = data.id;
+    }
+}
+
 async function cambiarEstadoPresupuesto(id, estado) {
     const estadoLabels = {
         'ACEPTADO': 'Aceptado',
@@ -1091,7 +1233,8 @@ async function cambiarEstadoPresupuesto(id, estado) {
 
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
-                cargarPresupuestos(presupuestosPage);
+                // Actualizar fila dinámicamente sin recargar
+                actualizarFilaPresupuesto(id, { ...result.data, estado });
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al cambiar estado', 'error');
             }
@@ -1126,7 +1269,13 @@ async function eliminarPresupuesto(id) {
 
             if (data.success) {
                 AppUtils.showToast('Presupuesto eliminado', 'success');
-                cargarPresupuestos(presupuestosPage);
+                // Eliminar fila dinámicamente sin recargar
+                const row = document.querySelector(`#presupuestos-body tr[data-id="${id}"]`);
+                if (row) {
+                    row.style.transition = 'opacity 0.3s ease';
+                    row.style.opacity = '0';
+                    setTimeout(() => row.remove(), 300);
+                }
             } else {
                 AppUtils.showToast(data.mensaje || 'Error al eliminar', 'error');
             }
@@ -1164,7 +1313,8 @@ async function activarPresupuestoDesdeTabla(id) {
 
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
-                setTimeout(() => location.reload(), 1500);
+                // Actualizar fila dinámicamente sin recargar
+                actualizarFilaPresupuesto(id, { ...result.data, estado: 'ACTIVO' });
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al activar', 'error');
             }
@@ -1225,7 +1375,8 @@ async function iniciarProcesoDesdeTabla(id) {
 
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
-                setTimeout(() => location.reload(), 1500);
+                // Actualizar fila dinámicamente sin recargar
+                actualizarFilaPresupuesto(id, { ...result.data, estado: 'EN_PROCESO' });
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al iniciar proceso', 'error');
             }
@@ -1287,9 +1438,104 @@ async function liberarInventarioDesdeTabla(id) {
 
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
-                setTimeout(() => location.reload(), 1500);
+                // Actualizar fila dinámicamente sin recargar
+                actualizarFilaPresupuesto(id, { ...result.data, estado: 'BORRADOR' });
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al liberar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+/**
+ * Convierte un presupuesto en una venta (factura)
+ */
+async function convertirPresupuestoAVenta(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Convertir a Venta',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Pago en Efectivo</label>
+                    <input type="number" id="venta-efectivo" class="swal2-input w-full m-0 text-sm" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Pago por Transferencia</label>
+                    <input type="number" id="venta-transferencia" class="swal2-input w-full m-0 text-sm" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="bg-slate-50 p-3 rounded-lg">
+                    <p class="text-xs font-bold text-slate-600">Total del presupuesto: <span id="venta-total-display" class="text-neon-green"></span></p>
+                    <p class="text-xs font-bold text-slate-600">Saldo pendiente: <span id="venta-saldo-display" class="text-red-600"></span></p>
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'CONVERTIR A VENTA',
+        confirmButtonColor: '#7c3aed',
+        didOpen: () => {
+            // Obtener el total del presupuesto desde la fila
+            const row = document.querySelector(`#presupuestos-body tr[data-id="${id}"]`);
+            const totalText = row.querySelector('td:nth-child(5)').textContent;
+            // Parsear formato es-CO: "1.000,00" -> 1000.00
+            const parseEsCO = (text) => parseFloat(text.replace('$', '').replace(/\./g, '').replace(',', '.')) || 0;
+            const total = parseEsCO(totalText);
+            
+            document.getElementById('venta-total-display').textContent = '$' + total.toLocaleString('es-CO', {minimumFractionDigits: 2});
+            document.getElementById('venta-efectivo').value = total.toFixed(2);
+            
+            const updateSaldo = () => {
+                const efectivo = parseFloat(document.getElementById('venta-efectivo').value) || 0;
+                const transferencia = parseFloat(document.getElementById('venta-transferencia').value) || 0;
+                const total = parseEsCO(document.getElementById('venta-total-display').textContent);
+                const saldo = Math.max(0, total - (efectivo + transferencia));
+                document.getElementById('venta-saldo-display').textContent = '$' + saldo.toLocaleString('es-CO', {minimumFractionDigits: 2});
+            };
+            
+            document.getElementById('venta-efectivo').addEventListener('input', updateSaldo);
+            document.getElementById('venta-transferencia').addEventListener('input', updateSaldo);
+            updateSaldo();
+        },
+        preConfirm: () => {
+            const efectivo = parseFloat(document.getElementById('venta-efectivo').value) || 0;
+            const transferencia = parseFloat(document.getElementById('venta-transferencia').value) || 0;
+            const parseEsCO = (text) => parseFloat(text.replace('$', '').replace(/\./g, '').replace(',', '.')) || 0;
+            const total = parseEsCO(document.getElementById('venta-total-display').textContent);
+            
+            if (efectivo + transferencia > total) {
+                Swal.showValidationMessage('El pago total no puede exceder el monto del presupuesto');
+                return false;
+            }
+            
+            return { 
+                pago_efectivo: efectivo, 
+                pago_transferencia: transferencia 
+            };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Convirtiendo presupuesto a venta...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/convertirAVenta/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ datos_pago: formValues })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                if (result.redirect) {
+                    setTimeout(() => window.location.href = result.redirect, 1500);
+                } else {
+                    // Actualizar fila dinámicamente
+                    actualizarFilaPresupuesto(id, { ...result.data, estado: 'CONVERTIDO' });
+                }
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al convertir a venta', 'error');
             }
         } catch (e) {
             AppUtils.hideLoading();
@@ -1390,7 +1636,7 @@ function abrirModalRepuestos() {
     document.getElementById('presupuesto-estado').value = 'BORRADOR';
     document.getElementById('presupuesto-fecha-emision').value = new Date().toISOString().split('T')[0];
     document.getElementById('presupuesto-validez-dias').value = 30;
-    document.getElementById('presupuesto-iva-activo').checked = true;
+    document.getElementById('presupuesto-iva-activo').checked = false;
     document.getElementById('presupuesto-tasa-iva').value = '<?php echo $config_iva; ?>';
     document.getElementById('presupuesto-items-body').innerHTML =
         '<tr id="empty-items-row"><td colspan="10" class="px-4 py-16 text-center text-slate-400 italic">No hay items agregados</td></tr>';
@@ -1433,12 +1679,5 @@ function ocultarCamposVehiculo(ocultar) {
             if (container) container.style.display = ocultar ? 'none' : '';
         });
     }
-}
-
-// Modificar abrirModalCrear para mostrar campos de vehículo
-const originalAbrirModalCrear = abrirModalCrear;
-function abrirModalCrear() {
-    originalAbrirModalCrear();
-    ocultarCamposVehiculo(false);
 }
 </script>

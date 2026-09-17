@@ -74,7 +74,7 @@ class ModelPresupuesto {
      * Obtiene un presupuesto completo con sus items
      */
     public function obtenerCompleto($id) {
-        $this->db->query("SELECT p.*, u.username as usuario_nombre, s.email as usuario_email
+        $this->db->query("SELECT p.*, u.username as usuario_nombre, s.nombre as staff_nombre, s.email as usuario_email
                           FROM table_presupuestos p
                           LEFT JOIN table_usuarios u ON p.usuario_id = u.id
                           LEFT JOIN table_staff s ON u.staff_id = s.id
@@ -161,6 +161,12 @@ class ModelPresupuesto {
             // Insertar items
             if (!empty($data['items'])) {
                 foreach ($data['items'] as $index => $item) {
+                    // Para servicios, producto_id debe ser null
+                    $productoId = null;
+                    if (($item['tipo_item'] ?? 'PRODUCTO') === 'PRODUCTO') {
+                        $productoId = $item['producto_id'] ?? null;
+                    }
+                    
                     $this->db->query("INSERT INTO table_presupuestos_detalle 
                                       (presupuesto_id, producto_id, tipo_item, descripcion, cantidad, 
                                        precio_unitario, descuento_porcentaje, descuento_monto, subtotal,
@@ -171,7 +177,7 @@ class ModelPresupuesto {
                                        :iva_porcentaje, :iva_monto, :total, :orden_visual, :notas)");
 
                     $this->db->bind(':pid', $presupuestoId);
-                    $this->db->bind(':producto_id', $item['producto_id'] ?? null);
+                    $this->db->bind(':producto_id', $productoId);
                     $this->db->bind(':tipo_item', $item['tipo_item'] ?? 'PRODUCTO');
                     $this->db->bind(':descripcion', $item['descripcion']);
                     $this->db->bind(':cantidad', $item['cantidad'] ?? 1);
@@ -269,6 +275,12 @@ class ModelPresupuesto {
             // Insertar nuevos items
             if (!empty($data['items'])) {
                 foreach ($data['items'] as $index => $item) {
+                    // Para servicios, producto_id debe ser null
+                    $productoId = null;
+                    if (($item['tipo_item'] ?? 'PRODUCTO') === 'PRODUCTO') {
+                        $productoId = $item['producto_id'] ?? null;
+                    }
+                    
                     $this->db->query("INSERT INTO table_presupuestos_detalle 
                                       (presupuesto_id, producto_id, tipo_item, descripcion, cantidad, 
                                        precio_unitario, descuento_porcentaje, descuento_monto, subtotal,
@@ -279,7 +291,7 @@ class ModelPresupuesto {
                                        :iva_porcentaje, :iva_monto, :total, :orden_visual, :notas)");
 
                     $this->db->bind(':pid', (int)$id);
-                    $this->db->bind(':producto_id', $item['producto_id'] ?? null);
+                    $this->db->bind(':producto_id', $productoId);
                     $this->db->bind(':tipo_item', $item['tipo_item'] ?? 'PRODUCTO');
                     $this->db->bind(':descripcion', $item['descripcion']);
                     $this->db->bind(':cantidad', $item['cantidad'] ?? 1);

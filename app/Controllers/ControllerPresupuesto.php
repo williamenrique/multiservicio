@@ -148,8 +148,15 @@ class ControllerPresupuesto extends Controller {
             $input['items'] = array_values($items);
         }
         
-        // Convertir checkboxes - IVA activo por defecto (1 = sí, 0 = no)
-        $input['iva_activo'] = isset($input['iva_activo']) ? (int)$input['iva_activo'] : 1;
+        // Convertir checkboxes - IVA inactivo por defecto (0 = no, 1 = sí)
+        $input['iva_activo'] = isset($input['iva_activo']) ? (int)$input['iva_activo'] : 0;
+        
+        // Si IVA no está activo, forzar campos IVA a 0
+        if (!$input['iva_activo']) {
+            $input['iva_monto'] = 0;
+            $input['tasa_iva'] = 0;
+            $input['subtotal'] = $input['total']; // Sin IVA, subtotal = total
+        }
         
         return $input;
     }
@@ -199,16 +206,36 @@ class ControllerPresupuesto extends Controller {
         if ($vehiculoPlaca && $clienteId) {
             // Verificar si el vehículo ya existe
             $vehiculoExistente = $vehiculoModel->buscarPorPlaca($vehiculoPlaca);
+            
+            $vehiculoData = [
+                'placa' => strtoupper($vehiculoPlaca),
+                'marca' => mb_strtoupper($data['vehiculo_marca'] ?? '', 'UTF-8'),
+                'modelo' => mb_strtoupper($data['vehiculo_modelo'] ?? '', 'UTF-8'),
+                'anio' => $data['vehiculo_anio'] ?? null,
+                'color' => mb_strtoupper($data['vehiculo_color'] ?? '', 'UTF-8'),
+                'cliente_id' => $clienteId
+            ];
+            
             if (!$vehiculoExistente) {
-                $vehiculoData = [
-                    'placa' => strtoupper($vehiculoPlaca),
-                    'marca' => mb_strtoupper($data['vehiculo_marca'] ?? '', 'UTF-8'),
-                    'modelo' => mb_strtoupper($data['vehiculo_modelo'] ?? '', 'UTF-8'),
-                    'anio' => $data['vehiculo_anio'] ?? null,
-                    'color' => mb_strtoupper($data['vehiculo_color'] ?? '', 'UTF-8'),
-                    'cliente_id' => $clienteId
-                ];
-                $vehiculoModel->registrar($vehiculoData);
+                // Crear nuevo vehículo
+                $resultado = $vehiculoModel->registrar($vehiculoData);
+                if (!$resultado) {
+                    throw new Exception("Error al registrar el vehículo: " . $vehiculoPlaca);
+                }
+            } else {
+                // Actualizar vehículo existente (puede cambiar de cliente o actualizar datos)
+                // Solo actualizar si el cliente_id es diferente o si hay datos nuevos
+                if ($vehiculoExistente->cliente_id != $clienteId || 
+                    $vehiculoExistente->marca != $vehiculoData['marca'] ||
+                    $vehiculoExistente->modelo != $vehiculoData['modelo'] ||
+                    $vehiculoExistente->anio != $vehiculoData['anio'] ||
+                    $vehiculoExistente->color != $vehiculoData['color']) {
+                    $vehiculoData['placa'] = strtoupper($vehiculoPlaca);
+                    $resultado = $vehiculoModel->actualizar($vehiculoData);
+                    if (!$resultado) {
+                        throw new Exception("Error al actualizar el vehículo: " . $vehiculoPlaca);
+                    }
+                }
             }
         }
         
@@ -225,6 +252,18 @@ class ControllerPresupuesto extends Controller {
         foreach ($camposMayusculas as $campo) {
             if (isset($data[$campo]) && $data[$campo] !== null) {
                 $data[$campo] = mb_strtoupper($data[$campo], 'UTF-8');
+            }
+        }
+        
+        // Convertir descripciones de items a mayúsculas
+        if (isset($data['items']) && is_array($data['items'])) {
+            foreach ($data['items'] as &$item) {
+                if (isset($item['descripcion']) && $item['descripcion'] !== null) {
+                    $item['descripcion'] = mb_strtoupper($item['descripcion'], 'UTF-8');
+                }
+                if (isset($item['notas']) && $item['notas'] !== null) {
+                    $item['notas'] = mb_strtoupper($item['notas'], 'UTF-8');
+                }
             }
         }
         
@@ -322,9 +361,13 @@ class ControllerPresupuesto extends Controller {
 
             $this->presupuestoModel->cambiarEstado((int)$id, $estado);
 
+            // Obtener el presupuesto actualizado para devolverlo en la respuesta
+            $presupuesto = $this->presupuestoModel->obtenerCompleto((int)$id);
+
             return $this->jsonResponse([
                 'success' => true,
-                'mensaje' => 'Estado actualizado correctamente'
+                'mensaje' => 'Estado actualizado correctamente',
+                'data' => $presupuesto
             ]);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
@@ -686,6 +729,7 @@ class ControllerPresupuesto extends Controller {
 
     /**
      * AJAX: Pasa un presupuesto de ACTIVO a EN_PROCESO cuando se anexa a OS/Facturación/Venta
+     * Si modulo es OS, crea una Orden de Servicio automáticamente
      */
     public function iniciarProceso($id = null) {
         try {
@@ -701,6 +745,67 @@ class ControllerPresupuesto extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'El presupuesto no está en estado ACTIVO'], 400);
             }
 
+            // Obtener presupuesto completo con datos del cliente y vehículo
+            $presupuesto = $this->presupuestoModel->obtenerCompleto((int)$id);
+            if (!$presupuesto) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'Presupuesto no encontrado'], 404);
+            }
+
+            $ordenId = null;
+            $ordenCreada = false;
+
+            // Si el módulo es OS, crear Orden de Servicio automáticamente
+            if ($modulo === 'OS') {
+                $ordenModel = $this->model('Orden');
+                
+                // Preparar datos para la orden de servicio
+                $ordenData = [
+                    'cliente_id' => $presupuesto->cliente_id,
+                    'placa' => $presupuesto->vehiculo_placa,
+                    'mecanico_id' => null, // Se asignará después
+                    'kilometraje' => 0,
+                    'nivel_combustible' => 'N/A',
+                    'observaciones_entrada' => 'Generada desde Presupuesto #' . $presupuesto->numero . '. ' . ($presupuesto->observaciones ?? ''),
+                    'observaciones' => 'Generada desde Presupuesto #' . $presupuesto->numero,
+                    'fecha_entrega' => date('Y-m-d', strtotime('+3 days'))
+                ];
+
+                $ordenId = $ordenModel->crear($ordenData);
+                
+                if ($ordenId) {
+                    $ordenCreada = true;
+                    
+                    // Guardar items del presupuesto como servicios en la orden
+                    if (!empty($presupuesto->items)) {
+                        $servicios = [];
+                        foreach ($presupuesto->items as $index => $item) {
+                            $descripcion = $item->descripcion;
+                            if ($item->tipo_item === 'PRODUCTO' && $item->producto_id) {
+                                $descripcion = $item->producto_nombre . ' - ' . $item->descripcion;
+                            }
+                            $servicios[] = [
+                                'descripcion' => $descripcion,
+                                'estado' => 'PENDIENTE',
+                                'orden_visual' => $index + 1
+                            ];
+                        }
+                        
+                        if (!empty($servicios)) {
+                            $ordenModel->guardarServicios($ordenId, $servicios);
+                        }
+                    }
+                    
+                    // Guardar referencia al presupuesto en las observaciones de la orden
+                    $db = new Database();
+                    $db->query("UPDATE table_ordenes_servicio SET observaciones = CONCAT(observaciones, '\n\n[Generada desde Presupuesto #', :presupuesto_num, ' ID: ', :presupuesto_id, ']') WHERE id = :oid");
+                    $db->bind(':presupuesto_num', $presupuesto->numero);
+                    $db->bind(':presupuesto_id', (int)$id);
+                    $db->bind(':oid', $ordenId);
+                    $db->execute();
+                }
+            }
+
+            // Cambiar estado del presupuesto a EN_PROCESO
             $this->presupuestoModel->iniciarProceso((int)$id);
 
             // Registrar en auditoría
@@ -712,11 +817,24 @@ class ControllerPresupuesto extends Controller {
             ];
             $moduloNombre = $modulosNombres[$modulo] ?? $modulo;
 
-            logAction('PRESUPUESTO', 'ANEXAR', "Presupuesto anexado a {$moduloNombre} #{$referenciaId}");
+            $mensajeAuditoria = "Presupuesto anexado a {$moduloNombre}";
+            if ($ordenCreada) {
+                $mensajeAuditoria .= " - Orden de Servicio #{$ordenId} creada automáticamente";
+            }
+            $mensajeAuditoria .= " #{$referenciaId}";
+
+            logAction('PRESUPUESTO', 'ANEXAR', $mensajeAuditoria);
+
+            $mensaje = 'Presupuesto anexado correctamente. Estado cambiado a EN_PROCESO.';
+            if ($ordenCreada) {
+                $mensaje .= ' Orden de Servicio #' . $ordenId . ' creada automáticamente.';
+            }
 
             return $this->jsonResponse([
                 'success' => true,
-                'mensaje' => 'Presupuesto anexado correctamente. Estado cambiado a EN_PROCESO.',
+                'mensaje' => $mensaje,
+                'orden_id' => $ordenId,
+                'orden_creada' => $ordenCreada,
                 'redirect' => URLROOT . '/presupuesto/ver/' . $id
             ]);
         } catch (Exception $e) {
@@ -766,7 +884,7 @@ class ControllerPresupuesto extends Controller {
                 'mensaje' => 'Presupuesto convertido a venta correctamente.',
                 'venta_id' => $result['venta_id'],
                 'status' => $result['status'],
-                'redirect' => URLROOT . '/facturacion/ver/' . $result['venta_id']
+                'redirect' => URLROOT . '/facturacion/imprimir/' . $result['venta_id']
             ]);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
