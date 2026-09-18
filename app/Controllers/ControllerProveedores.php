@@ -165,4 +165,12 @@ class ControllerProveedores extends Controller {
     public function obtener($id) {
         return $this->jsonResponse($this->proveedorModel->obtenerPorId($id));
     }
+
+    /**
+     * Endpoint para obtener los artículos/productos de un proveedor
+     */
+    public function articulos($id) {
+        $articulos = $this->proveedorModel->obtenerArticulosPorProveedor($id);
+        return $this->jsonResponse(['success' => true, 'data' => $articulos ?: []]);
+    }
 }

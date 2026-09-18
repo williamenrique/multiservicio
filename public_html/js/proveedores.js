@@ -100,6 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     </td>
                     <td class="px-8 py-5 text-right align-middle">
                         <div class="flex justify-end gap-2">
+                            <button onclick="window.cargarArticulosProveedor('${item.id}', '${item.nombre}')" class="flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-purple-500 text-slate-500 hover:text-white rounded-2xl transition-all shadow-sm" title="Ver Artículos">
+                                <i data-lucide="package" class="w-4 h-4"></i>
+                            </button>
                             <button onclick="window.registrarCompra('${item.id}', '${item.nombre}')" class="flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-blue-500 text-slate-500 hover:text-white rounded-2xl transition-all shadow-sm" title="Ingresar Mercancía">
                                 <i data-lucide="shopping-bag" class="w-4 h-4"></i>
                             </button>
@@ -216,13 +219,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.switchProveedorTab = window.switchTab = (tab) => {
         const secLista = document.getElementById('sec-lista');
         const secDeudas = document.getElementById('sec-deudas');
+        const secArticulos = document.getElementById('sec-articulos');
         const tabLista = document.getElementById('tab-lista');
         const tabDeudas = document.getElementById('tab-deudas');
+        const tabArticulos = document.getElementById('tab-articulos');
         const topControls = document.getElementById('custom-top-controls');
         const bottomControls = document.getElementById('custom-bottom-controls');
 
         // Resetear estilos de pestañas (quitar resaltado verde)
-        [tabLista, tabDeudas].forEach(t => {
+        [tabLista, tabDeudas, tabArticulos].forEach(t => {
             if (t) {
                 t.classList.remove('border-neon-green', 'text-navy-blue');
                 t.classList.add('border-transparent', 'text-slate-400');
@@ -232,13 +237,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tab === 'lista') {
             secLista.classList.remove('hidden');
             secDeudas.classList.add('hidden');
+            secArticulos.classList.add('hidden');
             if (tabLista) tabLista.classList.add('border-neon-green', 'text-navy-blue');
             if (topControls) topControls.classList.remove('hidden');
             if (bottomControls) bottomControls.classList.remove('hidden');
             if (window.handler_proveedores) window.handler_proveedores.reload();
-        } else {
+        } else if (tab === 'deudas') {
             secDeudas.classList.remove('hidden');
             secLista.classList.add('hidden');
+            secArticulos.classList.add('hidden');
             if (tabDeudas) tabDeudas.classList.add('border-neon-green', 'text-navy-blue');
             if (topControls) topControls.classList.add('hidden');
             if (bottomControls) bottomControls.classList.add('hidden');
@@ -261,6 +268,17 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(`${URLROOT}/proveedores/listarDeudas`)
                 .then(r => r.json())
                 .then(res => renderDeudas(res.data || []));
+        } else if (tab === 'articulos') {
+            secArticulos.classList.remove('hidden');
+            secLista.classList.add('hidden');
+            secDeudas.classList.add('hidden');
+            if (tabArticulos) tabArticulos.classList.add('border-neon-green', 'text-navy-blue');
+            if (topControls) topControls.classList.add('hidden');
+            if (bottomControls) bottomControls.classList.add('hidden');
+            // Cargar artículos - requiere seleccionar un proveedor primero
+            if (window.handler_articulos) {
+                window.handler_articulos.reload();
+            }
         }
     };
 
@@ -524,6 +542,60 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             AppUtils.hideLoading();
             AppUtils.showToast('Error al procesar el pago', 'error');
+        }
+    };
+
+    // Configuración para DataTableRefactor de Artículos (inicialización perezosa)
+    const articulosConfig = {
+        tableId: 'articulos',
+        tableBodyId: 'tableArticulosBody',
+        endpoint: '', // Se establece dinámicamente
+        searchInputId: 'searchArticulos',
+        limitSelectorId: 'limitSelectorArticulos',
+        paginationId: 'paginationControlsArticulos',
+        totalId: 'totalArticulosCount',
+        renderRow: (item) => {
+            const estadoClass = item.estado === 'ACTIVO' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
+            return `
+                <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300">
+                    <td class="px-4 py-3 font-mono text-xs font-black text-slate-400 align-middle">${item.codigo || '---'}</td>
+                    <td class="px-4 py-3 font-black text-sm text-slate-700 uppercase tracking-tight align-middle">${item.producto_nombre}</td>
+                    <td class="px-4 py-3 align-middle">
+                        <span class="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-lg uppercase tracking-wider">${item.marca || '---'}</span>
+                    </td>
+                    <td class="px-4 py-3 align-middle">
+                        <span class="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded-lg uppercase tracking-wider">${item.categoria || '---'}</span>
+                    </td>
+                    <td class="px-4 py-3 text-center align-middle font-mono text-sm font-bold ${item.stock_actual <= 5 ? 'text-rose-600' : 'text-slate-700'}">${item.stock_actual}</td>
+                    <td class="px-4 py-3 text-right align-middle font-mono text-sm font-bold text-amber-600">${AppUtils.formatCurrency(item.costo_promedio)}</td>
+                    <td class="px-4 py-3 text-right align-middle font-mono text-sm font-bold text-navy-blue">${AppUtils.formatCurrency(item.precio_venta)}</td>
+                    <td class="px-4 py-3 text-right align-middle font-mono text-sm font-bold text-slate-600">${item.total_comprado}</td>
+                    <td class="px-4 py-3 text-right align-middle font-mono text-sm font-bold text-slate-600">${item.num_facturas}</td>
+                    <td class="px-4 py-3 text-center align-middle text-xs font-bold text-slate-500">${item.ultima_compra ? new Date(item.ultima_compra).toLocaleDateString() : '---'}</td>
+                    <td class="px-4 py-3 text-center align-middle">
+                        <span class="text-[10px] font-black ${estadoClass} px-2 py-1 rounded uppercase tracking-wider">${item.estado}</span>
+                    </td>
+                </tr>`;
+        }
+    };
+
+    // Función para cargar artículos de un proveedor específico (inicialización perezosa)
+    window.cargarArticulosProveedor = (proveedorId, proveedorNombre) => {
+        // Inicializar handler_articulos solo la primera vez
+        if (!window.handler_articulos) {
+            articulosConfig.endpoint = `${URLROOT}/proveedores/articulos/${proveedorId}`;
+            window.handler_articulos = new DataTableRefactor(articulosConfig);
+        } else {
+            // Actualizar el endpoint con el ID del proveedor y recargar
+            window.handler_articulos.endpoint = `${URLROOT}/proveedores/articulos/${proveedorId}`;
+            window.handler_articulos.reload();
+        }
+        // Cambiar a la pestaña de artículos
+        window.switchTab('articulos');
+        // Actualizar el nombre del proveedor en el header
+        const nombreEl = document.getElementById('articulosProveedorNombre');
+        if (nombreEl) {
+            nombreEl.textContent = proveedorNombre;
         }
     };
 

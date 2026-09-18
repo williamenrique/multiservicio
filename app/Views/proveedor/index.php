@@ -16,6 +16,9 @@
     <button id="tab-deudas" onclick="switchTab('deudas')" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all flex items-center gap-2 text-sm uppercase tracking-wider">
         <i data-lucide="wallet" class="w-4 h-4"></i> Cuentas por Pagar
     </button>
+    <button id="tab-articulos" onclick="switchTab('articulos')" class="pb-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-navy-blue font-bold transition-all flex items-center gap-2 text-sm uppercase tracking-wider">
+        <i data-lucide="package" class="w-4 h-4"></i> Artículos
+    </button>
 </div>
 
 <!-- Sección de Directorio -->
@@ -84,6 +87,65 @@
                     <tr><td colspan="5" class="text-center py-20 text-slate-300 italic uppercase text-xs tracking-widest">Cargando deudas...</td></tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Sección de Artículos -->
+<div id="sec-articulos" class="hidden">
+    <div class="glass-card p-4 rounded-xl mb-6 flex flex-wrap gap-4 items-center">
+        <div class="w-full md:w-auto">
+            <h3 class="text-lg font-black text-navy-blue uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="package" class="w-5 h-5"></i>
+                Artículos de: <span id="articulosProveedorNombre" class="text-neon-green">Seleccione un proveedor</span>
+            </h3>
+        </div>
+        <div class="relative flex-1 min-w-[300px]">
+            <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-5 h-5"></i>
+            <input type="text" id="searchArticulos" placeholder="Buscar artículo por nombre, código, marca..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-neon-green outline-none transition-all">
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="px-4 py-2 bg-navy-blue text-white rounded-lg font-bold text-sm h-full flex items-center">
+                <i data-lucide="package" class="w-4 h-4 mr-2"></i>
+                Total: <span id="totalArticulosCount" class="ml-2">0</span>
+            </div>
+            <select id="limitSelectorArticulos" class="bg-white border border-slate-200 rounded-lg py-2 px-3 text-xs font-bold text-navy-blue outline-none focus:ring-2 focus:ring-neon-green shadow-sm cursor-pointer">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="glass-card rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table id="articulosTable" class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-100">
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Código</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Artículo</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Marca</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Categoría</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-center">Stock</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Costo Promedio</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Precio Venta</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Total Comprado</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Facturas</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-center">Última Compra</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-center">Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="tableArticulosBody">
+                    <tr><td colspan="11" class="px-8 py-16 text-center text-slate-400 italic tracking-widest animate-pulse font-medium">SELECCIONE UN PROVEEDOR PARA VER SUS ARTÍCULOS</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="px-8 py-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Mostrando <span id="startIndexArticulos">0</span> - <span id="endIndexArticulos">0</span> de <span id="totalItemsDisplayArticulos">0</span> artículos
+            </div>
+            <div class="flex items-center gap-2" id="paginationControlsArticulos"></div>
         </div>
     </div>
 </div>

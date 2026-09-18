@@ -87,8 +87,8 @@ class ControllerPresupuesto extends Controller {
             return;
         }
 
-        // Solo permitir editar si está en BORRADOR
-        if ($presupuesto->estado !== 'BORRADOR') {
+        // Permitir editar si está en BORRADOR o ENVIADO (para agregar más items antes de activar)
+        if (!in_array($presupuesto->estado, ['BORRADOR', 'ENVIADO'])) {
             redirect('presupuesto/ver/' . $id);
         }
 
