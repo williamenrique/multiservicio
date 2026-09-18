@@ -168,9 +168,22 @@ class ControllerProveedores extends Controller {
 
     /**
      * Endpoint para obtener los artículos/productos de un proveedor
+     * Soporta búsqueda y paginación (q, limit, offset)
      */
     public function articulos($id) {
-        $articulos = $this->proveedorModel->obtenerArticulosPorProveedor($id);
-        return $this->jsonResponse(['success' => true, 'data' => $articulos ?: []]);
+        $search = $_GET['q'] ?? null;
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+        
+        $articulos = $this->proveedorModel->obtenerArticulosPorProveedor($id, $search, $limit, $offset);
+        $total = $this->proveedorModel->contarArticulosPorProveedor($id);
+        $totalFiltrados = $search ? $this->proveedorModel->contarArticulosPorProveedor($id, $search) : $total;
+        
+        return $this->jsonResponse([
+            'success' => true, 
+            'data' => $articulos ?: [],
+            'total' => $total,
+            'totalFiltrados' => $totalFiltrados
+        ]);
     }
 }

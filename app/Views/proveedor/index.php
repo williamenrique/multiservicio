@@ -128,7 +128,7 @@
                         <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Marca</th>
                         <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider">Categoría</th>
                         <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-center">Stock</th>
-                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Costo Promedio</th>
+                        <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Costo Unitario (Proveedor)</th>
                         <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Precio Venta</th>
                         <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Total Comprado</th>
                         <th class="px-4 py-3 font-bold text-slate-400 text-[10px] uppercase tracking-wider text-right">Facturas</th>

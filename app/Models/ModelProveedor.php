@@ -347,9 +347,11 @@ class ModelProveedor {
     /**
      * Obtiene todos los artículos/productos asociados a un proveedor
      * Agrupa por producto y muestra información consolidada
+     * Soporta búsqueda, paginación (limit/offset)
+     * Muestra el costo unitario de la última compra a este proveedor
      */
-    public function obtenerArticulosPorProveedor($proveedorId) {
-        $this->db->query("SELECT 
+    public function obtenerArticulosPorProveedor($proveedorId, $search = null, $limit = null, $offset = null) {
+        $sql = "SELECT 
                             i.id as producto_id,
                             i.codigo,
                             i.nombre as producto_nombre,
@@ -361,19 +363,64 @@ class ModelProveedor {
                             i.precio as precio_venta,
                             i.estado,
                             SUM(cd.cantidad) as total_comprado,
-                            AVG(cd.costo_unitario) as costo_promedio_compras,
-                            MIN(cd.costo_unitario) as costo_minimo,
-                            MAX(cd.costo_unitario) as costo_maximo,
+                            -- Costo unitario de la última compra a este proveedor
+                            (SELECT cd2.costo_unitario 
+                             FROM table_compras_detalle cd2
+                             INNER JOIN table_compras c2 ON cd2.compra_id = c2.id
+                             WHERE cd2.producto_id = i.id AND c2.proveedor_id = :proveedor_id
+                             ORDER BY c2.fecha DESC LIMIT 1) as costo_unitario_proveedor,
                             COUNT(DISTINCT c.id) as num_facturas,
                             MAX(c.fecha) as ultima_compra,
                             MIN(c.fecha) as primera_compra
                           FROM table_inventario i
                           INNER JOIN table_compras_detalle cd ON i.id = cd.producto_id
                           INNER JOIN table_compras c ON cd.compra_id = c.id
-                          WHERE c.proveedor_id = :proveedor_id
-                          GROUP BY i.id, i.codigo, i.nombre, i.marca, i.categoria, i.stock, i.ultimo_costo, i.costo_promedio, i.precio, i.estado
-                          ORDER BY i.nombre ASC");
-        $this->db->bind(':proveedor_id', $proveedorId);
+                          WHERE c.proveedor_id = :proveedor_id";
+        
+        $params = [':proveedor_id' => $proveedorId];
+        
+        if ($search) {
+            $sql .= " AND (i.nombre LIKE :search OR i.codigo LIKE :search OR i.marca LIKE :search OR i.categoria LIKE :search)";
+            $params[':search'] = "%$search%";
+        }
+        
+        $sql .= " GROUP BY i.id, i.codigo, i.nombre, i.marca, i.categoria, i.stock, i.ultimo_costo, i.costo_promedio, i.precio, i.estado
+                          ORDER BY i.nombre ASC";
+        
+        if ($limit !== null && $offset !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+            $params[':limit'] = (int)$limit;
+            $params[':offset'] = (int)$offset;
+        }
+        
+        $this->db->query($sql);
+        foreach ($params as $key => $val) {
+            $this->db->bind($key, $val);
+        }
         return $this->db->resultSet();
+    }
+
+    /**
+     * Cuenta el total de artículos de un proveedor (para paginación)
+     */
+    public function contarArticulosPorProveedor($proveedorId, $search = null) {
+        $sql = "SELECT COUNT(DISTINCT i.id) as total
+                FROM table_inventario i
+                INNER JOIN table_compras_detalle cd ON i.id = cd.producto_id
+                INNER JOIN table_compras c ON cd.compra_id = c.id
+                WHERE c.proveedor_id = :proveedor_id";
+        
+        $params = [':proveedor_id' => $proveedorId];
+        
+        if ($search) {
+            $sql .= " AND (i.nombre LIKE :search OR i.codigo LIKE :search OR i.marca LIKE :search OR i.categoria LIKE :search)";
+            $params[':search'] = "%$search%";
+        }
+        
+        $this->db->query($sql);
+        foreach ($params as $key => $val) {
+            $this->db->bind($key, $val);
+        }
+        return (int)$this->db->single()->total;
     }
 }

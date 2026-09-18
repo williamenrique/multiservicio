@@ -554,8 +554,13 @@ document.addEventListener('DOMContentLoaded', () => {
         limitSelectorId: 'limitSelectorArticulos',
         paginationId: 'paginationControlsArticulos',
         totalId: 'totalArticulosCount',
+        startId: 'startIndexArticulos',
+        endId: 'endIndexArticulos',
         renderRow: (item) => {
             const estadoClass = item.estado === 'ACTIVO' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
+            // Usar costo_unitario_proveedor (costo de la última compra a este proveedor) 
+            // o fallback a costo_promedio si no hay compras
+            const costoProveedor = item.costo_unitario_proveedor ?? item.costo_promedio ?? 0;
             return `
                 <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300">
                     <td class="px-4 py-3 font-mono text-xs font-black text-slate-400 align-middle">${item.codigo || '---'}</td>
@@ -567,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded-lg uppercase tracking-wider">${item.categoria || '---'}</span>
                     </td>
                     <td class="px-4 py-3 text-center align-middle font-mono text-sm font-bold ${item.stock_actual <= 5 ? 'text-rose-600' : 'text-slate-700'}">${item.stock_actual}</td>
-                    <td class="px-4 py-3 text-right align-middle font-mono text-sm font-bold text-amber-600">${AppUtils.formatCurrency(item.costo_promedio)}</td>
+                    <td class="px-4 py-3 text-right align-middle font-mono text-sm font-bold text-amber-600">${AppUtils.formatCurrency(costoProveedor)}</td>
                     <td class="px-4 py-3 text-right align-middle font-mono text-sm font-bold text-navy-blue">${AppUtils.formatCurrency(item.precio_venta)}</td>
                     <td class="px-4 py-3 text-right align-middle font-mono text-sm font-bold text-slate-600">${item.total_comprado}</td>
                     <td class="px-4 py-3 text-right align-middle font-mono text-sm font-bold text-slate-600">${item.num_facturas}</td>

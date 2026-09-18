@@ -464,6 +464,9 @@ async function cargarPresupuestos(page = 1) {
                                 </button>
                             ` : `
                                 ${p.estado === 'ENVIADO' ? `
+                                    <button onclick="editarPresupuesto(${p.id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Editar Presupuesto">
+                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                    </button>
                                     <button onclick="cambiarEstadoPresupuesto(${p.id}, 'ACEPTADO')" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Marcar Aceptado">
                                         <i data-lucide="check-circle" class="w-4 h-4"></i>
                                     </button>
