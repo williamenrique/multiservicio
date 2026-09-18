@@ -106,6 +106,41 @@
                     class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all resize-none"></textarea>
             </div>
 
+            <!-- Sección de Vehículo (Opcional) -->
+            <div class="border-t border-slate-200 pt-4">
+                <h3 class="text-sm font-bold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i data-lucide="truck" class="w-4 h-4"></i>
+                    Datos del Vehículo (Opcional)
+                </h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Placa</label>
+                        <input type="text" name="vehiculo_placa" id="clientVehiculoPlaca" placeholder="ABC123"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all uppercase">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Marca</label>
+                        <input type="text" name="vehiculo_marca" id="clientVehiculoMarca" placeholder="Toyota"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all uppercase">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Modelo</label>
+                        <input type="text" name="vehiculo_modelo" id="clientVehiculoModelo" placeholder="Corolla"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all uppercase">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Año</label>
+                        <input type="number" name="vehiculo_anio" id="clientVehiculoAnio" placeholder="2020" min="1900" max="2099"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Color</label>
+                        <input type="text" name="vehiculo_color" id="clientVehiculoColor" placeholder="Blanco"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all uppercase">
+                    </div>
+                </div>
+            </div>
+
             <div class="pt-4 flex gap-3">
                 <button type="button" id="btnCancel" class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 transition-all uppercase text-xs tracking-widest">
                     Cancelar

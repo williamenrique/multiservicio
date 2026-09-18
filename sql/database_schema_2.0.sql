@@ -152,7 +152,7 @@ CREATE TABLE `table_inventario` (
   INDEX (`nombre`),
   INDEX (`categoria`),
   INDEX (`oferta_activa`), -- Índice para filtrar ofertas activas
-  UNIQUE KEY `uk_codigo` (`codigo`)
+  UNIQUE KEY `uk_codigo_marca` (`codigo`, `marca`) -- Permite mismo código para diferentes marcas
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Historial de movimientos de stock (Kardex)

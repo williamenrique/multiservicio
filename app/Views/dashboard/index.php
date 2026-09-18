@@ -1,12 +1,13 @@
                 <!-- Dashboard Section -->
                 <section id="sec-dashboard" class="content-section">
                     <h2 class="text-2xl font-bold mb-6">Resumen del Taller</h2>
-                    
+
                     <!-- Contenedores para Alertas Críticas (Stock y Cartera) -->
                     <div id="dashboard-overdue-alert"></div>
                     <div id="dashboard-stock-alert"></div>
 
-                    <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2" id="financial-summary-heading">
+                    <h3 class="text-lg font-semibold text-slate-600 mb-4 flex items-center gap-2"
+                        id="financial-summary-heading">
                         <i data-lucide="activity"></i> Resumen Financiero
                     </h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6" id="financial-status-cards">
@@ -33,7 +34,8 @@
                         <div class="p-4 border-b border-slate-100">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm text-slate-500">Productos con oferta activa y vigente</span>
-                                <span id="offer-count" class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">0</span>
+                                <span id="offer-count"
+                                    class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">0</span>
                             </div>
                         </div>
                         <div id="products-on-offer-list" class="max-h-64 overflow-y-auto divide-y divide-slate-100">
@@ -52,24 +54,24 @@
                         <!-- Pending bills cards generated via JS -->
                     </div>
 
-                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2" id="supplier-debts-heading">
+                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2"
+                        id="supplier-debts-heading">
                         <i data-lucide="truck"></i> Cuentas por Pagar (Proveedores)
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="supplier-debts-dashboard"></div>
 
-                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2" id="expenses-month-heading">
+                    <h3 class="text-lg font-semibold text-slate-600 my-6 flex items-center gap-2"
+                        id="expenses-month-heading">
                         <i data-lucide="trending-down"></i> Gastos del Mes en Curso
                     </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" id="expenses-dashboard"></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" id="expenses-dashboard">
+                    </div>
 
                     <div class="flex justify-between items-center my-6" id="financial-performance-block">
                         <h3 class="text-lg font-semibold text-slate-600 flex items-center gap-2">
                             <i data-lucide="trending-up"></i> Rendimiento Financiero
                         </h3>
-                        <button onclick="downloadBackup()"
-                            class="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-full font-bold transition">
-                            Descargar Respaldo (JSON)
-                        </button>
+
                     </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -98,7 +100,8 @@
                     <div class="glass-card p-6 rounded-xl w-full">
                         <table id="inventoryTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                <tr
+                                    class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
                                     <th class="px-4 py-4">Imagen</th>
                                     <th class="px-4 py-4">Producto</th>
                                     <th class="px-4 py-4">Categoría</th>
@@ -124,7 +127,8 @@
                     <div class="glass-card p-6 rounded-xl w-full">
                         <table id="salesTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                <tr
+                                    class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
                                     <th class="px-4 py-4">ID Factura</th>
                                     <th class="px-4 py-4">Fecha</th>
                                     <th class="px-4 py-4">Vehículo</th>
@@ -167,7 +171,8 @@
                     <div id="prov-lista-content" class="glass-card p-6 rounded-xl w-full">
                         <table id="suppliersTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                <tr
+                                    class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
                                     <th class="px-4 py-4">ID / NIT</th>
                                     <th class="px-4 py-4">Nombre</th>
                                     <th class="px-4 py-4">Teléfono</th>
@@ -181,7 +186,8 @@
                     <div id="prov-deudas-content" class="glass-card p-6 rounded-xl w-full hidden">
                         <table id="purchasesTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                <tr
+                                    class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
                                     <th class="px-4 py-4">Proveedor</th>
                                     <th class="px-4 py-4">Facturas</th>
                                     <th class="px-4 py-4">Saldo</th>
@@ -205,7 +211,8 @@
                     <div class="glass-card p-6 rounded-xl w-full">
                         <table id="expensesTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                <tr
+                                    class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
                                     <th class="px-4 py-4">Fecha</th>
                                     <th class="px-4 py-4">Descripción</th>
                                     <th class="px-4 py-4">Categoría</th>
@@ -230,7 +237,8 @@
                     <div class="glass-card p-6 rounded-xl w-full">
                         <table id="clientsTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                <tr
+                                    class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
                                     <th class="px-4 py-4">Identificación</th>
                                     <th class="px-4 py-4">Nombre</th>
                                     <th class="px-4 py-4">Teléfono</th>
@@ -255,7 +263,8 @@
                     <div class="glass-card p-6 rounded-xl w-full">
                         <table id="staffTable" class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                <tr
+                                    class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
                                     <th class="px-4 py-4">Empleado</th>
                                     <th class="px-4 py-4">Cédula</th>
                                     <th class="px-4 py-4">Cargo</th>
@@ -311,4 +320,4 @@
                         </div>
                     </div>
                 </section>
-<script src="<?php echo URLROOT; ?>/js/dashboard.js"></script>
+                <script src="<?php echo URLROOT; ?>/js/dashboard.js"></script>

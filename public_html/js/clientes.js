@@ -118,7 +118,12 @@ document.addEventListener('DOMContentLoaded', () => {
             nombre: document.getElementById('clientName').value.trim().toUpperCase(),
             email: document.getElementById('clientEmail').value.trim().toLowerCase(),
             telefono: document.getElementById('clientPhone').value.trim(),
-            direccion: document.getElementById('clientAddress').value.trim().toUpperCase()
+            direccion: document.getElementById('clientAddress').value.trim().toUpperCase(),
+            vehiculo_placa: document.getElementById('clientVehiculoPlaca').value.trim().toUpperCase(),
+            vehiculo_marca: document.getElementById('clientVehiculoMarca').value.trim().toUpperCase(),
+            vehiculo_modelo: document.getElementById('clientVehiculoModelo').value.trim().toUpperCase(),
+            vehiculo_anio: document.getElementById('clientVehiculoAnio').value.trim(),
+            vehiculo_color: document.getElementById('clientVehiculoColor').value.trim().toUpperCase()
         };
 
         try {
@@ -159,6 +164,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             document.getElementById('clientId').readOnly = false;
             document.getElementById('modalTitle').textContent = "Registrar Cliente";
+        } else {
+            // Al abrir modal para nuevo cliente, limpiar campos de vehículo
+            if (document.getElementById('clientId').readOnly === false) {
+                document.getElementById('clientVehiculoPlaca').value = '';
+                document.getElementById('clientVehiculoMarca').value = '';
+                document.getElementById('clientVehiculoModelo').value = '';
+                document.getElementById('clientVehiculoAnio').value = '';
+                document.getElementById('clientVehiculoColor').value = '';
+            }
         }
     };
 
@@ -176,6 +190,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('clientEmail').value = item.email;
         document.getElementById('clientPhone').value = item.telefono;
         document.getElementById('clientAddress').value = item.direccion;
+
+        // Poblar campos de vehículo si existen
+        document.getElementById('clientVehiculoPlaca').value = item.vehiculo_placa || '';
+        document.getElementById('clientVehiculoMarca').value = item.vehiculo_marca || '';
+        document.getElementById('clientVehiculoModelo').value = item.vehiculo_modelo || '';
+        document.getElementById('clientVehiculoAnio').value = item.vehiculo_anio || '';
+        document.getElementById('clientVehiculoColor').value = item.vehiculo_color || '';
 
         document.getElementById('modalTitle').textContent = "Editar Cliente";
         toggleModal(true);

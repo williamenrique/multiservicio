@@ -371,11 +371,23 @@ document.addEventListener('DOMContentLoaded', () => {
             didOpen: () => {
                 const input = document.getElementById('compra-producto-nombre');
                 const results = document.getElementById('compra-search-results');
+                console.log('Search input:', input);
+                console.log('Results container:', results);
+                if (!results) {
+                    console.error('Results container NOT FOUND!');
+                    return;
+                }
                 input.addEventListener('input', async () => {
                     const term = input.value.trim();
-                    if (term.length < 2) { results.classList.add('hidden'); return; }
+                    console.log('Search term:', term);
+                    if (term.length < 2) {
+                        console.log('Term too short, hiding');
+                        results.classList.add('hidden');
+                        return;
+                    }
                     const res = await fetch(`${URLROOT}/facturacion/buscarItems?term=${term}`);
                     const items = await res.json();
+                    console.log('Search results:', items);
                     if (items.length > 0) {
                         results.innerHTML = items.map(i => `
                             <div class="p-3 hover:bg-slate-50 cursor-pointer text-[11px] uppercase border-b border-slate-50 last:border-0 flex justify-between item-selection" 
@@ -388,6 +400,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <span class="font-bold text-navy-blue">${AppUtils.formatCurrency(i.precio)}</span>
                             </div>`).join('');
                         results.classList.remove('hidden');
+                        console.log('Showing results');
+                    } else {
+                        // Si no hay coincidencias, ocultar la lista para permitir registrar nuevo repuesto
+                        results.classList.add('hidden');
+                        console.log('No results, hiding');
                     }
                 });
 

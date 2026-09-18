@@ -53,6 +53,23 @@ class ControllerClientes extends Controller {
     public function obtener($id) {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'MECANICO']);
         $cliente = $this->clienteModel->obtenerPorId($id);
+        
+        // Incluir vehículos del cliente
+        if ($cliente) {
+            $vehiculos = $this->clienteModel->obtenerVehiculos($id);
+            $cliente->vehiculos = $vehiculos;
+            
+            // Si hay vehículos, tomar el primero para pre-llenar el formulario
+            if (!empty($vehiculos)) {
+                $primerVehiculo = $vehiculos[0];
+                $cliente->vehiculo_placa = $primerVehiculo->placa;
+                $cliente->vehiculo_marca = $primerVehiculo->marca;
+                $cliente->vehiculo_modelo = $primerVehiculo->modelo;
+                $cliente->vehiculo_anio = $primerVehiculo->anio;
+                $cliente->vehiculo_color = $primerVehiculo->color;
+            }
+        }
+        
         return $this->jsonResponse($cliente);
     }
 
@@ -62,6 +79,18 @@ class ControllerClientes extends Controller {
     public function vehiculos($id) {
         $data = $this->clienteModel->obtenerVehiculos($id);
         return $this->jsonResponse(['success' => true, 'data' => $data]);
+    }
+
+    /**
+     * Endpoint API para verificar si un ID de cliente ya existe
+     */
+    public function verificarId() {
+        $value = $_GET['value'] ?? '';
+        if (empty($value)) {
+            return $this->jsonResponse(['exists' => false]);
+        }
+        $exists = $this->clienteModel->verificarIdUnico($value);
+        return $this->jsonResponse(['exists' => $exists]);
     }
 
     /**
@@ -83,6 +112,35 @@ class ControllerClientes extends Controller {
                 $res = $this->clienteModel->actualizar($input);
             } else {
                 $res = $this->clienteModel->crear($input);
+            }
+
+            // Procesar vehículo si se proporcionaron datos
+            $vehiculoPlaca = $input['vehiculo_placa'] ?? null;
+            if ($vehiculoPlaca && $res) {
+                $vehiculoModel = $this->model('Vehiculo');
+                $vehiculoExistente = $vehiculoModel->buscarPorPlaca($vehiculoPlaca);
+                
+                $vehiculoData = [
+                    'placa' => strtoupper($vehiculoPlaca),
+                    'marca' => mb_strtoupper($input['vehiculo_marca'] ?? '', 'UTF-8'),
+                    'modelo' => mb_strtoupper($input['vehiculo_modelo'] ?? '', 'UTF-8'),
+                    'anio' => $input['vehiculo_anio'] ?? null,
+                    'color' => mb_strtoupper($input['vehiculo_color'] ?? '', 'UTF-8'),
+                    'cliente_id' => $input['id']
+                ];
+                
+                if (!$vehiculoExistente) {
+                    $vehiculoModel->registrar($vehiculoData);
+                } else {
+                    // Actualizar vehículo existente si cambió de cliente o datos
+                    if ($vehiculoExistente->cliente_id != $input['id'] ||
+                        $vehiculoExistente->marca != $vehiculoData['marca'] ||
+                        $vehiculoExistente->modelo != $vehiculoData['modelo'] ||
+                        $vehiculoExistente->anio != $vehiculoData['anio'] ||
+                        $vehiculoExistente->color != $vehiculoData['color']) {
+                        $vehiculoModel->actualizar($vehiculoData);
+                    }
+                }
             }
 
             return $this->jsonResponse([
