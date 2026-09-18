@@ -77,7 +77,19 @@ class ControllerEmail extends Controller {
      */
     public function enviar() {
         try {
-            $input = json_decode(file_get_contents('php://input'), true);
+            // Detectar si es FormData (multipart/form-data) o JSON
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            $isFormData = strpos($contentType, 'multipart/form-data') !== false;
+            
+            if ($isFormData) {
+                // FormData: datos en $_POST y archivos en $_FILES
+                $input = $_POST;
+                $adjuntos = $_FILES['adjuntos'] ?? [];
+            } else {
+                // JSON: leer de php://input
+                $input = json_decode(file_get_contents('php://input'), true) ?: [];
+                $adjuntos = $input['adjuntos'] ?? [];
+            }
             
             $v = new Validator($input);
             $v->required(['destinatario_email', 'asunto', 'cuerpo_html']);
@@ -90,6 +102,40 @@ class ControllerEmail extends Controller {
             // Obtener configuración de email
             $config = $this->model('Empresa')->obtenerConfiguracion();
             
+            // Procesar adjuntos si hay archivos subidos
+            $attachments = [];
+            if ($isFormData && !empty($adjuntos['name'][0])) {
+                $uploadDir = APPROOT . '/../public_html/uploads/emails/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+                
+                $fileCount = count($adjuntos['name']);
+                for ($i = 0; $i < $fileCount; $i++) {
+                    if ($adjuntos['error'][$i] === UPLOAD_ERR_OK) {
+                        $tmpName = $adjuntos['tmp_name'][$i];
+                        $originalName = basename($adjuntos['name'][$i]);
+                        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+                        $allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
+                        
+                        if (in_array($extension, $allowedExtensions)) {
+                            $newName = uniqid('email_') . '_' . $originalName;
+                            $destPath = $uploadDir . $newName;
+                            
+                            if (move_uploaded_file($tmpName, $destPath)) {
+                                $attachments[] = [
+                                    'path' => $destPath,
+                                    'name' => $originalName
+                                ];
+                            }
+                        }
+                    }
+                }
+            } elseif (!empty($adjuntos) && is_array($adjuntos)) {
+                // Adjuntos ya procesados (rutas de archivos)
+                $attachments = $adjuntos;
+            }
+            
             // Preparar datos para el servicio de email
             $emailData = [
                 'to' => $input['destinatario_email'],
@@ -97,7 +143,7 @@ class ControllerEmail extends Controller {
                 'subject' => $input['asunto'],
                 'body_html' => $input['cuerpo_html'],
                 'body_text' => $input['cuerpo_texto'] ?? null,
-                'attachments' => $input['adjuntos'] ?? [],
+                'attachments' => $attachments,
                 'from_name' => $config->name ?? 'Taller Pro',
                 'from_email' => $config->email ?? 'noreply@tallerpro.com'
             ];
@@ -114,7 +160,7 @@ class ControllerEmail extends Controller {
                 'asunto' => $input['asunto'],
                 'cuerpo_html' => $input['cuerpo_html'],
                 'cuerpo_texto' => $input['cuerpo_texto'] ?? null,
-                'adjuntos' => $input['adjuntos'] ?? [],
+                'adjuntos' => $attachments,
                 'referencia_tipo' => $input['referencia_tipo'] ?? 'NINGUNO',
                 'referencia_id' => $input['referencia_id'] ?? null,
                 'estado' => $result['success'] ? 'ENVIADO' : 'FALLIDO',
@@ -134,7 +180,19 @@ class ControllerEmail extends Controller {
      */
     public function enviarConPlantilla() {
         try {
-            $input = json_decode(file_get_contents('php://input'), true);
+            // Detectar si es FormData (multipart/form-data) o JSON
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            $isFormData = strpos($contentType, 'multipart/form-data') !== false;
+            
+            if ($isFormData) {
+                // FormData: datos en $_POST y archivos en $_FILES
+                $input = $_POST;
+                $adjuntos = $_FILES['adjuntos'] ?? [];
+            } else {
+                // JSON: leer de php://input
+                $input = json_decode(file_get_contents('php://input'), true) ?: [];
+                $adjuntos = $input['adjuntos'] ?? [];
+            }
             
             $v = new Validator($input);
             $v->required(['plantilla_id', 'destinatario_email']);
@@ -151,6 +209,9 @@ class ControllerEmail extends Controller {
 
             // Obtener datos de referencia si se proporciona
             $variables = $input['variables'] ?? [];
+            if (is_string($variables)) {
+                $variables = json_decode($variables, true) ?? [];
+            }
             $config = $this->model('Empresa')->obtenerConfiguracion();
             
             // Agregar variables de empresa
@@ -166,6 +227,40 @@ class ControllerEmail extends Controller {
             $asunto = $this->reemplazarVariables($plantilla->asunto, $variables);
             $cuerpoHtml = $this->reemplazarVariables($plantilla->cuerpo_html, $variables);
 
+            // Procesar adjuntos si hay archivos subidos
+            $attachments = [];
+            if ($isFormData && !empty($adjuntos['name'][0])) {
+                $uploadDir = APPROOT . '/../public_html/uploads/emails/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+                
+                $fileCount = count($adjuntos['name']);
+                for ($i = 0; $i < $fileCount; $i++) {
+                    if ($adjuntos['error'][$i] === UPLOAD_ERR_OK) {
+                        $tmpName = $adjuntos['tmp_name'][$i];
+                        $originalName = basename($adjuntos['name'][$i]);
+                        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+                        $allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
+                        
+                        if (in_array($extension, $allowedExtensions)) {
+                            $newName = uniqid('email_') . '_' . $originalName;
+                            $destPath = $uploadDir . $newName;
+                            
+                            if (move_uploaded_file($tmpName, $destPath)) {
+                                $attachments[] = [
+                                    'path' => $destPath,
+                                    'name' => $originalName
+                                ];
+                            }
+                        }
+                    }
+                }
+            } elseif (!empty($adjuntos) && is_array($adjuntos)) {
+                // Adjuntos ya procesados (rutas de archivos)
+                $attachments = $adjuntos;
+            }
+
             // Enviar
             $config = $this->model('Empresa')->obtenerConfiguracion();
             $emailData = [
@@ -173,6 +268,7 @@ class ControllerEmail extends Controller {
                 'to_name' => $input['destinatario_nombre'] ?? '',
                 'subject' => $asunto,
                 'body_html' => $cuerpoHtml,
+                'attachments' => $attachments,
                 'from_name' => $config->name ?? 'Taller Pro',
                 'from_email' => $config->email ?? 'noreply@tallerpro.com'
             ];
@@ -187,6 +283,7 @@ class ControllerEmail extends Controller {
                 'destinatario_nombre' => $input['destinatario_nombre'] ?? '',
                 'asunto' => $asunto,
                 'cuerpo_html' => $cuerpoHtml,
+                'adjuntos' => $attachments,
                 'referencia_tipo' => $input['referencia_tipo'] ?? 'NINGUNO',
                 'referencia_id' => $input['referencia_id'] ?? null,
                 'estado' => $result['success'] ? 'ENVIADO' : 'FALLIDO',

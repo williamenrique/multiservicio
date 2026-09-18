@@ -51,7 +51,7 @@ class EmailService
     /**
      * Renderiza una vista de email con los datos proporcionados
      */
-    private function renderizar(string $vista, array $data = []): string {
+    public function renderizar(string $vista, array $data = []): string {
         $empresa = $this->getEmpresa();
         
         // Normalizar items: convertir objetos stdClass a arrays
@@ -252,5 +252,48 @@ class EmailService
             'anio'         => $anio,
         ]);
         return $this->enviar(MAIL_ADMIN, 'Administrador', $asunto, $html);
+    }
+
+    /**
+     * Envía un email genérico con los datos proporcionados
+     * Usado para emails compuestos manualmente desde la interfaz
+     */
+    public function enviarEmailGenerico(array $datos): array {
+        try {
+            $this->mailer->clearAddresses();
+            $this->mailer->clearCCs();
+            $this->mailer->clearBCCs();
+            $this->mailer->addAddress($datos['to'], $datos['to_name'] ?? '');
+            $this->mailer->isHTML(true);
+            $this->mailer->Subject = $datos['subject'];
+            $this->mailer->Body    = $datos['body_html'];
+            
+            // Versión texto plano
+            $this->mailer->AltBody = $datos['body_text'] ?? strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $datos['body_html']));
+            
+            // Adjuntos
+            if (!empty($datos['attachments'])) {
+                foreach ($datos['attachments'] as $attachment) {
+                    if (is_array($attachment)) {
+                        // Formato: ['path' => '...', 'name' => '...']
+                        $this->mailer->addAttachment($attachment['path'], $attachment['name'] ?? '');
+                    } else {
+                        // Formato simple: string con la ruta
+                        $this->mailer->addAttachment($attachment);
+                    }
+                }
+            }
+            
+            // Configurar remitente si se proporciona
+            if (!empty($datos['from_email'])) {
+                $this->mailer->setFrom($datos['from_email'], $datos['from_name'] ?? 'Taller Pro');
+            }
+            
+            $this->mailer->send();
+            return ['success' => true, 'mensaje' => 'Email enviado correctamente'];
+        } catch (Exception $e) {
+            error_log("EmailService: Error al enviar email genérico: " . $e->getMessage());
+            return ['success' => false, 'mensaje' => $e->getMessage()];
+        }
     }
 }

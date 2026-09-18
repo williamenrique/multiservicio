@@ -66,6 +66,14 @@
                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Hasta</label>
                 <input type="date" name="hasta" id="filter-hasta" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-neon-green">
             </div>
+            <div class="lg:col-span-2">
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Buscar</label>
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                    <input type="text" name="search" id="filter-search" placeholder="Buscar por email, nombre, asunto..."
+                        class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-neon-green">
+                </div>
+            </div>
             <div class="lg:col-span-2 flex items-end gap-2">
                 <button type="button" onclick="cargarEmails(1)" class="bg-neon-green text-black px-4 py-2 rounded-lg font-black text-sm uppercase hover:opacity-90 transition flex items-center gap-2">
                     <i data-lucide="filter" class="w-4 h-4"></i> Filtrar
@@ -447,6 +455,14 @@ document.getElementById('formComposeEmail')?.addEventListener('submit', async fu
 });
 
 /* ==================== VER EMAIL ==================== */
+// Helper to escape content for safe use in template literals
+function escapeForTemplate(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/`/g, '\\`')
+        .replace(/\$\{/g, '\\${');
+}
+
 async function verEmail(id) {
     try {
         AppUtils.showLoading('Cargando email...');
@@ -466,15 +482,27 @@ async function verEmail(id) {
             ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700">Fallido</span>'
             : '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700">Pendiente</span>';
         
+        // Escape all dynamic content for safe template literal use
+        const safeAsunto = escapeForTemplate(e.asunto);
+        const safeTipo = escapeForTemplate(e.tipo);
+        const safeFecha = escapeForTemplate(new Date(e.fecha_creacion).toLocaleString());
+        const safeUsuario = escapeForTemplate(e.usuario_nombre || 'Sistema');
+        const safeDestNombre = escapeForTemplate(e.destinatario_nombre || e.destinatario_email);
+        const safeDestEmail = escapeForTemplate(e.destinatario_email);
+        const safeReferenciaTipo = escapeForTemplate(e.referencia_tipo);
+        const safeReferenciaId = escapeForTemplate(e.referencia_id);
+        const safeError = escapeForTemplate(e.error_mensaje || '');
+        const safeCuerpoHtml = escapeForTemplate(e.cuerpo_html);
+        
         Swal.fire({
-            title: `EMAIL #${e.id} - ${e.asunto}`,
+            title: `EMAIL #${e.id} - ${safeAsunto}`,
             html: `
                 <div class="text-left space-y-3 text-sm max-h-[70vh] overflow-y-auto pr-1">
                     <div class="grid grid-cols-2 gap-4 text-xs">
-                        <div><p class="font-black text-slate-400 uppercase">Tipo</p><p class="font-bold">${e.tipo}</p></div>
+                        <div><p class="font-black text-slate-400 uppercase">Tipo</p><p class="font-bold">${safeTipo}</p></div>
                         <div><p class="font-black text-slate-400 uppercase">Estado</p><p class="font-bold">${estadoBadge}</p></div>
-                        <div><p class="font-black text-slate-400 uppercase">Fecha</p><p class="font-bold">${new Date(e.fecha_creacion).toLocaleString()}</p></div>
-                        <div><p class="font-black text-slate-400 uppercase">Enviado por</p><p class="font-bold">${e.usuario_nombre || 'Sistema'}</p></div>
+                        <div><p class="font-black text-slate-400 uppercase">Fecha</p><p class="font-bold">${safeFecha}</p></div>
+                        <div><p class="font-black text-slate-400 uppercase">Enviado por</p><p class="font-bold">${safeUsuario}</p></div>
                         <div class="sm:col-span-2"><p class="font-black text-slate-400 uppercase">Para</p><p class="font-bold">${e.destinatario_nombre || e.destinatario_email} &lt;${e.destinatario_email}&gt;</p></div>
                         <div class="sm:col-span-2"><p class="font-black text-slate-400 uppercase">Asunto</p><p class="font-bold">${e.asunto}</p></div>
                         ${e.referencia_tipo !== 'NINGUNO' ? `<div class="sm:col-span-2"><p class="font-black text-slate-400 uppercase">Referencia</p><p class="font-bold">${e.referencia_tipo} #${e.referencia_id}</p></div>` : ''}
@@ -495,7 +523,7 @@ async function verEmail(id) {
                 reenviarEmail(e.id);
             }
         });
-    } catch (e) {
+    } catch (err) {
         AppUtils.hideLoading();
         AppUtils.showToast('Error de conexión', 'error');
     }

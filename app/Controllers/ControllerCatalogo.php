@@ -10,10 +10,12 @@ use App\Services\EmailService;
 class ControllerCatalogo extends Controller {
 
     private $modelCatalogo;
+    private $emailModel;
 
     public function __construct() {
         // NOTA: No se llama a AuthGuard - es público
         $this->modelCatalogo = $this->model('Catalogo');
+        $this->emailModel = $this->model('Email');
     }
 
     /**
@@ -514,7 +516,47 @@ class ControllerCatalogo extends Controller {
 
             try {
                 $emailService = new EmailService();
-                $emailService->notificarPedidoCatalogo($datosEmail);
+                $emailResult = $emailService->notificarPedidoCatalogo($datosEmail);
+                
+                // Obtener usuario del sistema para el log (mismo que para billing)
+                $dbCheck = new Database();
+                $dbCheck->query("SELECT u.id FROM table_usuarios u 
+                                 INNER JOIN table_roles r ON u.role_id = r.id 
+                                 WHERE r.nombre_rol = 'ADMINISTRADOR' AND u.estado = 'ACTIVO' 
+                                 LIMIT 1");
+                $adminUser = $dbCheck->single();
+                $usuarioSistema = $adminUser ? $adminUser->id : null;
+                
+                // Log email al cliente
+                $this->emailModel->registrar([
+                    'tipo' => 'PEDIDO_CATALOGO',
+                    'destinatario_email' => $correo,
+                    'destinatario_nombre' => $nombre,
+                    'asunto' => 'Tu pedido #' . $datosEmail['id_formateado'] . ' ha sido recibido — ' . SITENAME,
+                    'cuerpo_html' => $emailService->renderizar('pedido_catalogo_cliente', $datosEmail),
+                    'referencia_tipo' => 'PEDIDO_CATALOGO',
+                    'referencia_id' => $pedidoId,
+                    'estado' => $emailResult['cliente'] ? 'ENVIADO' : 'FALLIDO',
+                    'error_mensaje' => $emailResult['cliente'] ? null : 'Error al enviar email al cliente',
+                    'usuario_id' => $usuarioSistema,
+                    'fecha_envio' => $emailResult['cliente'] ? date('Y-m-d H:i:s') : null
+                ]);
+                
+                // Log email al admin
+                $config = $this->model('Empresa')->obtenerConfiguracion();
+                $this->emailModel->registrar([
+                    'tipo' => 'PEDIDO_CATALOGO',
+                    'destinatario_email' => MAIL_ADMIN,
+                    'destinatario_nombre' => 'Administrador',
+                    'asunto' => 'Nuevo pedido de catálogo #' . $datosEmail['venta_formateado'] . ' — ' . $nombre,
+                    'cuerpo_html' => $emailService->renderizar('pedido_catalogo_admin', $datosEmail),
+                    'referencia_tipo' => 'PEDIDO_CATALOGO',
+                    'referencia_id' => $pedidoId,
+                    'estado' => $emailResult['admin'] ? 'ENVIADO' : 'FALLIDO',
+                    'error_mensaje' => $emailResult['admin'] ? null : 'Error al enviar email al administrador',
+                    'usuario_id' => $usuarioSistema,
+                    'fecha_envio' => $emailResult['admin'] ? date('Y-m-d H:i:s') : null
+                ]);
             } catch (Exception $emailEx) {
                 error_log("ERROR EMAIL CATÁLOGO: " . $emailEx->getMessage());
                 // No interrumpir el flujo si falla el email

@@ -3,12 +3,14 @@ class ControllerFacturacion extends Controller {
     private $facturaModel;
     private $empresaModel;
     private $billingService;
+    private $emailModel;
 
     public function __construct() {
         AuthGuard::handle();
         $this->facturaModel = $this->model('Facturacion');
         $this->empresaModel = $this->model('Empresa');
         $this->billingService = new BillingService();
+        $this->emailModel = $this->model('Email');
     }
 
     public function index() {
@@ -160,7 +162,22 @@ class ControllerFacturacion extends Controller {
                                 'vendedor_nombre'   => $ventaCompleta->vendedor_nombre ?? null,
                             ];
                             $emailService = new \App\Services\EmailService();
-                            $emailService->notificarFacturaDirecta($emailData);
+                            $emailSent = $emailService->notificarFacturaDirecta($emailData);
+                            
+                            // Log email enviado
+                            $this->emailModel->registrar([
+                                'tipo' => 'FACTURA',
+                                'destinatario_email' => $ventaCompleta->cliente_email,
+                                'destinatario_nombre' => $ventaCompleta->cliente_nombre ?? 'Cliente',
+                                'asunto' => 'Factura #' . ($ventaCompleta->id_formateado ?? 'FAC-' . str_pad($ventaId, 3, '0', STR_PAD_LEFT)) . ' — ' . SITENAME,
+                                'cuerpo_html' => $emailService->renderizar('factura_directa', $emailData),
+                                'referencia_tipo' => 'FACTURA',
+                                'referencia_id' => $ventaId,
+                                'estado' => $emailSent ? 'ENVIADO' : 'FALLIDO',
+                                'error_mensaje' => $emailSent ? null : 'Error al enviar email de factura',
+                                'usuario_id' => $_SESSION['user_id'],
+                                'fecha_envio' => $emailSent ? date('Y-m-d H:i:s') : null
+                            ]);
                         }
                     } catch (\Throwable $e) {
                         error_log('ControllerFacturacion: Error al enviar email de factura directa: ' . $e->getMessage());

@@ -13,8 +13,10 @@
             <button onclick="editarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-slate-600 text-white px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-slate-700 text-sm font-semibold shadow-sm">
                 <i data-lucide="edit-3" class="w-4 h-4"></i> Editar
             </button>
+            <?php endif; ?>
+            <?php if (in_array($presupuesto->estado, ['BORRADOR', 'ENVIADO', 'ACTIVO', 'EN_PROCESO', 'ACEPTADO'])): ?>
             <button onclick="enviarPresupuestoEmail(<?php echo $presupuesto->id; ?>)" class="bg-blue-600 text-white px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-blue-700 text-sm font-semibold shadow-sm">
-                <i data-lucide="mail" class="w-4 h-4"></i> Enviar
+                <i data-lucide="mail" class="w-4 h-4"></i> <?php echo $presupuesto->estado === 'BORRADOR' ? 'Enviar' : 'Reenviar'; ?>
             </button>
             <?php endif; ?>
             <button onclick="generarPDFPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-purple-600 text-white px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-purple-700 text-sm font-semibold shadow-sm">

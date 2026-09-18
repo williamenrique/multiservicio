@@ -467,6 +467,9 @@ async function cargarPresupuestos(page = 1) {
                                     <button onclick="editarPresupuesto(${p.id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Editar Presupuesto">
                                         <i data-lucide="edit-3" class="w-4 h-4"></i>
                                     </button>
+                                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Reenviar por Email">
+                                        <i data-lucide="mail" class="w-4 h-4"></i>
+                                    </button>
                                     <button onclick="cambiarEstadoPresupuesto(${p.id}, 'ACEPTADO')" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Marcar Aceptado">
                                         <i data-lucide="check-circle" class="w-4 h-4"></i>
                                     </button>
@@ -475,6 +478,9 @@ async function cargarPresupuestos(page = 1) {
                                     </button>
                                 ` : ''}
                                 ${p.estado === 'ACTIVO' ? `
+                                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
+                                        <i data-lucide="mail" class="w-4 h-4"></i>
+                                    </button>
                                     <button onclick="activarPresupuestoDesdeTabla(${p.id})" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Ver Reservas">
                                         <i data-lucide="package" class="w-4 h-4"></i>
                                     </button>
@@ -486,9 +492,15 @@ async function cargarPresupuestos(page = 1) {
                                     </button>
                                 ` : ''}
                                 ${p.estado === 'EN_PROCESO' ? `
+                                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
+                                        <i data-lucide="mail" class="w-4 h-4"></i>
+                                    </button>
                                     <span class="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-black rounded-lg">En Proceso</span>
                                 ` : ''}
                                 ${p.estado === 'ACEPTADO' ? `
+                                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
+                                        <i data-lucide="mail" class="w-4 h-4"></i>
+                                    </button>
                                     <button onclick="convertirPresupuestoAVenta(${p.id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="Convertir a Venta">
                                         <i data-lucide="shopping-cart" class="w-4 h-4"></i>
                                     </button>

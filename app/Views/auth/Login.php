@@ -63,7 +63,7 @@
                             class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"></i>
                         <input type="text" id="usuario"
                             class="w-full bg-slate-900/50 border border-gray-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-gray-500 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all"
-                            placeholder="Ej: admin o nombre@taller.com" required>
+                            placeholder="Ej: admin o nombre@taller.com" required focus>
                     </div>
                 </div>
 
@@ -99,6 +99,12 @@
     <script>
     const URLROOT = "<?php echo URLROOT; ?>";
     lucide.createIcons();
+    const loginInput = document.getElementById('usuario');
+
+    // 1. Forzar el foco inmediatamente al cargar la página
+    window.addEventListener('DOMContentLoaded', () => {
+        loginInput.focus();
+    });
     </script>
     <script src="<?php echo URL_JS; ?>utils.js"></script>
     <script src="<?php echo URL_JS; ?>login.js"></script>
