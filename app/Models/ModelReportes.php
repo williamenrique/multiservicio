@@ -276,7 +276,7 @@ class ModelReportes {
         }
 
         $results = $this->db->resultSet() ?: [];
-        return $results; // Devolvemos el array directo para evitar error .map() en JS
+        return $results;
     }
 
     /**
@@ -429,6 +429,11 @@ class ModelReportes {
         return $pago;
     }
 
+    // =====================================================================
+    // ÚNICO MÉTODO MODIFICADO: registrarPagoEmpleado()
+    // Se aplican MAYÚSCULAS a: tipo, metodo_pago, modo_calculo, notas
+    // y a la descripción de la transacción en table_transacciones.
+    // =====================================================================
     public function registrarPagoEmpleado($data) {
         try {
             $this->db->beginTransaction();
@@ -440,11 +445,11 @@ class ModelReportes {
             $this->db->bind(':sid', $data['staff_id']);
             $this->db->bind(':monto', $data['monto']);
             $this->db->bind(':base', $data['monto_base']);
-            $this->db->bind(':tipo', $data['tipo']);
-            $this->db->bind(':metodo', $data['metodo_pago']);
-            $this->db->bind(':modo', $data['modo_calculo'] ?? 'FIJO');
+            $this->db->bind(':tipo', mb_strtoupper($data['tipo'], 'UTF-8'));
+            $this->db->bind(':metodo', mb_strtoupper($data['metodo_pago'], 'UTF-8'));
+            $this->db->bind(':modo', mb_strtoupper($data['modo_calculo'] ?? 'FIJO', 'UTF-8'));
             $this->db->bind(':factor', $data['factor_calculo'] ?? 0);
-            $this->db->bind(':notas', $data['notas']);
+            $this->db->bind(':notas', !empty($data['notas']) ? mb_strtoupper($data['notas'], 'UTF-8') : null);
             $this->db->bind(':uid', $data['usuario_id']);
             
             $this->db->execute();
@@ -466,8 +471,9 @@ class ModelReportes {
                               VALUES (1, 'EGRESO', 'NOMINA', :monto, :ref, :desc, :uid)");
             $this->db->bind(':monto', $data['monto']);
             $this->db->bind(':ref', $pagoId);
-            $prefix = ($data['tipo'] === 'ADELANTO') ? 'ADELANTO NÓMINA' : 'PAGO NÓMINA';
-            $this->db->bind(':desc', "$prefix: " . ($data['notas'] ?: 'SIN OBSERVACIONES'));
+            $prefix = (mb_strtoupper($data['tipo'], 'UTF-8') === 'ADELANTO') ? 'ADELANTO NÓMINA' : 'PAGO NÓMINA';
+            $descripcion = "$prefix: " . (!empty($data['notas']) ? mb_strtoupper($data['notas'], 'UTF-8') : 'SIN OBSERVACIONES');
+            $this->db->bind(':desc', $descripcion);
             $this->db->bind(':uid', $data['usuario_id']);
             $this->db->execute();
 

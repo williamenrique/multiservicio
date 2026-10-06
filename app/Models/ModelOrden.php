@@ -10,10 +10,10 @@ class ModelOrden {
         $this->db->query("INSERT INTO table_ordenes_servicio (cliente_id, placa, mecanico_id, kilometraje, nivel_combustible, diagnostico_entrada, diagnostico_salida, observaciones, estado, fecha_entrega_estimada) 
                           VALUES (:cid, :placa, :mid, :km, :comb, :diag, :diag_salida, :obs, 'RECIBIDO', :f_entrega)");
         $this->db->bind(':cid', $data['cliente_id']);
-        $this->db->bind(':placa', $data['placa']);
+        $this->db->bind(':placa', mb_strtoupper($data['placa'], 'UTF-8'));
         $this->db->bind(':mid', !empty($data['mecanico_id']) ? $data['mecanico_id'] : null);
         $this->db->bind(':km', $data['kilometraje']);
-        $this->db->bind(':comb', $data['nivel_combustible']);
+        $this->db->bind(':comb', mb_strtoupper($data['nivel_combustible'], 'UTF-8'));
         $this->db->bind(':diag', mb_strtoupper($data['observaciones_entrada'] ?? '', 'UTF-8'));
         $this->db->bind(':diag_salida', null);
         $this->db->bind(':obs', mb_strtoupper($data['observaciones'] ?? '', 'UTF-8'));
@@ -31,7 +31,6 @@ class ModelOrden {
                               VALUES (:oid, :item, :estado, :obs)");
             $this->db->bind(':oid', $ordenId);
             $this->db->bind(':item', mb_strtoupper($item['item'], 'UTF-8'));
-            // Si el ítem llega en el array es porque se marcó el checkbox en el formulario
             $this->db->bind(':estado', 1); 
             $this->db->bind(':obs', mb_strtoupper($item['nota'] ?? '', 'UTF-8'));
             $this->db->execute();
@@ -62,22 +61,23 @@ class ModelOrden {
         try {
             $this->db->beginTransaction();
             
-            // 1. Obtener estado anterior
             $this->db->query("SELECT estado FROM table_ordenes_servicio WHERE id = :id");
             $this->db->bind(':id', $id);
             $anterior = $this->db->single()->estado;
 
-            // 2. Actualizar estado
             $this->db->query("UPDATE table_ordenes_servicio SET estado = :estado WHERE id = :id");
-            $this->db->bind(':estado', $nuevoEstado);
+            $this->db->bind(':estado', mb_strtoupper($nuevoEstado, 'UTF-8'));
             $this->db->bind(':id', $id);
             $this->db->execute();
 
-            // 3. Log de auditoría de estado
             $this->db->query("INSERT INTO table_orden_estados_log (orden_id, estado_anterior, estado_nuevo, usuario_id, comentario) 
                               VALUES (:id, :ant, :nue, :uid, :com)");
-            $this->db->bind(':id', $id); $this->db->bind(':ant', $anterior); $this->db->bind(':nue', $nuevoEstado);
-            $this->db->bind(':uid', $_SESSION['user_id']); $this->db->bind(':com', $comentario);
+            $this->db->bind(':id', $id);
+            $this->db->bind(':ant', mb_strtoupper($anterior, 'UTF-8'));
+            $this->db->bind(':nue', mb_strtoupper($nuevoEstado, 'UTF-8'));
+            $this->db->bind(':uid', $_SESSION['user_id']);
+            // COMENTARIO EN MAYÚSCULAS
+            $this->db->bind(':com', mb_strtoupper($comentario, 'UTF-8'));
             $this->db->execute();
 
             return $this->db->commit();
@@ -141,9 +141,6 @@ class ModelOrden {
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene las órdenes de servicio finalizadas (ENTREGADO) con paginación y búsqueda.
-     */
     public function obtenerOrdenesCerradas($limit = 10, $offset = 0, $search = null) {
         $sql = "SELECT os.*, v.marca, v.modelo, s.nombre as mecanico_nombre, c.nombre as cliente_nombre
                 FROM table_ordenes_servicio os
@@ -181,58 +178,35 @@ class ModelOrden {
         return (int)$this->db->single()->total;
     }
 
-    /**
-     * Obtiene el último kilometraje registrado para una placa específica.
-     */
     public function obtenerUltimoKilometrajePorPlaca($placa) {
         $this->db->query("SELECT kilometraje FROM table_ordenes_servicio WHERE placa = :placa ORDER BY fecha_ingreso DESC LIMIT 1");
-        $this->db->bind(':placa', $placa);
+        $this->db->bind(':placa', mb_strtoupper($placa, 'UTF-8'));
         return $this->db->single();
     }
 
-    // =========================================================================
-    // MÉTODOS PARA SERVICIOS / REVISIONES DE LA ORDEN
-    // =========================================================================
-
-    /**
-     * Guarda los servicios/revisiones de una orden.
-     * @param int $ordenId ID de la orden
-     * @param array $servicios Array de servicios con: descripcion, estado, orden_visual
-     * @param bool $reemplazar Si true, elimina los servicios existentes antes de insertar (default: true para compatibilidad)
-     * @return bool
-     */
     public function guardarServicios($ordenId, $servicios, $reemplazar = true) {
-        // Si se solicita reemplazar, eliminamos los servicios existentes
         if ($reemplazar) {
             $this->db->query("DELETE FROM table_orden_servicios WHERE orden_id = :oid");
             $this->db->bind(':oid', $ordenId);
             $this->db->execute();
         }
 
-        // Insertamos los nuevos servicios
         foreach ($servicios as $index => $servicio) {
             $descripcion = trim($servicio['descripcion'] ?? '');
-            if (empty($descripcion)) continue; // Saltar servicios vacíos
+            if (empty($descripcion)) continue;
 
             $this->db->query("INSERT INTO table_orden_servicios (orden_id, descripcion, estado, orden_visual) 
                               VALUES (:oid, :desc, :estado, :orden)");
             $this->db->bind(':oid', $ordenId);
             $this->db->bind(':desc', mb_strtoupper($descripcion, 'UTF-8'));
-            $this->db->bind(':estado', $servicio['estado'] ?? 'PENDIENTE');
+            $this->db->bind(':estado', mb_strtoupper($servicio['estado'] ?? 'PENDIENTE', 'UTF-8'));
             $this->db->bind(':orden', $servicio['orden_visual'] ?? ($index + 1));
             $this->db->execute();
         }
         return true;
     }
 
-    /**
-     * Agrega un solo servicio/revisión a una orden existente (modo append).
-     * @param int $ordenId ID de la orden
-     * @param array $servicio Datos del servicio: descripcion, estado
-     * @return bool
-     */
     public function agregarServicio($ordenId, $servicio) {
-        // Obtener el último orden_visual para mantener la secuencia
         $this->db->query("SELECT COALESCE(MAX(orden_visual), 0) as max_orden FROM table_orden_servicios WHERE orden_id = :oid");
         $this->db->bind(':oid', $ordenId);
         $result = $this->db->single();
@@ -245,30 +219,20 @@ class ModelOrden {
                           VALUES (:oid, :desc, :estado, :orden)");
         $this->db->bind(':oid', $ordenId);
         $this->db->bind(':desc', mb_strtoupper($descripcion, 'UTF-8'));
-        $this->db->bind(':estado', $servicio['estado'] ?? 'PENDIENTE');
+        $this->db->bind(':estado', mb_strtoupper($servicio['estado'] ?? 'PENDIENTE', 'UTF-8'));
         $this->db->bind(':orden', $nuevoOrden);
         return $this->db->execute();
     }
 
-    /**
-     * Obtiene los servicios/revisiones de una orden ordenados por orden_visual.
-     * @param int $ordenId ID de la orden
-     * @return array
-     */
     public function obtenerServicios($ordenId) {
         $this->db->query("SELECT * FROM table_orden_servicios WHERE orden_id = :oid ORDER BY orden_visual ASC, id ASC");
         $this->db->bind(':oid', $ordenId);
         return $this->db->resultSet();
     }
 
-    /**
-     * Actualiza el estado de un servicio específico.
-     * @param int $servicioId ID del servicio
-     * @param string $estado Nuevo estado (PENDIENTE, EN_PROCESO, COMPLETADO, CANCELADO)
-     * @return bool
-     */
     public function actualizarEstadoServicio($servicioId, $estado) {
         $estadosValidos = ['PENDIENTE', 'EN_PROCESO', 'COMPLETADO', 'CANCELADO'];
+        $estado = mb_strtoupper($estado, 'UTF-8');
         if (!in_array($estado, $estadosValidos)) {
             return false;
         }
@@ -279,12 +243,6 @@ class ModelOrden {
         return $this->db->execute();
     }
 
-    /**
-     * Marca todos los servicios pendientes de una orden como COMPLETADO.
-     * Se usa cuando la orden se cierra (ENTREGADO) y quedan servicios sin marcar.
-     * @param int $ordenId ID de la orden
-     * @return bool
-     */
     public function completarServiciosPendientes($ordenId) {
         $this->db->query("UPDATE table_orden_servicios 
                           SET estado = 'COMPLETADO' 
@@ -293,22 +251,12 @@ class ModelOrden {
         return $this->db->execute();
     }
 
-    /**
-     * Elimina un servicio específico.
-     * @param int $servicioId ID del servicio
-     * @return bool
-     */
     public function eliminarServicio($servicioId) {
         $this->db->query("DELETE FROM table_orden_servicios WHERE id = :id");
         $this->db->bind(':id', $servicioId);
         return $this->db->execute();
     }
 
-    /**
-     * Obtiene los ítems de la orden desde el borrador de factura vinculado.
-     * @param int $ordenId ID de la orden
-     * @return array
-     */
     public function obtenerItemsOrden($ordenId) {
         $this->db->query("SELECT fd.* FROM table_facturas_detalle fd
                           INNER JOIN table_facturas f ON fd.factura_id = f.id

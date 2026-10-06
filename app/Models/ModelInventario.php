@@ -9,9 +9,6 @@ class ModelInventario {
         $this->db = $db ?: new Database();
     }
 
-    /**
-     * Lista productos con soporte opcional para paginación (LIMIT/OFFSET)
-     */
     public function listar($limit = null, $offset = null, $search = null) {
         $sql = "SELECT i.*, 
                 (i.stock - COALESCE((
@@ -51,9 +48,6 @@ class ModelInventario {
         return $this->db->resultSet();
     }
 
-    /**
-     * Lista productos con información de ofertas (para catálogo público)
-     */
     public function listarConOfertas($limit = null, $offset = null, $search = null, $categoria = null) {
         $sql = "SELECT i.*, 
                 (i.stock - COALESCE((
@@ -67,7 +61,6 @@ class ModelInventario {
                     JOIN table_presupuestos p ON pr.presupuesto_id = p.id
                     WHERE pr.producto_id = i.id AND pr.estado = 'RESERVADA' AND p.estado IN ('ACTIVO', 'EN_PROCESO')
                 ), 0)) as stock_disponible,
-                -- Calcular precio con oferta si está activa y vigente
                 CASE 
                     WHEN i.oferta_activa = 1 
                          AND i.oferta_porcentaje > 0 
@@ -115,9 +108,6 @@ class ModelInventario {
         return $this->db->resultSet();
     }
 
-    /**
-     * Cuenta total de productos con ofertas (para paginación catálogo)
-     */
     public function contarConOfertas($search = null, $categoria = null) {
         $sql = "SELECT COUNT(*) as total FROM table_inventario i WHERE i.estado = 'ACTIVO'";
         $params = [];
@@ -140,17 +130,11 @@ class ModelInventario {
         return (int)$this->db->single()->total;
     }
 
-    /**
-     * Retorna la cantidad total de registros en el inventario
-     */
     public function contarTotal() {
         $this->db->query("SELECT COUNT(*) as total FROM table_inventario");
         return (int)$this->db->single()->total;
     }
 
-    /**
-     * Retorna la cantidad de registros que coinciden con la búsqueda
-     */
     public function contarFiltrados($search) {
         $this->db->query("SELECT COUNT(*) as total FROM table_inventario 
                           WHERE nombre LIKE :search 
@@ -168,9 +152,6 @@ class ModelInventario {
         return $this->db->resultSet();
     }
 
-    /**
-     * Busca repuestos por código, nombre o categoría para el buscador global.
-     */
     public function searchRepuestos($term) {
         $this->db->query("SELECT id, codigo, nombre, categoria, stock FROM table_inventario
                           WHERE (codigo LIKE :term OR nombre LIKE :term OR categoria LIKE :term OR id LIKE :term)
@@ -190,7 +171,7 @@ class ModelInventario {
         $this->db->query("INSERT INTO table_inventario (codigo, nombre, marca, categoria, descripcion, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen, dias_garantia, oferta_activa, oferta_porcentaje, oferta_fecha_inicio, oferta_fecha_fin) 
                           VALUES (:codigo, :nombre, :marca, :categoria, :descripcion, :stock, :smin, :costo, :cprom, :precio, :imagen, :diasGarantia, :ofertaActiva, :ofertaPorcentaje, :ofertaFechaInicio, :ofertaFechaFin)");
         
-        $this->db->bind(':codigo', $datos['codigo'] ?? null);
+        $this->db->bind(':codigo', !empty($datos['codigo']) ? mb_strtoupper($datos['codigo'], 'UTF-8') : null);
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
         $this->db->bind(':marca', !empty($datos['marca']) ? mb_strtoupper($datos['marca'], 'UTF-8') : null);
         $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
@@ -214,11 +195,9 @@ class ModelInventario {
     }
 
     public function actualizar($datos) {
-        // Si solo se pasan campos de oferta (id + campos de oferta), obtener el producto actual y fusionar
         $camposOferta = ['oferta_activa', 'oferta_porcentaje', 'oferta_fecha_inicio', 'oferta_fecha_fin'];
         $soloOferta = isset($datos['id']) && count(array_diff(array_keys($datos), array_merge(['id'], $camposOferta))) === 0;
         
-        // Obtener producto actual para preservar campos de oferta si no se envían en la actualización
         $productoActual = null;
         if (isset($datos['id'])) {
             $productoActual = $this->obtenerPorId($datos['id']);
@@ -228,7 +207,6 @@ class ModelInventario {
         }
         
         if ($soloOferta) {
-            // Fusionar datos actuales con los nuevos campos de oferta
             $datos = array_merge((array)$productoActual, $datos);
         }
         
@@ -252,7 +230,7 @@ class ModelInventario {
                           WHERE id = :id");
         
         $this->db->bind(':id', $datos['id']);
-        $this->db->bind(':codigo', $datos['codigo'] ?? null);
+        $this->db->bind(':codigo', !empty($datos['codigo']) ? mb_strtoupper($datos['codigo'], 'UTF-8') : null);
         $this->db->bind(':nombre', isset($datos['nombre']) ? mb_strtoupper($datos['nombre'], 'UTF-8') : '');
         $this->db->bind(':marca', !empty($datos['marca']) ? mb_strtoupper($datos['marca'], 'UTF-8') : null);
         $this->db->bind(':categoria', isset($datos['categoria']) ? mb_strtoupper($datos['categoria'], 'UTF-8') : '');
@@ -265,7 +243,6 @@ class ModelInventario {
         $this->db->bind(':imagen', $datos['imagen'] ?? null);
         $this->db->bind(':diasGarantia', !empty($datos['dias_garantia']) ? (int)$datos['dias_garantia'] : null);
         
-        // Preservar valores de oferta existentes si no se proporcionan en la actualización
         $this->db->bind(':ofertaActiva', isset($datos['oferta_activa']) ? (int)$datos['oferta_activa'] : (int)($productoActual->oferta_activa ?? 0));
         $this->db->bind(':ofertaPorcentaje', isset($datos['oferta_porcentaje']) ? (float)$datos['oferta_porcentaje'] : (float)($productoActual->oferta_porcentaje ?? 0.00));
         $this->db->bind(':ofertaFechaInicio', !empty($datos['oferta_fecha_inicio']) ? $datos['oferta_fecha_inicio'] : ($productoActual->oferta_fecha_inicio ?? null));
@@ -277,10 +254,6 @@ class ModelInventario {
         return true;
     }
 
-    /**
-     * Actualiza solo los campos de oferta de un producto
-     * Evita problemas de merge con datos parciales
-     */
     public function actualizarOferta($id, $ofertaActiva, $ofertaPorcentaje, $ofertaFechaInicio, $ofertaFechaFin) {
         $this->db->query("UPDATE table_inventario 
                           SET oferta_activa = :ofertaActiva,
@@ -307,26 +280,16 @@ class ModelInventario {
         return $this->db->execute();
     }
 
-    /**
-     * Obtiene todos los códigos únicos existentes en el inventario
-     */
     public function obtenerCodigos() {
         $this->db->query("SELECT DISTINCT codigo FROM table_inventario WHERE codigo IS NOT NULL AND codigo != '' ORDER BY codigo ASC");
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene todas las marcas únicas existentes en el inventario
-     */
     public function obtenerMarcas() {
         $this->db->query("SELECT DISTINCT marca FROM table_inventario WHERE marca IS NOT NULL AND marca != '' ORDER BY marca ASC");
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene el siguiente número correlativo para un prefijo de código dado
-     * Ej: para prefijo 'BOMGAS-' devuelve el siguiente número disponible
-     */
     public function obtenerSiguienteCorrelativo($prefijo) {
         $this->db->query("SELECT codigo FROM table_inventario WHERE codigo LIKE :prefijo ORDER BY codigo DESC LIMIT 1");
         $this->db->bind(':prefijo', $prefijo . '%');
@@ -338,47 +301,39 @@ class ModelInventario {
         return 1;
     }
 
-    /**
-     * Registra un movimiento en el Kardex
-     */
     public function registrarMovimiento($producto_id, $tipo, $cantidad, $referencia = null, $obs = null) {
         $prod = $this->obtenerPorId($producto_id);
         $stock_anterior = $prod->stock;
         
-        // Calcular stock actual basado en el tipo
-        $es_entrada = in_array($tipo, ['ENTRADA_COMPRA', 'DEVOLUCION', 'GARANTIA']);
+        $es_entrada = in_array(mb_strtoupper($tipo, 'UTF-8'), ['ENTRADA_COMPRA', 'DEVOLUCION', 'GARANTIA']);
         $stock_actual = $es_entrada ? ($stock_anterior + $cantidad) : ($stock_anterior - $cantidad);
 
         $this->db->query("INSERT INTO table_kardex (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_actual, referencia_id, usuario_id, observacion) 
                           VALUES (:pid, :tipo, :cant, :ant, :act, :ref, :uid, :obs)");
         $this->db->bind(':pid', $producto_id);
-        $this->db->bind(':tipo', $tipo);
+        $this->db->bind(':tipo', mb_strtoupper($tipo, 'UTF-8'));
         $this->db->bind(':cant', $cantidad);
         $this->db->bind(':ant', $stock_anterior);
         $this->db->bind(':act', $stock_actual);
         $this->db->bind(':ref', $referencia);
         $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
-        $this->db->bind(':obs', $obs);
+        // OBSERVACIÓN EN MAYÚSCULAS
+        $this->db->bind(':obs', $obs !== null ? mb_strtoupper($obs, 'UTF-8') : null);
         
         return $this->db->execute();
     }
 
-    /**
-     * Obtiene los movimientos de Kardex con soporte para paginación y búsqueda
-     */
     public function obtenerKardexPaginado($producto_id, $limit = 10, $offset = 0, $search = null) {
         $where = "WHERE k.producto_id = :pid";
         if ($search) {
             $where .= " AND (k.tipo_movimiento LIKE :search OR k.observacion LIKE :search OR k.referencia_id LIKE :search)";
         }
 
-        // Contar total
         $this->db->query("SELECT COUNT(*) as total FROM table_kardex k $where");
         $this->db->bind(':pid', $producto_id);
         if ($search) $this->db->bind(':search', "%$search%");
         $total = (int)$this->db->single()->total;
 
-        // Obtener datos
         $this->db->query("SELECT k.*, u.username, s.nombre as usuario_nombre, i.nombre as producto_nombre
                           FROM table_kardex k
                           LEFT JOIN table_usuarios u ON k.usuario_id = u.id
@@ -395,9 +350,6 @@ class ModelInventario {
         return ['data' => $this->db->resultSet(), 'total' => $total];
     }
 
-    /**
-     * Obtiene el historial de costos de un producto a partir de sus compras.
-     */
     public function getCostHistory($productId) {
         $this->db->query("SELECT cd.costo_unitario, c.fecha
                           FROM table_compras_detalle cd
@@ -408,9 +360,6 @@ class ModelInventario {
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene los productos que están en nivel crítico o agotados
-     */
     public function obtenerBajoStock() {
         $this->db->query("SELECT id, nombre, stock, stock_minimo FROM table_inventario WHERE stock <= stock_minimo ORDER BY stock ASC");
         return $this->db->resultSet();

@@ -17,21 +17,20 @@ class ModelPedido {
         $this->pdo->beginTransaction();
         
         try {
-            // Insertar pedido
             $sql = "INSERT INTO pedidos (nombre_cliente, cedula, correo, telefono, total) 
                     VALUES (?, ?, ?, ?, ?)";
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([
                 mb_strtoupper($datosCliente['nombre'], 'UTF-8'),
                 mb_strtoupper($datosCliente['cedula'], 'UTF-8'),
-                mb_strtoupper($datosCliente['correo'], 'UTF-8'),
+                // CORREO EN MINÚSCULAS
+                mb_strtolower($datosCliente['correo'], 'UTF-8'),
                 $datosCliente['telefono'],
                 $total
             ]);
             
             $pedidoId = $this->pdo->lastInsertId();
             
-            // Insertar detalles
             $repuesto = new Repuesto();
             $sql = "INSERT INTO pedido_detalles (pedido_id, repuesto_id, cantidad, precio_unitario) 
                     VALUES (?, ?, ?, ?)";
@@ -45,7 +44,6 @@ class ModelPedido {
                     $item['precio']
                 ]);
                 
-                // Actualizar stock
                 $repuesto->updateStock($item['id'], $item['cantidad']);
             }
             
@@ -85,13 +83,13 @@ class ModelPedido {
     public function updateEstado($id, $estado) {
         $sql = "UPDATE pedidos SET estado = ? WHERE id = ?";
         $stmt = $this->pdo->prepare($sql);
-        return $stmt->execute([$estado, $id]);
+        return $stmt->execute([mb_strtoupper($estado, 'UTF-8'), $id]);
     }
     
     public function getByCliente($cedula) {
         $sql = "SELECT * FROM pedidos WHERE cedula = ? ORDER BY fecha_pedido DESC";
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([$cedula]);
+        $stmt->execute([mb_strtoupper($cedula, 'UTF-8')]);
         return $stmt->fetchAll();
     }
 }

@@ -17,7 +17,6 @@ class ModelCatalogo {
      */
     public function listarRepuestos($busqueda = null, $categoria = null, $limit = 12, $offset = 0, $oferta = 0) {
         $sql = "SELECT i.*,
-                -- Calcular precio con oferta si está activa y vigente
                 CASE 
                     WHEN i.oferta_activa = 1 
                          AND i.oferta_porcentaje > 0 
@@ -49,7 +48,6 @@ class ModelCatalogo {
             $params[':categoria'] = $categoria;
         }
 
-        // Filtrar solo productos en oferta activa y vigente
         if ($oferta) {
             $sql .= " AND i.oferta_activa = 1 
                          AND i.oferta_porcentaje > 0 
@@ -69,9 +67,6 @@ class ModelCatalogo {
         return $this->db->resultSet();
     }
 
-    /**
-     * Cuenta total de repuestos activos (para paginación)
-     */
     public function contarRepuestos($busqueda = null, $categoria = null, $oferta = 0) {
         $sql = "SELECT COUNT(*) as total FROM table_inventario WHERE estado = 'ACTIVO'";
         $params = [];
@@ -86,7 +81,6 @@ class ModelCatalogo {
             $params[':categoria'] = $categoria;
         }
 
-        // Filtrar solo productos en oferta activa y vigente
         if ($oferta) {
             $sql .= " AND oferta_activa = 1 
                          AND oferta_porcentaje > 0 
@@ -102,9 +96,6 @@ class ModelCatalogo {
         return (int)$this->db->single()->total;
     }
 
-    /**
-     * Obtiene las categorías disponibles (con stock)
-     */
     public function obtenerCategorias() {
         $this->db->query("SELECT DISTINCT categoria FROM table_inventario 
                           WHERE estado = 'ACTIVO' AND categoria IS NOT NULL 
@@ -112,9 +103,6 @@ class ModelCatalogo {
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene un repuesto por su ID con información de oferta
-     */
     public function obtenerRepuesto($id) {
         $this->db->query("SELECT i.*,
                 CASE 
@@ -139,9 +127,6 @@ class ModelCatalogo {
         return $this->db->single();
     }
 
-    /**
-     * Busca repuestos por ID exacto con información de oferta
-     */
     public function buscarPorCodigo($id) {
         $this->db->query("SELECT i.*,
                 CASE 
@@ -166,16 +151,10 @@ class ModelCatalogo {
         return $this->db->single();
     }
 
-    /**
-     * Busca un repuesto por ID (alias para obtenerRepuesto)
-     */
     public function buscarPorId($id) {
         return $this->obtenerRepuesto($id);
     }
 
-    /**
-     * Busca múltiples repuestos por sus IDs con información de oferta
-     */
     public function buscarPorIds($ids) {
         if (empty($ids)) return [];
         $placeholders = [];
@@ -211,9 +190,6 @@ class ModelCatalogo {
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene repuestos destacados (con stock > 0, aleatorio) con información de oferta
-     */
     public function obtenerDestacados($limit = 8) {
         $this->db->query("SELECT i.*,
                 CASE 
@@ -243,9 +219,6 @@ class ModelCatalogo {
     // GESTIÓN DE PEDIDOS PÚBLICOS
     // ============================================================
 
-    /**
-     * Crea un nuevo pedido desde el carrito público
-     */
     public function crearPedido($datosCliente, $items) {
         $subtotal = 0;
         foreach ($items as $item) {
@@ -262,7 +235,8 @@ class ModelCatalogo {
 
         $this->db->bind(':nombre', mb_strtoupper($datosCliente['nombre'], 'UTF-8'));
         $this->db->bind(':cedula', mb_strtoupper($datosCliente['cedula'], 'UTF-8'));
-        $this->db->bind(':correo', mb_strtoupper($datosCliente['correo'], 'UTF-8'));
+        // CORREO EN MINÚSCULAS
+        $this->db->bind(':correo', mb_strtolower($datosCliente['correo'], 'UTF-8'));
         $this->db->bind(':telefono', $datosCliente['telefono']);
         $this->db->bind(':direccion', mb_strtoupper($datosCliente['direccion'] ?? '', 'UTF-8'));
         $this->db->bind(':notas', mb_strtoupper($datosCliente['notas'] ?? '', 'UTF-8'));
@@ -276,7 +250,6 @@ class ModelCatalogo {
 
         $pedidoId = $this->db->lastInsertId();
 
-        // Insertar detalles del pedido
         foreach ($items as $item) {
             $itemSubtotal = $item['precio'] * $item['cantidad'];
             $this->db->query("INSERT INTO pedido_detalles (pedido_id, producto_id, cantidad, precio_unitario, subtotal) 
@@ -292,18 +265,12 @@ class ModelCatalogo {
         return $pedidoId;
     }
 
-    /**
-     * Obtiene un pedido por su ID
-     */
     public function obtenerPedido($id) {
         $this->db->query("SELECT * FROM pedidos_clientes WHERE id = :id");
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
 
-    /**
-     * Obtiene los detalles de un pedido
-     */
     public function obtenerDetallesPedido($pedidoId) {
         $this->db->query("SELECT pd.*, i.nombre, i.codigo, i.imagen 
                           FROM pedido_detalles pd 
@@ -313,9 +280,6 @@ class ModelCatalogo {
         return $this->db->resultSet();
     }
 
-    /**
-     * Lista pedidos pendientes (para que el staff los procese)
-     */
     public function listarPedidosPendientes() {
         $this->db->query("SELECT pc.*, 
                           (SELECT COUNT(*) FROM pedido_detalles WHERE pedido_id = pc.id) as total_items
@@ -325,9 +289,6 @@ class ModelCatalogo {
         return $this->db->resultSet();
     }
 
-    /**
-     * Lista pedidos ya procesados (PROCESADO, CANCELADO)
-     */
     public function listarPedidosProcesados() {
         $this->db->query("SELECT pc.*, 
                           (SELECT COUNT(*) FROM pedido_detalles WHERE pedido_id = pc.id) as total_items,
@@ -340,9 +301,6 @@ class ModelCatalogo {
         return $this->db->resultSet();
     }
 
-    /**
-     * Lista todos los pedidos (historial)
-     */
     public function listarPedidos($estado = null, $limit = 50, $offset = 0) {
         $sql = "SELECT pc.*, 
                 (SELECT COUNT(*) FROM pedido_detalles WHERE pedido_id = pc.id) as total_items
@@ -366,9 +324,6 @@ class ModelCatalogo {
         return $this->db->resultSet();
     }
 
-    /**
-     * Procesa un pedido (cambia estado a PROCESADO y descuenta inventario)
-     */
     public function procesarPedido($pedidoId, $usuarioId) {
         $this->db->query("SELECT * FROM pedidos_clientes WHERE id = :id AND estado = 'PENDIENTE'");
         $this->db->bind(':id', $pedidoId);
@@ -378,16 +333,12 @@ class ModelCatalogo {
             throw new Exception("El pedido no existe o ya fue procesado.");
         }
 
-        // Obtener detalles del pedido
         $detalles = $this->obtenerDetallesPedido($pedidoId);
 
-        // Iniciar transacción
         $this->db->query("START TRANSACTION");
 
         try {
-            // Descontar stock de cada producto y registrar en kardex
             foreach ($detalles as $detalle) {
-                // Obtener stock actual antes del descuento
                 $this->db->query("SELECT stock FROM table_inventario WHERE id = :id");
                 $this->db->bind(':id', $detalle->producto_id);
                 $producto = $this->db->single();
@@ -396,20 +347,17 @@ class ModelCatalogo {
                 }
                 $stockAnterior = (int)$producto->stock;
 
-                // Descontar stock
                 $this->db->query("UPDATE table_inventario SET stock = stock - :cantidad WHERE id = :id AND stock >= :cantidad");
                 $this->db->bind(':cantidad', $detalle->cantidad);
                 $this->db->bind(':id', $detalle->producto_id);
                 $this->db->execute();
 
-                // Verificar que se descontó correctamente
                 if ($this->db->rowCount() === 0) {
                     throw new Exception("Stock insuficiente para: {$detalle->nombre}");
                 }
 
                 $stockActual = $stockAnterior - (int)$detalle->cantidad;
 
-                // Registrar movimiento en kardex
                 $this->db->query("INSERT INTO table_kardex 
                     (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_actual, referencia_id, usuario_id, observacion) 
                     VALUES (:producto_id, 'SALIDA_VENTA', :cantidad, :stock_anterior, :stock_actual, :referencia, :usuario_id, :observacion)");
@@ -419,11 +367,10 @@ class ModelCatalogo {
                 $this->db->bind(':stock_actual', $stockActual);
                 $this->db->bind(':referencia', 'PEDIDO-CATALOGO-' . $pedidoId);
                 $this->db->bind(':usuario_id', $usuarioId);
-                $this->db->bind(':observacion', 'Venta por catálogo - Pedido #' . $pedidoId . ' - Cliente: ' . ($pedido->nombre_cliente ?? 'N/A'));
+                $this->db->bind(':observacion', mb_strtoupper('Venta por catálogo - Pedido #' . $pedidoId . ' - Cliente: ' . ($pedido->nombre_cliente ?? 'N/A'), 'UTF-8'));
                 $this->db->execute();
             }
 
-            // Actualizar estado del pedido
             $this->db->query("UPDATE pedidos_clientes SET estado = 'PROCESADO', usuario_procesa = :usuario, fecha_procesado = NOW() WHERE id = :id");
             $this->db->bind(':usuario', $usuarioId);
             $this->db->bind(':id', $pedidoId);
@@ -437,9 +384,6 @@ class ModelCatalogo {
         }
     }
 
-    /**
-     * Cambia el estado de un pedido
-     */
     public function cambiarEstadoPedido($pedidoId, $estado) {
         $this->db->query("UPDATE pedidos_clientes SET estado = :estado WHERE id = :id");
         $this->db->bind(':estado', $estado);
@@ -447,11 +391,6 @@ class ModelCatalogo {
         return $this->db->execute();
     }
 
-    /**
-     * Actualiza el IVA y total de un pedido existente (al procesar por staff)
-     * Si aplicarIva es true, calcula iva = subtotal * (tasa/100) y total = subtotal + iva
-     * Si es false, iva = 0 y total = subtotal
-     */
     public function actualizarIvaPedido($pedidoId, $aplicarIva, $tasaIva) {
         $pedido = $this->obtenerPedido($pedidoId);
         if (!$pedido) {

@@ -10,9 +10,6 @@ class ModelEmail {
         $this->db = $db ?: new Database();
     }
 
-    /**
-     * Lista emails con paginación y filtros
-     */
     public function listar($limit = 20, $offset = 0, $filters = []) {
         $where = "WHERE 1=1";
         $params = [];
@@ -38,12 +35,10 @@ class ModelEmail {
             $params[':search'] = "%{$filters['search']}%";
         }
 
-        // Contar total
         $this->db->query("SELECT COUNT(*) as total FROM table_emails e $where");
         foreach ($params as $k => $v) $this->db->bind($k, $v);
         $total = (int)$this->db->single()->total;
 
-        // Obtener datos
         $this->db->query("SELECT e.*, u.username as usuario_nombre 
                           FROM table_emails e
                           LEFT JOIN table_usuarios u ON e.usuario_id = u.id
@@ -57,9 +52,6 @@ class ModelEmail {
         return ['data' => $this->db->resultSet(), 'total' => $total];
     }
 
-    /**
-     * Obtiene un email por ID
-     */
     public function obtenerPorId($id) {
         $this->db->query("SELECT e.*, u.username as usuario_nombre, u.email as usuario_email
                           FROM table_emails e
@@ -69,9 +61,6 @@ class ModelEmail {
         return $this->db->single();
     }
 
-    /**
-     * Registra un email enviado
-     */
     public function registrar($data) {
         $this->db->query("INSERT INTO table_emails 
                           (tipo, destinatario_email, destinatario_nombre, asunto, cuerpo_html, cuerpo_texto, 
@@ -80,44 +69,39 @@ class ModelEmail {
                           (:tipo, :dest_email, :dest_nombre, :asunto, :cuerpo_html, :cuerpo_texto,
                            :adjuntos, :ref_tipo, :ref_id, :estado, :error, :usuario_id, :fecha_envio)");
         
-        $this->db->bind(':tipo', $data['tipo'] ?? 'OTRO');
-        $this->db->bind(':dest_email', $data['destinatario_email']);
-        $this->db->bind(':dest_nombre', $data['destinatario_nombre'] ?? null);
-        $this->db->bind(':asunto', $data['asunto']);
+        $this->db->bind(':tipo', mb_strtoupper($data['tipo'] ?? 'OTRO', 'UTF-8'));
+        // CORREO EN MINÚSCULAS
+        $this->db->bind(':dest_email', mb_strtolower($data['destinatario_email'], 'UTF-8'));
+        $this->db->bind(':dest_nombre', mb_strtoupper($data['destinatario_nombre'] ?? '', 'UTF-8'));
+        $this->db->bind(':asunto', mb_strtoupper($data['asunto'], 'UTF-8'));
         $this->db->bind(':cuerpo_html', $data['cuerpo_html']);
         $this->db->bind(':cuerpo_texto', $data['cuerpo_texto'] ?? null);
         $this->db->bind(':adjuntos', $data['adjuntos'] ? json_encode($data['adjuntos']) : null);
-        $this->db->bind(':ref_tipo', $data['referencia_tipo'] ?? 'NINGUNO');
+        $this->db->bind(':ref_tipo', mb_strtoupper($data['referencia_tipo'] ?? 'NINGUNO', 'UTF-8'));
         $this->db->bind(':ref_id', $data['referencia_id'] ?? null);
-        $this->db->bind(':estado', $data['estado'] ?? 'PENDIENTE');
-        $this->db->bind(':error', $data['error_mensaje'] ?? null);
+        $this->db->bind(':estado', mb_strtoupper($data['estado'] ?? 'PENDIENTE', 'UTF-8'));
+        $this->db->bind(':error', isset($data['error_mensaje']) ? mb_strtoupper($data['error_mensaje'], 'UTF-8') : null);
         $this->db->bind(':usuario_id', $data['usuario_id'] ?? null);
         $this->db->bind(':fecha_envio', $data['fecha_envio'] ?? date('Y-m-d H:i:s'));
         
         return $this->db->execute();
     }
 
-    /**
-     * Actualiza el estado de un email
-     */
     public function actualizarEstado($id, $estado, $error = null) {
         $this->db->query("UPDATE table_emails SET estado = :estado, error_mensaje = :error WHERE id = :id");
-        $this->db->bind(':estado', $estado);
-        $this->db->bind(':error', $error);
+        $this->db->bind(':estado', mb_strtoupper($estado, 'UTF-8'));
+        $this->db->bind(':error', $error !== null ? mb_strtoupper($error, 'UTF-8') : null);
         $this->db->bind(':id', (int)$id);
         return $this->db->execute();
     }
 
-    /**
-     * Obtiene plantillas de email por tipo
-     */
     public function obtenerPlantillas($tipo = null, $soloActivas = true) {
         $where = "WHERE 1=1";
         $params = [];
         
         if ($tipo) {
             $where .= " AND tipo = :tipo";
-            $params[':tipo'] = $tipo;
+            $params[':tipo'] = mb_strtoupper($tipo, 'UTF-8');
         }
         if ($soloActivas) {
             $where .= " AND activo = 1";
@@ -128,18 +112,12 @@ class ModelEmail {
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene una plantilla por ID
-     */
     public function obtenerPlantilla($id) {
         $this->db->query("SELECT * FROM table_email_templates WHERE id = :id");
         $this->db->bind(':id', (int)$id);
         return $this->db->single();
     }
 
-    /**
-     * Guarda o actualiza una plantilla
-     */
     public function guardarPlantilla($data, $id = null) {
         if ($id) {
             $this->db->query("UPDATE table_email_templates 
@@ -153,9 +131,9 @@ class ModelEmail {
                               VALUES (:nombre, :tipo, :asunto, :cuerpo_html, :vars, :activo)");
         }
         
-        $this->db->bind(':nombre', $data['nombre']);
-        $this->db->bind(':tipo', $data['tipo'] ?? 'OTRO');
-        $this->db->bind(':asunto', $data['asunto']);
+        $this->db->bind(':nombre', mb_strtoupper($data['nombre'], 'UTF-8'));
+        $this->db->bind(':tipo', mb_strtoupper($data['tipo'] ?? 'OTRO', 'UTF-8'));
+        $this->db->bind(':asunto', mb_strtoupper($data['asunto'], 'UTF-8'));
         $this->db->bind(':cuerpo_html', $data['cuerpo_html']);
         $this->db->bind(':vars', $data['variables_disponibles'] ? json_encode($data['variables_disponibles']) : null);
         $this->db->bind(':activo', $data['activo'] ?? 1);
@@ -163,18 +141,12 @@ class ModelEmail {
         return $this->db->execute();
     }
 
-    /**
-     * Elimina una plantilla
-     */
     public function eliminarPlantilla($id) {
         $this->db->query("DELETE FROM table_email_templates WHERE id = :id");
         $this->db->bind(':id', (int)$id);
         return $this->db->execute();
     }
 
-    /**
-     * Obtiene estadísticas de emails
-     */
     public function obtenerEstadisticas($desde = null, $hasta = null) {
         $where = "WHERE 1=1";
         $params = [];

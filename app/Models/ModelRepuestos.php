@@ -42,7 +42,7 @@ class ModelRepuesto {
     public function getByCodigo($codigo) {
         $sql = "SELECT * FROM repuestos WHERE codigo = ?";
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([$codigo]);
+        $stmt->execute([mb_strtoupper($codigo, 'UTF-8')]);
         return $stmt->fetch();
     }
     
@@ -51,10 +51,10 @@ class ModelRepuesto {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $this->pdo->prepare($sql);
         return $stmt->execute([
-            $data['codigo'],
-            $data['nombre'],
-            $data['marca'],
-            $data['descripcion'],
+            mb_strtoupper($data['codigo'] ?? '', 'UTF-8'),
+            mb_strtoupper($data['nombre'] ?? '', 'UTF-8'),
+            mb_strtoupper($data['marca'] ?? '', 'UTF-8'),
+            mb_strtoupper($data['descripcion'] ?? '', 'UTF-8'),
             $data['precio'],
             $data['imagen'] ?? null,
             $data['stock'] ?? 0,
@@ -72,10 +72,10 @@ class ModelRepuesto {
                 stock = ?,
                 categoria_id = ?";
         $params = [
-            $data['codigo'],
-            $data['nombre'],
-            $data['marca'],
-            $data['descripcion'],
+            mb_strtoupper($data['codigo'] ?? '', 'UTF-8'),
+            mb_strtoupper($data['nombre'] ?? '', 'UTF-8'),
+            mb_strtoupper($data['marca'] ?? '', 'UTF-8'),
+            mb_strtoupper($data['descripcion'] ?? '', 'UTF-8'),
             $data['precio'],
             $data['stock'] ?? 0,
             $data['categoria_id'] ?? null
