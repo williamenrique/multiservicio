@@ -740,10 +740,10 @@ document.getElementById('formComposeEmail')?.addEventListener('submit', async fu
 /* ==================== PANEL DE DETALLE ==================== */
 async function verEmail(id) {
     try {
-        AppUtils.showLoading('Cargando email...');
+        // AppUtils.showLoading('Cargando email...');
         const res = await fetch(`${URLROOT}/email/obtener/${id}`);
         const data = await res.json();
-        AppUtils.hideLoading();
+        // AppUtils.hideLoading();
         
         if (!data.success || !data.email) {
             AppUtils.showToast('No se pudo cargar el email', 'error');
