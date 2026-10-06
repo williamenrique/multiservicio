@@ -3,14 +3,12 @@ class ControllerFacturacion extends Controller {
     private $facturaModel;
     private $empresaModel;
     private $billingService;
-    private $emailModel;
 
     public function __construct() {
         AuthGuard::handle();
         $this->facturaModel = $this->model('Facturacion');
         $this->empresaModel = $this->model('Empresa');
         $this->billingService = new BillingService();
-        $this->emailModel = $this->model('Email');
     }
 
     public function index() {
@@ -81,6 +79,9 @@ class ControllerFacturacion extends Controller {
 
     /**
      * Procesa el guardado de la venta
+     * 
+     * El registro del email en `table_emails` lo hace EmailService::logEnvio()
+     * de forma automática cuando se envía la factura directa al cliente.
      */
     public function procesar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -138,46 +139,32 @@ class ControllerFacturacion extends Controller {
                 }
 
                 // Enviar notificación por email si es factura directa (mostrador)
+                // (EmailService registra automáticamente el envío en table_emails)
                 if (empty($datos['orden_id'])) {
                     try {
                         $ventaCompleta = $this->facturaModel->obtenerVentaCompleta($ventaId);
                         if ($ventaCompleta && !empty($ventaCompleta->cliente_email)) {
                             $emailData = [
-                                'cliente_nombre'    => $ventaCompleta->cliente_nombre ?? 'Cliente',
-                                'cliente_email'     => $ventaCompleta->cliente_email,
-                                'venta_id'          => $ventaId,
-                                'id_formateado'     => $ventaCompleta->id_formateado ?? null,
-                                'placa'             => $ventaCompleta->placa ?? null,
-                                'marca_vehiculo'    => $ventaCompleta->marca_vehiculo ?? null,
-                                'modelo_vehiculo'   => $ventaCompleta->modelo_vehiculo ?? null,
-                                'items'             => $ventaCompleta->items ?? [],
-                                'subtotal'          => $ventaCompleta->subtotal ?? 0,
-                                'iva_monto'         => $ventaCompleta->iva_monto ?? 0,
-                                'total'             => $ventaCompleta->total ?? 0,
-                                'pago_efectivo'     => $ventaCompleta->pago_efectivo ?? 0,
-                                'pago_transferencia'=> $ventaCompleta->pago_transferencia ?? 0,
-                                'saldo_pendiente'   => $ventaCompleta->saldo_pendiente ?? 0,
-                                'status'            => $ventaCompleta->status ?? 'PENDIENTE',
+                                'cliente_nombre'     => $ventaCompleta->cliente_nombre ?? 'Cliente',
+                                'cliente_email'      => $ventaCompleta->cliente_email,
+                                'venta_id'           => $ventaId,
+                                'id_formateado'      => $ventaCompleta->id_formateado ?? null,
+                                'placa'              => $ventaCompleta->placa ?? null,
+                                'marca_vehiculo'     => $ventaCompleta->marca_vehiculo ?? null,
+                                'modelo_vehiculo'    => $ventaCompleta->modelo_vehiculo ?? null,
+                                'items'              => $ventaCompleta->items ?? [],
+                                'subtotal'           => $ventaCompleta->subtotal ?? 0,
+                                'iva_monto'          => $ventaCompleta->iva_monto ?? 0,
+                                'total'              => $ventaCompleta->total ?? 0,
+                                'pago_efectivo'      => $ventaCompleta->pago_efectivo ?? 0,
+                                'pago_transferencia' => $ventaCompleta->pago_transferencia ?? 0,
+                                'saldo_pendiente'    => $ventaCompleta->saldo_pendiente ?? 0,
+                                'status'             => $ventaCompleta->status ?? 'PENDIENTE',
                                 'observaciones_factura' => $ventaCompleta->observaciones_factura ?? null,
-                                'vendedor_nombre'   => $ventaCompleta->vendedor_nombre ?? null,
+                                'vendedor_nombre'    => $ventaCompleta->vendedor_nombre ?? null,
                             ];
                             $emailService = new \App\Services\EmailService();
-                            $emailSent = $emailService->notificarFacturaDirecta($emailData);
-                            
-                            // Log email enviado
-                            $this->emailModel->registrar([
-                                'tipo' => 'FACTURA',
-                                'destinatario_email' => $ventaCompleta->cliente_email,
-                                'destinatario_nombre' => $ventaCompleta->cliente_nombre ?? 'Cliente',
-                                'asunto' => 'Factura #' . ($ventaCompleta->id_formateado ?? 'FAC-' . str_pad($ventaId, 3, '0', STR_PAD_LEFT)) . ' — ' . SITENAME,
-                                'cuerpo_html' => $emailService->renderizar('factura_directa', $emailData),
-                                'referencia_tipo' => 'FACTURA',
-                                'referencia_id' => $ventaId,
-                                'estado' => $emailSent ? 'ENVIADO' : 'FALLIDO',
-                                'error_mensaje' => $emailSent ? null : 'Error al enviar email de factura',
-                                'usuario_id' => $_SESSION['user_id'],
-                                'fecha_envio' => $emailSent ? date('Y-m-d H:i:s') : null
-                            ]);
+                            $emailService->notificarFacturaDirecta($emailData);
                         }
                     } catch (\Throwable $e) {
                         error_log('ControllerFacturacion: Error al enviar email de factura directa: ' . $e->getMessage());
@@ -360,7 +347,8 @@ class ControllerFacturacion extends Controller {
         ], $doc_name . '.pdf'); // Stream to browser por defecto
         exit;
     }
-        /**
+
+    /**
      * Procesa la petición AJAX para registrar un abono a una deuda de cliente.
      * Ruta: /facturacion/registrarAbono
      */

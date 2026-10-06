@@ -2,13 +2,11 @@
 class ControllerTaller extends Controller {
     private $ordenModel;
     private $vehiculoModel;
-    private $emailModel;
 
     public function __construct() {
         AuthGuard::handle();
         $this->ordenModel = $this->model('Orden');
         $this->vehiculoModel = $this->model('Vehiculo');
-        $this->emailModel = $this->model('Email');
     }
 
     public function index() {
@@ -300,6 +298,7 @@ class ControllerTaller extends Controller {
                 logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
 
                 // Enviar email de notificación al cliente
+                // (EmailService registra automáticamente el envío en table_emails)
                 try {
                     $ordenCreada = $this->ordenModel->obtenerDetalleOrden($ordenId);
                     if ($ordenCreada && !empty($ordenCreada->cliente_email)) {
@@ -341,22 +340,7 @@ class ControllerTaller extends Controller {
                             $datosEmail['items'] = $itemsEmail;
                             $datosEmail['total'] = $totalEmail;
                         }
-                        $emailSent = $emailService->notificarOrdenServicioCreada($datosEmail);
-                        
-                        // Log email enviado
-                        $this->emailModel->registrar([
-                            'tipo' => 'ORDEN_SERVICIO',
-                            'destinatario_email' => $ordenCreada->cliente_email,
-                            'destinatario_nombre' => $ordenCreada->cliente_nombre ?? 'Cliente',
-                            'asunto' => 'Orden de Servicio #' . $datosEmail['id_formateado'] . ' creada — ' . SITENAME,
-                            'cuerpo_html' => $emailService->renderizar('orden_servicio_creada', $datosEmail),
-                            'referencia_tipo' => 'ORDEN',
-                            'referencia_id' => $ordenId,
-                            'estado' => $emailSent ? 'ENVIADO' : 'FALLIDO',
-                            'error_mensaje' => $emailSent ? null : 'Error al enviar email de orden de servicio',
-                            'usuario_id' => $_SESSION['user_id'],
-                            'fecha_envio' => $emailSent ? date('Y-m-d H:i:s') : null
-                        ]);
+                        $emailService->notificarOrdenServicioCreada($datosEmail);
                     }
                 } catch (\Exception $e) {
                     error_log('Error enviando email de orden creada: ' . $e->getMessage());
@@ -546,6 +530,7 @@ class ControllerTaller extends Controller {
                 }
 
                 // ── Enviar email de notificación de cambio de estado ──
+                // (EmailService registra automáticamente el envío)
                 try {
                     $orden = $this->ordenModel->obtenerDetalleOrden($input['id']);
                     if ($orden && !empty($orden->cliente_email)) {
@@ -566,22 +551,7 @@ class ControllerTaller extends Controller {
                             'comentario' => 'Cambio de estado desde el panel de taller',
                             'mecanico_nombre' => $orden->mecanico_nombre ?? 'No asignado'
                         ];
-                        $emailSent = $emailService->notificarOrdenServicioCambioEstado($datosEmail);
-                        
-                        // Log email enviado
-                        $this->emailModel->registrar([
-                            'tipo' => 'ORDEN_SERVICIO',
-                            'destinatario_email' => $orden->cliente_email,
-                            'destinatario_nombre' => $orden->cliente_nombre ?? 'Cliente',
-                            'asunto' => 'Orden de Servicio #' . $datosEmail['id_formateado'] . ' — ' . $input['estado'] . ' — ' . SITENAME,
-                            'cuerpo_html' => $emailService->renderizar('orden_servicio_cambio_estado', $datosEmail),
-                            'referencia_tipo' => 'ORDEN',
-                            'referencia_id' => $input['id'],
-                            'estado' => $emailSent ? 'ENVIADO' : 'FALLIDO',
-                            'error_mensaje' => $emailSent ? null : 'Error al enviar email de cambio de estado',
-                            'usuario_id' => $_SESSION['user_id'],
-                            'fecha_envio' => $emailSent ? date('Y-m-d H:i:s') : null
-                        ]);
+                        $emailService->notificarOrdenServicioCambioEstado($datosEmail);
                     }
                 } catch (\Exception $e) {
                     error_log('Error enviando email de cambio de estado: ' . $e->getMessage());
@@ -635,6 +605,7 @@ class ControllerTaller extends Controller {
             
             if ($this->ordenModel->actualizarEstado($input['id'], 'ENTREGADO', $comentario)) {
                 // ─── Enviar email de notificación: vehículo listo ───
+                // (EmailService registra automáticamente el envío)
                 try {
                     $ordenado = $this->ordenModel->obtenerDetalleOrden($input['id']);
                     if ($ordenado && !empty($ordenado->cliente_email)) {
@@ -670,22 +641,7 @@ class ControllerTaller extends Controller {
                             'items' => $itemsEmail,
                             'total' => $totalEmail
                         ];
-                        $emailSent = $emailService->notificarOrdenServicioLista($datosEmail);
-                        
-                        // Log email enviado
-                        $this->emailModel->registrar([
-                            'tipo' => 'ORDEN_SERVICIO',
-                            'destinatario_email' => $ordenado->cliente_email,
-                            'destinatario_nombre' => $ordenado->cliente_nombre ?? 'Cliente',
-                            'asunto' => '¡Tu vehículo está listo! Orden de Servicio #' . $datosEmail['id_formateado'] . ' — ' . SITENAME,
-                            'cuerpo_html' => $emailService->renderizar('orden_servicio_lista', $datosEmail),
-                            'referencia_tipo' => 'ORDEN',
-                            'referencia_id' => $input['id'],
-                            'estado' => $emailSent ? 'ENVIADO' : 'FALLIDO',
-                            'error_mensaje' => $emailSent ? null : 'Error al enviar email de orden lista',
-                            'usuario_id' => $_SESSION['user_id'],
-                            'fecha_envio' => $emailSent ? date('Y-m-d H:i:s') : null
-                        ]);
+                        $emailService->notificarOrdenServicioLista($datosEmail);
                     }
                 } catch (\Exception $e) {
                     error_log('Error enviando email de orden lista: ' . $e->getMessage());

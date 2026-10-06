@@ -3,6 +3,10 @@
  * Controlador de Catálogo Público
  * Muestra repuestos, gestiona carrito público y pedidos.
  * NO requiere autenticación - acceso público.
+ * 
+ * NOTA: El logging en `table_emails` lo hace `EmailService` de forma
+ * automática (ver App\Services\EmailService::logEnvio). Este controlador
+ * ya NO registra manualmente para evitar duplicados.
  */
 
 use App\Services\EmailService;
@@ -10,12 +14,10 @@ use App\Services\EmailService;
 class ControllerCatalogo extends Controller {
 
     private $modelCatalogo;
-    private $emailModel;
 
     public function __construct() {
         // NOTA: No se llama a AuthGuard - es público
         $this->modelCatalogo = $this->model('Catalogo');
-        $this->emailModel = $this->model('Email');
     }
 
     /**
@@ -362,6 +364,8 @@ class ControllerCatalogo extends Controller {
      * Procesar pedido (POST)
      * POST /catalogo/procesar-pedido
      * Integrado con BillingService para generar factura, descontar stock y registrar transacción.
+     * 
+     * El registro del email en `table_emails` lo hace EmailService::logEnvio().
      */
     public function procesarPedido() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -503,6 +507,7 @@ class ControllerCatalogo extends Controller {
             $pedidoId = $this->modelCatalogo->crearPedido($datosCliente, $itemsPedido);
 
             // --- 5. Preparar datos para notificaciones y enviar email ---
+            // El registro del envío lo hace EmailService::logEnvio() de forma automática.
             $facturaModel = $this->model('Facturacion');
             $ventaCompleta = $facturaModel->obtenerVentaCompleta($ventaId);
             $datosEmail = [
@@ -513,6 +518,7 @@ class ControllerCatalogo extends Controller {
                 'cliente_direccion' => $direccion,
                 'venta_formateado'  => $ventaCompleta->id_formateado ?? 'FAC-' . str_pad($ventaId, 3, '0', STR_PAD_LEFT),
                 'venta_id'          => $ventaId,
+                'pedido_id'         => $pedidoId,
                 'id_formateado'     => 'PED-' . str_pad($pedidoId, 3, '0', STR_PAD_LEFT),
                 'fecha'             => date('d/m/Y h:i A'),
                 'items'             => $ventaCompleta->items ?? $items,
@@ -524,47 +530,7 @@ class ControllerCatalogo extends Controller {
 
             try {
                 $emailService = new EmailService();
-                $emailResult = $emailService->notificarPedidoCatalogo($datosEmail);
-                
-                // Obtener usuario del sistema para el log (mismo que para billing)
-                $dbCheck = new Database();
-                $dbCheck->query("SELECT u.id FROM table_usuarios u 
-                                 INNER JOIN table_roles r ON u.role_id = r.id 
-                                 WHERE r.nombre_rol = 'ADMINISTRADOR' AND u.estado = 'ACTIVO' 
-                                 LIMIT 1");
-                $adminUser = $dbCheck->single();
-                $usuarioSistema = $adminUser ? $adminUser->id : null;
-                
-                // Log email al cliente
-                $this->emailModel->registrar([
-                    'tipo' => 'PEDIDO_CATALOGO',
-                    'destinatario_email' => $correo,
-                    'destinatario_nombre' => $nombre,
-                    'asunto' => 'Tu pedido #' . $datosEmail['id_formateado'] . ' ha sido recibido — ' . SITENAME,
-                    'cuerpo_html' => $emailService->renderizar('pedido_catalogo_cliente', $datosEmail),
-                    'referencia_tipo' => 'PEDIDO_CATALOGO',
-                    'referencia_id' => $pedidoId,
-                    'estado' => $emailResult['cliente'] ? 'ENVIADO' : 'FALLIDO',
-                    'error_mensaje' => $emailResult['cliente'] ? null : 'Error al enviar email al cliente',
-                    'usuario_id' => $usuarioSistema,
-                    'fecha_envio' => $emailResult['cliente'] ? date('Y-m-d H:i:s') : null
-                ]);
-                
-                // Log email al admin
-                $config = $this->model('Empresa')->obtenerConfiguracion();
-                $this->emailModel->registrar([
-                    'tipo' => 'PEDIDO_CATALOGO',
-                    'destinatario_email' => MAIL_ADMIN,
-                    'destinatario_nombre' => 'Administrador',
-                    'asunto' => 'Nuevo pedido de catálogo #' . $datosEmail['venta_formateado'] . ' — ' . $nombre,
-                    'cuerpo_html' => $emailService->renderizar('pedido_catalogo_admin', $datosEmail),
-                    'referencia_tipo' => 'PEDIDO_CATALOGO',
-                    'referencia_id' => $pedidoId,
-                    'estado' => $emailResult['admin'] ? 'ENVIADO' : 'FALLIDO',
-                    'error_mensaje' => $emailResult['admin'] ? null : 'Error al enviar email al administrador',
-                    'usuario_id' => $usuarioSistema,
-                    'fecha_envio' => $emailResult['admin'] ? date('Y-m-d H:i:s') : null
-                ]);
+                $emailService->notificarPedidoCatalogo($datosEmail);
             } catch (Exception $emailEx) {
                 error_log("ERROR EMAIL CATÁLOGO: " . $emailEx->getMessage());
                 // No interrumpir el flujo si falla el email
@@ -707,6 +673,8 @@ class ControllerCatalogo extends Controller {
     /**
      * Procesar pedido (staff) - descuenta inventario
      * POST /catalogo/procesar-pedido-staff
+     * 
+     * El registro del email en `table_emails` lo hace EmailService::logEnvio().
      */
     public function procesarPedidoStaff() {
         if (!isset($_SESSION['user_id'])) {
@@ -740,6 +708,7 @@ class ControllerCatalogo extends Controller {
             $this->modelCatalogo->procesarPedido($pedidoId, $_SESSION['user_id']);
 
             // Enviar correo de notificación al cliente
+            // (EmailService registra automáticamente el envío en table_emails)
             try {
                 $pedido = $this->modelCatalogo->obtenerPedido($pedidoId);
                 $detalles = $this->modelCatalogo->obtenerDetallesPedido($pedidoId);
@@ -749,6 +718,7 @@ class ControllerCatalogo extends Controller {
                     $emailService->notificarPedidoProcesadoCliente([
                         'cliente_nombre'  => $pedido->nombre_cliente,
                         'cliente_email'   => $pedido->correo,
+                        'pedido_id'       => $pedido->id,
                         'id_formateado'   => 'PED-' . str_pad($pedido->id, 6, '0', STR_PAD_LEFT),
                         'fecha'           => date('d/m/Y h:i A'),
                         'items'           => $detalles,
