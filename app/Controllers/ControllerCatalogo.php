@@ -389,6 +389,14 @@ class ControllerCatalogo extends Controller {
         if (empty($correo) || !filter_var($correo, FILTER_VALIDATE_EMAIL)) $errores[] = 'Correo electrónico no válido.';
         if (empty($telefono)) $errores[] = 'El teléfono es obligatorio.';
 
+        // Convertir a mayúsculas (excepto email que va en minúsculas)
+        $nombre = mb_strtoupper($nombre, 'UTF-8');
+        $cedula = mb_strtoupper($cedula, 'UTF-8');
+        $telefono = mb_strtoupper($telefono, 'UTF-8');
+        $direccion = mb_strtoupper($direccion, 'UTF-8');
+        $notas = mb_strtoupper($notas, 'UTF-8');
+        $correo = mb_strtolower($correo, 'UTF-8');
+
         if (!empty($errores)) {
             $_SESSION['checkout_errores'] = $errores;
             $_SESSION['checkout_data'] = $_POST;
