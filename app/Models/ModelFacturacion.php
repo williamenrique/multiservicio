@@ -2,6 +2,9 @@
 /**
  * Modelo de Facturación
  * Maneja la persistencia de ventas y la actualización de stock.
+ * 
+ * v2.0: Resueltos conflictos de Git merge que rompían el archivo.
+ *       Se conservaron los cambios del branch REGISTRO-EMAIL (presupuesto_activo_id).
  */
 class ModelFacturacion {
     private $db;
@@ -53,15 +56,12 @@ class ModelFacturacion {
         return $this->db->resultSet();
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Obtiene todos los borradores con sus respectivos items cargados.
      * 
      * FIX: Ahora incluye presupuesto_activo_id para que el POS pueda mostrar
      * el panel verde del presupuesto anexado al cargar el borrador.
      */
->>>>>>> REGISTRO-EMAIL
     public function obtenerBorradoresCompleto() {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
                                  os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
@@ -103,14 +103,11 @@ class ModelFacturacion {
         return $ventas;
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Busca un borrador pendiente vinculado a una Orden de Servicio específica.
      * 
      * FIX: Incluye presupuesto_activo_id.
      */
->>>>>>> REGISTRO-EMAIL
     public function obtenerBorradorPorOrden($ordenId) {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
                                  os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
@@ -149,14 +146,11 @@ class ModelFacturacion {
         return $venta;
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Registra o actualiza la cabecera de una venta.
      * 
      * FIX: Ahora persiste presupuesto_activo_id cuando viene en los datos.
      */
->>>>>>> REGISTRO-EMAIL
     public function guardarCabeceraVenta($datos, $status, $totales, $usuarioId) {
         try {
             $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
@@ -196,14 +190,9 @@ class ModelFacturacion {
             $this->db->bind(':origen', $origen);
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
             $this->db->bind(':oid', $ordenIdPersist);
-<<<<<<< HEAD
+            $this->db->bind(':paid', $presupuestoActivoId);
             $this->db->bind(':placa', !empty($datos['placa']) ? mb_strtoupper($datos['placa'], 'UTF-8') : null);
             $this->db->bind(':modelo', !empty($datos['modelo']) ? mb_strtoupper($datos['modelo'], 'UTF-8') : null);
-=======
-            $this->db->bind(':paid', $presupuestoActivoId);
-            $this->db->bind(':placa', !empty($datos['placa']) ? $datos['placa'] : null);
-            $this->db->bind(':modelo', !empty($datos['modelo']) ? $datos['modelo'] : null);
->>>>>>> REGISTRO-EMAIL
             $this->db->bind(':sub', $totales['subtotal']);
             $this->db->bind(':iva', $totales['iva']);
             $this->db->bind(':total', $totales['total']);
@@ -214,10 +203,7 @@ class ModelFacturacion {
             $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? '', 'UTF-8'));
             $this->db->execute();
 
-<<<<<<< HEAD
-=======
             // Cierre automático de Orden de Servicio
->>>>>>> REGISTRO-EMAIL
             $esFacturaOrdenServicio = !empty($ordenIdPersist);
             if ($esFacturaOrdenServicio && in_array($status, ['COMPLETADO', 'CREDITO'], true)) {
                 $this->sincronizarOrdenServicio(
@@ -435,10 +421,6 @@ class ModelFacturacion {
             $this->db->execute();
 
             $columnaPago = ($metodo === 'TRANSFERENCIA') ? 'pago_transferencia' : 'pago_efectivo';
-<<<<<<< HEAD
-=======
-            
->>>>>>> REGISTRO-EMAIL
             $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
 
             $this->db->query("UPDATE table_facturas SET 
@@ -452,10 +434,6 @@ class ModelFacturacion {
             $this->db->bind(':id', $ventaId);
             $this->db->execute();
 
-<<<<<<< HEAD
-=======
-            $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
->>>>>>> REGISTRO-EMAIL
             if ($venta->orden_id && in_array($nuevoStatus, ['COMPLETADO', 'CREDITO'], true)) {
                 $this->sincronizarOrdenServicio(
                     (int)$venta->orden_id,
@@ -481,15 +459,26 @@ class ModelFacturacion {
         }
     }
 
+    /**
+     * Obtiene las facturas a crédito con saldo pendiente que tengan
+     * al menos $dias días de antigüedad desde su emisión.
+     * 
+     * Se usa para la CAMPANITA DE NOTIFICACIÓN del navbar (alerta de cartera vencida).
+     * 
+     * @param int $dias Mínimo de días de atraso para considerar vencida (por defecto 15).
+     * @return array Lista de facturas vencidas ordenadas por antigüedad (más vieja primero).
+     */
     public function obtenerCreditosVencidos($dias = 15) {
-        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre 
+        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, 
+                                 COALESCE(vh.placa, v.placa) as placa, 
+                                 COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
+                                 COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre 
                           FROM table_facturas v
-                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'CREDITO'
-                          AND v.saldo_pendiente > 0
-                          AND DATEDIFF(CURDATE(), COALESCE(DATE(v.fecha), CURDATE())) >= :dias
+                            AND v.saldo_pendiente > 0.05
+                            AND DATEDIFF(CURDATE(), DATE(v.fecha)) >= :dias
                           ORDER BY v.fecha ASC");
         $this->db->bind(':dias', $dias);
         return $this->db->resultSet();
@@ -561,7 +550,6 @@ class ModelFacturacion {
                               VALUES (:vid, :pid, :desc, :cant, :monto, :dest, :motivo, :uid, :dga, :dt)");
             $this->db->bind(':vid', $ventaId);
             $this->db->bind(':pid', $item->producto_id);
-            // DESCRIPCIÓN Y MOTIVO EN MAYÚSCULAS
             $this->db->bind(':desc', mb_strtoupper($item->descripcion, 'UTF-8'));
             $this->db->bind(':cant', $item->cantidad);
             $this->db->bind(':monto', $totalARestar);

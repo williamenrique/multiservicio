@@ -56,9 +56,9 @@
                         <th class="px-6 py-4">Placa / Vehículo</th>
                         <th class="px-6 py-4">Tipo</th>
                         <th class="px-6 py-4">Vendedor</th>
-                        <th class="px-6 py-4">Items</th>
+                        <th class="px-6 py-4 text-center whitespace-nowrap">Items</th>
                         <th class="px-6 py-4">Estado</th>
-                        <th class="px-6 py-4 text-right">Total</th>
+                        <th class="px-6 py-4 text-right">Total / Debe</th>
                         <th class="px-6 py-4 text-right">Acciones</th>
                     </tr>
                 </thead>

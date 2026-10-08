@@ -1,5 +1,10 @@
 /**
  * GESTIÓN DE REPORTES - UNIFICADO
+ * 
+ * v2.2: 
+ *   • renderCartera() ahora incluye botón "Abonar" por cliente.
+ *   • Nueva función abonarDesdeCartera() que lista las facturas del
+ *     cliente y permite abonar a una específica.
  */
 
 // Variables de estado global para filtros y auditoría
@@ -14,22 +19,19 @@ window.renderFlujoRow = (m) => {
     const color = m.tipo_color || (isIngreso ? 'emerald' : 'rose');
     const label = m.categoria_label || m.categoria || m.tipo;
 
-    // Normalizamos los textos para buscar palabras clave
     const cat = (m.categoria || '').toUpperCase();
     const labelUpper = (m.categoria_label || m.tipo || '').toUpperCase();
     const desc = (m.descripcion || '').toUpperCase();
     const tipo = (m.tipo || '').toUpperCase();
     const root = window.URLROOT || '';
 
-    // Usamos el referencia_id como prioridad, si no existe usamos el ID del movimiento
     const refId = m.referencia_id || m.id;
     const ordenId = m.orden_id;
 
     let printUrl = '';
     let detailUrl = '';
-    let printBtnClass = 'text-slate-400 hover:text-navy-blue'; // Default for print button
+    let printBtnClass = 'text-slate-400 hover:text-navy-blue';
 
-    // 1. DETECCIÓN DE COMPROBANTE (Factura, Gasto o Nómina)
     if (tipo === 'INGRESO' && (cat.includes('VENTA') || cat.includes('ABONO') || desc.includes('FACTURA') || labelUpper.includes('FACTURA'))) {
         printUrl = `${root}/facturacion/imprimir/${refId}`;
         detailUrl = `javascript:verDetalleVenta(${refId})`;
@@ -40,18 +42,15 @@ window.renderFlujoRow = (m) => {
         printBtnClass = 'text-amber-500 hover:bg-amber-50';
     } else if (tipo === 'EGRESO' || cat.includes('PROVEEDOR') || cat.includes('GASTO') || labelUpper.includes('PAGO') || desc.includes('PAGO') || labelUpper.includes('SERVICIO') || cat.includes('COMPRA')) {
         printUrl = `${root}/gastos/imprimir/${refId}`;
-        detailUrl = `javascript:verDetalleCompra(${refId})`; // Assuming verDetalleCompra handles general expenses too
+        detailUrl = `javascript:verDetalleCompra(${refId})`;
         printBtnClass = 'text-rose-500 hover:bg-rose-50';
     }
 
-    // 2. DETECCIÓN DE ORDEN TÉCNICA (Icono de Llave)
     let orderPrintUrl = '';
-    // Si hay un orden_id válido o si la descripción menciona explícitamente una O.S
     if (ordenId && ordenId !== 'null' && ordenId !== null && ordenId !== '') {
         orderPrintUrl = `${root}/taller/imprimir/${ordenId}`;
     } else if (labelUpper.includes('O.S') || desc.includes('ORDEN') || cat.includes('ORDEN')) {
-        // Si no hay ordenId pero la referencia es a una orden de taller
-        orderPrintUrl = `${root}/taller/imprimir/${refId}`; 
+        orderPrintUrl = `${root}/taller/imprimir/${refId}`;
     }
 
     return `
@@ -108,7 +107,6 @@ window.actualizarFiltrosFechas = () => {
         window.handler_reporte_devoluciones.reload();
     }
 
-    // Si estamos en la pestaña de nómina o detallado, recargarlos manualmente
     if (activeReportTab === 'detallado') window.cargarReporteDetallado();
     if (activeReportTab === 'cartera') window.cargarCartera();
     if (activeReportTab === 'rentabilidad') window.cargarRentabilidad();
@@ -135,14 +133,12 @@ window.cargarReporteDetallado = async () => {
         if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
         const result = await res.json();
 
-        // Normalizar respuesta: Acepta tanto {success:true, data:{...}} como el objeto directo
         const responseData = result.success ? result.data : result;
 
         if (responseData && responseData.ventas) {
-            rawAuditData = responseData; // Guardar para búsqueda local
+            rawAuditData = responseData;
             renderAuditoriaLista(rawAuditData.ventas);
 
-            // Renderizar Compras
             if (contCompras && rawAuditData.compras) {
                 contCompras.innerHTML = (rawAuditData.compras || []).length ? rawAuditData.compras.map(c => `
                     <tr class="hover:bg-slate-50 border-b border-slate-100">
@@ -155,7 +151,6 @@ window.cargarReporteDetallado = async () => {
                     </tr>`).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">No hay compras registradas</td></tr>';
             }
 
-            // Renderizar Gastos
             if (contGastos && rawAuditData.gastos) {
                 contGastos.innerHTML = (rawAuditData.gastos || []).length ? rawAuditData.gastos.map(g => `
                     <tr class="hover:bg-slate-50 border-b border-slate-100">
@@ -177,20 +172,151 @@ window.cargarReporteDetallado = async () => {
     }
 };
 
+/**
+ * Renderiza la tabla de Cartera por Edades.
+ * 
+ * v2.2: Ahora incluye una columna "Acciones" con botón "Abonar"
+ *       que abre el flujo de pago para las facturas del cliente.
+ */
 window.renderCartera = (data) => {
     const tbody = document.getElementById('cartera-body');
     if (!tbody) return;
 
-    tbody.innerHTML = (Array.isArray(data) && data.length > 0) ? data.map(c => `
+    tbody.innerHTML = (Array.isArray(data) && data.length > 0) ? data.map(c => {
+        // Escapar comillas simples para el onclick
+        const safeNombre = (c.cliente_nombre || '').replace(/'/g, "\\'");
+        return `
         <tr class="hover:bg-slate-50 border-b border-slate-100">
             <td class="px-6 py-4 text-sm font-bold text-slate-700 uppercase">${c.cliente_nombre}</td>
             <td class="px-6 py-4 text-xs font-black text-slate-400 text-center">${AppUtils.formatCurrency(c.rango_0_15)}</td>
             <td class="px-6 py-4 text-xs font-black text-amber-500 text-center">${AppUtils.formatCurrency(c.rango_16_30)}</td>
             <td class="px-6 py-4 text-xs font-black text-rose-600 text-center">${AppUtils.formatCurrency(c.rango_30_mas)}</td>
             <td class="px-6 py-4 text-right font-black text-navy-blue text-sm">${AppUtils.formatCurrency(c.total_deuda)}</td>
+            <td class="px-6 py-4 text-right">
+                <button onclick="abonarDesdeCartera('${safeNombre}')" 
+                        class="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[10px] uppercase px-3 py-2 rounded-lg transition-all shadow-sm">
+                    <i data-lucide="hand-coins" class="w-3.5 h-3.5"></i>
+                    Abonar
+                </button>
+            </td>
         </tr>
-    `).join('') : '<tr><td colspan="5" class="text-center py-20 text-slate-400 italic font-bold uppercase tracking-widest">Sin deudas de cartera</td></tr>';
+    `;
+    }).join('') : '<tr><td colspan="6" class="text-center py-20 text-slate-400 italic font-bold uppercase tracking-widest">Sin deudas de cartera</td></tr>';
     if (window.lucide) lucide.createIcons();
+};
+
+/**
+ * NUEVO: Abona desde la vista de Cartera por Edades.
+ * 
+ * Flow:
+ *   1. Consulta el resumen de deudores (todas las facturas a crédito).
+ *   2. Filtra las facturas del cliente seleccionado.
+ *   3. Muestra un modal con la lista de facturas pendientes.
+ *   4. Al seleccionar una factura, abre el modal de abono normal.
+ * 
+ * @param {string} clienteNombre
+ */
+window.abonarDesdeCartera = async (clienteNombre) => {
+    try {
+        AppUtils.showLoading('Consultando facturas pendientes...');
+
+        const res = await fetch(`${URLROOT}/facturacion/getDeudoresSummary`, {
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!res.ok) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('No se pudo consultar las facturas pendientes', 'error');
+            return;
+        }
+
+        const result = await res.json();
+        AppUtils.hideLoading();
+
+        if (!result.success || !result.data || !Array.isArray(result.data.lista)) {
+            AppUtils.showToast('No hay facturas pendientes para este cliente', 'info');
+            return;
+        }
+
+        // Filtrar las facturas de este cliente
+        const facturasCliente = result.data.lista.filter(
+            f => String(f.cliente_nombre || '').toUpperCase() === String(clienteNombre || '').toUpperCase()
+                && parseFloat(f.saldo_pendiente) > 0.05
+        );
+
+        if (facturasCliente.length === 0) {
+            AppUtils.showToast('No se encontraron facturas pendientes para este cliente', 'info');
+            return;
+        }
+
+        // Si solo hay 1 factura, abonar directo
+        if (facturasCliente.length === 1) {
+            const f = facturasCliente[0];
+            return window.registrarAbonoCliente(f.id, parseFloat(f.saldo_pendiente));
+        }
+
+        // Si hay varias, mostrar selector
+        const opcionesHtml = facturasCliente.map((f, i) => `
+            <div class="p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
+                 onclick="window._abonarFacturaDesdeLista(${i})">
+                <div class="flex justify-between items-center">
+                    <div class="flex flex-col">
+                        <span class="font-black text-navy-blue text-sm">FACTURA #${f.id}</span>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase">
+                            ${f.placa || '---'} · ${f.modelo_vehiculo || 'N/A'}
+                        </span>
+                        <span class="text-[10px] text-slate-400 font-mono">
+                            ${f.fecha ? new Date(f.fecha).toLocaleDateString() : ''}
+                        </span>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-lg font-black text-rose-600">${AppUtils.formatCurrency(f.saldo_pendiente)}</p>
+                        <p class="text-[9px] font-black text-rose-400 uppercase">Saldo</p>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Guardar la lista en window para que el callback la recupere
+        window._facturasClienteCartera = facturasCliente;
+
+        Swal.fire({
+            title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Seleccionar Factura</span><br>
+                    <span class="text-navy-blue">${clienteNombre}</span>`,
+            html: `
+                <p class="text-xs text-slate-500 mb-3 uppercase font-bold">
+                    Este cliente tiene ${facturasCliente.length} facturas pendientes. Seleccione una para abonar:
+                </p>
+                <div class="max-h-80 overflow-y-auto border border-slate-200 rounded-xl bg-white text-left">
+                    ${opcionesHtml}
+                </div>
+            `,
+            showCancelButton: true,
+            showConfirmButton: false,
+            cancelButtonText: 'CANCELAR',
+            cancelButtonColor: '#64748b',
+            didOpen: () => {
+                if (window.lucide) lucide.createIcons();
+            }
+        });
+    } catch (e) {
+        AppUtils.hideLoading();
+        console.error('Error en abonarDesdeCartera:', e);
+        AppUtils.showToast('Error de conexión', 'error');
+    }
+};
+
+/**
+ * Callback interno: cuando el usuario selecciona una factura del selector
+ * del cartera, se cierra el Swal y se abre el modal de abono.
+ */
+window._abonarFacturaDesdeLista = (index) => {
+    const factura = window._facturasClienteCartera?.[index];
+    if (!factura) return;
+    Swal.close();
+    setTimeout(() => {
+        window.registrarAbonoCliente(factura.id, parseFloat(factura.saldo_pendiente));
+    }, 200);
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -234,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Instancia para el Flujo de Caja (Resumen)
     window.handler_reporte_flujo = new DataTableRefactor({
-        tableId: 'reportTable', // Corregido para sincronizar con el HTML
+        tableId: 'reportTable',
         tableBodyId: 'report-body',
         endpoint: `${URLROOT}/reportes/generar`,
         searchInputId: 'search-report',
@@ -253,7 +379,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('total-deuda').textContent = AppUtils.formatCurrency(result.totales.deuda || 0);
                 document.getElementById('total-balance').textContent = AppUtils.formatCurrency(result.totales.balance || 0);
             }
-            // Manejo de estado vacío
             const body = document.getElementById('report-body');
             if (result.data && result.data.length === 0) {
                 body.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
@@ -334,7 +459,6 @@ window.switchReportTab = (tab) => {
     const tabNomina = document.getElementById('tab-nomina');
     const tabHistorialNomina = document.getElementById('tab-historial-nomina');
 
-    // Ocultar todas las secciones
     if (secResumen) secResumen.classList.add('hidden');
     if (secDetallado) secDetallado.classList.add('hidden');
     if (secDevoluciones) secDevoluciones.classList.add('hidden');
@@ -343,7 +467,6 @@ window.switchReportTab = (tab) => {
     if (secNomina) secNomina.classList.add('hidden');
     if (secHistorialNomina) secHistorialNomina.classList.add('hidden');
 
-    // Resetear estilos de pestañas
     [tabResumen, tabDetallado, tabDevoluciones, tabCartera, tabRentabilidad, tabNomina, tabHistorialNomina].forEach(t => {
         if (t) {
             t.classList.remove('border-neon-green', 'text-navy-blue');
@@ -393,7 +516,7 @@ window.cargarCartera = async function () {
     const tbody = document.getElementById('cartera-body');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-16 text-slate-400 italic animate-pulse font-bold uppercase tracking-widest">GENERANDO REPORTE DE CARTERA...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-16 text-slate-400 italic animate-pulse font-bold uppercase tracking-widest">GENERANDO REPORTE DE CARTERA...</td></tr>';
 
     try {
         const res = await fetch(`${URLROOT}/reportes/cartera?desde=${desde}&hasta=${hasta}`);
@@ -407,34 +530,21 @@ window.cargarCartera = async function () {
     }
 };
 
-/**
-  * Dispara la impresión del reporte de cartera de proveedores (Global)
- */
 window.exportarCarteraProveedoresPdf = function () {
     AppUtils.showToast("Generando reporte de proveedores...", "info");
     window.open(`${URLROOT}/reportes/imprimirCarteraProveedores`, '_blank');
 };
 
-/**
- * Dispara la impresión del reporte individual de un proveedor
- */
 window.imprimirReporteProveedorIndividual = function (id) {
     if (!id) return;
     AppUtils.showToast("Generando estado de cuenta...", "info");
     window.open(`${URLROOT}/reportes/imprimirReporteProveedor/${id}`, '_blank');
 };
 
-/**
- * Exporta la cartera actual a Excel (CSV)
- */
 window.exportarCarteraExcel = function () {
-    // Simplemente redirigimos a la URL que genera el CSV
     window.location.href = `${URLROOT}/reportes/exportarCarteraExcel`;
 };
 
-/**
- * Genera y descarga el PDF de la cartera
- */
 window.exportarCarteraPdf = async function () {
     AppUtils.showToast("Generando PDF de Cartera...", "info");
     try {
@@ -443,7 +553,6 @@ window.exportarCarteraPdf = async function () {
 
         const result = await res.json();
         if (result.success) {
-            // Abrimos el PDF generado en una nueva pestaña
             window.open(result.pdf_url, '_blank');
         } else {
             AppUtils.showToast(result.mensaje || "No se pudo generar el PDF", "error");
@@ -454,9 +563,6 @@ window.exportarCarteraPdf = async function () {
     }
 };
 
-/**
- * Lógica para cargar Análisis de Rentabilidad
- */
 window.cargarRentabilidad = async function () {
     const desde = document.getElementById('rep-desde')?.value || '';
     const hasta = document.getElementById('rep-hasta')?.value || '';
@@ -500,7 +606,6 @@ function renderAuditoriaLista(items) {
         return;
     }
 
-    // 1. Agrupar por Mes y Año para los encabezados sticky
     const meses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
 
     const groupedByMonth = items.reduce((acc, current) => {
@@ -523,10 +628,9 @@ function renderAuditoriaLista(items) {
     }
 
     let html = '';
-    let debtorsSummary = {}; // Para agrupar deudores por cliente
+    let debtorsSummary = {};
 
     for (const [month, monthItems] of Object.entries(groupedByMonth)) {
-        // 2. Agrupar por Factura dentro del mes
         const invoices = monthItems.reduce((acc, current) => {
             const key = `V-${current.id}`;
             if (!acc[key]) {
@@ -544,7 +648,7 @@ function renderAuditoriaLista(items) {
                     status: current.status,
                     pago_efectivo: parseFloat(current.pago_efectivo || 0),
                     pago_transferencia: parseFloat(current.pago_transferencia || 0),
-                    saldo_pendiente: parseFloat(current.saldo_pendiente || 0), // <-- Asegurarse de que este campo venga del backend
+                    saldo_pendiente: parseFloat(current.saldo_pendiente || 0),
                     items: []
                 };
             }
@@ -554,7 +658,6 @@ function renderAuditoriaLista(items) {
 
         const totalInvoices = Object.keys(invoices).length;
 
-        // Renderizar Encabezado del Mes (Sticky) con el conteo real de órdenes
         html += `
             <div class="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md py-4 px-6 border-b border-slate-200 flex justify-between items-center shadow-sm mb-4">
                 <h3 class="font-black text-navy-blue text-base uppercase tracking-[0.2em] flex items-center gap-3">
@@ -568,10 +671,7 @@ function renderAuditoriaLista(items) {
         `;
 
         html += Object.values(invoices).map(f => {
-            // Asegurar el total: usar el del servidor o calcularlo si viene en 0
             const totalFactura = f.total > 0 ? f.total : f.items.reduce((sum, item) => sum + (item.cantidad * item.precio_unitario), 0);
-
-            // Detección robusta: Si el saldo pendiente es > 0 O si la suma de pagos es menor al total
             const isCredit = f.saldo_pendiente > 0 || (totalFactura > (f.pago_efectivo + f.pago_transferencia) + 0.01);
 
             if (isCredit) {
@@ -584,7 +684,6 @@ function renderAuditoriaLista(items) {
 
             return `
             <div class="border-b border-slate-100 py-8 last:border-0 group animate-in fade-in slide-in-from-bottom-2 duration-300 ${isCredit ? 'bg-rose-50/30 -mx-6 px-6 border-l-4 border-l-rose-500' : ''}">
-                <!-- Cabecera de Entrada (Libro Contable) -->
                 <div class="flex flex-wrap justify-between items-start gap-6 mb-5 w-full">
                     <div class="flex items-center gap-6">
                         <div class="h-14 w-14 rounded-2xl ${isCredit ? 'bg-amber-500 text-white' : 'bg-navy-blue text-neon-green'} flex flex-col items-center justify-center shadow-lg shadow-navy-blue/10">
@@ -630,7 +729,6 @@ function renderAuditoriaLista(items) {
                     </div>
                 </div>
 
-                <!-- Desglose de Servicios/Repuestos (Formato Ledger) -->
                 <div class="pl-[80px]">
                     <table class="w-full text-left">
                         <thead>
@@ -660,7 +758,6 @@ function renderAuditoriaLista(items) {
         }).join('');
     }
 
-    // Renderizar tarjeta de deudores
     const debtorsContainer = document.getElementById('debtors-summary-container');
     if (debtorsContainer) {
         const debtorsArray = Object.entries(debtorsSummary).map(([cliente, data]) => ({ cliente, ...data }));
@@ -699,14 +796,12 @@ function renderAuditoriaLista(items) {
  * Muestra el modal detallado de una venta (Vista previa similar a historial)
  */
 window.verDetalleVenta = async (ventaId) => {
-    // Limpiar el ID si viene con prefijo (ej: TKT-123 -> 123)
     const idLimpio = String(ventaId).replace(/\D/g, '');
 
     try {
         const res = await fetch(`${URLROOT}/historial/detalle/${idLimpio}`);
         const result = await res.json();
 
-        // Extraer la venta: manejamos si viene envuelta en data o directa
         const venta = (result.success && result.data) ? result.data : result;
 
         if (!venta || (!venta.id && !venta.venta_id)) {
@@ -821,9 +916,6 @@ window.verDetalleVenta = async (ventaId) => {
     }
 };
 
-/**
- * Genera el reporte PDF de la Auditoría de Trabajos (Listado completo)
- */
 window.imprimirAuditoriaCompleta = () => {
     const desde = document.getElementById('rep-desde')?.value || '';
     const hasta = document.getElementById('rep-hasta')?.value || '';
@@ -833,9 +925,6 @@ window.imprimirAuditoriaCompleta = () => {
     window.open(`${URLROOT}/reportes/imprimirAuditoria?desde=${desde}&hasta=${hasta}&q=${search}`, '_blank');
 };
 
-/**
- * Genera el reporte PDF de Gastos (Listado filtrado)
- */
 window.imprimirGastosCompleto = () => {
     const desde = document.getElementById('rep-desde')?.value || '';
     const hasta = document.getElementById('rep-hasta')?.value || '';
@@ -845,9 +934,6 @@ window.imprimirGastosCompleto = () => {
     window.open(`${URLROOT}/reportes/imprimirGastos?desde=${desde}&hasta=${hasta}&q=${search}`, '_blank');
 };
 
-/**
- * Muestra el detalle de una compra/gasto (Vista previa financiera)
- */
 window.verDetalleCompra = async (id) => {
     try {
         const res = await fetch(`${URLROOT}/proveedores/obtenerDetalleCompra/${id}`);
@@ -929,16 +1015,13 @@ window.verDetalleCompra = async (id) => {
     } catch (e) { console.error(e); }
 };
 
-/**
- * Abre el endpoint de impresión
- */
 window.printVenta = (id) => {
     AppUtils.showToast('Generando documento...', 'info');
     window.open(`${URLROOT}/facturacion/imprimir/${id}`, '_blank');
 };
 
 /**
- * Abre el modal para registrar un abono a una deuda
+ * Abre el modal para registrar un abono a una deuda.
  */
 window.registrarAbonoCliente = async (ventaId, saldoPendiente) => {
     const { value: formValues } = await Swal.fire({
@@ -951,7 +1034,7 @@ window.registrarAbonoCliente = async (ventaId, saldoPendiente) => {
                 </div>
                 <div>
                     <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Monto a Pagar</label>
-                    <input id="pay-amount" type="text" class="w-full p-3 bg-slate-50 border rounded-xl font-black text-navy-blue" value="${saldoPendiente.toFixed(2)}">
+                    <input id="pay-amount" type="text" class="w-full p-3 bg-slate-50 border rounded-xl font-black text-navy-blue" value="${parseFloat(saldoPendiente).toFixed(2)}">
                 </div>
                 <div>
                     <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Método de Pago</label>
@@ -980,20 +1063,51 @@ window.registrarAbonoCliente = async (ventaId, saldoPendiente) => {
 
     if (formValues) {
         try {
+            AppUtils.showLoading('Registrando pago...');
+
             const res = await fetch(`${URLROOT}/facturacion/registrarAbono`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
                 body: JSON.stringify(formValues)
             });
-            const data = await res.json();
-            if (data.success) {
-                AppUtils.showToast('Pago registrado correctamente');
-                cargarReporteDetallado(); // Recargar la lista
-            } else {
-                AppUtils.showToast(data.mensaje, 'error');
+
+            let data;
+            try {
+                data = await res.json();
+            } catch (parseErr) {
+                const raw = await res.text();
+                console.error('Respuesta no JSON del servidor:', raw);
+                AppUtils.hideLoading();
+                AppUtils.showToast('Respuesta inválida del servidor. Revisa la consola (F12).', 'error');
+                return;
             }
-            if (window.lucide) lucide.createIcons();
-        } catch (e) { AppUtils.showToast('Error de conexión', 'error'); }
+
+            AppUtils.hideLoading();
+
+            if (data.success) {
+                AppUtils.showToast(data.mensaje || 'Pago registrado correctamente');
+                if (activeReportTab === 'detallado') {
+                    cargarReporteDetallado();
+                } else if (activeReportTab === 'resumen') {
+                    if (window.handler_reporte_flujo) window.handler_reporte_flujo.reload();
+                } else if (activeReportTab === 'cartera') {
+                    window.cargarCartera();
+                }
+
+                if (typeof initCreditNotifications === 'function') {
+                    initCreditNotifications();
+                }
+            } else {
+                AppUtils.showToast(data.mensaje || 'Error al registrar el pago', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            console.error('Error al registrar abono:', e);
+            AppUtils.showToast('Error de conexión', 'error');
+        }
     }
 };
 
@@ -1001,7 +1115,6 @@ function filtrarAuditoria(term) {
     if (!rawAuditData) return;
     const t = term.toLowerCase();
 
-    // Filtrar sobre los trabajos realizados (Ventas)
     const filtrados = (rawAuditData.ventas || []).filter(v =>
         (v.modelo_vehiculo && v.modelo_vehiculo.toLowerCase().includes(t)) ||
         (v.placa && v.placa.toLowerCase().includes(t)) ||
@@ -1019,7 +1132,6 @@ window.cargarNomina = async function () {
     const hasta = document.getElementById('rep-hasta')?.value;
 
     if (!staffId || staffId === "") {
-        // Cargar lista de empleados si el selector está vacío
         const selector = document.getElementById('staff-selector');
         if (!selector) return;
         try {
@@ -1104,16 +1216,12 @@ window.cargarNomina = async function () {
             if (elAdelantos) { elAdelantos.textContent = AppUtils.formatCurrency(totalAdelantos); elAdelantos.classList.add('text-3xl', 'md:text-5xl', 'font-black', 'text-rose-600', 'tracking-tighter'); }
             if (elPendiente) { elPendiente.textContent = AppUtils.formatCurrency(saldoNetoReal > 0 ? saldoNetoReal : 0); elPendiente.classList.add('text-4xl', 'md:text-6xl', 'font-black', 'text-neon-green', 'tracking-tighter'); }
 
-            // Guardar total pendiente actual para cálculos del modal
             window.currentNominaPendiente = saldoNetoReal;
         }
         if (window.lucide) lucide.createIcons();
     } catch (e) { console.error(e); }
 };
 
-/**
- * Recalcula el monto pendiente según los trabajos marcados manualmente
- */
 window.recalcularSeleccionNomina = function () {
     const checkboxes = document.querySelectorAll('.work-checkbox:checked');
     let total = 0;
@@ -1195,7 +1303,6 @@ window.openModalPago = async function () {
 
             if (isNaN(factor) || factor <= 0) return Swal.showValidationMessage('Ingrese un valor válido');
 
-            // Recopilar IDs de trabajos seleccionados
             const detallesIds = Array.from(document.querySelectorAll('.work-checkbox:checked')).map(cb => cb.value);
 
             return {
@@ -1228,7 +1335,7 @@ window.openModalPago = async function () {
 
             if (result.success) {
                 AppUtils.showToast('Pago registrado correctamente');
-                window.cargarNomina(); // Recargar la vista actual de nómina
+                window.cargarNomina();
                 if (activeReportTab === 'historial_nomina') window.cargarHistorialNomina();
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al procesar el pago', 'error');
@@ -1240,9 +1347,6 @@ window.openModalPago = async function () {
     }
 };
 
-/**
- * Realiza el cálculo en tiempo real dentro del modal de pago
- */
 window.recalcularVistaPreviaPago = function () {
     const base = window.currentNominaPendiente || 0;
     const factor = parseFloat(document.getElementById('pago-factor')?.value) || 0;
@@ -1256,9 +1360,6 @@ window.recalcularVistaPreviaPago = function () {
     }
 };
 
-/**
- * Maneja el cambio de etiquetas en el modal según el switch
- */
 window.toggleModoPago = function (el) {
     const labelModo = document.getElementById('label-modo');
     const labelFactor = document.getElementById('label-factor');
@@ -1276,17 +1377,11 @@ window.toggleModoPago = function (el) {
     window.recalcularVistaPreviaPago();
 };
 
-/**
- * Genera el PDF del recibo de pago
- */
 window.imprimirReciboPago = function (pagoId) {
     AppUtils.showToast("Abriendo comprobante...", "info");
     window.open(`${URLROOT}/reportes/imprimirRecibo/${pagoId}`, '_blank');
 };
 
-/**
- * Carga el historial de pagos de nómina realizados
- */
 window.cargarHistorialNomina = async () => {
     const desde = document.getElementById('rep-desde')?.value || '';
     const hasta = document.getElementById('rep-hasta')?.value || '';
@@ -1375,7 +1470,6 @@ window.verDetallePagoHistorial = async (id) => {
 };
 
 window.reimprimirPagoNomina = function (id) {
-    // Uniformidad: Abrimos el endpoint de impresión directa para copias históricas
     AppUtils.showToast("Abriendo copia del recibo...", "info");
     window.open(`${URLROOT}/reportes/imprimirRecibo/${id}`, '_blank');
 };

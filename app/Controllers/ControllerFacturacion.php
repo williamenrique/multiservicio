@@ -67,13 +67,6 @@ class ControllerFacturacion extends Controller {
 
     /**
      * Procesa el guardado de la venta.
-     * 
-     * FIX v2.2:
-     *   - catch (\Throwable) en lugar de catch (Exception): captura también
-     *     fatales (TypeError, Error, etc.) y los devuelve como JSON.
-     *   - Log detallado del payload cuando algo falla.
-     *   - marcarComoConvertido() ahora se envuelve en su propio try/catch
-     *     con \Throwable para no tumbar la venta por un fallo secundario.
      */
     public function procesar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -124,7 +117,6 @@ class ControllerFacturacion extends Controller {
                     }
                 }
 
-                // Log del request para depurar
                 error_log("FACTURACION::procesar - Payload: " . json_encode([
                     'cliente_id' => $datos['cliente_id'] ?? null,
                     'items_count' => is_array($datos['items'] ?? null) ? count($datos['items']) : 0,
@@ -136,11 +128,7 @@ class ControllerFacturacion extends Controller {
 
                 $ventaId = $this->billingService->procesarVentaCompleta($datos, $_SESSION['user_id']);
 
-                // ─── Marcar presupuesto como CONVERTIDO (post-venta) ───
-                // El presupuesto ya había sido ACEPTADO (con reservas RESERVADA) o
-                // simplemente cargado desde el carrito. BillingService ya descontó
-                // el stock físico. Aquí solo marcamos reservas como FACTURADA y
-                // cambiamos el estado a CONVERTIDO. NO se toca stock físico.
+                // Marcar presupuesto como CONVERTIDO (post-venta)
                 if (!empty($datos['presupuesto_activo_id'])) {
                     try {
                         $presupuestoModel = $this->model('Presupuesto');
@@ -152,7 +140,6 @@ class ControllerFacturacion extends Controller {
                         logAction('FACTURACION', 'CONVERTIR_PRESUPUESTO',
                             "Presupuesto #{$datos['presupuesto_activo_id']} convertido a venta (Factura #{$ventaId})");
                     } catch (\Throwable $e) {
-                        // No revertimos la venta; solo lo logueamos
                         error_log("Error marcando presupuesto como convertido: " . $e->getMessage());
                     }
                 }
@@ -198,7 +185,6 @@ class ControllerFacturacion extends Controller {
                     'venta_id' => $ventaId
                 ]);
             } catch (\Throwable $e) {
-                // Captura Exception Y Error (TypeError, ArgumentCountError, Error, etc.)
                 $errorMsg = $e->getMessage();
                 $errorFile = $e->getFile();
                 $errorLine = $e->getLine();
@@ -218,5 +204,413 @@ class ControllerFacturacion extends Controller {
         }
     }
 
-    // ... resto del archivo sin cambios: sincronizarBorrador, eliminarBorrador, generarPdfAjax, imprimir, registrarAbono, alertasCredito, getDeudoresSummary, getItemsDevolucion, listarDevoluciones, procesarDevolucion
+    /**
+     * Sincroniza un borrador de factura desde el POS.
+     */
+    public function sincronizarBorrador() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            header('Content-Type: application/json');
+            try {
+                $datos = json_decode(file_get_contents('php://input'), true);
+                if (!$datos) throw new Exception('Payload inválido');
+
+                $subtotal = 0;
+                if (!empty($datos['items'])) {
+                    foreach ($datos['items'] as $it) {
+                        $subtotal += ((float)($it['precio'] ?? 0) * (int)($it['cantidad'] ?? 0));
+                    }
+                }
+
+                $ivaActivo = !empty($datos['iva_activo']);
+                $tasaIva = (float)($datos['tasa_iva'] ?? 19);
+                $iva = $ivaActivo ? ($subtotal * ($tasaIva / 100)) : 0;
+                $total = $subtotal + $iva;
+
+                $pef = (float)($datos['pago_efectivo'] ?? 0);
+                $ptra = (float)($datos['pago_transferencia'] ?? 0);
+                $saldo = max(0, $total - ($pef + $ptra));
+
+                $totales = [
+                    'subtotal' => $subtotal,
+                    'iva' => $iva,
+                    'total' => $total,
+                    'saldo' => $saldo
+                ];
+
+                $status = 'PENDIENTE';
+
+                $ventaId = $this->facturaModel->guardarCabeceraVenta($datos, $status, $totales, $_SESSION['user_id']);
+
+                // Guardar items
+                $db = new Database();
+                $db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :fid");
+                $db->bind(':fid', $ventaId);
+                $db->execute();
+
+                if (!empty($datos['items'])) {
+                    foreach ($datos['items'] as $item) {
+                        $esProducto = (strtoupper($item['tipo'] ?? '') === 'PRODUCTO');
+                        $productoId = ($esProducto && !empty($item['id'])) ? (int)$item['id'] : null;
+                        $mecanicoId = !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null;
+
+                        $db->query("INSERT INTO table_facturas_detalle 
+                                    (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                                    VALUES (:fid, :pid, :mid, :desc, :cant, :pre, :costo)");
+                        $db->bind(':fid', $ventaId);
+                        $db->bind(':pid', $productoId);
+                        $db->bind(':mid', $mecanicoId);
+                        $db->bind(':desc', mb_strtoupper($item['nombre'] ?? 'ITEM', 'UTF-8'));
+                        $db->bind(':cant', (int)($item['cantidad'] ?? 0));
+                        $db->bind(':pre', (float)($item['precio'] ?? 0));
+                        $db->bind(':costo', $esProducto ? (float)($item['costo_promedio'] ?? 0) : 0);
+                        $db->execute();
+                    }
+                }
+
+                return $this->jsonResponse([
+                    'success' => true,
+                    'venta_id' => $ventaId
+                ]);
+            } catch (\Throwable $e) {
+                error_log("Error en sincronizarBorrador: " . $e->getMessage());
+                return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+            }
+        }
+    }
+
+    /**
+     * Elimina un borrador de factura.
+     */
+    public function eliminarBorrador($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $db = new Database();
+            $db->query("SELECT presupuesto_activo_id FROM table_facturas WHERE id = :id AND status = 'PENDIENTE'");
+            $db->bind(':id', (int)$id);
+            $factura = $db->single();
+
+            if ($factura && !empty($factura->presupuesto_activo_id)) {
+                try {
+                    $presupuestoModel = $this->model('Presupuesto');
+                    $presupuestoModel->liberarInventario(
+                        (int)$factura->presupuesto_activo_id,
+                        $_SESSION['user_id'],
+                        'BORRADOR_FACTURA_ELIMINADO'
+                    );
+                } catch (\Throwable $e) {
+                    error_log("Error liberando presupuesto al eliminar borrador: " . $e->getMessage());
+                }
+            }
+
+            $this->facturaModel->eliminarBorrador((int)$id);
+            return $this->jsonResponse(['success' => true, 'mensaje' => 'Borrador eliminado']);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Genera el PDF de una factura vía AJAX.
+     */
+    public function generarPdfAjax($id = null) {
+        try {
+            if (!$id) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+            return $this->jsonResponse([
+                'success' => true,
+                'pdf_url' => URLROOT . '/facturacion/imprimir/' . (int)$id
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Imprime una factura en PDF.
+     */
+    public function imprimir($id) {
+        $venta = $this->facturaModel->obtenerVentaCompleta($id);
+        if (!$venta) die("Factura no encontrada.");
+
+        $tituloPestaña = 'FACTURA - ' . str_pad((string)$venta->id, 3, '0', STR_PAD_LEFT);
+
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('factura', [
+            'titulo_pestaña' => $tituloPestaña,
+            'titulo_documento' => 'Factura de Venta',
+            'documento_id' => $tituloPestaña,
+            'venta' => $venta
+        ], $tituloPestaña . '.pdf');
+        exit;
+    }
+
+    /**
+     * Registra un abono a una factura a crédito.
+     */
+    public function registrarAbono() {
+        if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
+
+        header('Content-Type: application/json');
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!$input || empty($input['venta_id']) || empty($input['monto'])) {
+                throw new Exception('Datos incompletos');
+            }
+
+            $monto = (float)$input['monto'];
+            $metodo = strtoupper($input['metodo'] ?? 'EFECTIVO');
+
+            if ($monto <= 0) throw new Exception('El monto debe ser mayor a cero');
+            if (!in_array($metodo, ['EFECTIVO', 'TRANSFERENCIA'])) {
+                throw new Exception('Método de pago no válido');
+            }
+
+            $resultado = $this->billingService->registrarAbonoSeguro(
+                (int)$input['venta_id'],
+                $monto,
+                $metodo
+            );
+
+            if ($resultado) {
+                logAction('FACTURACION', 'REGISTRAR_ABONO',
+                    "Abono de $" . number_format($monto, 2) . " a Factura #{$input['venta_id']} vía $metodo");
+
+                return $this->jsonResponse([
+                    'success' => true,
+                    'mensaje' => 'Abono registrado correctamente'
+                ]);
+            } else {
+                throw new Exception('No se pudo registrar el abono');
+            }
+        } catch (\Throwable $e) {
+            error_log("Error en registrarAbono: " . $e->getMessage());
+            return $this->jsonResponse([
+                'success' => false,
+                'mensaje' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * NOTIFICACIÓN DE CRÉDITO (CAMPANITA DEL NAVBAR)
+     * Devuelve las facturas a crédito con saldo pendiente y +15 días de atraso.
+     * 
+     * Solo accesible para ADMINISTRADORES.
+     * 
+     * GET /facturacion/alertasCredito
+     * 
+     * Respuesta:
+     * {
+     *   success: true,
+     *   data: [
+     *     { id, cliente_nombre, placa, modelo_vehiculo, saldo_pendiente, fecha, dias_vencido },
+     *     ...
+     *   ],
+     *   total: N
+     * }
+     */
+    public function alertasCredito() {
+        try {
+            // Solo administradores
+            RoleGuard::hasAccess(['ADMINISTRADOR']);
+
+            $dias = 15;
+            $facturas = $this->facturaModel->obtenerCreditosVencidos($dias);
+
+            $data = array_map(function($f) {
+                $fecha = $f->fecha ?? null;
+                $diasTranscurridos = 0;
+                if ($fecha) {
+                    $diasTranscurridos = (int)round((time() - strtotime($fecha)) / 86400);
+                }
+                return [
+                    'id'              => (int)$f->id,
+                    'cliente_nombre'  => $f->cliente_nombre ?? 'SIN CLIENTE',
+                    'placa'           => $f->placa ?? '---',
+                    'modelo_vehiculo' => $f->modelo_vehiculo ?? 'N/A',
+                    'saldo_pendiente' => (float)($f->saldo_pendiente ?? 0),
+                    'fecha'           => $fecha,
+                    'dias_vencido'    => $diasTranscurridos
+                ];
+            }, $facturas ?: []);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'data'    => $data,
+                'total'   => count($data)
+            ]);
+        } catch (\Throwable $e) {
+            error_log("Error en alertasCredito: " . $e->getMessage());
+            return $this->jsonResponse([
+                'success' => false,
+                'mensaje' => $e->getMessage(),
+                'data'    => []
+            ], 500);
+        }
+    }
+
+    /**
+     * RESUMEN DE DEUDORES (TARJETA DEL DASHBOARD)
+     * Devuelve TODAS las facturas a crédito con saldo pendiente,
+     * sin importar los días de atraso (incluso 1 día cuenta).
+     * 
+     * Solo accesible para ADMINISTRADORES.
+     * 
+     * GET /facturacion/getDeudoresSummary
+     * 
+     * Respuesta:
+     * {
+     *   success: true,
+     *   data: {
+     *     resumen: { total_deuda, cantidad_deudores },
+     *     lista: [ { id, cliente_nombre, placa, modelo_vehiculo, saldo_pendiente, fecha }, ... ]
+     *   }
+     * }
+     */
+    public function getDeudoresSummary() {
+        try {
+            // Solo administradores
+            RoleGuard::hasAccess(['ADMINISTRADOR']);
+
+            $db = new Database();
+
+            // Resumen global
+            $db->query("SELECT 
+                            COALESCE(SUM(v.saldo_pendiente), 0) as total_deuda,
+                            COUNT(DISTINCT v.cliente_id) as cantidad_deudores
+                        FROM table_facturas v
+                        WHERE v.status = 'CREDITO' 
+                          AND v.saldo_pendiente > 0.05");
+            $resumen = $db->single();
+
+            // Lista de TODAS las facturas a crédito con saldo pendiente
+            $db->query("SELECT v.id, v.saldo_pendiente, v.fecha,
+                               COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre,
+                               COALESCE(vh.placa, v.placa, '---') as placa,
+                               COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo
+                        FROM table_facturas v
+                        LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                        LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                        WHERE v.status = 'CREDITO' 
+                          AND v.saldo_pendiente > 0.05
+                        ORDER BY v.fecha DESC
+                        LIMIT 20");
+            $lista = $db->resultSet();
+
+            return $this->jsonResponse([
+                'success' => true,
+                'data' => [
+                    'resumen' => [
+                        'total_deuda'        => (float)($resumen->total_deuda ?? 0),
+                        'cantidad_deudores'  => (int)($resumen->cantidad_deudores ?? 0)
+                    ],
+                    'lista' => $lista ?: []
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            error_log("Error en getDeudoresSummary: " . $e->getMessage());
+            return $this->jsonResponse([
+                'success' => false,
+                'mensaje' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Devuelve los items de una factura aptos para devolución (solo repuestos).
+     */
+    public function getItemsDevolucion($ventaId = null) {
+        try {
+            if (!$ventaId) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $db = new Database();
+            $db->query("SELECT vd.id, vd.producto_id, vd.descripcion, vd.cantidad, 
+                               vd.precio_unitario, vd.costo_unitario
+                        FROM table_facturas_detalle vd
+                        WHERE vd.factura_id = :vid AND vd.producto_id IS NOT NULL
+                        ORDER BY vd.id");
+            $db->bind(':vid', (int)$ventaId);
+            $items = $db->resultSet();
+
+            return $this->jsonResponse([
+                'success' => true,
+                'items' => $items ?: []
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'mensaje' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Lista el historial de devoluciones.
+     */
+    public function listarDevoluciones() {
+        try {
+            $limit = (int)($_GET['limit'] ?? 10);
+            $offset = (int)($_GET['offset'] ?? 0);
+            $search = $_GET['q'] ?? null;
+            $desde = $_GET['desde'] ?? null;
+            $hasta = $_GET['hasta'] ?? null;
+
+            $devolucionesModel = $this->model('Devoluciones');
+            $result = $devolucionesModel->listarDevoluciones($limit, $offset, $search, $desde, $hasta);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'data' => $result['data'],
+                'total' => $result['total'],
+                'totalFiltrados' => $result['total']
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Procesa una devolución de un ítem de factura.
+     */
+    public function procesarDevolucion() {
+        if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
+
+        header('Content-Type: application/json');
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!$input || empty($input['venta_id']) || empty($input['detalle_id'])) {
+                throw new Exception('Datos incompletos para la devolución');
+            }
+
+            $resultado = $this->billingService->procesarDevolucionSegura([
+                'factura_id' => (int)$input['venta_id'],
+                'detalle_id' => (int)$input['detalle_id'],
+                'destino' => $input['destino'] ?? 'STOCK'
+            ]);
+
+            if ($resultado) {
+                logAction('FACTURACION', 'PROCESAR_DEVOLUCION',
+                    "Devolución procesada para Factura #{$input['venta_id']}, detalle #{$input['detalle_id']}");
+
+                return $this->jsonResponse([
+                    'success' => true,
+                    'mensaje' => 'Devolución procesada correctamente'
+                ]);
+            } else {
+                throw new Exception('No se pudo procesar la devolución');
+            }
+        } catch (\Throwable $e) {
+            error_log("Error en procesarDevolucion: " . $e->getMessage());
+            return $this->jsonResponse([
+                'success' => false,
+                'mensaje' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

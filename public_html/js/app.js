@@ -2,6 +2,11 @@
  * APP CORE - UNIFICADO Y LEGIBLE
  * Este archivo centraliza las utilidades, la gestión de sesión y la lógica principal de la UI.
  * Reemplaza a app.js y consolida las funciones de soporte del sistema.
+ * 
+ * v2.1: Endpoints opcionales (alertasCredito, getDeudoresSummary) ahora fallan
+ *       silenciosamente si devuelven 404, en lugar de spamear la consola con
+ *       errores de red. Esto permite desplegar el frontend sin los métodos
+ *       backend correspondientes sin generar ruido en la consola.
  */
 
 // =============================================================================
@@ -423,6 +428,10 @@ async function initRecoveryNotifications() {
 
 /**
  * Gestiona las notificaciones de créditos vencidos (+15 días).
+ * 
+ * Si el endpoint `/facturacion/alertasCredito` devuelve 404 (método no
+ * implementado en el controlador), simplemente se omite silenciosamente
+ * sin generar errores en consola.
  */
 async function initCreditNotifications() {
     const container = document.getElementById("credit-notifications-container");
@@ -432,7 +441,22 @@ async function initCreditNotifications() {
             headers: { 'Accept': 'application/json' }
         });
 
-        if (!response.ok) throw new Error("Error en el servidor");
+        // Endpoint no implementado → skip silencioso
+        if (response.status === 404) {
+            container.classList.add('hidden');
+            const dashContainer = document.getElementById("dashboard-overdue-alert");
+            if (dashContainer) dashContainer.innerHTML = "";
+            return;
+        }
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            // No es JSON → probablemente HTML de error 404/500
+            container.classList.add('hidden');
+            return;
+        }
 
         const result = await response.json();
         if (result.success && result.data.length > 0) {
@@ -554,6 +578,9 @@ async function initLowStockNotifications() {
 
 /**
  * Gestiona la tarjeta de resumen de deudores para el dashboard.
+ * 
+ * Si el endpoint `/facturacion/getDeudoresSummary` devuelve 404, se omite
+ * silenciosamente sin spamear la consola.
  */
 async function initDebtorsCard() {
     const container = document.getElementById("dashboard-debtors-card-container");
@@ -564,7 +591,10 @@ async function initDebtorsCard() {
             headers: { 'Accept': 'application/json' }
         });
 
+        // Endpoint no implementado → skip silencioso
+        if (response.status === 404) return;
         if (!response.ok) return;
+
         const contentType = response.headers.get("content-type");
         if (!contentType || !contentType.includes("application/json")) return;
 

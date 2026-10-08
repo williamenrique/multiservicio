@@ -6,6 +6,16 @@
  *       El sistema muestra ese badge cuando la factura se generó por
  *       conversión directa de un presupuesto. En los demás casos, muestra
  *       el badge de tipo_procedencia (OS / TALLER / MOSTRADOR / GARANTIA).
+ * 
+ * v2.1: La columna "Total" ahora muestra en la misma celda el monto total
+ *       y, separado por "/", el saldo pendiente (deuda) con su color
+ *       correspondiente:
+ *         • Total  → siempre en color navy (azul oscuro)
+ *         • Debe   → en rojo si hay deuda, gris tenue si está pagada
+ *       Formato: "165$ / 60$"
+ * 
+ * v2.2: La columna "Items" ahora usa whitespace-nowrap para que el texto
+ *       "(1P + 0S)" no se rompa en dos líneas.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -93,18 +103,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Total de items (productos + servicios)
+            // whitespace-nowrap para que "(1P + 0S)" no se rompa en dos líneas
             const totalItems = (parseInt(item.cant_productos) || 0) + (parseInt(item.cant_servicios) || 0);
             const itemsText = totalItems > 0
-                ? `<span class="font-bold text-navy-blue">${totalItems}</span> <span class="text-slate-400 text-xs">(${item.cant_productos || 0}P + ${item.cant_servicios || 0}S)</span>`
+                ? `<span class="font-bold text-navy-blue whitespace-nowrap">${totalItems}</span> <span class="text-slate-400 text-xs whitespace-nowrap">(${item.cant_productos || 0}P + ${item.cant_servicios || 0}S)</span>`
                 : '<span class="text-slate-400">-</span>';
 
-            // Formatear total
-            const totalFormateado = new Intl.NumberFormat('es-CO', {
-                style: 'currency',
-                currency: 'COP',
+            // ─────────────────────────────────────────────────────────────
+            // Columna "Total / Debe"
+            //   Formato: "165$ / 60$"
+            //     • Total  → color navy (azul oscuro)
+            //     • Debe   → rojo si hay deuda, gris tenue si está pagada
+            //   Si la factura está ANULADA, solo se muestra el total en gris.
+            // ─────────────────────────────────────────────────────────────
+            const fmt = (n) => new Intl.NumberFormat('es-CO', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 0
-            }).format(item.total);
+            }).format(n || 0);
+
+            const saldo = parseFloat(item.saldo_pendiente) || 0;
+            const totalFormateado = fmt(item.total);
+
+            let totalDebeCell = '';
+            if (item.status === 'ANULADO') {
+                totalDebeCell = `<span class="text-slate-300 font-bold line-through">${totalFormateado}$</span>`;
+            } else if (saldo > 0.05) {
+                totalDebeCell = `<span class="font-bold text-navy-blue">${totalFormateado}$</span><span class="text-slate-400 font-bold mx-1">/</span><span class="font-black text-rose-600">${fmt(saldo)}$</span>`;
+            } else {
+                totalDebeCell = `<span class="font-bold text-navy-blue">${totalFormateado}$</span><span class="text-slate-400 font-bold mx-1">/</span><span class="font-bold text-slate-300">0$</span>`;
+            }
 
             // Cliente
             const clienteNombre = item.cliente_nombre ? s(item.cliente_nombre) : '<span class="text-slate-400 italic">Consumidor Final</span>';
@@ -126,9 +153,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="px-6 py-4">${placa}${modelo}</td>
                     <td class="px-6 py-4">${tipoBadge}</td>
                     <td class="px-6 py-4">${vendedor}</td>
-                    <td class="px-6 py-4 text-center">${itemsText}</td>
+                    <td class="px-6 py-4 text-center whitespace-nowrap">${itemsText}</td>
                     <td class="px-6 py-4 text-center">${estadoBadge}</td>
-                    <td class="px-6 py-4 text-right font-bold text-navy-blue">${totalFormateado}</td>
+                    <td class="px-6 py-4 text-right whitespace-nowrap">${totalDebeCell}</td>
                     <td class="px-6 py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
                             <button onclick="verFactura(${item.id})" 

@@ -45,7 +45,7 @@
                                 default: $badgeClass = 'bg-slate-100 text-slate-800'; $icon = 'help-circle';
                             }
                         ?>
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold <?php echo $badgeClass; ?>">
+                        <span id="estadoBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold <?php echo $badgeClass; ?>">
                             <i data-lucide="<?php echo $icon; ?>" class="w-3 h-3 mr-1"></i><?php echo $status; ?>
                         </span>
                     </p>
@@ -54,15 +54,22 @@
                     <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Tipo / Procedencia</p>
                     <p class="font-bold text-slate-700">
                         <?php 
+                            $origen = $data['factura']->origen ?? '';
                             $tipo = $data['factura']->tipo_procedencia;
                             $badgeClass = '';
                             $icon = '';
-                            switch ($tipo) {
-                                case 'OS': $badgeClass = 'bg-blue-100 text-blue-800'; $icon = 'clipboard-list'; break;
-                                case 'TALLER': $badgeClass = 'bg-purple-100 text-purple-800'; $icon = 'wrench'; break;
-                                case 'MOSTRADOR': $badgeClass = 'bg-green-100 text-green-800'; $icon = 'shopping-cart'; break;
-                                case 'GARANTIA': $badgeClass = 'bg-indigo-100 text-indigo-800'; $icon = 'shield-check'; break;
-                                default: $badgeClass = 'bg-slate-100 text-slate-800'; $icon = 'help-circle';
+
+                            if ($origen === 'PRESUPUESTO') {
+                                $badgeClass = 'bg-violet-100 text-violet-800'; $icon = 'file-text';
+                                $tipo = 'PRESUPUESTO';
+                            } else {
+                                switch ($tipo) {
+                                    case 'OS': $badgeClass = 'bg-blue-100 text-blue-800'; $icon = 'clipboard-list'; break;
+                                    case 'TALLER': $badgeClass = 'bg-purple-100 text-purple-800'; $icon = 'wrench'; break;
+                                    case 'MOSTRADOR': $badgeClass = 'bg-green-100 text-green-800'; $icon = 'shopping-cart'; break;
+                                    case 'GARANTIA': $badgeClass = 'bg-indigo-100 text-indigo-800'; $icon = 'shield-check'; break;
+                                    default: $badgeClass = 'bg-slate-100 text-slate-800'; $icon = 'help-circle';
+                                }
                             }
                         ?>
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold <?php echo $badgeClass; ?>">
@@ -152,42 +159,82 @@
             <div class="space-y-3 mb-4">
                 <div class="flex justify-between text-sm">
                     <span class="text-slate-500">Subtotal</span>
-                    <span class="font-bold text-slate-700"><?php echo number_format($data['factura']->subtotal, 0, ',', '.'); ?></span>
+                    <span class="font-bold text-slate-700" id="montoSubtotal"><?php echo number_format($data['factura']->subtotal, 0, ',', '.'); ?></span>
                 </div>
                 <?php if ($data['factura']->iva_monto > 0): ?>
-                <div class="flex justify-between text-sm">
-                    <span class="text-slate-500">IVA (<?php echo $data['factura']->iva_monto > 0 ? '19%' : '0%'; ?>)</span>
-                    <span class="font-bold text-slate-700"><?php echo number_format($data['factura']->iva_monto, 0, ',', '.'); ?></span>
+                <div class="flex justify-between text-sm" id="rowIva">
+                    <span class="text-slate-500">IVA (19%)</span>
+                    <span class="font-bold text-slate-700" id="montoIva"><?php echo number_format($data['factura']->iva_monto, 0, ',', '.'); ?></span>
                 </div>
                 <?php endif; ?>
                 <div class="flex justify-between text-lg font-bold text-navy-blue border-t border-slate-100 pt-3">
                     <span>TOTAL</span>
-                    <span><?php echo number_format($data['factura']->total, 0, ',', '.'); ?></span>
+                    <span id="montoTotal"><?php echo number_format($data['factura']->total, 0, ',', '.'); ?></span>
                 </div>
             </div>
 
             <div class="border-t border-slate-100 pt-4 space-y-3">
                 <p class="text-[10px] font-bold text-gray-400 uppercase mb-2">Forma de Pago</p>
-                <div class="space-y-2">
-                    <?php if ($data['factura']->pago_efectivo > 0): ?>
-                    <div class="flex justify-between text-sm">
+                <div class="space-y-2" id="formasPago">
+                    <div class="flex justify-between text-sm" id="rowEfectivo" style="<?php echo $data['factura']->pago_efectivo > 0 ? '' : 'display:none;'; ?>">
                         <span class="text-slate-500 flex items-center gap-2"><i data-lucide="dollar-sign" class="w-4 h-4"></i> Efectivo</span>
-                        <span class="font-bold text-green-700"><?php echo number_format($data['factura']->pago_efectivo, 0, ',', '.'); ?></span>
+                        <span class="font-bold text-green-700" id="montoEfectivo"><?php echo number_format($data['factura']->pago_efectivo, 0, ',', '.'); ?></span>
                     </div>
-                    <?php endif; ?>
-                    <?php if ($data['factura']->pago_transferencia > 0): ?>
-                    <div class="flex justify-between text-sm">
+                    <div class="flex justify-between text-sm" id="rowTransferencia" style="<?php echo $data['factura']->pago_transferencia > 0 ? '' : 'display:none;'; ?>">
                         <span class="text-slate-500 flex items-center gap-2"><i data-lucide="credit-card" class="w-4 h-4"></i> Transferencia</span>
-                        <span class="font-bold text-blue-700"><?php echo number_format($data['factura']->pago_transferencia, 0, ',', '.'); ?></span>
+                        <span class="font-bold text-blue-700" id="montoTransferencia"><?php echo number_format($data['factura']->pago_transferencia, 0, ',', '.'); ?></span>
                     </div>
-                    <?php endif; ?>
-                    <?php if ($data['factura']->saldo_pendiente > 0): ?>
-                    <div class="flex justify-between text-sm text-red-600 font-bold">
+                    <div class="flex justify-between text-sm text-red-600 font-bold" id="rowSaldo" style="<?php echo ($data['factura']->saldo_pendiente ?? 0) > 0 ? '' : 'display:none;'; ?>">
                         <span class="flex items-center gap-2"><i data-lucide="alert-triangle" class="w-4 h-4"></i> Saldo Pendiente</span>
-                        <span><?php echo number_format($data['factura']->saldo_pendiente, 0, ',', '.'); ?></span>
+                        <span id="montoSaldo"><?php echo number_format($data['factura']->saldo_pendiente ?? 0, 0, ',', '.'); ?></span>
                     </div>
-                    <?php endif; ?>
                 </div>
+
+                <?php if (($data['factura']->saldo_pendiente ?? 0) > 0.05 && $data['factura']->status === 'CREDITO'): ?>
+                <div class="mt-4 pt-4 border-t border-slate-100 space-y-3"
+                     id="abonoForm"
+                     data-factura-id="<?php echo (int)$data['factura']->id; ?>"
+                     data-saldo="<?php echo (float)$data['factura']->saldo_pendiente; ?>"
+                     data-pago-efectivo="<?php echo (float)$data['factura']->pago_efectivo; ?>"
+                     data-pago-transferencia="<?php echo (float)$data['factura']->pago_transferencia; ?>"
+                     data-total="<?php echo (float)$data['factura']->total; ?>">
+
+                    <p class="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-2">
+                        <i data-lucide="hand-coins" class="w-4 h-4"></i> Registrar Abono
+                    </p>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="col-span-2">
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Monto</label>
+                            <input type="number"
+                                   id="abonoMonto"
+                                   min="0.01"
+                                   step="0.01"
+                                   max="<?php echo (float)$data['factura']->saldo_pendiente; ?>"
+                                   placeholder="0.00"
+                                   class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-navy-blue text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Método</label>
+                            <select id="abonoMetodo"
+                                    class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-700 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 outline-none">
+                                <option value="EFECTIVO">EFECTIVO</option>
+                                <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <p id="abonoError" class="hidden text-[11px] text-rose-600 font-bold"></p>
+
+                    <button type="button"
+                            id="btnRegistrarAbono"
+                            disabled
+                            class="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-black py-3 rounded-xl uppercase text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 disabled:shadow-none">
+                        <i data-lucide="hand-coins" class="w-4 h-4"></i>
+                        Registrar Abono
+                    </button>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -272,10 +319,232 @@
 </div>
 
 <script>
+    // ─────────────────────────────────────────────────────────────
+    //  Helpers
+    // ─────────────────────────────────────────────────────────────
     function imprimirFactura() {
         window.open('<?php echo URLROOT; ?>/facturas/imprimir/<?php echo $data['factura']->id; ?>', '_blank');
     }
-    
-    // Inicializar iconos Lucide
+
+    // Formato de moneda idéntico al de PHP: number_format($x, 0, ',', '.')
+    function fmtNum(n) {
+        return new Intl.NumberFormat('es-CO', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(n || 0);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  Registro de Abono INLINE + actualización dinámica (sin reload)
+    // ─────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('abonoForm');
+        if (!form) {
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        // ── Estado local (fuente de verdad para el cálculo dinámico) ──
+        const facturaId       = parseInt(form.dataset.facturaId, 10);
+        let   pagoEfectivo    = parseFloat(form.dataset.pagoEfectivo) || 0;
+        let   pagoTransfer    = parseFloat(form.dataset.pagoTransferencia) || 0;
+        let   saldoActual     = parseFloat(form.dataset.saldo) || 0;
+        const totalFactura    = parseFloat(form.dataset.total) || 0;
+
+        // ── Referencias DOM ──
+        const inputMonto   = document.getElementById('abonoMonto');
+        const selectMetodo = document.getElementById('abonoMetodo');
+        const btnAbono     = document.getElementById('btnRegistrarAbono');
+        const errorMsg     = document.getElementById('abonoError');
+
+        // ── Helpers de validación / UI ──
+        function setError(msg) {
+            if (!msg) {
+                errorMsg.classList.add('hidden');
+                errorMsg.textContent = '';
+                inputMonto.classList.remove('border-rose-400');
+            } else {
+                errorMsg.textContent = msg;
+                errorMsg.classList.remove('hidden');
+                inputMonto.classList.add('border-rose-400');
+            }
+        }
+
+        function validarMonto() {
+            const valor = parseFloat(inputMonto.value);
+            const esNumero        = !isNaN(valor);
+            const mayorCero       = esNumero && valor > 0;
+            const menorIgualSaldo = esNumero && valor <= (saldoActual + 0.001);
+
+            const valido = esNumero && mayorCero && menorIgualSaldo;
+            btnAbono.disabled = !valido;
+
+            if (!inputMonto.value) {
+                setError('');
+            } else if (!esNumero || !mayorCero) {
+                setError('El monto debe ser mayor a 0.');
+            } else if (!menorIgualSaldo) {
+                setError('El monto no puede superar el saldo pendiente (' + fmtNum(saldoActual) + ').');
+            } else {
+                setError('');
+            }
+
+            return valido;
+        }
+
+        function setLoading(on) {
+            if (on) {
+                btnAbono.disabled = true;
+                btnAbono.dataset.originalHtml = btnAbono.innerHTML;
+                btnAbono.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Procesando...';
+                if (window.lucide) lucide.createIcons();
+            } else {
+                if (btnAbono.dataset.originalHtml) {
+                    btnAbono.innerHTML = btnAbono.dataset.originalHtml;
+                    delete btnAbono.dataset.originalHtml;
+                }
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+
+        // ── Actualización dinámica del resumen (SIN recargar) ──
+        function refrescarResumen(monto, metodo) {
+            // 1) Acumular el pago según método
+            if (metodo === 'EFECTIVO') {
+                pagoEfectivo += monto;
+            } else {
+                pagoTransfer += monto;
+            }
+
+            // 2) Recalcular saldo
+            saldoActual = Math.max(0, totalFactura - pagoEfectivo - pagoTransfer);
+
+            // 3) Persistir en dataset (por si se hacen múltiples abonos)
+            form.dataset.pagoEfectivo        = pagoEfectivo;
+            form.dataset.pagoTransferencia   = pagoTransfer;
+            form.dataset.saldo               = saldoActual;
+
+            // 4) Pintar Efectivo
+            const rowEf  = document.getElementById('rowEfectivo');
+            const montoEf = document.getElementById('montoEfectivo');
+            if (pagoEfectivo > 0) {
+                montoEf.textContent = fmtNum(pagoEfectivo);
+                rowEf.style.display = '';
+            }
+
+            // 5) Pintar Transferencia
+            const rowTr  = document.getElementById('rowTransferencia');
+            const montoTr = document.getElementById('montoTransferencia');
+            if (pagoTransfer > 0) {
+                montoTr.textContent = fmtNum(pagoTransfer);
+                rowTr.style.display = '';
+            }
+
+            // 6) Pintar Saldo
+            const rowSaldo   = document.getElementById('rowSaldo');
+            const montoSaldo = document.getElementById('montoSaldo');
+            if (saldoActual > 0.05) {
+                montoSaldo.textContent = fmtNum(saldoActual);
+                rowSaldo.style.display = '';
+            } else {
+                rowSaldo.style.display = 'none';
+            }
+
+            // 7) Si ya no hay saldo → marcar COMPLETADO y ocultar formulario
+            if (saldoActual <= 0.05) {
+                const badge = document.getElementById('estadoBadge');
+                if (badge) {
+                    badge.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800';
+                    badge.innerHTML = '<i data-lucide="check-circle" class="w-3 h-3 mr-1"></i>COMPLETADO';
+                }
+                form.style.display = 'none';
+            } else {
+                // 8) Aún queda saldo: limpiar input y revalidar
+                inputMonto.max = saldoActual.toFixed(2);
+                inputMonto.value = '';
+                validarMonto();
+            }
+
+            // 9) Refrescar iconos
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // ── Eventos de validación en vivo ──
+        inputMonto.addEventListener('input', validarMonto);
+        selectMetodo.addEventListener('change', validarMonto);
+
+        // ── Submit ──
+        btnAbono.addEventListener('click', async () => {
+            if (!validarMonto()) return;
+
+            const monto  = parseFloat(inputMonto.value);
+            const metodo = selectMetodo.value;
+
+            setLoading(true);
+
+            try {
+                const res = await fetch(`${URLROOT}/facturacion/registrarAbono`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': CSRF_TOKEN
+                    },
+                    body: JSON.stringify({
+                        venta_id: facturaId,
+                        monto: monto,
+                        metodo: metodo
+                    })
+                });
+
+                let data;
+                try {
+                    data = await res.json();
+                } catch (parseErr) {
+                    const raw = await res.text();
+                    console.error('Respuesta no JSON del servidor:', raw);
+                    setLoading(false);
+                    validarMonto();
+                    if (window.AppUtils && AppUtils.showToast) {
+                        AppUtils.showToast('Respuesta inválida del servidor. Revisa la consola (F12).', 'error');
+                    } else {
+                        alert('Respuesta inválida del servidor.');
+                    }
+                    return;
+                }
+
+                setLoading(false);
+
+                if (data.success) {
+                    if (window.AppUtils && AppUtils.showToast) {
+                        AppUtils.showToast(data.mensaje || 'Pago registrado correctamente', 'success');
+                    }
+                    // ► Actualización DINÁMICA, sin recargar la página
+                    refrescarResumen(monto, metodo);
+                } else {
+                    if (window.AppUtils && AppUtils.showToast) {
+                        AppUtils.showToast(data.mensaje || 'Error al registrar el pago', 'error');
+                    } else {
+                        alert(data.mensaje || 'Error al registrar el pago');
+                    }
+                    validarMonto();
+                }
+            } catch (e) {
+                setLoading(false);
+                validarMonto();
+                console.error('Error al registrar abono:', e);
+                if (window.AppUtils && AppUtils.showToast) {
+                    AppUtils.showToast('Error de conexión', 'error');
+                } else {
+                    alert('Error de conexión');
+                }
+            }
+        });
+
+        // Estado inicial
+        validarMonto();
+        if (window.lucide) lucide.createIcons();
+    });
+
+    // Iconos iniciales
     if (window.lucide) lucide.createIcons();
 </script>
