@@ -22,13 +22,10 @@
  *       porque el borrador de factura (status PENDIENTE) que se crea al anexar
  *       ya bloquea el stock_disponible. Así se evita el DOBLE CONTEO.
  * 
- * v2.4 (2026-10-08):
- *   • FIX: al actualizar un presupuesto, si no viene fecha_vencimiento en el
- *     payload, se recalcula desde fecha_emision + validez_dias. Antes se
- *     guardaba NULL y rompía la tabla (columna Vencimiento vacía).
- *   • FIX: crear() ahora respeta validez_dias real del form (antes usaba
- *     un default de +30 días hardcoded).
- *   • Se agregó helper privado calcularFechaVencimiento().
+ * v2.5 (2026-10-08):
+ *   • FIX: convertirAVenta() ahora inserta el registro en table_transacciones
+ *     (INGRESO/VENTA). Antes las ventas por presupuesto no aparecían en el
+ *     libro mayor ni en el reporte de flujo de caja.
  */
 class ModelPresupuesto {
     private $db;
@@ -428,7 +425,6 @@ class ModelPresupuesto {
             $this->db->beginTransaction();
 
             // ✅ FIX: recalcular fecha_vencimiento si no viene en el payload.
-            // Antes se guardaba NULL y rompía la columna en la tabla.
             $fechaEmision = $data['fecha_emision'] ?? date('Y-m-d');
             $validezDias = (int)($data['validez_dias'] ?? 30);
             if ($validezDias <= 0) $validezDias = 30;
@@ -852,6 +848,16 @@ class ModelPresupuesto {
         }
     }
 
+    /**
+     * Convierte un presupuesto a venta (crea la factura).
+     * 
+     * ⚠️ SIEMPRE descuenta stock físico + kardex.
+     * Marca las reservas RESERVADA (si las hay) como FACTURADA.
+     * 
+     * v2.5: Ahora también inserta el registro en table_transacciones para que
+     * las ventas por presupuesto aparezcan en el libro mayor y en el reporte
+     * de flujo de caja (Reportes).
+     */
     public function convertirAVenta($id, $usuarioId, $datosPago = []) {
         try {
             $this->db->beginTransaction();
@@ -866,6 +872,7 @@ class ModelPresupuesto {
                 throw new Exception("El presupuesto no puede convertirse desde el estado {$presupuesto->estado}");
             }
 
+            // Verificar stock físico
             foreach ($presupuesto->items as $item) {
                 if ($item->tipo_item === 'PRODUCTO' && $item->producto_id) {
                     if ((int)$item->stock_actual < (int)$item->cantidad) {
@@ -874,13 +881,15 @@ class ModelPresupuesto {
                 }
             }
 
+            // Descontar stock + kardex + marcar reservas como FACTURADA
             $this->descontarStockFisicoReal($id, $id);
 
-            $pagoEfectivo = $datosPago['pago_efectivo'] ?? $presupuesto->total;
-            $pagoTransferencia = $datosPago['pago_transferencia'] ?? 0;
+            $pagoEfectivo = (float)($datosPago['pago_efectivo'] ?? $presupuesto->total);
+            $pagoTransferencia = (float)($datosPago['pago_transferencia'] ?? 0);
             $saldoPendiente = max(0, $presupuesto->total - ($pagoEfectivo + $pagoTransferencia));
-            $status = $saldoPendiente > 0 ? 'CREDITO' : 'COMPLETADO';
+            $status = $saldoPendiente > 0.01 ? 'CREDITO' : 'COMPLETADO';
 
+            // ─── 1. Crear la factura ───
             $this->db->query("INSERT INTO table_facturas 
                               (cliente_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
                                pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status, origen, observaciones) 
@@ -904,6 +913,7 @@ class ModelPresupuesto {
 
             $ventaId = $this->db->lastInsertId();
 
+            // ─── 2. Detalle de la factura ───
             foreach ($presupuesto->items as $item) {
                 $this->db->query("INSERT INTO table_facturas_detalle 
                                   (factura_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
@@ -919,6 +929,23 @@ class ModelPresupuesto {
                 $this->db->execute();
             }
 
+            // ─── 3. ✅ Registrar ingreso en el libro mayor (table_transacciones) ───
+            // Solo se registra el dinero REALMENTE cobrado hoy (efectivo + transferencia).
+            // Si la venta quedó a crédito con saldo pendiente, el ingreso se reconocerá
+            // cuando se registre el abono (ModelFacturacion::registrarAbono()).
+            $totalPagadoHoy = $pagoEfectivo + $pagoTransferencia;
+            if ($totalPagadoHoy > 0.005) {
+                $this->db->query("INSERT INTO table_transacciones 
+                                  (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                                  VALUES (1, 'INGRESO', 'VENTA', :monto, :ref, :desc, :uid)");
+                $this->db->bind(':monto', $totalPagadoHoy);
+                $this->db->bind(':ref', $ventaId);
+                $this->db->bind(':desc', "VENTA POR PRESUPUESTO #{$presupuesto->numero} (EFE: $pagoEfectivo, TRA: $pagoTransferencia)");
+                $this->db->bind(':uid', $usuarioId);
+                $this->db->execute();
+            }
+
+            // ─── 4. Cambiar estado del presupuesto a CONVERTIDO ───
             $this->db->query("UPDATE table_presupuestos SET estado = 'CONVERTIDO' WHERE id = :id");
             $this->db->bind(':id', (int)$id);
             $this->db->execute();
