@@ -53,6 +53,15 @@ class ModelFacturacion {
         return $this->db->resultSet();
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Obtiene todos los borradores con sus respectivos items cargados.
+     * 
+     * FIX: Ahora incluye presupuesto_activo_id para que el POS pueda mostrar
+     * el panel verde del presupuesto anexado al cargar el borrador.
+     */
+>>>>>>> REGISTRO-EMAIL
     public function obtenerBorradoresCompleto() {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
                                  os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
@@ -94,6 +103,14 @@ class ModelFacturacion {
         return $ventas;
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Busca un borrador pendiente vinculado a una Orden de Servicio específica.
+     * 
+     * FIX: Incluye presupuesto_activo_id.
+     */
+>>>>>>> REGISTRO-EMAIL
     public function obtenerBorradorPorOrden($ordenId) {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
                                  os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
@@ -132,17 +149,30 @@ class ModelFacturacion {
         return $venta;
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Registra o actualiza la cabecera de una venta.
+     * 
+     * FIX: Ahora persiste presupuesto_activo_id cuando viene en los datos.
+     */
+>>>>>>> REGISTRO-EMAIL
     public function guardarCabeceraVenta($datos, $status, $totales, $usuarioId) {
         try {
             $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
             $ordenIdPersist = !empty($datos['orden_id']) ? (int)$datos['orden_id'] : null;
+            $presupuestoActivoId = !empty($datos['presupuesto_activo_id']) ? (int)$datos['presupuesto_activo_id'] : null;
 
             if ($ventaId && $ordenIdPersist === null) {
-                $this->db->query("SELECT orden_id FROM table_facturas WHERE id = :id");
+                $this->db->query("SELECT orden_id, presupuesto_activo_id FROM table_facturas WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
                 $facturaActual = $this->db->single();
                 if ($facturaActual) {
                     $ordenIdPersist = !empty($facturaActual->orden_id) ? (int)$facturaActual->orden_id : null;
+                    // Preservar presupuesto_activo_id si no se envió uno nuevo
+                    if ($presupuestoActivoId === null && !empty($facturaActual->presupuesto_activo_id)) {
+                        $presupuestoActivoId = (int)$facturaActual->presupuesto_activo_id;
+                    }
                 }
             }
 
@@ -150,23 +180,30 @@ class ModelFacturacion {
 
             if ($ventaId) {
                 $this->db->query("UPDATE table_facturas SET
-                                  cliente_id = :cid, orden_id = :oid, placa = :placa, modelo_vehiculo = :modelo,
+                                  cliente_id = :cid, orden_id = :oid, presupuesto_activo_id = :paid, 
+                                  placa = :placa, modelo_vehiculo = :modelo,
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
                                   pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
                                   status = :status, origen = :origen, observaciones = :obs
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
             } else {
-                $this->db->query("INSERT INTO table_facturas (cliente_id, orden_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
+                $this->db->query("INSERT INTO table_facturas (cliente_id, orden_id, presupuesto_activo_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
                                   pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status, origen, observaciones) 
-                                  VALUES (:cid, :oid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status, :origen, :obs)");
+                                  VALUES (:cid, :oid, :paid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status, :origen, :obs)");
                 $this->db->bind(':uid', $usuarioId);
             }
             $this->db->bind(':origen', $origen);
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
             $this->db->bind(':oid', $ordenIdPersist);
+<<<<<<< HEAD
             $this->db->bind(':placa', !empty($datos['placa']) ? mb_strtoupper($datos['placa'], 'UTF-8') : null);
             $this->db->bind(':modelo', !empty($datos['modelo']) ? mb_strtoupper($datos['modelo'], 'UTF-8') : null);
+=======
+            $this->db->bind(':paid', $presupuestoActivoId);
+            $this->db->bind(':placa', !empty($datos['placa']) ? $datos['placa'] : null);
+            $this->db->bind(':modelo', !empty($datos['modelo']) ? $datos['modelo'] : null);
+>>>>>>> REGISTRO-EMAIL
             $this->db->bind(':sub', $totales['subtotal']);
             $this->db->bind(':iva', $totales['iva']);
             $this->db->bind(':total', $totales['total']);
@@ -177,6 +214,10 @@ class ModelFacturacion {
             $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? '', 'UTF-8'));
             $this->db->execute();
 
+<<<<<<< HEAD
+=======
+            // Cierre automático de Orden de Servicio
+>>>>>>> REGISTRO-EMAIL
             $esFacturaOrdenServicio = !empty($ordenIdPersist);
             if ($esFacturaOrdenServicio && in_array($status, ['COMPLETADO', 'CREDITO'], true)) {
                 $this->sincronizarOrdenServicio(
@@ -394,6 +435,10 @@ class ModelFacturacion {
             $this->db->execute();
 
             $columnaPago = ($metodo === 'TRANSFERENCIA') ? 'pago_transferencia' : 'pago_efectivo';
+<<<<<<< HEAD
+=======
+            
+>>>>>>> REGISTRO-EMAIL
             $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
 
             $this->db->query("UPDATE table_facturas SET 
@@ -407,6 +452,10 @@ class ModelFacturacion {
             $this->db->bind(':id', $ventaId);
             $this->db->execute();
 
+<<<<<<< HEAD
+=======
+            $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
+>>>>>>> REGISTRO-EMAIL
             if ($venta->orden_id && in_array($nuevoStatus, ['COMPLETADO', 'CREDITO'], true)) {
                 $this->sincronizarOrdenServicio(
                     (int)$venta->orden_id,

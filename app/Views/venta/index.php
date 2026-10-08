@@ -132,12 +132,12 @@
                         </h3>
                         <span class="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full font-bold">Opcional</span>
                     </div>
-                    <p class="text-xs text-blue-700 mb-3">Busque un presupuesto en estado ACTIVO para anexarlo a esta venta. Los items se cargarán automáticamente y el stock quedará reservado.</p>
+                    <p class="text-xs text-blue-700 mb-3">Busque un presupuesto para anexarlo a esta venta. Los items se cargarán automáticamente en el carrito.</p>
                     <div class="relative">
                         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400"></i>
                         <input type="text" id="buscarPresupuestoActivoVenta" placeholder="Buscar por # presupuesto, cliente, placa..." 
                             class="w-full pl-10 pr-4 py-2 bg-white border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm">
-                        <div id="presupuesto-activo-results-venta" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-blue-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
+                        <div id="presupuesto-activo-results-venta" class="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto hidden border border-blue-200 rounded-xl shadow-2xl bg-white z-[100]"></div>
                     </div>
                     <div id="presupuesto-seleccionado-venta" class="mt-3 hidden p-3 bg-green-50 border border-green-200 rounded-lg">
                         <div class="flex justify-between items-center">
@@ -284,6 +284,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const inputPagoEfectivo = document.getElementById('pagoEfectivo');
     const inputPagoTransferencia = document.getElementById('pagoTransferencia');
 
+    // Estado del presupuesto anexado a esta venta
+    let presupuestoSeleccionadoIdVenta = null;
+
     // 1. Inicializar fechas con el mes cursante ANTES de crear la tabla
     const d = new Date();
     const year = d.getFullYear();
@@ -297,13 +300,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (inputDesde) inputDesde.value = `${year}-${month}-01`;
     if (inputHasta) inputHasta.value = today;
 
-    // Inicialización del Motor de Tablas centralizado (Se mueve arriba para estar disponible)
+    // Motor de Tablas centralizado
     const historialTable = new DataTableRefactor({
         tableBodyId: 'cuerpoHistorial',
         endpoint: `${URLROOT}/venta/historial`,
         limitSelectorId: 'historialLimit',
         searchInputId: 'historialSearch',
-        paginationId: 'paginationControls', // Asegúrate de que este ID exista en tu HTML o usa los botones específicos
+        paginationId: 'paginationControls',
         totalId: 'historialInfo',
         getExtraParams: () => ({
             desde: document.getElementById('historialDesde')?.value,
@@ -331,10 +334,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Forzar la carga inicial de datos
     historialTable.reload();
 
-    // 2. Escuchar cambios en fechas para actualizar historial dinámicamente
     if (inputDesde) inputDesde.addEventListener('change', () => historialTable.reload());
     if (inputHasta) inputHasta.addEventListener('change', () => historialTable.reload());
 
@@ -389,7 +390,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Buscador de Clientes en tiempo real (Igual a Facturación)
+    // Buscador de Clientes en tiempo real
     inputCliSearch.addEventListener('input', async (e) => {
         const term = e.target.value.trim();
         if (term.length < 2) {
@@ -436,7 +437,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const seleccionadoContainerPresupuesto = document.getElementById('presupuesto-seleccionado-venta');
     const infoElementPresupuesto = document.getElementById('presupuesto-info-venta');
     const clienteElementPresupuesto = document.getElementById('presupuesto-cliente-venta');
-    let presupuestoSeleccionadoIdVenta = null;
     let searchTimeoutPresupuestoVenta = null;
 
     if (inputPresupuestoVenta && resultsContainerPresupuesto) {
@@ -468,7 +468,24 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 300);
         });
 
-        // Cerrar resultados al hacer clic fuera
+        // ─── DELEGACIÓN DE EVENTOS ───
+        resultsContainerPresupuesto.addEventListener('click', (e) => {
+            const item = e.target.closest('[data-presupuesto-id]');
+            if (!item) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const id = item.dataset.presupuestoId;
+            const numero = item.dataset.presupuestoNumero;
+            const clienteNombre = item.dataset.clienteNombre;
+            const clienteTelefono = item.dataset.clienteTelefono || '';
+            const total = item.dataset.total;
+            const fecha = item.dataset.fecha;
+
+            window.seleccionarPresupuestoActivoVenta(id, numero, clienteNombre, clienteTelefono, total, fecha);
+        });
+
         document.addEventListener('click', (e) => {
             if (resultsContainerPresupuesto && !resultsContainerPresupuesto.contains(e.target) && e.target !== inputPresupuestoVenta) {
                 resultsContainerPresupuesto.classList.add('hidden');
@@ -482,23 +499,38 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = '';
         if (presupuestos.length > 0) {
             html = presupuestos.map(p => {
-                const estadoBadge = p.estado === 'ACTIVO' 
-                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">ACTIVO</span>'
-                    : '';
+                const estadoBadge = p.estado === 'ACEPTADO'
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">ACEPTADO</span>'
+                    : (p.estado === 'ACTIVO'
+                        ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700">ACTIVO</span>'
+                        : (p.estado === 'ENVIADO'
+                            ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700">ENVIADO</span>'
+                            : '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600">' + p.estado + '</span>'));
+                
+                const safeClienteNombre = (p.cliente_nombre || '').replace(/"/g, '&quot;');
+                const safeClienteTelefono = (p.cliente_telefono || '').replace(/"/g, '&quot;');
+                const safeNumero = (p.numero || '').replace(/"/g, '&quot;');
+                const safeFecha = (p.fecha_activacion || p.fecha_emision || '').replace(/"/g, '&quot;');
                 
                 return `
-                    <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0" 
-                         onclick="seleccionarPresupuestoActivoVenta('${p.id}', '${p.numero}', '${p.cliente_nombre.replace(/'/g, "\\'")}', '${p.cliente_telefono || ''}', '${p.total}', '${p.fecha_activacion || p.fecha_emision}')">
+                    <div class="p-3 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-0 transition-colors"
+                         data-presupuesto-id="${p.id}"
+                         data-presupuesto-numero="${safeNumero}"
+                         data-cliente-nombre="${safeClienteNombre}"
+                         data-cliente-telefono="${safeClienteTelefono}"
+                         data-total="${p.total}"
+                         data-fecha="${safeFecha}">
                         <div class="flex justify-between items-start">
-                            <div>
-                                <p class="font-bold text-xs uppercase text-navy-blue">${p.numero} ${estadoBadge}</p>
-                                <p class="text-[10px] text-slate-400 font-mono">${p.cliente_nombre}</p>
+                            <div class="min-w-0 flex-1">
+                                <p class="font-bold text-xs uppercase text-navy-blue truncate">${p.numero} ${estadoBadge}</p>
+                                <p class="text-[10px] text-slate-400 font-mono truncate">${p.cliente_nombre}</p>
                             </div>
-                            <div class="text-right">
+                            <div class="text-right flex-shrink-0 ml-2">
                                 <p class="text-[10px] text-amber-600 font-mono font-bold">$${parseFloat(p.total).toLocaleString('es-CO', {minimumFractionDigits: 2})}</p>
-                                <p class="text-[9px] text-slate-500">${p.fecha_activacion ? new Date(p.fecha_activacion).toLocaleDateString('es-ES') : new Date(p.fecha_emision).toLocaleDateString('es-ES')}</p>
+                                <p class="text-[9px] text-slate-500">${new Date(p.fecha_activacion || p.fecha_emision).toLocaleDateString('es-ES')}</p>
                             </div>
-                        </div>`;
+                        </div>
+                    </div>`;
             }).join('');
         } else {
             html = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos activos</div>';
@@ -509,49 +541,162 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.lucide) lucide.createIcons();
     }
 
-    window.seleccionarPresupuestoActivoVenta = (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
+    /**
+     * Selecciona un presupuesto, carga sus items en el carrito y autocompleta el cliente.
+     * 
+     * ⚠️ NO cambia el estado del presupuesto en el backend. Solo carga los items
+     * localmente. El estado se actualizará a CONVERTIDO al procesar la venta
+     * (porque el payload incluirá presupuesto_activo_id).
+     */
+    window.seleccionarPresupuestoActivoVenta = async (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
+        console.log('[VENTA] Presupuesto seleccionado:', { id, numero, clienteNombre });
+
+        if (!id || id === 'undefined' || id === 'null') {
+            AppUtils.showToast('ID de presupuesto inválido', 'error');
+            return;
+        }
+
+        // Si el carrito ya tiene items, preguntar si reemplazar
+        if (carrito.length > 0) {
+            const confirm = await Swal.fire({
+                title: '¿Reemplazar venta actual?',
+                text: 'Ya hay items en el carrito. Si anexas un presupuesto, se reemplazarán por los del presupuesto.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Sí, reemplazar',
+                cancelButtonText: 'Cancelar'
+            });
+            if (!confirm.isConfirmed) {
+                if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+                return;
+            }
+            carrito = [];
+        }
+
+        // Si ya había un presupuesto distinto, avisar que se reemplaza
+        if (presupuestoSeleccionadoIdVenta && presupuestoSeleccionadoIdVenta !== id) {
+            const confirm = await Swal.fire({
+                title: '¿Reemplazar presupuesto?',
+                text: `Actualmente hay anexado el presupuesto #${presupuestoSeleccionadoIdVenta}. ¿Deseas reemplazarlo?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Sí, reemplazar',
+                cancelButtonText: 'Cancelar'
+            });
+            if (!confirm.isConfirmed) {
+                if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+                return;
+            }
+        }
+
         presupuestoSeleccionadoIdVenta = id;
         inputPresupuestoVenta.value = `${numero} - ${clienteNombre}`;
         if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
-        
+
         // Mostrar info del presupuesto seleccionado
         infoElementPresupuesto.textContent = `${numero} | Total: $${parseFloat(total).toLocaleString('es-CO', {minimumFractionDigits: 2})}`;
         clienteElementPresupuesto.textContent = `Cliente: ${clienteNombre} | Tel: ${clienteTelefono || 'N/A'} | Activado: ${fecha ? new Date(fecha).toLocaleDateString('es-ES') : 'N/A'}`;
         seleccionadoContainerPresupuesto.classList.remove('hidden');
-        
-        // Guardar el ID en un campo hidden para enviarlo con el formulario
-        let hiddenInput = document.getElementById('presupuesto_activo_id_venta');
-        if (!hiddenInput) {
-            hiddenInput = document.createElement('input');
-            hiddenInput.type = 'hidden';
-            hiddenInput.name = 'presupuesto_activo_id';
-            hiddenInput.id = 'presupuesto_activo_id_venta';
-            document.getElementById('formVenta').appendChild(hiddenInput);
+
+        // ─── CARGAR ITEMS DEL PRESUPUESTO ───
+        try {
+            AppUtils.showLoading('Cargando items del presupuesto...');
+            const res = await fetch(`${URLROOT}/presupuesto/obtenerParaAnexar/${id}`);
+            const data = await res.json();
+            AppUtils.hideLoading();
+
+            if (!data.success || !data.items) {
+                AppUtils.showToast(data.mensaje || 'No se pudieron cargar los items', 'error');
+                // Revertir
+                presupuestoSeleccionadoIdVenta = null;
+                inputPresupuestoVenta.value = '';
+                seleccionadoContainerPresupuesto.classList.add('hidden');
+                return;
+            }
+
+            // Cargar items al carrito
+            data.items.forEach(item => {
+                carrito.push({
+                    id: item.producto_id,
+                    nombre: item.nombre,
+                    precio: parseFloat(item.precio),
+                    costo_promedio: parseFloat(item.costo_promedio || 0),
+                    cantidad: parseInt(item.cantidad),
+                    tipo: item.tipo || 'PRODUCTO',
+                    categoria: item.tipo === 'SERVICIO' ? 'SERVICIO' : 'PRESUPUESTO'
+                });
+            });
+
+            // Autocompletar cliente si no hay uno seleccionado
+            if (!hiddenCliId.value && data.data.cliente_id) {
+                hiddenCliId.value = data.data.cliente_id;
+                inputCliSearch.value = data.data.cliente_nombre || data.data.cliente_id;
+            }
+
+            renderizar();
+            AppUtils.showToast(`Presupuesto ${numero} anexado con ${data.items.length} item(s)`, 'success');
+        } catch (e) {
+            AppUtils.hideLoading();
+            console.error("Error cargando items del presupuesto:", e);
+            AppUtils.showToast('Error al cargar los items del presupuesto', 'error');
+            presupuestoSeleccionadoIdVenta = null;
+            inputPresupuestoVenta.value = '';
+            seleccionadoContainerPresupuesto.classList.add('hidden');
         }
-        hiddenInput.value = id;
-        
-        if (window.AppUtils) AppUtils.showToast(`Presupuesto ${numero} anexado correctamente`);
     };
 
-    window.desanexarPresupuestoVenta = () => {
+    /**
+     * Desanexa el presupuesto activo.
+     * 
+     * @param {boolean} skipConfirm - Si true, NO pide confirmación (se usa al limpiar post-venta).
+     * @param {boolean} keepCart    - Si true, NO elimina los items del carrito (default false).
+     */
+    window.desanexarPresupuestoVenta = async (skipConfirm = false, keepCart = false) => {
+        if (!presupuestoSeleccionadoIdVenta) {
+            // Solo limpiar UI defensivamente
+            inputPresupuestoVenta.value = '';
+            if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+            if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+            return;
+        }
+
+        if (!skipConfirm) {
+            const confirm = await Swal.fire({
+                title: '¿Desanexar presupuesto?',
+                text: keepCart
+                    ? 'Se quitará el vínculo con el presupuesto pero los items seguirán en el carrito.'
+                    : 'Se quitará el presupuesto y sus items del carrito.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Sí, desanexar',
+                cancelButtonText: 'Cancelar'
+            });
+            if (!confirm.isConfirmed) return;
+        }
+
+        // Si NO se conserva el carrito, quitar los items que vinieron del presupuesto
+        if (!keepCart) {
+            carrito = [];
+        }
+
         presupuestoSeleccionadoIdVenta = null;
         inputPresupuestoVenta.value = '';
         if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
         if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
-        
-        const hiddenInput = document.getElementById('presupuesto_activo_id_venta');
-        if (hiddenInput) hiddenInput.remove();
-        
-        if (window.AppUtils) AppUtils.showToast('Presupuesto desanexado');
+
+        renderizar();
     };
 
     // Cerrar resultados al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (!divCliResultados.contains(e.target) && e.target !== inputCliSearch) divCliResultados.classList.add('hidden');
         if (!resultados.contains(e.target) && e.target !== inputBusqueda) resultados.classList.add('hidden');
-        if (resultsContainerPresupuesto && !resultsContainerPresupuesto.contains(e.target) && e.target !== inputPresupuestoVenta) {
-            resultsContainerPresupuesto.classList.add('hidden');
-        }
     });
 
     function agregarAlCarrito(item) {
@@ -583,7 +728,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <tr class="hover:bg-slate-50/50 transition-colors">
                     <td class="px-4 py-5">
                         <div class="text-base font-bold text-slate-700 uppercase">${item.nombre}</div>
-                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">${item.categoria}</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">${item.categoria || ''}</div>
                     </td>
                     <td class="px-4 py-5 text-center">
                         <input type="number" class="w-16 text-center py-1 bg-white border border-slate-200 rounded text-base font-bold focus:border-blue-500 focus:outline-none" value="${item.cantidad}" 
@@ -605,7 +750,6 @@ document.addEventListener('DOMContentLoaded', function() {
         placeholder.style.display = carrito.length > 0 ? 'none' : 'flex';
         document.getElementById('btnProcesar').disabled = carrito.length === 0;
         
-        // Calcular IVA según el estado del toggle
         const ivaToggle = document.getElementById('pos-iva-toggle');
         const ivaActivo = ivaToggle ? ivaToggle.checked : false;
         const ivaPercent = ivaActivo ? (parseFloat('<?php echo $data['iva_defecto'] ?? 0; ?>') || 0) : 0;
@@ -616,7 +760,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('txtIva').innerText = `$ ${ivaMonto.toFixed(2)}`;
         document.getElementById('txtTotal').innerText = `$ ${totalConIva.toFixed(2)}`;
         
-        // Auto-completar el pago en efectivo por defecto si es una venta nueva
         if (carrito.length > 0 && parseFloat(inputPagoEfectivo.value || 0) === 0 && parseFloat(inputPagoTransferencia.value || 0) === 0) {
             inputPagoEfectivo.value = totalConIva.toFixed(2);
         }
@@ -646,6 +789,12 @@ document.addEventListener('DOMContentLoaded', function() {
         inputPagoTransferencia.value = '';
         document.getElementById('msgSaldo').classList.add('hidden');
         document.getElementById('txtSaldo').innerText = '';
+
+        // ✅ Desanexar presupuesto SIN confirmar (ya se procesó la venta)
+        if (typeof window.desanexarPresupuestoVenta === 'function') {
+            window.desanexarPresupuestoVenta(true, true);
+        }
+
         renderizar();
         historialTable.reload();
     }
@@ -666,7 +815,6 @@ document.addEventListener('DOMContentLoaded', function() {
         actualizarSaldo();
     });
 
-    // Listener del toggle de IVA: recalcula totales al activar/desactivar
     const ivaToggleVenta = document.getElementById('pos-iva-toggle');
     if (ivaToggleVenta) {
         ivaToggleVenta.addEventListener('change', () => {
@@ -753,7 +901,10 @@ document.addEventListener('DOMContentLoaded', function() {
             mecanico_id: null,
             placa: '',
             iva_activo: document.getElementById('pos-iva-toggle') ? document.getElementById('pos-iva-toggle').checked : false,
-            tasa_iva: parseFloat('<?php echo $data['iva_defecto'] ?? 0; ?>') || 0
+            tasa_iva: parseFloat('<?php echo $data['iva_defecto'] ?? 0; ?>') || 0,
+            // ✅ Enviar el ID del presupuesto anexado (si existe) para que
+            // ControllerFacturacion lo marque como CONVERTIDO al procesar.
+            presupuesto_activo_id: presupuestoSeleccionadoIdVenta || null
         };
 
         try {
@@ -781,11 +932,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             ultimaVentaId = data.venta_id;
             
-            // Mostrar modal de éxito en lugar de abrir pestaña directamente
             document.getElementById('modalVentaExitosa').classList.remove('hidden');
             if (window.lucide) lucide.createIcons();
 
-            // Limpiar app y refrescar tabla sin recargar página
             resetFormularioVenta();
         } catch (error) {
             AppUtils.showToast(error.message, 'error');

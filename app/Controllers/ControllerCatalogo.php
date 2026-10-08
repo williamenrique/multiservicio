@@ -3,6 +3,10 @@
  * Controlador de Catálogo Público
  * Muestra repuestos, gestiona carrito público y pedidos.
  * NO requiere autenticación - acceso público.
+ * 
+ * NOTA: El logging en `table_emails` lo hace `EmailService` de forma
+ * automática (ver App\Services\EmailService::logEnvio). Este controlador
+ * ya NO registra manualmente para evitar duplicados.
  */
 
 use App\Services\EmailService;
@@ -360,6 +364,8 @@ class ControllerCatalogo extends Controller {
      * Procesar pedido (POST)
      * POST /catalogo/procesar-pedido
      * Integrado con BillingService para generar factura, descontar stock y registrar transacción.
+     * 
+     * El registro del email en `table_emails` lo hace EmailService::logEnvio().
      */
     public function procesarPedido() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -386,6 +392,14 @@ class ControllerCatalogo extends Controller {
         if (empty($cedula)) $errores[] = 'La cédula/NIT es obligatoria.';
         if (empty($correo) || !filter_var($correo, FILTER_VALIDATE_EMAIL)) $errores[] = 'Correo electrónico no válido.';
         if (empty($telefono)) $errores[] = 'El teléfono es obligatorio.';
+
+        // Convertir a mayúsculas (excepto email que va en minúsculas)
+        $nombre = mb_strtoupper($nombre, 'UTF-8');
+        $cedula = mb_strtoupper($cedula, 'UTF-8');
+        $telefono = mb_strtoupper($telefono, 'UTF-8');
+        $direccion = mb_strtoupper($direccion, 'UTF-8');
+        $notas = mb_strtoupper($notas, 'UTF-8');
+        $correo = mb_strtolower($correo, 'UTF-8');
 
         if (!empty($errores)) {
             $_SESSION['checkout_errores'] = $errores;
@@ -493,6 +507,7 @@ class ControllerCatalogo extends Controller {
             $pedidoId = $this->modelCatalogo->crearPedido($datosCliente, $itemsPedido);
 
             // --- 5. Preparar datos para notificaciones y enviar email ---
+            // El registro del envío lo hace EmailService::logEnvio() de forma automática.
             $facturaModel = $this->model('Facturacion');
             $ventaCompleta = $facturaModel->obtenerVentaCompleta($ventaId);
             $datosEmail = [
@@ -503,6 +518,7 @@ class ControllerCatalogo extends Controller {
                 'cliente_direccion' => $direccion,
                 'venta_formateado'  => $ventaCompleta->id_formateado ?? 'FAC-' . str_pad($ventaId, 3, '0', STR_PAD_LEFT),
                 'venta_id'          => $ventaId,
+                'pedido_id'         => $pedidoId,
                 'id_formateado'     => 'PED-' . str_pad($pedidoId, 3, '0', STR_PAD_LEFT),
                 'fecha'             => date('d/m/Y h:i A'),
                 'items'             => $ventaCompleta->items ?? $items,
@@ -657,6 +673,8 @@ class ControllerCatalogo extends Controller {
     /**
      * Procesar pedido (staff) - descuenta inventario
      * POST /catalogo/procesar-pedido-staff
+     * 
+     * El registro del email en `table_emails` lo hace EmailService::logEnvio().
      */
     public function procesarPedidoStaff() {
         if (!isset($_SESSION['user_id'])) {
@@ -690,6 +708,7 @@ class ControllerCatalogo extends Controller {
             $this->modelCatalogo->procesarPedido($pedidoId, $_SESSION['user_id']);
 
             // Enviar correo de notificación al cliente
+            // (EmailService registra automáticamente el envío en table_emails)
             try {
                 $pedido = $this->modelCatalogo->obtenerPedido($pedidoId);
                 $detalles = $this->modelCatalogo->obtenerDetallesPedido($pedidoId);
@@ -699,6 +718,7 @@ class ControllerCatalogo extends Controller {
                     $emailService->notificarPedidoProcesadoCliente([
                         'cliente_nombre'  => $pedido->nombre_cliente,
                         'cliente_email'   => $pedido->correo,
+                        'pedido_id'       => $pedido->id,
                         'id_formateado'   => 'PED-' . str_pad($pedido->id, 6, '0', STR_PAD_LEFT),
                         'fecha'           => date('d/m/Y h:i A'),
                         'items'           => $detalles,

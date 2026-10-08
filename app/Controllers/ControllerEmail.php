@@ -2,6 +2,10 @@
 /**
  * Controlador de Emails
  * Gestiona el historial de emails enviados y el envío de nuevos emails.
+ * 
+ * NOTA: El logging en `table_emails` lo hace AHORA `EmailService` de forma
+ * automática. Este controlador ya NO registra manualmente para evitar
+ * duplicados. Ver `App\Services\EmailService::logEnvio()`.
  */
 class ControllerEmail extends Controller {
     private $emailModel;
@@ -74,10 +78,21 @@ class ControllerEmail extends Controller {
 
     /**
      * AJAX: Envía un email
+     * NOTA: El registro en `table_emails` lo hace EmailService::logEnvio().
      */
     public function enviar() {
         try {
-            $input = json_decode(file_get_contents('php://input'), true);
+            // Detectar si es FormData (multipart/form-data) o JSON
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            $isFormData = strpos($contentType, 'multipart/form-data') !== false;
+            
+            if ($isFormData) {
+                $input = $_POST;
+                $adjuntos = $_FILES['adjuntos'] ?? [];
+            } else {
+                $input = json_decode(file_get_contents('php://input'), true) ?: [];
+                $adjuntos = $input['adjuntos'] ?? [];
+            }
             
             $v = new Validator($input);
             $v->required(['destinatario_email', 'asunto', 'cuerpo_html']);
@@ -87,41 +102,26 @@ class ControllerEmail extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => implode(' ', $v->getErrors())], 400);
             }
 
-            // Obtener configuración de email
             $config = $this->model('Empresa')->obtenerConfiguracion();
+            $attachments = $this->procesarAdjuntos($isFormData, $adjuntos);
             
-            // Preparar datos para el servicio de email
             $emailData = [
-                'to' => $input['destinatario_email'],
-                'to_name' => $input['destinatario_nombre'] ?? '',
-                'subject' => $input['asunto'],
-                'body_html' => $input['cuerpo_html'],
-                'body_text' => $input['cuerpo_texto'] ?? null,
-                'attachments' => $input['adjuntos'] ?? [],
-                'from_name' => $config->name ?? 'Taller Pro',
-                'from_email' => $config->email ?? 'noreply@tallerpro.com'
+                'to'              => $input['destinatario_email'],
+                'to_name'         => $input['destinatario_nombre'] ?? '',
+                'subject'         => $input['asunto'],
+                'body_html'       => $input['cuerpo_html'],
+                'body_text'       => $input['cuerpo_texto'] ?? null,
+                'attachments'     => $attachments,
+                'from_name'       => $config->name ?? 'Taller Pro',
+                'from_email'      => $config->email ?? 'noreply@tallerpro.com',
+                // Metadatos para el log automático de EmailService
+                'tipo'            => $input['tipo'] ?? 'OTRO',
+                'referencia_tipo' => $input['referencia_tipo'] ?? 'NINGUNO',
+                'referencia_id'   => !empty($input['referencia_id']) ? (int)$input['referencia_id'] : null,
             ];
 
-            // Enviar email usando PHPMailer
             $emailService = new \App\Services\EmailService();
             $result = $emailService->enviarEmailGenerico($emailData);
-
-            // Registrar en historial
-            $this->emailModel->registrar([
-                'tipo' => $input['tipo'] ?? 'OTRO',
-                'destinatario_email' => $input['destinatario_email'],
-                'destinatario_nombre' => $input['destinatario_nombre'] ?? '',
-                'asunto' => $input['asunto'],
-                'cuerpo_html' => $input['cuerpo_html'],
-                'cuerpo_texto' => $input['cuerpo_texto'] ?? null,
-                'adjuntos' => $input['adjuntos'] ?? [],
-                'referencia_tipo' => $input['referencia_tipo'] ?? 'NINGUNO',
-                'referencia_id' => $input['referencia_id'] ?? null,
-                'estado' => $result['success'] ? 'ENVIADO' : 'FALLIDO',
-                'error_mensaje' => $result['success'] ? null : ($result['mensaje'] ?? 'Error desconocido'),
-                'usuario_id' => $_SESSION['user_id'],
-                'fecha_envio' => $result['success'] ? date('Y-m-d H:i:s') : null
-            ]);
 
             return $this->jsonResponse($result);
         } catch (Exception $e) {
@@ -131,10 +131,20 @@ class ControllerEmail extends Controller {
 
     /**
      * AJAX: Envía email con plantilla (factura, presupuesto, etc.)
+     * NOTA: El registro en `table_emails` lo hace EmailService::logEnvio().
      */
     public function enviarConPlantilla() {
         try {
-            $input = json_decode(file_get_contents('php://input'), true);
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            $isFormData = strpos($contentType, 'multipart/form-data') !== false;
+            
+            if ($isFormData) {
+                $input = $_POST;
+                $adjuntos = $_FILES['adjuntos'] ?? [];
+            } else {
+                $input = json_decode(file_get_contents('php://input'), true) ?: [];
+                $adjuntos = $input['adjuntos'] ?? [];
+            }
             
             $v = new Validator($input);
             $v->required(['plantilla_id', 'destinatario_email']);
@@ -151,54 +161,88 @@ class ControllerEmail extends Controller {
 
             // Obtener datos de referencia si se proporciona
             $variables = $input['variables'] ?? [];
+            if (is_string($variables)) {
+                $variables = json_decode($variables, true) ?? [];
+            }
             $config = $this->model('Empresa')->obtenerConfiguracion();
             
             // Agregar variables de empresa
             $variables = array_merge([
-                'empresa_nombre' => $config->name ?? 'Taller Pro',
-                'empresa_nit' => $config->nit ?? '',
+                'empresa_nombre'    => $config->name ?? 'Taller Pro',
+                'empresa_nit'       => $config->nit ?? '',
                 'empresa_direccion' => $config->direccion ?? '',
-                'empresa_telefono' => $config->telefono ?? '',
-                'empresa_email' => $config->email ?? ''
+                'empresa_telefono'  => $config->telefono ?? '',
+                'empresa_email'     => $config->email ?? ''
             ], $variables);
 
-            // Reemplazar variables en asunto y cuerpo
-            $asunto = $this->reemplazarVariables($plantilla->asunto, $variables);
+            $asunto     = $this->reemplazarVariables($plantilla->asunto, $variables);
             $cuerpoHtml = $this->reemplazarVariables($plantilla->cuerpo_html, $variables);
 
-            // Enviar
-            $config = $this->model('Empresa')->obtenerConfiguracion();
+            $attachments = $this->procesarAdjuntos($isFormData, $adjuntos);
+
             $emailData = [
-                'to' => $input['destinatario_email'],
-                'to_name' => $input['destinatario_nombre'] ?? '',
-                'subject' => $asunto,
-                'body_html' => $cuerpoHtml,
-                'from_name' => $config->name ?? 'Taller Pro',
-                'from_email' => $config->email ?? 'noreply@tallerpro.com'
+                'to'              => $input['destinatario_email'],
+                'to_name'         => $input['destinatario_nombre'] ?? '',
+                'subject'         => $asunto,
+                'body_html'       => $cuerpoHtml,
+                'attachments'     => $attachments,
+                'from_name'       => $config->name ?? 'Taller Pro',
+                'from_email'      => $config->email ?? 'noreply@tallerpro.com',
+                // Metadatos para el log automático
+                'tipo'            => $plantilla->tipo,
+                'referencia_tipo' => $input['referencia_tipo'] ?? 'NINGUNO',
+                'referencia_id'   => !empty($input['referencia_id']) ? (int)$input['referencia_id'] : null,
             ];
 
             $emailService = new \App\Services\EmailService();
             $result = $emailService->enviarEmailGenerico($emailData);
 
-            // Registrar
-            $this->emailModel->registrar([
-                'tipo' => $plantilla->tipo,
-                'destinatario_email' => $input['destinatario_email'],
-                'destinatario_nombre' => $input['destinatario_nombre'] ?? '',
-                'asunto' => $asunto,
-                'cuerpo_html' => $cuerpoHtml,
-                'referencia_tipo' => $input['referencia_tipo'] ?? 'NINGUNO',
-                'referencia_id' => $input['referencia_id'] ?? null,
-                'estado' => $result['success'] ? 'ENVIADO' : 'FALLIDO',
-                'error_mensaje' => $result['success'] ? null : ($result['mensaje'] ?? 'Error desconocido'),
-                'usuario_id' => $_SESSION['user_id'],
-                'fecha_envio' => $result['success'] ? date('Y-m-d H:i:s') : null
-            ]);
-
             return $this->jsonResponse($result);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Helper: procesa los adjuntos recibidos (desde $_FILES o desde array de paths).
+     * Devuelve un array de ['path' => ..., 'name' => ...].
+     */
+    private function procesarAdjuntos(bool $isFormData, $adjuntos): array {
+        $attachments = [];
+        
+        if ($isFormData && !empty($adjuntos['name'][0])) {
+            $uploadDir = APPROOT . '/../public_html/uploads/emails/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            
+            $fileCount = count($adjuntos['name']);
+            for ($i = 0; $i < $fileCount; $i++) {
+                if ($adjuntos['error'][$i] === UPLOAD_ERR_OK) {
+                    $tmpName       = $adjuntos['tmp_name'][$i];
+                    $originalName  = basename($adjuntos['name'][$i]);
+                    $extension     = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+                    $allowedExt    = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
+                    
+                    if (in_array($extension, $allowedExt)) {
+                        $newName  = uniqid('email_') . '_' . $originalName;
+                        $destPath = $uploadDir . $newName;
+                        
+                        if (move_uploaded_file($tmpName, $destPath)) {
+                            $attachments[] = [
+                                'path' => $destPath,
+                                'name' => $originalName
+                            ];
+                        }
+                    }
+                }
+            }
+        } elseif (!empty($adjuntos) && is_array($adjuntos)) {
+            // Adjuntos ya procesados (rutas de archivos)
+            $attachments = $adjuntos;
+        }
+        
+        return $attachments;
     }
 
     /**
@@ -225,7 +269,7 @@ class ControllerEmail extends Controller {
     }
 
     /**
-     * Gestión de plantillas
+     * Vista HTML: gestión de plantillas
      */
     public function plantillas() {
         $data = [
@@ -233,6 +277,23 @@ class ControllerEmail extends Controller {
             'plantillas' => $this->emailModel->obtenerPlantillas()
         ];
         $this->view('email/plantillas', $data);
+    }
+
+    /**
+     * AJAX: Lista plantillas en formato JSON (para el DataTable de la vista).
+     * Reemplaza al roto `Email@plantillas` que devolvía HTML.
+     */
+    public function listarPlantillas() {
+        try {
+            $plantillas = $this->emailModel->obtenerPlantillas(null, false);
+            return $this->jsonResponse([
+                'success' => true,
+                'data'    => $plantillas,
+                'total'   => count($plantillas),
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
     }
 
     public function guardarPlantilla() {
@@ -322,42 +383,32 @@ class ControllerEmail extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'Solo se pueden reenviar emails fallidos'], 400);
             }
 
-            // Reenviar email
             $config = $this->model('Empresa')->obtenerConfiguracion();
             $emailData = [
-                'to' => $email->destinatario_email,
-                'to_name' => $email->destinatario_nombre,
-                'subject' => $email->asunto,
-                'body_html' => $email->cuerpo_html,
-                'body_text' => $email->cuerpo_texto,
-                'attachments' => $email->adjuntos ? json_decode($email->adjuntos, true) : [],
-                'from_name' => $config->name ?? 'Taller Pro',
-                'from_email' => $config->email ?? 'noreply@tallerpro.com'
+                'to'              => $email->destinatario_email,
+                'to_name'         => $email->destinatario_nombre,
+                'subject'         => $email->asunto,
+                'body_html'       => $email->cuerpo_html,
+                'body_text'       => $email->cuerpo_texto,
+                'attachments'     => $email->adjuntos ? json_decode($email->adjuntos, true) : [],
+                'from_name'       => $config->name ?? 'Taller Pro',
+                'from_email'      => $config->email ?? 'noreply@tallerpro.com',
+                // Preservar tipo y referencia originales
+                'tipo'            => $email->tipo,
+                'referencia_tipo' => $email->referencia_tipo,
+                'referencia_id'   => $email->referencia_id,
             ];
 
             $emailService = new \App\Services\EmailService();
             $result = $emailService->enviarEmailGenerico($emailData);
 
-            // Actualizar estado del email original
+            // Actualizar estado del email original (el nuevo intento queda como registro nuevo)
             $nuevoEstado = $result['success'] ? 'ENVIADO' : 'FALLIDO';
-            $this->emailModel->actualizarEstado($email->id, $nuevoEstado, $result['success'] ? null : ($result['mensaje'] ?? 'Error al reenviar'));
-
-            // Registrar nuevo intento
-            $this->emailModel->registrar([
-                'tipo' => $email->tipo,
-                'destinatario_email' => $email->destinatario_email,
-                'destinatario_nombre' => $email->destinatario_nombre,
-                'asunto' => $email->asunto,
-                'cuerpo_html' => $email->cuerpo_html,
-                'cuerpo_texto' => $email->cuerpo_texto,
-                'adjuntos' => $email->adjuntos,
-                'referencia_tipo' => $email->referencia_tipo,
-                'referencia_id' => $email->referencia_id,
-                'estado' => $nuevoEstado,
-                'error_mensaje' => $result['success'] ? null : ($result['mensaje'] ?? 'Error al reenviar'),
-                'usuario_id' => $_SESSION['user_id'],
-                'fecha_envio' => $result['success'] ? date('Y-m-d H:i:s') : null
-            ]);
+            $this->emailModel->actualizarEstado(
+                $email->id,
+                $nuevoEstado,
+                $result['success'] ? null : ($result['mensaje'] ?? 'Error al reenviar')
+            );
 
             return $this->jsonResponse($result);
         } catch (Exception $e) {

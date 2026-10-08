@@ -29,9 +29,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const isRemote = cleanPath && cleanPath.toLowerCase().startsWith('http');
             const imgUrl = (isDataUri || isRemote) ? cleanPath : (cleanPath ? `${URLROOT}/${cleanPath}` : null);
 
-            const stockFisico = parseFloat(item.stock);
-            const stockDisponible = parseFloat(item.stock_disponible ?? item.stock);
-            const reservado = stockFisico - stockDisponible;
+            // ─── CÁLCULO DE STOCK ───
+            // stock_disponible = stock_físico − pendientes_factura − reservas_activas
+            const stockDisponible = parseFloat(item.stock_disponible ?? item.stock) || 0;
+            const stockFisico = parseFloat(item.stock) || 0;
+            const reservado = Math.max(0, stockFisico - stockDisponible);
+
+            // Color del disponible según criticidad
+            const stockMinimo = parseFloat(item.stock_minimo) || 5;
+            let disponibleColorClass;
+            if (stockDisponible <= 0) {
+                disponibleColorClass = 'text-red-600 font-black';
+            } else if (stockDisponible <= stockMinimo) {
+                disponibleColorClass = 'text-amber-600 font-black';
+            } else {
+                disponibleColorClass = 'text-slate-700 font-bold';
+            }
+
+            // Bloque de reserva: SOLO aparece si hay reservas activas
+            const bloqueReserva = reservado > 0
+                ? `<span class="text-[10px] text-orange-500 font-black uppercase tracking-tight">+${reservado} reservado</span>`
+                : '';
 
             // LÓGICA DE OFERTA
             const tieneOferta = item.oferta_activa && item.oferta_porcentaje > 0;
@@ -59,8 +77,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="text-xs font-black bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider">${item.categoria}</span>
                     </td>
                     <td class="px-8 py-5 align-middle font-mono text-base">
-                        <span class="${isLow ? 'text-red-500 font-black' : 'text-slate-700 font-bold'}">${item.stock} uds</span>
-                        ${reservado > 0 ? `<div class="text-xs text-orange-500 font-black uppercase tracking-tighter">Reservado: ${reservado}</div>` : ''}
+                        <div class="flex flex-col gap-0.5" style="width: 110px;">
+                            <span class="${disponibleColorClass}">${stockDisponible} UND</span>
+                            ${bloqueReserva}
+                        </div>
                     </td>
                     <td class="px-8 py-5 align-middle font-black text-lg">
                         ${ofertaVigente ? `

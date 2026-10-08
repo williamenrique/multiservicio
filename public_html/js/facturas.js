@@ -1,6 +1,11 @@
 /**
  * Facturas - Manejo de tabla con DataTableRefactor
  * Listado de todas las facturas realizadas con paginación, búsqueda y filtros de fecha
+ * 
+ * v2.0: Se agregó badge visual para facturas con origen = 'PRESUPUESTO'.
+ *       El sistema muestra ese badge cuando la factura se generó por
+ *       conversión directa de un presupuesto. En los demás casos, muestra
+ *       el badge de tipo_procedencia (OS / TALLER / MOSTRADOR / GARANTIA).
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -52,23 +57,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     estadoBadge = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800">${item.status}</span>`;
             }
 
-            // Badge de tipo de procedencia
+            // ─────────────────────────────────────────────────────────────
+            // Badge de origen / procedencia
+            // 
+            // Prioridad:
+            //   1. Si origen = PRESUPUESTO → badge "PRESUPUESTO" (morado)
+            //   2. Si origen = GARANTIA    → badge "GARANTÍA"    (indigo)
+            //   3. Si origen = CATALOGO    → badge "CATÁLOGO"    (cyan)
+            //   4. En otros casos, usar tipo_procedencia (OS / TALLER / MOSTRADOR)
+            // ─────────────────────────────────────────────────────────────
             let tipoBadge = '';
-            switch (item.tipo_procedencia) {
-                case 'OS':
-                    tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800"><i data-lucide="clipboard-list" class="w-3 h-3 mr-1"></i>O.S.</span>';
-                    break;
-                case 'TALLER':
-                    tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800"><i data-lucide="wrench" class="w-3 h-3 mr-1"></i>TALLER</span>';
-                    break;
-                case 'MOSTRADOR':
-                    tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800"><i data-lucide="shopping-cart" class="w-3 h-3 mr-1"></i>MOSTRADOR</span>';
-                    break;
-                case 'GARANTIA':
-                    tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800"><i data-lucide="shield-check" class="w-3 h-3 mr-1"></i>GARANTÍA</span>';
-                    break;
-                default:
-                    tipoBadge = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800">${item.tipo_procedencia}</span>`;
+            const origen = (item.origen || '').toUpperCase();
+
+            if (origen === 'PRESUPUESTO') {
+                tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-100 text-violet-800"><i data-lucide="file-text" class="w-3 h-3 mr-1"></i>PRESUPUESTO</span>';
+            } else if (origen === 'GARANTIA') {
+                tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800"><i data-lucide="shield-check" class="w-3 h-3 mr-1"></i>GARANTÍA</span>';
+            } else if (origen === 'CATALOGO') {
+                tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-100 text-cyan-800"><i data-lucide="shopping-bag" class="w-3 h-3 mr-1"></i>CATÁLOGO</span>';
+            } else {
+                // Fallback al tipo_procedencia calculado en el backend
+                switch (item.tipo_procedencia) {
+                    case 'OS':
+                        tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800"><i data-lucide="clipboard-list" class="w-3 h-3 mr-1"></i>O.S.</span>';
+                        break;
+                    case 'TALLER':
+                        tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800"><i data-lucide="wrench" class="w-3 h-3 mr-1"></i>TALLER</span>';
+                        break;
+                    case 'MOSTRADOR':
+                        tipoBadge = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800"><i data-lucide="shopping-cart" class="w-3 h-3 mr-1"></i>MOSTRADOR</span>';
+                        break;
+                    default:
+                        tipoBadge = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800">${item.tipo_procedencia || 'N/A'}</span>`;
+                }
             }
 
             // Total de items (productos + servicios)

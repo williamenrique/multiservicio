@@ -2,6 +2,10 @@
 /**
  * Controlador de Presupuestos
  * Gestiona la creación, edición, envío y seguimiento de presupuestos/cotizaciones.
+ * 
+ * FLUJO SIMPLIFICADO:
+ *   BORRADOR → ENVIADO → ACEPTADO → ANEXADO → CONVERTIDO
+ *                    ↘  RECHAZADO / EXPIRADO
  */
 class ControllerPresupuesto extends Controller {
     private $presupuestoModel;
@@ -16,9 +20,6 @@ class ControllerPresupuesto extends Controller {
         $this->clienteModel = $this->model('Cliente');
     }
 
-    /**
-     * Vista principal: lista de presupuestos
-     */
     public function index() {
         $data = [
             'titulo' => 'Presupuestos / Cotizaciones',
@@ -28,9 +29,6 @@ class ControllerPresupuesto extends Controller {
         $this->view('presupuesto/index', $data);
     }
 
-    /**
-     * AJAX: Lista presupuestos con paginación y filtros
-     */
     public function listar() {
         try {
             $input = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -61,9 +59,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * Vista para crear nuevo presupuesto
-     */
     public function crear() {
         $data = [
             'titulo' => 'Nuevo Presupuesto',
@@ -73,9 +68,6 @@ class ControllerPresupuesto extends Controller {
         $this->view('presupuesto/crear', $data);
     }
 
-    /**
-     * Vista para editar presupuesto - redirige al index con parámetro de edición
-     */
     public function editar($id = null) {
         if (!$id) {
             redirect('presupuesto');
@@ -87,18 +79,13 @@ class ControllerPresupuesto extends Controller {
             return;
         }
 
-        // Permitir editar si está en BORRADOR o ENVIADO (para agregar más items antes de activar)
         if (!in_array($presupuesto->estado, ['BORRADOR', 'ENVIADO'])) {
             redirect('presupuesto/ver/' . $id);
         }
 
-        // Redirigir al index con parámetro para editar
         redirect('presupuesto?edit=' . $id);
     }
 
-    /**
-     * Vista de detalle de presupuesto
-     */
     public function ver($id = null) {
         if (!$id) {
             redirect('presupuesto');
@@ -118,9 +105,6 @@ class ControllerPresupuesto extends Controller {
         $this->view('presupuesto/ver', $data);
     }
 
-    /**
-     * Procesa la entrada del request (soporta JSON y FormData)
-     */
     private function procesarInput() {
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
         
@@ -129,10 +113,8 @@ class ControllerPresupuesto extends Controller {
             return $input ?: [];
         }
         
-        // Para FormData (multipart/form-data), usar $_POST y procesar items
         $input = $_POST;
         
-        // Procesar items anidados (items[1][descripcion], etc.)
         $items = [];
         foreach ($input as $key => $value) {
             if (preg_match('/^items\[(\d+)\]\[(.+)\]$/', $key, $matches)) {
@@ -143,27 +125,21 @@ class ControllerPresupuesto extends Controller {
         }
         
         if (!empty($items)) {
-            // Reordenar items por índice numérico
             ksort($items);
             $input['items'] = array_values($items);
         }
         
-        // Convertir checkboxes - IVA inactivo por defecto (0 = no, 1 = sí)
         $input['iva_activo'] = isset($input['iva_activo']) ? (int)$input['iva_activo'] : 0;
         
-        // Si IVA no está activo, forzar campos IVA a 0
         if (!$input['iva_activo']) {
             $input['iva_monto'] = 0;
             $input['tasa_iva'] = 0;
-            $input['subtotal'] = $input['total']; // Sin IVA, subtotal = total
+            $input['subtotal'] = $input['total'];
         }
         
         return $input;
     }
 
-    /**
-     * Procesa cliente y vehículo: crea si no existen
-     */
     private function procesarClienteVehiculo($data) {
         $clienteModel = $this->model('Cliente');
         $vehiculoModel = $this->model('Vehiculo');
@@ -172,7 +148,6 @@ class ControllerPresupuesto extends Controller {
         $clienteCedula = $data['cliente_cedula'] ?? null;
         $clienteNombre = $data['cliente_nombre'] ?? null;
         
-        // Si no hay cliente_id pero hay cédula, buscar si existe
         if (!$clienteId && $clienteCedula) {
             $clienteExistente = $clienteModel->obtenerPorId($clienteCedula);
             if ($clienteExistente) {
@@ -180,9 +155,7 @@ class ControllerPresupuesto extends Controller {
             }
         }
         
-        // Si no existe cliente, crearlo
         if (!$clienteId && $clienteNombre) {
-            // Usar cédula como ID si está disponible, sino generar uno único
             $nuevoClienteId = $clienteCedula ?: 'CLI_' . date('YmdHis') . '_' . rand(1000, 9999);
             
             $clienteData = [
@@ -198,13 +171,19 @@ class ControllerPresupuesto extends Controller {
             }
         }
         
-        // Actualizar data con cliente_id
         $data['cliente_id'] = $clienteId;
-        
-        // Procesar vehículo si hay datos de placa
-        $vehiculoPlaca = $data['vehiculo_placa'] ?? null;
+
+        $vehiculoPlaca = trim($data['vehiculo_placa'] ?? '');
+        $tieneDatosVehiculo = !empty(trim($data['vehiculo_marca'] ?? '')) 
+                           || !empty(trim($data['vehiculo_modelo'] ?? '')) 
+                           || !empty(trim($data['vehiculo_anio'] ?? '')) 
+                           || !empty(trim($data['vehiculo_color'] ?? ''));
+
+        if ($tieneDatosVehiculo && empty($vehiculoPlaca)) {
+            throw new Exception("Debe indicar la PLACA del vehículo cuando completa marca, modelo, año o color.");
+        }
+
         if ($vehiculoPlaca && $clienteId) {
-            // Verificar si el vehículo ya existe
             $vehiculoExistente = $vehiculoModel->buscarPorPlaca($vehiculoPlaca);
             
             $vehiculoData = [
@@ -217,14 +196,11 @@ class ControllerPresupuesto extends Controller {
             ];
             
             if (!$vehiculoExistente) {
-                // Crear nuevo vehículo
                 $resultado = $vehiculoModel->registrar($vehiculoData);
                 if (!$resultado) {
-                    throw new Exception("Error al registrar el vehículo: " . $vehiculoPlaca);
+                    throw new Exception("Error al registrar el vehículo con placa " . $vehiculoPlaca);
                 }
             } else {
-                // Actualizar vehículo existente (puede cambiar de cliente o actualizar datos)
-                // Solo actualizar si el cliente_id es diferente o si hay datos nuevos
                 if ($vehiculoExistente->cliente_id != $clienteId || 
                     $vehiculoExistente->marca != $vehiculoData['marca'] ||
                     $vehiculoExistente->modelo != $vehiculoData['modelo'] ||
@@ -242,9 +218,6 @@ class ControllerPresupuesto extends Controller {
         return $data;
     }
 
-    /**
-     * Convierte campos de texto a mayúsculas
-     */
     private function convertirAMayusculas($data) {
         $camposMayusculas = ['observaciones', 'condiciones', 'cliente_nombre', 'cliente_direccion', 
                             'vehiculo_marca', 'vehiculo_modelo', 'vehiculo_color'];
@@ -255,7 +228,6 @@ class ControllerPresupuesto extends Controller {
             }
         }
         
-        // Convertir descripciones de items a mayúsculas
         if (isset($data['items']) && is_array($data['items'])) {
             foreach ($data['items'] as &$item) {
                 if (isset($item['descripcion']) && $item['descripcion'] !== null) {
@@ -267,7 +239,6 @@ class ControllerPresupuesto extends Controller {
             }
         }
         
-        // Email a minúsculas
         if (isset($data['cliente_email'])) {
             $data['cliente_email'] = mb_strtolower($data['cliente_email'], 'UTF-8');
         }
@@ -275,9 +246,6 @@ class ControllerPresupuesto extends Controller {
         return $data;
     }
 
-    /**
-     * AJAX: Crea un nuevo presupuesto
-     */
     public function guardar() {
         try {
             $input = $this->procesarInput();
@@ -290,10 +258,7 @@ class ControllerPresupuesto extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => implode(' ', $v->getErrors())], 400);
             }
 
-            // Convertir campos a mayúsculas
             $input = $this->convertirAMayusculas($input);
-            
-            // Procesar cliente y vehículo
             $input = $this->procesarClienteVehiculo($input);
 
             $data = array_merge($input, ['usuario_id' => $_SESSION['user_id']]);
@@ -310,9 +275,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Actualiza un presupuesto existente
-     */
     public function actualizar($id = null) {
         try {
             if (!$id) {
@@ -329,10 +291,7 @@ class ControllerPresupuesto extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => implode(' ', $v->getErrors())], 400);
             }
 
-            // Convertir campos a mayúsculas
             $input = $this->convertirAMayusculas($input);
-            
-            // Procesar cliente y vehículo
             $input = $this->procesarClienteVehiculo($input);
 
             $this->presupuestoModel->actualizar((int)$id, $input);
@@ -348,7 +307,11 @@ class ControllerPresupuesto extends Controller {
     }
 
     /**
-     * AJAX: Cambia el estado del presupuesto
+     * Cambia el estado de un presupuesto.
+     * 
+     * ⚠️ FIX v2.1: Si el nuevo estado es ACEPTADO, delega a aceptar()
+     * para que se creen las reservas de stock correctamente. Esto cubre
+     * el caso del botón "Marcar Aceptado" de la lista de presupuestos.
      */
     public function cambiarEstado($id = null) {
         try {
@@ -359,9 +322,22 @@ class ControllerPresupuesto extends Controller {
             $input = json_decode(file_get_contents('php://input'), true);
             $estado = $input['estado'] ?? '';
 
+            // ─── FIX: Delegar a aceptar() si el estado destino es ACEPTADO ───
+            // para que se creen las reservas de stock (bloqueo de disponible)
+            // y el inventario lo refleje.
+            if ($estado === 'ACEPTADO') {
+                $this->presupuestoModel->aceptar((int)$id, $_SESSION['user_id']);
+                $presupuesto = $this->presupuestoModel->obtenerCompleto((int)$id);
+                return $this->jsonResponse([
+                    'success' => true,
+                    'mensaje' => 'Presupuesto marcado como ACEPTADO. Stock reservado.',
+                    'data' => $presupuesto
+                ]);
+            }
+
+            // Otros cambios de estado no requieren lógica de stock
             $this->presupuestoModel->cambiarEstado((int)$id, $estado);
 
-            // Obtener el presupuesto actualizado para devolverlo en la respuesta
             $presupuesto = $this->presupuestoModel->obtenerCompleto((int)$id);
 
             return $this->jsonResponse([
@@ -374,9 +350,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Elimina un presupuesto (solo BORRADOR)
-     */
     public function eliminar($id = null) {
         try {
             if (!$id) {
@@ -394,9 +367,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Genera y devuelve el PDF del presupuesto
-     */
     public function pdf($id = null) {
         try {
             if (!$id) {
@@ -408,37 +378,18 @@ class ControllerPresupuesto extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'Presupuesto no encontrado'], 404);
             }
 
-            $pdfService = new \App\Services\PdfService();
-            $doc_name = 'PRES-' . str_pad($presupuesto->id, 4, '0', STR_PAD_LEFT);
-            $filename = $doc_name . '_' . time() . '.pdf';
-            $filePath = $pdfService->generarDocumento('presupuesto', [
-                'presupuesto' => $presupuesto,
-                'items' => $presupuesto->items,
-                'empresa' => $this->model('Empresa')->obtenerConfiguracion()
-            ], $filename, false);
-
-            return $this->jsonResponse(['success' => true, 'pdf_url' => URLROOT . '/' . $filePath]);
+            return $this->jsonResponse([
+                'success' => true,
+                'pdf_url' => URLROOT . '/presupuesto/imprimir/' . $presupuesto->id
+            ]);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Sirve el PDF directamente en el navegador
-     */
     public function imprimir($id = null) {
         if (!$id) {
             throw new AppException("ID de presupuesto no proporcionado.", 400);
-        }
-
-        if (strpos($id, '.pdf') !== false) {
-            $filePath = APPROOT . '/../public/temp_pdfs/' . $id;
-            if (file_exists($filePath)) {
-                header('Content-Type: application/pdf');
-                header('Content-Disposition: inline; filename="' . $id . '"');
-                readfile($filePath);
-                exit;
-            }
         }
 
         $presupuestoId = (int)$id;
@@ -447,7 +398,7 @@ class ControllerPresupuesto extends Controller {
             throw new AppException("El presupuesto #$presupuestoId no existe.", 404);
         }
 
-        $pdfService = new \App\Services\PdfService();
+        $pdfService = new PdfService();
         $doc_name = 'PRES-' . str_pad($presupuesto->id, 4, '0', STR_PAD_LEFT);
         $pdfService->generarDocumento('presupuesto', [
             'presupuesto' => $presupuesto,
@@ -457,9 +408,6 @@ class ControllerPresupuesto extends Controller {
         exit;
     }
 
-    /**
-     * AJAX: Envía el presupuesto por email
-     */
     public function enviarEmail($id = null) {
         try {
             if (!$id) {
@@ -481,23 +429,19 @@ class ControllerPresupuesto extends Controller {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'Presupuesto no encontrado'], 404);
             }
 
-            // Generar PDF para adjuntar
-            $pdfService = new \App\Services\PdfService();
+            $config = $this->model('Empresa')->obtenerConfiguracion();
             $doc_name = 'PRES-' . str_pad($presupuesto->id, 4, '0', STR_PAD_LEFT);
-            $filename = $doc_name . '.pdf';
-            $filePath = $pdfService->generarDocumento('presupuesto', [
+
+            $pdfService = new PdfService();
+            $pdfBinario = $pdfService->generarBinario('presupuesto', [
                 'presupuesto' => $presupuesto,
                 'items' => $presupuesto->items,
-                'empresa' => $this->model('Empresa')->obtenerConfiguracion()
-            ], $filename, false);
+                'empresa' => $config
+            ]);
 
-            $fullPath = dirname(APPROOT) . '/public/' . $filePath;
-
-            // Usar plantilla de email para presupuesto
             $plantilla = $this->emailModel->obtenerPlantillas('PRESUPUESTO');
             $plantilla = $plantilla[0] ?? null;
 
-            $config = $this->model('Empresa')->obtenerConfiguracion();
             $variables = [
                 'numero_presupuesto' => $presupuesto->numero,
                 'cliente_nombre' => $presupuesto->cliente_nombre,
@@ -522,31 +466,19 @@ class ControllerPresupuesto extends Controller {
                 'to_name' => $input['destinatario_nombre'] ?? $presupuesto->cliente_nombre,
                 'subject' => $asunto,
                 'body_html' => $cuerpoHtml,
-                'attachments' => [$fullPath],
+                'attachments' => [
+                    ['content' => $pdfBinario, 'name' => $doc_name . '.pdf']
+                ],
                 'from_name' => $config->name ?? 'Taller Pro',
-                'from_email' => $config->email ?? 'noreply@tallerpro.com'
+                'from_email' => $config->email ?? 'noreply@tallerpro.com',
+                'tipo' => 'PRESUPUESTO',
+                'referencia_tipo' => 'PRESUPUESTO',
+                'referencia_id' => $presupuesto->id,
             ];
 
             $emailService = new \App\Services\EmailService();
             $result = $emailService->enviarEmailGenerico($emailData);
 
-            // Registrar email enviado
-            $this->emailModel->registrar([
-                'tipo' => 'PRESUPUESTO',
-                'destinatario_email' => $input['destinatario_email'],
-                'destinatario_nombre' => $input['destinatario_nombre'] ?? $presupuesto->cliente_nombre,
-                'asunto' => $asunto,
-                'cuerpo_html' => $cuerpoHtml,
-                'adjuntos' => [$filePath],
-                'referencia_tipo' => 'PRESUPUESTO',
-                'referencia_id' => $presupuesto->id,
-                'estado' => $result['success'] ? 'ENVIADO' : 'FALLIDO',
-                'error_mensaje' => $result['success'] ? null : ($result['mensaje'] ?? 'Error desconocido'),
-                'usuario_id' => $_SESSION['user_id'],
-                'fecha_envio' => $result['success'] ? date('Y-m-d H:i:s') : null
-            ]);
-
-            // Cambiar estado a ENVIADO si estaba en BORRADOR
             if ($presupuesto->estado === 'BORRADOR' && $result['success']) {
                 $this->presupuestoModel->cambiarEstado($presupuesto->id, 'ENVIADO');
             }
@@ -557,9 +489,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * Reemplaza variables en una plantilla
-     */
     private function reemplazarVariables($texto, $variables) {
         foreach ($variables as $key => $value) {
             $texto = str_replace('{{' . $key . '}}', $value, $texto);
@@ -567,9 +496,6 @@ class ControllerPresupuesto extends Controller {
         return $texto;
     }
 
-    /**
-     * Genera cuerpo HTML para presupuesto sin plantilla
-     */
     private function generarCuerpoPresupuesto($presupuesto, $config) {
         $itemsHtml = '';
         foreach ($presupuesto->items as $item) {
@@ -609,9 +535,6 @@ class ControllerPresupuesto extends Controller {
         </div>';
     }
 
-    /**
-     * AJAX: Busca productos del inventario para agregar al presupuesto
-     */
     public function buscarProductos() {
         try {
             $search = $_GET['q'] ?? '';
@@ -622,9 +545,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Busca clientes para el selector
-     */
     public function buscarClientes() {
         try {
             $search = $_GET['q'] ?? '';
@@ -635,9 +555,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Obtiene estadísticas para el dashboard
-     */
     public function getStats() {
         try {
             $desde = $_GET['desde'] ?? null;
@@ -649,20 +566,17 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Activa un presupuesto y reserva inventario
-     */
     public function activar($id = null) {
         try {
             if (!$id) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
             }
 
-            $result = $this->presupuestoModel->activar((int)$id, $_SESSION['user_id']);
+            $this->presupuestoModel->activar((int)$id, $_SESSION['user_id']);
 
             return $this->jsonResponse([
                 'success' => true,
-                'mensaje' => 'Presupuesto activado correctamente. Stock reservado en inventario.',
+                'mensaje' => 'Presupuesto listo para anexar. Ahora aparece en OS y Facturación.',
                 'redirect' => URLROOT . '/presupuesto/ver/' . $id
             ]);
         } catch (Exception $e) {
@@ -670,9 +584,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Busca presupuestos en estado ACTIVO para anexar a OS/Facturación/Venta
-     */
     public function buscarActivos() {
         try {
             $search = $_GET['q'] ?? '';
@@ -683,29 +594,30 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Obtiene detalle completo de un presupuesto activo con reservas
-     */
-    public function obtenerActivoCompleto($id = null) {
+    public function obtenerParaAnexar($id = null) {
         try {
             if (!$id) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
             }
 
-            $presupuesto = $this->presupuestoModel->obtenerActivoCompleto((int)$id);
+            $presupuesto = $this->presupuestoModel->obtenerParaAnexar((int)$id);
             if (!$presupuesto) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'Presupuesto no encontrado o no está activo'], 404);
+                return $this->jsonResponse([
+                    'success' => false,
+                    'mensaje' => 'Presupuesto no encontrado o no está disponible para anexar'
+                ], 404);
             }
 
-            return $this->jsonResponse(['success' => true, 'data' => $presupuesto]);
+            return $this->jsonResponse([
+                'success' => true,
+                'data' => $presupuesto,
+                'items' => $presupuesto->items_normalizados
+            ]);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * AJAX: Libera inventario reservado (cancelar activación)
-     */
     public function liberarInventario($id = null) {
         try {
             if (!$id) {
@@ -727,88 +639,26 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Pasa un presupuesto de ACTIVO a EN_PROCESO cuando se anexa a OS/Facturación/Venta
-     * Si modulo es OS, crea una Orden de Servicio automáticamente
-     */
     public function iniciarProceso($id = null) {
         try {
             if (!$id) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
             }
 
-            $input = json_decode(file_get_contents('php://input'), true);
-            $modulo = $input['modulo'] ?? 'OTRO'; // OS, FACTURACION, VENTA
+            $input = json_decode(file_get_contents('php://input'), true) ?: [];
+            $modulo = $input['modulo'] ?? 'OTRO';
             $referenciaId = $input['referencia_id'] ?? null;
+            $crearReservas = array_key_exists('crear_reservas', $input) ? (bool)$input['crear_reservas'] : true;
 
             if (!$this->presupuestoModel->puedeAnexar((int)$id)) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'El presupuesto no está en estado ACTIVO'], 400);
+                return $this->jsonResponse([
+                    'success' => false,
+                    'mensaje' => 'El presupuesto no puede anexarse en su estado actual'
+                ], 400);
             }
 
-            // Obtener presupuesto completo con datos del cliente y vehículo
-            $presupuesto = $this->presupuestoModel->obtenerCompleto((int)$id);
-            if (!$presupuesto) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'Presupuesto no encontrado'], 404);
-            }
+            $this->presupuestoModel->iniciarProceso((int)$id, $crearReservas);
 
-            $ordenId = null;
-            $ordenCreada = false;
-
-            // Si el módulo es OS, crear Orden de Servicio automáticamente
-            if ($modulo === 'OS') {
-                $ordenModel = $this->model('Orden');
-                
-                // Preparar datos para la orden de servicio
-                $ordenData = [
-                    'cliente_id' => $presupuesto->cliente_id,
-                    'placa' => $presupuesto->vehiculo_placa,
-                    'mecanico_id' => null, // Se asignará después
-                    'kilometraje' => 0,
-                    'nivel_combustible' => 'N/A',
-                    'observaciones_entrada' => 'Generada desde Presupuesto #' . $presupuesto->numero . '. ' . ($presupuesto->observaciones ?? ''),
-                    'observaciones' => 'Generada desde Presupuesto #' . $presupuesto->numero,
-                    'fecha_entrega' => date('Y-m-d', strtotime('+3 days'))
-                ];
-
-                $ordenId = $ordenModel->crear($ordenData);
-                
-                if ($ordenId) {
-                    $ordenCreada = true;
-                    
-                    // Guardar items del presupuesto como servicios en la orden
-                    if (!empty($presupuesto->items)) {
-                        $servicios = [];
-                        foreach ($presupuesto->items as $index => $item) {
-                            $descripcion = $item->descripcion;
-                            if ($item->tipo_item === 'PRODUCTO' && $item->producto_id) {
-                                $descripcion = $item->producto_nombre . ' - ' . $item->descripcion;
-                            }
-                            $servicios[] = [
-                                'descripcion' => $descripcion,
-                                'estado' => 'PENDIENTE',
-                                'orden_visual' => $index + 1
-                            ];
-                        }
-                        
-                        if (!empty($servicios)) {
-                            $ordenModel->guardarServicios($ordenId, $servicios);
-                        }
-                    }
-                    
-                    // Guardar referencia al presupuesto en las observaciones de la orden
-                    $db = new Database();
-                    $db->query("UPDATE table_ordenes_servicio SET observaciones = CONCAT(observaciones, '\n\n[Generada desde Presupuesto #', :presupuesto_num, ' ID: ', :presupuesto_id, ']') WHERE id = :oid");
-                    $db->bind(':presupuesto_num', $presupuesto->numero);
-                    $db->bind(':presupuesto_id', (int)$id);
-                    $db->bind(':oid', $ordenId);
-                    $db->execute();
-                }
-            }
-
-            // Cambiar estado del presupuesto a EN_PROCESO
-            $this->presupuestoModel->iniciarProceso((int)$id);
-
-            // Registrar en auditoría
             $modulosNombres = [
                 'OS' => 'Orden de Servicio',
                 'FACTURACION' => 'Facturación',
@@ -817,24 +667,20 @@ class ControllerPresupuesto extends Controller {
             ];
             $moduloNombre = $modulosNombres[$modulo] ?? $modulo;
 
-            $mensajeAuditoria = "Presupuesto anexado a {$moduloNombre}";
-            if ($ordenCreada) {
-                $mensajeAuditoria .= " - Orden de Servicio #{$ordenId} creada automáticamente";
+            $mensajeAuditoria = "Presupuesto #{$id} anexado a {$moduloNombre}";
+            if ($referenciaId) {
+                $mensajeAuditoria .= " (ref: #{$referenciaId})";
             }
-            $mensajeAuditoria .= " #{$referenciaId}";
-
+            if (!$crearReservas) {
+                $mensajeAuditoria .= " [sin reserva de stock]";
+            }
             logAction('PRESUPUESTO', 'ANEXAR', $mensajeAuditoria);
-
-            $mensaje = 'Presupuesto anexado correctamente. Estado cambiado a EN_PROCESO.';
-            if ($ordenCreada) {
-                $mensaje .= ' Orden de Servicio #' . $ordenId . ' creada automáticamente.';
-            }
 
             return $this->jsonResponse([
                 'success' => true,
-                'mensaje' => $mensaje,
-                'orden_id' => $ordenId,
-                'orden_creada' => $ordenCreada,
+                'mensaje' => $crearReservas
+                    ? 'Presupuesto anexado correctamente. Stock reservado.'
+                    : 'Presupuesto anexado correctamente.',
                 'redirect' => URLROOT . '/presupuesto/ver/' . $id
             ]);
         } catch (Exception $e) {
@@ -842,21 +688,17 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Acepta un presupuesto y reserva inventario
-     * Cambia estado a ACEPTADO
-     */
     public function aceptar($id = null) {
         try {
             if (!$id) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
             }
 
-            $result = $this->presupuestoModel->aceptar((int)$id, $_SESSION['user_id']);
+            $this->presupuestoModel->aceptar((int)$id, $_SESSION['user_id']);
 
             return $this->jsonResponse([
                 'success' => true,
-                'mensaje' => 'Presupuesto aceptado correctamente. Stock reservado en inventario.',
+                'mensaje' => 'Presupuesto marcado como ACEPTADO. Stock reservado.',
                 'redirect' => URLROOT . '/presupuesto/ver/' . $id
             ]);
         } catch (Exception $e) {
@@ -864,10 +706,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Convierte un presupuesto en una venta (factura)
-     * Descuenta inventario y crea registro de venta
-     */
     public function convertirAVenta($id = null) {
         try {
             if (!$id) {
@@ -884,16 +722,13 @@ class ControllerPresupuesto extends Controller {
                 'mensaje' => 'Presupuesto convertido a venta correctamente.',
                 'venta_id' => $result['venta_id'],
                 'status' => $result['status'],
-                'redirect' => URLROOT . '/facturacion/imprimir/' . $result['venta_id']
+                'redirect' => URLROOT . '/venta/imprimirFactura/' . $result['venta_id']
             ]);
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * AJAX: Obtiene un presupuesto completo para editar
-     */
     public function obtener($id = null) {
         try {
             if (!$id) {
@@ -911,9 +746,6 @@ class ControllerPresupuesto extends Controller {
         }
     }
 
-    /**
-     * AJAX: Obtiene las reservas de un presupuesto
-     */
     public function obtenerReservas($id = null) {
         try {
             if (!$id) {
@@ -925,5 +757,9 @@ class ControllerPresupuesto extends Controller {
         } catch (Exception $e) {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    public function obtenerActivoCompleto($id = null) {
+        return $this->obtenerParaAnexar($id);
     }
 }

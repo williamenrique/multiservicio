@@ -53,10 +53,13 @@ class ModelEmail {
     }
 
     public function obtenerPorId($id) {
-        $this->db->query("SELECT e.*, u.username as usuario_nombre, u.email as usuario_email
-                          FROM table_emails e
-                          LEFT JOIN table_usuarios u ON e.usuario_id = u.id
-                          WHERE e.id = :id");
+        $this->db->query("SELECT e.*, 
+                                u.username as usuario_nombre, 
+                                s.email    as usuario_email
+                        FROM table_emails e
+                        LEFT JOIN table_usuarios u ON e.usuario_id = u.id
+                        LEFT JOIN table_staff    s ON u.staff_id   = s.id
+                        WHERE e.id = :id");
         $this->db->bind(':id', (int)$id);
         return $this->db->single();
     }

@@ -1,5 +1,14 @@
 /**
  * Lógica de Facturación con Gestión de Colas
+ * 
+ * v2.4 (2026-10-08):
+ *   • El panel del presupuesto anexado ahora se muestra automáticamente
+ *     cuando la factura activa tiene presupuesto_activo_id (aunque venga
+ *     de una Orden de Servicio).
+ *   • Se cargan los detalles completos del presupuesto (numero, cliente,
+ *     teléfono, total, estado) desde /presupuesto/obtener/{id} para
+ *     poblar el panel verde correctamente.
+ *   • Se agrega un flag de "ya cargado" para no refetchear en cada re-render.
  */
 document.addEventListener('DOMContentLoaded', () => {
     const inputPlaca = document.getElementById('pos-placa');
@@ -18,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnProcessSale = document.getElementById('btn-process-sale');
     const inputIvaToggle = document.getElementById('pos-iva-toggle');
     const btnQuickClient = document.getElementById('btn-quick-client');
-    const inputClienteNombre = document.getElementById('cliente_nombre'); // Asegurarse de que este input exista en el HTML
+    const inputClienteNombre = document.getElementById('cliente_nombre');
     const clientSearchInput = document.getElementById('pos-client-search');
     const clientSearchResults = document.getElementById('pos-client-results');
     const posObservaciones = document.getElementById('pos-observaciones');
@@ -26,20 +35,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputPagoTransferencia = document.getElementById('pos-pago-transferencia');
     const displaySaldoPendiente = document.getElementById('pos-saldo-pendiente');
 
-    // Usamos la constante global IVA_RATE inyectada desde el header (SQL)
     const IVA_PERCENT = (typeof IVA_RATE !== 'undefined') ? (IVA_RATE * 100) : 0;
 
     let syncTimeout = null;
-
-    // Estado de la factura actual
     let openInvoices = [];
-    let activeInvoiceId = null; // Usamos ID en lugar de índice para evitar saltos de datos
-
+    let activeInvoiceId = null;
     let selectedItemFromSearch = null;
-    let lastSearchResults = []; // Almacén temporal para evitar errores de sintaxis en HTML
+    let lastSearchResults = [];
     let lastClientResults = [];
 
-    // Escuchar cuando el usuario global esté cargado para refrescar permisos
+    // Set de presupuestos cuyos detalles ya se cargaron desde el backend.
+    // Evita refetchear en cada re-render de la factura.
+    const presupuestosDetallesCache = new Set();
+
     document.addEventListener('userLoaded', () => {
         renderQueue();
         renderInvoice();
@@ -50,14 +58,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`${URLROOT}/facturacion/listarBorradores`);
             const drafts = await res.json();
 
-            // Preservar facturas locales que aún no tienen id_db (no se han guardado en el servidor)
-            // Esto evita que el refresco automático borre lo que el usuario está empezando a escribir
             const localInvoices = openInvoices.filter(inv => !inv.id_db);
 
             const serverInvoices = drafts.map(d => {
-                // Intentar preservar el mecánico local si el servidor lo envía vacío (borradores sin ítems)
                 const existingInv = openInvoices.find(inv => inv.id_db === d.id);
                 const preservedMecanicoId = (existingInv && !d.mecanico_id) ? existingInv.mecanico_id : d.mecanico_id;
+                const preservedPresupuestoId = existingInv ? existingInv.presupuesto_activo_id : null;
 
                 return {
                     id: 'FAC-' + String(d.id).padStart(3, '0'),
@@ -78,13 +84,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     tipo_procedencia: d.tipo_procedencia || 'MOSTRADOR',
                     diagnostico_entrada: d.diagnostico_entrada || '',
                     diagnostico_salida: d.diagnostico_salida || d.observaciones || '',
-                    observaciones: d.observaciones || ''
+                    observaciones: d.observaciones || '',
+                    presupuesto_activo_id: d.presupuesto_activo_id || preservedPresupuestoId || null
                 };
             });
 
             openInvoices = [...serverInvoices, ...localInvoices];
 
-            // Validar si la factura activa fue cerrada o eliminada por otro usuario
             if (activeInvoiceId && activeInvoiceId.startsWith('TKT-')) {
                 const stillExists = openInvoices.some(inv => inv.id === activeInvoiceId);
                 if (!stillExists) {
@@ -94,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (!activeInvoiceId && openInvoices.length > 0) {
-                // Intentar capturar ID desde la URL (si viene del dashboard)
                 const urlId = new URLSearchParams(window.location.search).get('id');
                 const found = openInvoices.find(inv => String(inv.id_db) === String(urlId));
                 if (urlId && found) {
@@ -114,9 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /**
-     * Carga la lista de clientes desde la API y llena el select
-     */
     const loadClients = async () => {
         try {
             const res = await fetch(`${URLROOT}/clientes/listar`);
@@ -124,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await res.json();
             const clientes = result.data || [];
 
-            // Limpiar y establecer la opción por defecto como "SIN CLIENTE"
             inputCliente.innerHTML = '<option value="">SIN CLIENTE (VENTA RÁPIDA)</option>';
 
             clientes.forEach(c => {
@@ -138,9 +139,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /**
-     * Registro rápido de cliente desde la pantalla de facturación
-     */
     btnQuickClient.addEventListener('click', async () => {
         const { value: formValues } = await Swal.fire({
             title: 'REGISTRO DE CLIENTE',
@@ -195,24 +193,18 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (data.success) {
-                // Tras registro rápido, actualizamos el buscador
-                inputCliente.value = formValues[0]; // Seleccionar automáticamente
-                // 1. Añadir el nuevo cliente como una opción al select oculto
+                inputCliente.value = formValues[0];
                 const newOption = document.createElement('option');
-                newOption.value = formValues[0]; // ID del cliente
-                newOption.textContent = formValues[1]; // Nombre del cliente
+                newOption.value = formValues[0];
+                newOption.textContent = formValues[1];
                 inputCliente.appendChild(newOption);
 
-                // 2. Seleccionar automáticamente el nuevo cliente en el select oculto
                 inputCliente.value = formValues[0];
-                // 3. Actualizar el input de búsqueda visible con el nombre del cliente
                 if (clientSearchInput) clientSearchInput.value = formValues[1];
                 updateActiveData('cliente_id', formValues[0]);
-                // 4. Actualizar el borrador activo con el nuevo cliente y forzar sincronización
-                updateActiveData('cliente_id', formValues[0]); // Esto también llama a debounceSync
-                openInvoices.find(i => i.id === activeInvoiceId).cliente_nombre = formValues[1]; // Actualizar nombre en el objeto local
+                updateActiveData('cliente_id', formValues[0]);
+                openInvoices.find(i => i.id === activeInvoiceId).cliente_nombre = formValues[1];
 
-                // 5. Re-renderizar la factura para mostrar el cliente en la UI
                 renderInvoice();
 
                 AppUtils.showToast('Cliente registrado');
@@ -223,7 +215,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const initNewInvoice = async (forceSave = false) => {
-        // Detectar datos inyectados por PHP (desde Orden de Servicio) antes de cualquier limpieza
         const domPlaca = inputPlaca.value;
         const domModelo = inputModelo.value;
         const domClienteId = inputCliente.value;
@@ -231,7 +222,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const domMecanicoId = inputMecanico.value;
         const domObservaciones = document.getElementById('pos-observaciones')?.value || '';
 
-        // 1. Solo limpiar inputs físicamente si es una factura nueva manual (clic en "Nueva Factura")
         if (forceSave) {
             inputPlaca.value = '';
             inputModelo.value = '';
@@ -248,7 +238,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMechanic = currentLoggedInUser && (parseInt(currentLoggedInUser.roleId) === 2 || currentLoggedInUser.role.toUpperCase() === 'MECANICO');
         const staffId = currentLoggedInUser ? (currentLoggedInUser.staffId || currentLoggedInUser.staff_id) : '';
 
-        // Detectar si hay una Orden de Servicio cargada en el DOM por PHP
         const ordenIdFromDom = displayFacturaId.dataset.ordenId || null;
 
         const invData = {
@@ -268,13 +257,11 @@ document.addEventListener('DOMContentLoaded', () => {
             usuario_nombre: userName,
             cliente_nombre: forceSave ? '' : domClienteNombre,
             tipo_procedencia: (forceSave || !ordenIdFromDom) ? 'MOSTRADOR' : 'TALLER',
-            observaciones: forceSave ? '' : domObservaciones
+            observaciones: forceSave ? '' : domObservaciones,
+            presupuesto_activo_id: null
         };
 
-        // Si no es un guardado forzado (clic en "Nueva Factura"), solo creamos el objeto localmente.
-        // Esto evita llenar la base de datos con borradores vacíos al solo entrar a la vista.
         if (!forceSave) {
-            // Solo añadir si no hay ya una factura local vacía para evitar duplicidad de pestañas "limpias"
             if (!openInvoices.some(inv => !inv.id_db)) {
                 openInvoices.push(invData);
             }
@@ -284,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Enviar a DB inmediatamente para obtener ID real y evitar LocalStorage
         try {
             const res = await fetch(`${URLROOT}/facturacion/sincronizarBorrador`, {
                 method: 'POST',
@@ -306,12 +292,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Listeners para guardar metadatos en tiempo real
     inputPlaca.addEventListener('input', (e) => {
         const val = e.target.value.toUpperCase();
         updateActiveData('placa', val);
 
-        // Cambio dinámico de procedencia: Si hay placa, es Taller. Si no, Mostrador.
         if (val.trim() !== '') {
             updateActiveData('tipo_procedencia', 'TALLER');
         } else {
@@ -332,15 +316,12 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
-    // Sincronización inteligente de observaciones (Salida/Taller)
     if (posObservaciones) {
         posObservaciones.addEventListener('input', (e) => {
-            // Actualiza el objeto local y activa el debounce para guardar en DB mientras escribes
             updateActiveData('observaciones', e.target.value.toUpperCase());
         });
 
         posObservaciones.addEventListener('blur', () => {
-            // Al perder el foco del campo, forzamos el guardado inmediato en DB
             syncActiveInvoice();
         });
     }
@@ -351,7 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
-    // Listeners para captura de pagos
     inputPagoEfectivo?.addEventListener('input', (e) => {
         updateActiveData('pago_efectivo', parseFloat(e.target.value.replace(',', '.')) || 0);
         renderInvoice();
@@ -362,9 +342,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
-    /**
-     * Buscador de clientes en tiempo real
-     */
     if (clientSearchInput) {
         clientSearchInput.addEventListener('input', async (e) => {
             const term = e.target.value.trim();
@@ -405,7 +382,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.selectClientFromResults = (index) => {
         const client = lastClientResults[index];
         if (client) {
-            // Asegurar que el ID existe en el select oculto para que el valor se mantenga
             let option = inputCliente.querySelector(`option[value="${client.id}"]`);
             if (!option) {
                 option = document.createElement('option');
@@ -424,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /* ==================== BÚSQUEDA DE PRESUPUESTOS ACTIVOS ==================== */
+    /* ==================== BÚSQUEDA DE PRESUPUESTOS PARA ANEXAR ==================== */
     const inputPresupuestoFacturacion = document.getElementById('buscarPresupuestoActivoFacturacion');
     const resultsContainerPresupuesto = document.getElementById('presupuesto-activo-results-facturacion');
     const seleccionadoContainerPresupuesto = document.getElementById('presupuesto-seleccionado-facturacion');
@@ -432,6 +408,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const clienteElementPresupuesto = document.getElementById('presupuesto-cliente-facturacion');
     let presupuestoSeleccionadoIdFacturacion = null;
     let searchTimeoutPresupuestoFacturacion = null;
+
+    /**
+     * Carga los detalles completos de un presupuesto anexado y puebla el panel verde.
+     * Se usa cuando el activeInvoice trae presupuesto_activo_id (ej: factura creada
+     * desde una O.S. con presupuesto anexado).
+     */
+    async function cargarDetallesPresupuestoAnexado(presupuestoId) {
+        if (!presupuestoId) return;
+        if (presupuestosDetallesCache.has(String(presupuestoId))) return;
+
+        try {
+            presupuestosDetallesCache.add(String(presupuestoId));
+
+            const res = await fetch(`${URLROOT}/presupuesto/obtener/${presupuestoId}`);
+            if (!res.ok) return;
+
+            const data = await res.json();
+            if (!data.success || !data.data) return;
+
+            const p = data.data;
+
+            if (infoElementPresupuesto) {
+                const totalFmt = parseFloat(p.total || 0).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+                infoElementPresupuesto.textContent = `${p.numero} | Total: $${totalFmt}`;
+            }
+            if (clienteElementPresupuesto) {
+                clienteElementPresupuesto.textContent = `Cliente: ${p.cliente_nombre} | Tel: ${p.cliente_telefono || 'N/A'} | Estado: ${p.estado}`;
+            }
+            if (inputPresupuestoFacturacion) {
+                inputPresupuestoFacturacion.value = `${p.numero} - ${p.cliente_nombre}`;
+            }
+
+            if (window.lucide) lucide.createIcons();
+        } catch (e) {
+            console.warn('No se pudieron cargar los detalles del presupuesto #' + presupuestoId, e);
+            // Si falla, quitamos del caché para reintentar en el próximo render
+            presupuestosDetallesCache.delete(String(presupuestoId));
+        }
+    }
 
     if (inputPresupuestoFacturacion && resultsContainerPresupuesto) {
         inputPresupuestoFacturacion.addEventListener('input', () => {
@@ -451,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (result.success && result.data) {
                         renderPresupuestoResultsFacturacion(result.data, term);
                     } else {
-                        resultsContainerPresupuesto.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos activos</div>';
+                        resultsContainerPresupuesto.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos disponibles</div>';
                         resultsContainerPresupuesto.classList.remove('hidden');
                     }
                 } catch (e) {
@@ -462,11 +477,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 300);
         });
 
-        // Cerrar resultados al hacer clic fuera
         document.addEventListener('click', (e) => {
             if (resultsContainerPresupuesto && !resultsContainerPresupuesto.contains(e.target) && e.target !== inputPresupuestoFacturacion) {
                 resultsContainerPresupuesto.classList.add('hidden');
             }
+        });
+
+        // Delegación de eventos para los resultados
+        resultsContainerPresupuesto.addEventListener('click', (e) => {
+            const item = e.target.closest('[data-presupuesto-id]');
+            if (!item) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.seleccionarPresupuestoActivoFacturacion(
+                item.dataset.presupuestoId,
+                item.dataset.presupuestoNumero,
+                item.dataset.clienteNombre,
+                item.dataset.clienteTelefono,
+                item.dataset.total,
+                item.dataset.fecha
+            );
         });
     }
 
@@ -476,26 +507,39 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = '';
         if (presupuestos.length > 0) {
             html = presupuestos.map(p => {
-                const estadoBadge = p.estado === 'ACTIVO'
-                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">ACTIVO</span>'
-                    : '';
+                const estadoBadge = p.estado === 'ENVIADO'
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700">ENVIADO</span>'
+                    : (p.estado === 'ACEPTADO'
+                        ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">ACEPTADO</span>'
+                        : '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">' + p.estado + '</span>');
+
+                const safeClienteNombre = (p.cliente_nombre || '').replace(/"/g, '&quot;');
+                const safeClienteTelefono = (p.cliente_telefono || '').replace(/"/g, '&quot;');
+                const safeNumero = (p.numero || '').replace(/"/g, '&quot;');
+                const safeFecha = (p.fecha_emision || '').replace(/"/g, '&quot;');
 
                 return `
-                    <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0" 
-                         onclick="seleccionarPresupuestoActivoFacturacion('${p.id}', '${p.numero}', '${p.cliente_nombre.replace(/'/g, "\\'")}', '${p.cliente_telefono || ''}', '${p.total}', '${p.fecha_activacion || p.fecha_emision}')">
+                    <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                         data-presupuesto-id="${p.id}"
+                         data-presupuesto-numero="${safeNumero}"
+                         data-cliente-nombre="${safeClienteNombre}"
+                         data-cliente-telefono="${safeClienteTelefono}"
+                         data-total="${p.total}"
+                         data-fecha="${safeFecha}">
                         <div class="flex justify-between items-start">
-                            <div>
-                                <p class="font-bold text-xs uppercase text-navy-blue">${p.numero} ${estadoBadge}</p>
-                                <p class="text-[10px] text-slate-400 font-mono">${p.cliente_nombre}</p>
+                            <div class="min-w-0 flex-1">
+                                <p class="font-bold text-xs uppercase text-navy-blue truncate">${p.numero} ${estadoBadge}</p>
+                                <p class="text-[10px] text-slate-400 font-mono truncate">${p.cliente_nombre}</p>
                             </div>
-                            <div class="text-right">
+                            <div class="text-right flex-shrink-0 ml-2">
                                 <p class="text-[10px] text-amber-600 font-mono font-bold">$${parseFloat(p.total).toLocaleString('es-CO', { minimumFractionDigits: 2 })}</p>
-                                <p class="text-[9px] text-slate-500">${p.fecha_activacion ? new Date(p.fecha_activacion).toLocaleDateString('es-ES') : new Date(p.fecha_emision).toLocaleDateString('es-ES')}</p>
+                                <p class="text-[9px] text-slate-500">${new Date(p.fecha_emision).toLocaleDateString('es-ES')}</p>
                             </div>
-                        </div>`;
+                        </div>
+                    </div>`;
             }).join('');
         } else {
-            html = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos activos</div>';
+            html = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron presupuestos disponibles</div>';
         }
 
         resultsContainerPresupuesto.innerHTML = html;
@@ -503,40 +547,158 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) lucide.createIcons();
     }
 
-    window.seleccionarPresupuestoActivoFacturacion = (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
+    /**
+     * Selecciona un presupuesto y carga sus items directamente al carrito del POS.
+     */
+    window.seleccionarPresupuestoActivoFacturacion = async (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
+        const activeInvoice = openInvoices.find(i => i.id === activeInvoiceId);
+        if (!activeInvoice) {
+            AppUtils.showToast('No hay factura activa. Cree una primero.', 'warning');
+            return;
+        }
+
         presupuestoSeleccionadoIdFacturacion = id;
         inputPresupuestoFacturacion.value = `${numero} - ${clienteNombre}`;
         if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
 
-        // Mostrar info del presupuesto seleccionado
         infoElementPresupuesto.textContent = `${numero} | Total: $${parseFloat(total).toLocaleString('es-CO', { minimumFractionDigits: 2 })}`;
-        clienteElementPresupuesto.textContent = `Cliente: ${clienteNombre} | Tel: ${clienteTelefono || 'N/A'} | Activado: ${fecha ? new Date(fecha).toLocaleDateString('es-ES') : 'N/A'}`;
+        clienteElementPresupuesto.textContent = `Cliente: ${clienteNombre} | Tel: ${clienteTelefono || 'N/A'} | Emitido: ${fecha ? new Date(fecha).toLocaleDateString('es-ES') : 'N/A'}`;
         seleccionadoContainerPresupuesto.classList.remove('hidden');
 
-        // Guardar el ID en un campo hidden para enviarlo con el formulario
-        let hiddenInput = document.getElementById('presupuesto_activo_id_facturacion');
-        if (!hiddenInput) {
-            hiddenInput = document.createElement('input');
-            hiddenInput.type = 'hidden';
-            hiddenInput.name = 'presupuesto_activo_id';
-            hiddenInput.id = 'presupuesto_activo_id_facturacion';
-            document.getElementById('formFacturacion').appendChild(hiddenInput);
-        }
-        hiddenInput.value = id;
+        try {
+            AppUtils.showLoading('Anexando presupuesto...');
+            const resEstado = await fetch(`${URLROOT}/presupuesto/iniciarProceso/${id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN
+                },
+                body: JSON.stringify({
+                    modulo: 'FACTURACION',
+                    crear_reservas: false
+                })
+            });
+            const resultEstado = await resEstado.json();
+            AppUtils.hideLoading();
 
-        if (window.AppUtils) AppUtils.showToast(`Presupuesto ${numero} anexado correctamente`);
+            if (!resultEstado.success) {
+                presupuestoSeleccionadoIdFacturacion = null;
+                inputPresupuestoFacturacion.value = '';
+                if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+                AppUtils.showToast(resultEstado.mensaje || 'No se pudo anexar el presupuesto', 'error');
+                return;
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            console.error("Error anexando presupuesto:", e);
+            presupuestoSeleccionadoIdFacturacion = null;
+            inputPresupuestoFacturacion.value = '';
+            if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+            AppUtils.showToast('Error de conexión al anexar presupuesto', 'error');
+            return;
+        }
+
+        activeInvoice.presupuesto_activo_id = id;
+        presupuestosDetallesCache.add(String(id));
+
+        try {
+            AppUtils.showLoading('Cargando items del presupuesto...');
+            const res = await fetch(`${URLROOT}/presupuesto/obtenerParaAnexar/${id}`);
+            const data = await res.json();
+            AppUtils.hideLoading();
+
+            if (!data.success || !data.items) {
+                AppUtils.showToast(data.mensaje || 'No se pudieron cargar los items', 'error');
+                return;
+            }
+
+            data.items.forEach(item => {
+                activeInvoice.items.push({
+                    id: item.producto_id,
+                    nombre: item.nombre,
+                    precio: parseFloat(item.precio),
+                    costo_promedio: parseFloat(item.costo_promedio || 0),
+                    cantidad: parseInt(item.cantidad),
+                    tipo: item.tipo
+                });
+            });
+
+            if (!activeInvoice.cliente_id && data.data.cliente_id) {
+                let option = inputCliente.querySelector(`option[value="${data.data.cliente_id}"]`);
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = data.data.cliente_id;
+                    option.textContent = data.data.cliente_nombre || data.data.cliente_id;
+                    inputCliente.appendChild(option);
+                }
+                inputCliente.value = data.data.cliente_id;
+                activeInvoice.cliente_id = data.data.cliente_id;
+                activeInvoice.cliente_nombre = data.data.cliente_nombre || '';
+                if (clientSearchInput) clientSearchInput.value = activeInvoice.cliente_nombre;
+            }
+
+            if (!activeInvoice.placa && data.data.vehiculo_placa) {
+                activeInvoice.placa = data.data.vehiculo_placa;
+                inputPlaca.value = data.data.vehiculo_placa;
+            }
+            if (!activeInvoice.modelo && data.data.vehiculo_modelo) {
+                activeInvoice.modelo = (data.data.vehiculo_marca || '') + ' ' + (data.data.vehiculo_modelo || '');
+                inputModelo.value = activeInvoice.modelo;
+            }
+
+            renderInvoice();
+            syncActiveInvoice();
+
+            AppUtils.showToast(`Presupuesto ${numero} anexado con ${data.items.length} item(s).`, 'success');
+
+        } catch (e) {
+            AppUtils.hideLoading();
+            console.error("Error cargando items del presupuesto:", e);
+            AppUtils.showToast('Error al cargar los items del presupuesto', 'error');
+        }
     };
 
-    window.desanexarPresupuestoFacturacion = () => {
+    /**
+     * Desanexa el presupuesto activo.
+     */
+    window.desanexarPresupuestoFacturacion = async () => {
+        const activeInvoice = openInvoices.find(i => i.id === activeInvoiceId);
+        const presupuestoId = activeInvoice?.presupuesto_activo_id || presupuestoSeleccionadoIdFacturacion;
+
+        if (presupuestoId) {
+            try {
+                AppUtils.showLoading('Liberando presupuesto...');
+                const res = await fetch(`${URLROOT}/presupuesto/liberarInventario/${presupuestoId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': CSRF_TOKEN
+                    },
+                    body: JSON.stringify({ motivo: 'DESANEXADO_DESDE_POS' })
+                });
+                const result = await res.json();
+                AppUtils.hideLoading();
+
+                if (!result.success) {
+                    console.warn('No se pudo liberar el presupuesto:', result.mensaje);
+                }
+            } catch (e) {
+                AppUtils.hideLoading();
+                console.error('Error liberando presupuesto:', e);
+            }
+        }
+
         presupuestoSeleccionadoIdFacturacion = null;
         inputPresupuestoFacturacion.value = '';
         if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
         if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
 
-        const hiddenInput = document.getElementById('presupuesto_activo_id_facturacion');
-        if (hiddenInput) hiddenInput.remove();
+        if (activeInvoice) {
+            delete activeInvoice.presupuesto_activo_id;
+            presupuestosDetallesCache.delete(String(presupuestoId));
+        }
 
-        if (window.AppUtils) AppUtils.showToast('Presupuesto desanexado');
+        if (window.AppUtils) AppUtils.showToast('Presupuesto desanexado. Vuelve a estar disponible (items no eliminados).');
     };
 
     if (inputIvaToggle) {
@@ -565,8 +727,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         container.innerHTML = openInvoices.map((inv, index) => {
-            // Definir color y etiqueta según procedencia
-            let badgeClass = 'bg-amber-100 text-amber-700 border-amber-200'; // Default: MOSTRADOR
+            let badgeClass = 'bg-amber-100 text-amber-700 border-amber-200';
             if (inv.tipo_procedencia === 'OS') {
                 badgeClass = 'bg-emerald-100 text-emerald-700 border-emerald-200';
             } else if (inv.tipo_procedencia === 'TALLER') {
@@ -627,7 +788,21 @@ document.addEventListener('DOMContentLoaded', () => {
             renderInvoice();
         };
 
-        // Si la factura ya existe en el servidor, pedir confirmación y borrar en DB
+        if (inv.presupuesto_activo_id) {
+            try {
+                await fetch(`${URLROOT}/presupuesto/liberarInventario/${inv.presupuesto_activo_id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': CSRF_TOKEN
+                    },
+                    body: JSON.stringify({ motivo: 'BORRADOR_CANCELADO' })
+                });
+            } catch (e) {
+                console.error('Error liberando presupuesto al cerrar factura:', e);
+            }
+        }
+
         if (inv.id_db) {
             AppUtils.confirmAction('¿Eliminar borrador?', 'Esta acción cancelará la orden y liberará el stock.', async () => {
                 const res = await fetch(`${URLROOT}/facturacion/eliminarBorrador/${inv.id_db}`, {
@@ -652,7 +827,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputPlaca.value = "";
         inputModelo.value = "";
         inputCliente.value = "";
-        if (inputClienteNombre) inputClienteNombre.value = ""; // Limpiar el campo de nombre del cliente
+        if (inputClienteNombre) inputClienteNombre.value = "";
         if (clientSearchInput) clientSearchInput.value = "";
 
         const obsField = document.getElementById('pos-observaciones');
@@ -661,20 +836,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const obsPreview = document.getElementById('pos-obs-preview');
         if (obsPreview) obsPreview.classList.add('hidden');
 
-        // --- Limpiar campos de observación inteligente ---
         const containerDiagOs = document.getElementById('container-diag-os');
         const textDiagOs = document.getElementById('text-diag-os');
         const labelObs = document.getElementById('label-obs');
         if (containerDiagOs) containerDiagOs.classList.add('hidden');
         if (textDiagOs) textDiagOs.textContent = '';
-        if (labelObs) labelObs.textContent = 'Observaciones / Detalles del Trabajo'; // Reset a texto por defecto
+        if (labelObs) labelObs.textContent = 'Observaciones / Detalles del Trabajo';
 
-        // Limpiar campos de pago y saldos (Vista Previa)
         if (inputPagoEfectivo) inputPagoEfectivo.value = 0;
         if (inputPagoTransferencia) inputPagoTransferencia.value = 0;
         if (displaySaldoPendiente) displaySaldoPendiente.textContent = "$0.00";
 
         if (inputMecanico && !inputMecanico.disabled) inputMecanico.value = "";
+
+        presupuestoSeleccionadoIdFacturacion = null;
+        if (inputPresupuestoFacturacion) inputPresupuestoFacturacion.value = '';
+        if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
 
         cartBody.innerHTML = '<tr><td class="py-32 text-center text-slate-300 uppercase text-xs font-bold tracking-widest opacity-50"><i data-lucide="shopping-cart" class="w-16 h-16 mx-auto mb-4"></i> No hay factura activa</td></tr>';
         document.getElementById('pos-subtotal').textContent = "$0.00";
@@ -683,16 +860,11 @@ document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
     };
 
-    /**
-     * Sincroniza la factura activa con la base de datos (Borrador/PENDIENTE)
-     * Esto reserva el stock para que otros usuarios no puedan vender lo mismo.
-     */
     const syncActiveInvoice = async (force = false) => {
         if (!activeInvoiceId) return;
         const inv = openInvoices.find(i => i.id === activeInvoiceId);
         if (!inv) return;
 
-        // Solo leer de los inputs si NO es un guardado forzado (nueva factura)
         if (force === false) {
             inv.placa = inputPlaca.value.trim();
             inv.modelo = inputModelo.value.trim();
@@ -704,13 +876,11 @@ document.addEventListener('DOMContentLoaded', () => {
             inv.orden_id = inv.orden_id || displayFacturaId.dataset.ordenId || null;
         }
 
-        // Calcular totales para asegurar persistencia de IVA 0 si el switch está apagado
         const subtotal = inv.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
         const isIvaEnabled = inv.iva_activo === true;
         const ivaMonto = isIvaEnabled ? (subtotal * (IVA_PERCENT / 100)) : 0;
         const total = subtotal + ivaMonto;
 
-        // Calcular saldo pendiente
         const pef = parseFloat(inv.pago_efectivo || 0);
         const ptra = parseFloat(inv.pago_transferencia || 0);
         const pendiente = total - (pef + ptra);
@@ -720,8 +890,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inv.total = total;
         inv.saldo_pendiente = pendiente > 0 ? pendiente : 0;
 
-        // Evitar sincronizar facturas que no tienen contenido relevante (evita filas vacías en DB)
-        const hasContent = inv.items.length > 0 || inv.placa !== '' || inv.modelo !== '' || inv.cliente_id !== '' || inv.mecanico_id !== '' || pef > 0 || ptra > 0;
+        const hasContent = inv.items.length > 0 || inv.placa !== '' || inv.modelo !== '' || inv.cliente_id !== '' || inv.mecanico_id !== '' || pef > 0 || ptra > 0 || inv.presupuesto_activo_id;
         if (!hasContent && !inv.id_db && !force) {
             return;
         }
@@ -738,7 +907,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
 
-            // Validar que la respuesta sea JSON antes de parsear
             const contentType = res.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
                 const errorHtml = await res.text();
@@ -752,14 +920,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isFirstSync = !inv.id_db;
                 inv.id_db = data.venta_id;
 
-                // Si es la primera vez que se guarda en DB, convertimos el ID temporal PROV- en un ID TKT- real
                 if (isFirstSync) {
                     const oldId = inv.id;
                     inv.id = 'FAC-' + String(data.venta_id).padStart(3, '0');
                     if (activeInvoiceId === oldId) activeInvoiceId = inv.id;
 
                     renderQueue();
-                    renderInvoice(); // Actualiza el número de factura visible en el encabezado
+                    renderInvoice();
                 }
             }
         } catch (error) {
@@ -767,9 +934,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /**
-     * Lógica de Artículos y Servicios
-     */
     window.selectItemForAdd = (item) => {
         if (!item) return;
         selectedItemFromSearch = item;
@@ -779,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.selectItemFromResults = (index) => {
-        const item = lastSearchResults[parseInt(index)]; // Aseguramos que el índice sea un número
+        const item = lastSearchResults[parseInt(index)];
         if (item) window.selectItemForAdd(item);
     };
 
@@ -804,7 +968,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputQty.value = 1;
         searchResults.classList.add('hidden');
         renderInvoice();
-        syncActiveInvoice(); // Sincronizar tras añadir item
+        syncActiveInvoice();
     });
 
     btnAddService.addEventListener('click', () => {
@@ -825,7 +989,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputServicioNombre.value = '';
         inputServicioPrecio.value = '';
         renderInvoice();
-        syncActiveInvoice(); // Sincronizar tras añadir servicio
+        syncActiveInvoice();
     });
 
     window.removeItem = (index) => {
@@ -842,17 +1006,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeInvoice) return;
 
         displayFacturaId.textContent = activeInvoice.id;
-        displayFacturaId.dataset.ordenId = activeInvoice.orden_id || ''; // Actualizar el data attribute
+        displayFacturaId.dataset.ordenId = activeInvoice.orden_id || '';
         inputPlaca.value = activeInvoice.placa;
         inputModelo.value = activeInvoice.modelo;
         inputMecanico.value = activeInvoice.mecanico_id || '';
 
-        // Priorizar el nombre del mecánico seleccionado en el encabezado
         const selectedMecanicoText = inputMecanico.options[inputMecanico.selectedIndex]?.text;
         const mecanicoName = (activeInvoice.mecanico_id && selectedMecanicoText) ? selectedMecanicoText.split('(')[0].trim() : null;
         document.getElementById('pos-user-name').textContent = mecanicoName || activeInvoice.usuario_nombre || '---';
 
-        // Si hay un cliente_id pero no está en el select, agregamos la opción temporalmente
         if (activeInvoice.cliente_id) {
             let option = inputCliente.querySelector(`option[value="${activeInvoice.cliente_id}"]`);
             if (!option) {
@@ -864,19 +1026,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         inputCliente.value = activeInvoice.cliente_id || '';
 
-        // Sincronizar siempre el nombre del cliente con el borrador activo para evitar residuos visuales
         if (clientSearchInput) clientSearchInput.value = activeInvoice.cliente_nombre || '';
 
         if (inputIvaToggle) {
             inputIvaToggle.checked = (activeInvoice.iva_activo !== false);
         }
 
-        // Cargar valores de pago en los inputs (evitar sobrescribir mientras el usuario escribe la coma)
         if (inputPagoEfectivo && document.activeElement !== inputPagoEfectivo) {
             inputPagoEfectivo.value = activeInvoice.pago_efectivo || 0;
         }
         if (inputPagoTransferencia && document.activeElement !== inputPagoTransferencia) {
             inputPagoTransferencia.value = activeInvoice.pago_transferencia || 0;
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // Sincronizar panel del presupuesto anexado
+        // ─────────────────────────────────────────────────────────────────
+        if (activeInvoice.presupuesto_activo_id && inputPresupuestoFacturacion && seleccionadoContainerPresupuesto) {
+            const pid = activeInvoice.presupuesto_activo_id;
+
+            // Preseleccionar id para que desanexar sepa qué liberar
+            presupuestoSeleccionadoIdFacturacion = pid;
+
+            // Si no hay texto en el input, poner un placeholder inmediato
+            if (!inputPresupuestoFacturacion.value) {
+                inputPresupuestoFacturacion.value = 'Presupuesto #' + pid + (activeInvoice.orden_id ? ' (desde O.S.)' : '');
+            }
+
+            // Placeholder mientras llegan los detalles completos
+            if (infoElementPresupuesto && !presupuestosDetallesCache.has(String(pid))) {
+                infoElementPresupuesto.textContent = 'Presupuesto #' + pid + ' anexado';
+            }
+            if (clienteElementPresupuesto && activeInvoice.cliente_nombre && !presupuestosDetallesCache.has(String(pid))) {
+                clienteElementPresupuesto.textContent = 'Cliente: ' + activeInvoice.cliente_nombre;
+            }
+
+            seleccionadoContainerPresupuesto.classList.remove('hidden');
+
+            // Cargar detalles completos (una sola vez por presupuesto)
+            if (!presupuestosDetallesCache.has(String(pid))) {
+                cargarDetallesPresupuestoAnexado(pid);
+            }
+        } else if (seleccionadoContainerPresupuesto) {
+            // Sin presupuesto: ocultar panel (salvo que esté en proceso de anexado manual)
+            if (!presupuestoSeleccionadoIdFacturacion) {
+                seleccionadoContainerPresupuesto.classList.add('hidden');
+            }
         }
 
         cartBody.innerHTML = activeInvoice.items.length === 0
@@ -905,7 +1100,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
 
-        // Verificación de estado del IVA (si es null o true, se cobra. Si es false, no)
         const isIvaEnabled = activeInvoice.iva_activo !== false;
         const currentIvaRate = isIvaEnabled ? (IVA_PERCENT / 100) : 0;
 
@@ -914,17 +1108,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('pos-subtotal').textContent = AppUtils.formatCurrency(subtotal);
 
-        // Forzar actualización del monto del IVA
         const ivaDisplay = document.getElementById('pos-iva');
         if (ivaDisplay) ivaDisplay.textContent = AppUtils.formatCurrency(ivaMonto);
 
-        // Actualizar el porcentaje visual (ej: "19" o "0")
         const ivaPercentLabel = document.getElementById('pos-iva-percent-display');
         if (ivaPercentLabel) ivaPercentLabel.textContent = isIvaEnabled ? IVA_PERCENT.toFixed(0) : "0";
 
         document.getElementById('pos-total').textContent = AppUtils.formatCurrency(total);
 
-        // Actualizar visualización de deuda (Saldo Pendiente)
         const saldoPendiente = total - (parseFloat(activeInvoice.pago_efectivo || 0) + parseFloat(activeInvoice.pago_transferencia || 0));
         if (displaySaldoPendiente) {
             displaySaldoPendiente.textContent = AppUtils.formatCurrency(saldoPendiente > 0 ? saldoPendiente : 0);
@@ -936,13 +1127,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // --- Lógica de Observaciones Inteligente ---
         const containerDiagOs = document.getElementById('container-diag-os');
         const textDiagOs = document.getElementById('text-diag-os');
         const labelObs = document.getElementById('label-obs');
 
         if (activeInvoice.tipo_procedencia === 'OS' || activeInvoice.tipo_procedencia === 'TALLER') {
-            // Si es una OS o Taller, mostrar el diagnóstico de entrada si existe
             if (activeInvoice.diagnostico_entrada) {
                 containerDiagOs.classList.remove('hidden');
                 textDiagOs.textContent = activeInvoice.diagnostico_entrada;
@@ -956,11 +1145,11 @@ document.addEventListener('DOMContentLoaded', () => {
             textDiagOs.textContent = '';
             labelObs.textContent = 'Observaciones / Detalles del Trabajo';
         }
-        // Solo actualizar el campo de observaciones si el usuario NO está escribiendo en él
+
         if (posObservaciones && document.activeElement !== posObservaciones) {
             posObservaciones.value = activeInvoice.observaciones || '';
         }
-        updateObsPreview(); // Actualizar la vista previa de observaciones
+        updateObsPreview();
         lucide.createIcons();
     };
 
@@ -969,10 +1158,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeInvoice) return;
         if (activeInvoice.items.length === 0) return AppUtils.showToast('La factura está vacía', 'warning');
 
-        // 1. Guardar el contenido original para restaurarlo en caso de error
         const originalContent = btnProcessSale.innerHTML;
 
-        // 2. Deshabilitar el botón y mostrar el Spinner
         btnProcessSale.disabled = true;
         btnProcessSale.innerHTML = `
             <i data-lucide="loader" class="w-6 h-6 animate-spin"></i>
@@ -990,7 +1177,6 @@ document.addEventListener('DOMContentLoaded', () => {
             activeInvoice.diagnostico_salida = activeInvoice.observaciones;
             activeInvoice.orden_id = activeInvoice.orden_id || displayFacturaId.dataset.ordenId || null;
 
-            // En Venta de Repuestos (sin placa), el mecánico es opcional
             if (activeInvoice.placa && activeInvoice.placa.trim() !== "") {
                 if (!activeInvoice.mecanico_id || activeInvoice.mecanico_id === "") {
                     AppUtils.showToast('Para órdenes de taller debe seleccionar un mecánico', 'warning');
@@ -1002,11 +1188,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Asegurar que los montos de pago se capturen incluso si no hubo evento 'input'
             activeInvoice.pago_efectivo = parseFloat(inputPagoEfectivo.value.replace(',', '.')) || 0;
             activeInvoice.pago_transferencia = parseFloat(inputPagoTransferencia.value.replace(',', '.')) || 0;
 
-            // Recalcular finales antes de procesar el cierre
             const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
             const isIvaEnabled = activeInvoice.iva_activo === true;
             const ivaMonto = isIvaEnabled ? (subtotal * (IVA_PERCENT / 100)) : 0;
@@ -1027,7 +1211,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (data.success) {
-                // Preguntar si desea imprimir después del éxito
                 AppUtils.confirmAction(
                     '¡Venta Exitosa!',
                     '¿Desea imprimir el comprobante de pago ahora?',
@@ -1037,7 +1220,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     '#10b981',
                     'Cerrar'
                 ).then(() => {
-                    // Rehabilitar el botón y restaurar el contenido original independientemente de la elección
                     btnProcessSale.disabled = false;
                     btnProcessSale.innerHTML = originalContent;
                     if (window.lucide) lucide.createIcons();
@@ -1045,13 +1227,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const index = openInvoices.findIndex(inv => inv.id === activeInvoiceId);
                     openInvoices.splice(index, 1);
 
-                    // Limpiar SIEMPRE el formulario para evitar residuos visuales de OS
                     clearInputs();
 
                     activeInvoiceId = openInvoices.length > 0 ? openInvoices[0].id : null;
                     if (activeInvoiceId) renderInvoice();
 
-                    // Limpiar parámetros de la URL para evitar que se recargue la O.S. al refrescar
                     const url = new URL(window.location);
                     url.searchParams.delete('orden_id');
                     window.history.replaceState({}, '', url);
@@ -1069,9 +1249,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    /**
-     * Buscador en tiempo real
-     */
     searchInput.addEventListener('input', async (e) => {
         const term = e.target.value.trim();
         if (term.length < 2) {
@@ -1081,19 +1258,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const res = await fetch(`${URLROOT}/facturacion/buscarItems?term=${term}`);
 
-        // 1. Verificar si la respuesta fue exitosa (código 200-299)
         if (!res.ok) {
             AppUtils.showToast('Error al buscar items: ' + res.statusText, 'error');
             return;
         }
-        // 2. Verificar si el Content-Type es JSON
         const contentType = res.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             AppUtils.showToast('Respuesta inesperada del servidor al buscar items. Verifique la consola para más detalles.', 'error');
-            console.error('Respuesta del servidor no es JSON:', await res.text()); // Imprime la respuesta HTML en consola
+            console.error('Respuesta del servidor no es JSON:', await res.text());
             return;
         }
-        const items = await res.json(); // Ahora esto solo se ejecutará si es JSON válido
+        const items = await res.json();
 
         lastSearchResults = items;
 
@@ -1120,7 +1295,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btn-new-invoice').addEventListener('click', () => {
-        // Al hacer clic, forzamos que se guarde en la base de datos como pendiente
         initNewInvoice(true);
     });
 
@@ -1133,33 +1307,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadInvoicesFromServer();
 
-    // Polling: Actualizar cola de facturas cada 10 segundos para ver lo de otros usuarios
     setInterval(loadInvoicesFromServer, 10000);
 
-    /**
-     * Verifica si se ha pasado un ID de orden por URL para cargarla automáticamente
-     */
     async function verificarOrdenInicial() {
         const urlParams = new URLSearchParams(window.location.search);
         const ordenId = urlParams.get('orden_id') || displayFacturaId.dataset.ordenId;
 
         if (ordenId) {
-            // Notificamos inmediatamente que la integración con el taller fue exitosa
             AppUtils.showToast('ORDEN LISTA PARA FACTURAR', 'success');
 
             try {
                 const resp = await fetch(`${URLROOT}/facturacion/obtenerPorOrden/${ordenId}`);
 
-                // Si el servidor responde 404 o error, significa que no hay borrador previo.
-                // En este caso, no hacemos nada y dejamos que initNewInvoice use los datos del DOM.
                 if (!resp.ok) return;
 
                 const res = await resp.json();
 
                 if (res.success && res.data) {
-                    // Al detectar la orden, seleccionamos automáticamente su borrador en el POS
                     activeInvoiceId = 'FAC-' + String(res.data.id).padStart(3, '0');
-                    await loadInvoicesFromServer(); // Sincronizar para asegurar visibilidad inmediata
+                    await loadInvoicesFromServer();
                 }
             } catch (e) {
                 console.error("Error al cargar orden inicial:", e);

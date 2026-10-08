@@ -9,7 +9,7 @@ ob_start();
 
 <h2>¡Tu pedido ha sido procesado, <?= htmlspecialchars($cliente_nombre) ?>!</h2>
 
-<p>Tu pedido de repuestos ha sido. <strong>procesado exitosamente</strong> A continuación te mostramos el resumen:</p>
+<p>Tu pedido de repuestos ha sido <strong>procesado exitosamente</strong>. A continuación te mostramos el resumen:</p>
 
 <div class="info-box">
     <p><strong>Pedido N°:</strong> <?= htmlspecialchars($id_formateado) ?></p>

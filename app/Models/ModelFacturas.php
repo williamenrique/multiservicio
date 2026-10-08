@@ -12,10 +12,14 @@ class ModelFacturas {
 
     /**
      * Lista facturas con soporte opcional para paginación (LIMIT/OFFSET)
-     * Incluye filtros de búsqueda y rango de fechas
+     * Incluye filtros de búsqueda y rango de fechas.
+     * 
+     * CAMBIO v2.0: se agregó `v.origen` para poder mostrar en la tabla el
+     * badge visual que distingue las facturas por PRESUPUESTO, CATALOGO, etc.
      */
     public function listar($limit = null, $offset = null, $search = null, $desde = null, $hasta = null) {
         $sql = "SELECT v.*, 
+                       v.origen,
                        CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                        c.nombre as cliente_nombre, 
                        COALESCE(sv.nombre, u.username, 'SISTEMA') as vendedor_nombre,
@@ -111,10 +115,14 @@ class ModelFacturas {
     }
 
     /**
-     * Obtiene una factura por ID con todos sus detalles
+     * Obtiene una factura por ID con todos sus detalles.
+     * 
+     * CAMBIO v2.0: se agregó `v.origen` al SELECT para poder mostrar el
+     * badge visual en la vista de detalle.
      */
     public function obtenerPorId($id) {
         $this->db->query("SELECT v.*, 
+                                 v.origen,
                                  CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
                                  COALESCE(vh.placa, v.placa) as placa, 

@@ -1,6 +1,27 @@
 <?php
 /**
  * Modelo de Inventario
+ * 
+ * Gestiona productos, stock físico, reservas de presupuestos/facturas y kardex.
+ * 
+ * CONCEPTO DE STOCK:
+ *   - stock (físico): es la cantidad real en almacén.
+ *   - reservado: suma de compromisos activos que aún NO han salido del almacén.
+ *     Se compone de:
+ *       • Reservas de presupuestos en estados ANEXADO / ACTIVO / ACEPTADO / EN_PROCESO.
+ *       • Items en facturas con status = PENDIENTE (borradores de facturación).
+ *       • (Ampliable) Pedidos de catálogo en estado PENDIENTE.
+ *   - stock_disponible: stock_físico − reservado. Es lo que realmente se
+ *     puede vender/adicionar a un nuevo carrito sin sobrevender.
+ * 
+ * FLUJO DE RESERVAS:
+ *   - Al anexar un presupuesto (a OS o Facturación) se crea un registro en
+ *     table_presupuestos_reservas con estado RESERVADA, pero NO se descuenta
+ *     el stock físico. Solo aparece como "Reservado" en la tabla.
+ *   - Al ACEPTAR el presupuesto, se descuenta el stock físico real y las
+ *     reservas pasan a estado FACTURADA.
+ *   - Al LIBERAR el presupuesto, la reserva pasa a LIBERADA y (si ya se había
+ *     descontado stock físico por ACEPTAR) se reingresa el stock.
  */
 class ModelInventario {
     private $db;
@@ -9,23 +30,52 @@ class ModelInventario {
         $this->db = $db ?: new Database();
     }
 
+<<<<<<< HEAD
     public function listar($limit = null, $offset = null, $search = null) {
         $sql = "SELECT i.*, 
                 (i.stock - COALESCE((
+=======
+    /**
+     * SQL reutilizable para calcular el stock reservado de un producto.
+     * Suma reservas activas de presupuestos + items en facturas PENDIENTES.
+     */
+    private function getSqlReservado() {
+        return "COALESCE((
+                    SELECT SUM(pr.cantidad_reservada) 
+                    FROM table_presupuestos_reservas pr
+                    JOIN table_presupuestos p ON pr.presupuesto_id = p.id
+                    WHERE pr.producto_id = i.id 
+                      AND pr.estado = 'RESERVADA' 
+                      AND p.estado IN ('ANEXADO', 'ACTIVO', 'ACEPTADO', 'EN_PROCESO')
+                ), 0)";
+    }
+
+    private function getSqlPendientesFactura() {
+        return "COALESCE((
+>>>>>>> REGISTRO-EMAIL
                     SELECT SUM(vd.cantidad) 
                     FROM table_facturas_detalle vd 
                     JOIN table_facturas v ON vd.factura_id = v.id 
                     WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
-                ), 0) - COALESCE((
-                    SELECT SUM(pr.cantidad_reservada) 
-                    FROM table_presupuestos_reservas pr
-                    JOIN table_presupuestos p ON pr.presupuesto_id = p.id
-                    WHERE pr.producto_id = i.id AND pr.estado = 'RESERVADA' AND p.estado IN ('ACTIVO', 'EN_PROCESO')
-                ), 0)) as stock_disponible
+                ), 0)";
+    }
+
+    /**
+     * Lista productos con cálculo completo de stock físico, reservado y disponible.
+     * Soporta paginación y búsqueda.
+     */
+    public function listar($limit = null, $offset = null, $search = null) {
+        $reservadoSql = $this->getSqlReservado();
+        $pendientesSql = $this->getSqlPendientesFactura();
+
+        $sql = "SELECT i.*, 
+                ($reservadoSql) as reservado,
+                ($pendientesSql) as pendientes_factura,
+                (i.stock - ($reservadoSql) - ($pendientesSql)) as stock_disponible
                 FROM table_inventario i";
         
         if ($search) {
-            $sql .= " WHERE i.nombre LIKE :search OR i.categoria LIKE :search";
+            $sql .= " WHERE i.nombre LIKE :search OR i.categoria LIKE :search OR i.codigo LIKE :search";
         }
 
         $sql .= " ORDER BY i.nombre ASC";
@@ -48,8 +98,19 @@ class ModelInventario {
         return $this->db->resultSet();
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Lista productos con información de ofertas (para catálogo público).
+     * Incluye el cálculo de reservas.
+     */
+>>>>>>> REGISTRO-EMAIL
     public function listarConOfertas($limit = null, $offset = null, $search = null, $categoria = null) {
+        $reservadoSql = $this->getSqlReservado();
+        $pendientesSql = $this->getSqlPendientesFactura();
+
         $sql = "SELECT i.*, 
+<<<<<<< HEAD
                 (i.stock - COALESCE((
                     SELECT SUM(vd.cantidad) 
                     FROM table_facturas_detalle vd 
@@ -61,6 +122,11 @@ class ModelInventario {
                     JOIN table_presupuestos p ON pr.presupuesto_id = p.id
                     WHERE pr.producto_id = i.id AND pr.estado = 'RESERVADA' AND p.estado IN ('ACTIVO', 'EN_PROCESO')
                 ), 0)) as stock_disponible,
+=======
+                ($reservadoSql) as reservado,
+                ($pendientesSql) as pendientes_factura,
+                (i.stock - ($reservadoSql) - ($pendientesSql)) as stock_disponible,
+>>>>>>> REGISTRO-EMAIL
                 CASE 
                     WHEN i.oferta_activa = 1 
                          AND i.oferta_porcentaje > 0 
@@ -138,7 +204,8 @@ class ModelInventario {
     public function contarFiltrados($search) {
         $this->db->query("SELECT COUNT(*) as total FROM table_inventario 
                           WHERE nombre LIKE :search 
-                          OR categoria LIKE :search");
+                          OR categoria LIKE :search
+                          OR codigo LIKE :search");
         $this->db->bind(':search', "%$search%");
         return (int)$this->db->single()->total;
     }
@@ -161,8 +228,19 @@ class ModelInventario {
         return $this->db->resultSet();
     }
 
+    /**
+     * Obtiene un producto por su ID con todos los cálculos de stock.
+     */
     public function obtenerPorId($id) {
-        $this->db->query("SELECT * FROM table_inventario WHERE id = :id");
+        $reservadoSql = $this->getSqlReservado();
+        $pendientesSql = $this->getSqlPendientesFactura();
+
+        $this->db->query("SELECT i.*, 
+                          ($reservadoSql) as reservado,
+                          ($pendientesSql) as pendientes_factura,
+                          (i.stock - ($reservadoSql) - ($pendientesSql)) as stock_disponible
+                          FROM table_inventario i
+                          WHERE i.id = :id");
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
@@ -200,7 +278,9 @@ class ModelInventario {
         
         $productoActual = null;
         if (isset($datos['id'])) {
-            $productoActual = $this->obtenerPorId($datos['id']);
+            $this->db->query("SELECT * FROM table_inventario WHERE id = :id");
+            $this->db->bind(':id', $datos['id']);
+            $productoActual = $this->db->single();
             if (!$productoActual) {
                 throw new Exception("Producto no encontrado.");
             }
@@ -301,12 +381,40 @@ class ModelInventario {
         return 1;
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Registra un movimiento en el Kardex.
+     * 
+     * ⚠️ IMPORTANTE: NO modifica el stock físico. Solo registra la bitácora.
+     * Las modificaciones de stock deben hacerse explícitamente antes/después
+     * de llamar a este método, según corresponda.
+     * 
+     * @param int $producto_id
+     * @param string $tipo ENTRADA_COMPRA | SALIDA_VENTA | AJUSTE_MANUAL | DEVOLUCION | GARANTIA
+     * @param int $cantidad Siempre positivo
+     * @param mixed $referencia
+     * @param string|null $obs
+     */
+>>>>>>> REGISTRO-EMAIL
     public function registrarMovimiento($producto_id, $tipo, $cantidad, $referencia = null, $obs = null) {
-        $prod = $this->obtenerPorId($producto_id);
-        $stock_anterior = $prod->stock;
+        $this->db->query("SELECT stock FROM table_inventario WHERE id = :id");
+        $this->db->bind(':id', $producto_id);
+        $prod = $this->db->single();
         
+<<<<<<< HEAD
         $es_entrada = in_array(mb_strtoupper($tipo, 'UTF-8'), ['ENTRADA_COMPRA', 'DEVOLUCION', 'GARANTIA']);
         $stock_actual = $es_entrada ? ($stock_anterior + $cantidad) : ($stock_anterior - $cantidad);
+=======
+        if (!$prod) {
+            error_log("registrarMovimiento: producto $producto_id no encontrado");
+            return false;
+        }
+
+        $stock_actual = (int)$prod->stock;
+        $es_entrada = in_array($tipo, ['ENTRADA_COMPRA', 'DEVOLUCION', 'GARANTIA'], true);
+        $stock_anterior = $es_entrada ? ($stock_actual - $cantidad) : ($stock_actual + $cantidad);
+>>>>>>> REGISTRO-EMAIL
 
         $this->db->query("INSERT INTO table_kardex (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_actual, referencia_id, usuario_id, observacion) 
                           VALUES (:pid, :tipo, :cant, :ant, :act, :ref, :uid, :obs)");
