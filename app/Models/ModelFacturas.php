@@ -1,7 +1,12 @@
 <?php
 /**
  * Modelo de Facturas
- * Maneja la consulta y listado de facturas realizadas
+ * 
+ * v2.1 (2026-10-08):
+ *   • listar() ahora acepta filtro por `estado` (COMPLETADO/CREDITO/ANULADO)
+ *     y por `cliente_id`. Incluye `ultimo_abono` y `estado_gestion`.
+ *   • contarFiltrados() refleja los mismos filtros.
+ *   • obtenerPorId() incluye `estado_gestion` y datos del último abono.
  */
 class ModelFacturas {
     private $db;
@@ -11,15 +16,12 @@ class ModelFacturas {
     }
 
     /**
-     * Lista facturas con soporte opcional para paginación (LIMIT/OFFSET)
-     * Incluye filtros de búsqueda y rango de fechas.
-     * 
-     * CAMBIO v2.0: se agregó `v.origen` para poder mostrar en la tabla el
-     * badge visual que distingue las facturas por PRESUPUESTO, CATALOGO, etc.
+     * Lista facturas con filtros: búsqueda, rango de fechas, estado y cliente.
      */
-    public function listar($limit = null, $offset = null, $search = null, $desde = null, $hasta = null) {
+    public function listar($limit = null, $offset = null, $search = null, $desde = null, $hasta = null, $estado = null, $clienteId = null) {
         $sql = "SELECT v.*, 
                        v.origen,
+                       v.estado_gestion,
                        CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                        c.nombre as cliente_nombre, 
                        COALESCE(sv.nombre, u.username, 'SISTEMA') as vendedor_nombre,
@@ -31,13 +33,15 @@ class ModelFacturas {
                            ELSE 'MOSTRADOR' 
                        END as tipo_procedencia,
                        (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id AND producto_id IS NOT NULL) as cant_productos,
-                       (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id AND producto_id IS NULL) as cant_servicios
+                       (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id AND producto_id IS NULL) as cant_servicios,
+                       (SELECT MAX(a.fecha) FROM table_abonos_clientes a WHERE a.factura_id = v.id) as ultimo_abono_fecha,
+                       (SELECT a.monto FROM table_abonos_clientes a WHERE a.factura_id = v.id ORDER BY a.fecha DESC LIMIT 1) as ultimo_abono_monto
                 FROM table_facturas v
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id
                 LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                 LEFT JOIN table_staff sv ON u.staff_id = sv.id
                 LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
-                WHERE v.status IN ('COMPLETADO', 'CREDITO')";
+                WHERE v.status IN ('COMPLETADO', 'CREDITO', 'ANULADO')";
         
         $params = [];
         
@@ -54,6 +58,18 @@ class ModelFacturas {
         if ($hasta) {
             $sql .= " AND DATE(v.fecha) <= :hasta";
             $params[':hasta'] = $hasta;
+        }
+
+        // MEJORA 9: filtro por estado
+        if ($estado && in_array(strtoupper($estado), ['COMPLETADO', 'CREDITO', 'ANULADO'], true)) {
+            $sql .= " AND v.status = :estado";
+            $params[':estado'] = strtoupper($estado);
+        }
+
+        // MEJORA 10: filtro por cliente (para "ver cliente con un clic")
+        if ($clienteId) {
+            $sql .= " AND v.cliente_id = :cliente_id";
+            $params[':cliente_id'] = $clienteId;
         }
 
         $sql .= " ORDER BY v.fecha DESC, v.id DESC";
@@ -72,22 +88,16 @@ class ModelFacturas {
         return $this->db->resultSet();
     }
 
-    /**
-     * Retorna la cantidad total de facturas completadas
-     */
     public function contarTotal() {
         $this->db->query("SELECT COUNT(*) as total FROM table_facturas WHERE status IN ('COMPLETADO', 'CREDITO')");
         return (int)$this->db->single()->total;
     }
 
-    /**
-     * Retorna la cantidad de facturas que coinciden con los filtros
-     */
-    public function contarFiltrados($search = null, $desde = null, $hasta = null) {
+    public function contarFiltrados($search = null, $desde = null, $hasta = null, $estado = null, $clienteId = null) {
         $sql = "SELECT COUNT(*) as total FROM table_facturas v
                 LEFT JOIN table_clientes c ON v.cliente_id = c.id
                 LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
-                WHERE v.status IN ('COMPLETADO', 'CREDITO')";
+                WHERE v.status IN ('COMPLETADO', 'CREDITO', 'ANULADO')";
         
         $params = [];
         
@@ -95,15 +105,21 @@ class ModelFacturas {
             $sql .= " AND (v.id LIKE :search OR c.nombre LIKE :search OR vh.placa LIKE :search OR v.placa LIKE :search)";
             $params[':search'] = "%$search%";
         }
-        
         if ($desde) {
             $sql .= " AND DATE(v.fecha) >= :desde";
             $params[':desde'] = $desde;
         }
-        
         if ($hasta) {
             $sql .= " AND DATE(v.fecha) <= :hasta";
             $params[':hasta'] = $hasta;
+        }
+        if ($estado && in_array(strtoupper($estado), ['COMPLETADO', 'CREDITO', 'ANULADO'], true)) {
+            $sql .= " AND v.status = :estado";
+            $params[':estado'] = strtoupper($estado);
+        }
+        if ($clienteId) {
+            $sql .= " AND v.cliente_id = :cliente_id";
+            $params[':cliente_id'] = $clienteId;
         }
 
         $this->db->query($sql);
@@ -115,14 +131,13 @@ class ModelFacturas {
     }
 
     /**
-     * Obtiene una factura por ID con todos sus detalles.
-     * 
-     * CAMBIO v2.0: se agregó `v.origen` al SELECT para poder mostrar el
-     * badge visual en la vista de detalle.
+     * Obtiene una factura por ID con todos sus detalles, incluyendo
+     * estado_gestion, ultimo_abono y datos para "ver cliente".
      */
     public function obtenerPorId($id) {
         $this->db->query("SELECT v.*, 
                                  v.origen,
+                                 v.estado_gestion,
                                  CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
                                  COALESCE(vh.placa, v.placa) as placa, 
@@ -154,9 +169,18 @@ class ModelFacturas {
                               WHERE vd.factura_id = :vid");
             $this->db->bind(':vid', $id);
             $venta->items = $this->db->resultSet();
+
+            // MEJORA 3: Cargar historial de abonos en la vista ver.php
+            $this->db->query("SELECT a.*, COALESCE(s.nombre, u.username, 'SISTEMA') as usuario_nombre
+                              FROM table_abonos_clientes a
+                              LEFT JOIN table_usuarios u ON a.usuario_id = u.id
+                              LEFT JOIN table_staff s ON u.staff_id = s.id
+                              WHERE a.factura_id = :vid
+                              ORDER BY a.fecha DESC");
+            $this->db->bind(':vid', $id);
+            $venta->abonos = $this->db->resultSet();
         }
 
-        // Cargar Checklist si la factura proviene de una Orden de Servicio
         if ($venta && $venta->orden_id) {
             $this->db->query("SELECT item, observacion FROM table_orden_checklist WHERE orden_id = :oid");
             $this->db->bind(':oid', $venta->orden_id);
@@ -166,10 +190,6 @@ class ModelFacturas {
         return $venta;
     }
 
-    /**
-     * Obtiene los detalles completos de una venta para su impresión
-     * (Alias para compatibilidad con el controlador)
-     */
     public function obtenerVentaCompleta($id) {
         return $this->obtenerPorId($id);
     }

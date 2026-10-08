@@ -6,6 +6,22 @@
         </div>
     </div>
 
+    <!-- MEJORA 9: Filtros rápidos por estado (chips) -->
+    <div class="flex flex-wrap items-center gap-2 mb-4" id="estadoChips">
+        <button data-estado="" class="estado-chip active px-4 py-2 rounded-full text-xs font-black uppercase border-2 transition-all">
+            Todas
+        </button>
+        <button data-estado="CREDITO" class="estado-chip px-4 py-2 rounded-full text-xs font-black uppercase border-2 transition-all">
+            <i data-lucide="clock" class="w-3 h-3 inline"></i> Solo Crédito
+        </button>
+        <button data-estado="COMPLETADO" class="estado-chip px-4 py-2 rounded-full text-xs font-black uppercase border-2 transition-all">
+            <i data-lucide="check-circle" class="w-3 h-3 inline"></i> Completadas
+        </button>
+        <button data-estado="ANULADO" class="estado-chip px-4 py-2 rounded-full text-xs font-black uppercase border-2 transition-all">
+            <i data-lucide="x-circle" class="w-3 h-3 inline"></i> Anuladas
+        </button>
+    </div>
+
     <!-- Filtros: Búsqueda, Rango de fechas -->
     <div class="flex flex-col md:flex-row gap-4 mb-6">
         <div class="flex-1 relative min-w-0">
@@ -69,20 +85,33 @@
                 </tbody>
             </table>
         </div>
-        <!-- Paginación Manual -->
         <div class="px-8 py-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 Mostrando <span id="startIndex">0</span> - <span id="endIndex">0</span> de <span id="totalItemsDisplay">0</span> facturas
             </div>
-            <div class="flex items-center gap-2" id="paginationControls">
-                <!-- Los botones de navegación se generan dinámicamente -->
-            </div>
+            <div class="flex items-center gap-2" id="paginationControls"></div>
         </div>
     </div>
 </div>
 
+<style>
+    .estado-chip {
+        background-color: #ffffff;
+        color: #94a3b8;
+        border-color: #e2e8f0;
+    }
+    .estado-chip:hover {
+        border-color: #cbd5e1;
+        color: #475569;
+    }
+    .estado-chip.active {
+        background-color: #0f172a;
+        color: #39FF14;
+        border-color: #0f172a;
+    }
+</style>
+
 <script>
-    // Previene el error de currentData is not defined antes de cargar el JS de facturas
     window.currentData = [];
 </script>
 <script src="<?php echo URLROOT; ?>/js/facturas.js"></script>

@@ -243,9 +243,7 @@ class ControllerFacturacion extends Controller {
 
     public function eliminarBorrador($id = null) {
         try {
-            if (!$id) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
-            }
+            if (!$id) return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
 
             $db = new Database();
             $db->query("SELECT presupuesto_activo_id FROM table_facturas WHERE id = :id AND status = 'PENDIENTE'");
@@ -297,6 +295,9 @@ class ControllerFacturacion extends Controller {
         exit;
     }
 
+    /**
+     * Registra un abono. Envía email al cliente si tiene email registrado.
+     */
     public function registrarAbono() {
         if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
 
@@ -325,6 +326,13 @@ class ControllerFacturacion extends Controller {
                 logAction('FACTURACION', 'REGISTRAR_ABONO',
                     "Abono de $" . number_format($monto, 2) . " a Factura #{$input['venta_id']} vía $metodo");
 
+                // Mejora 7: Notificar por email al cliente (asíncrono — falla silenciosa)
+                try {
+                    $this->enviarNotificacionAbono((int)$input['venta_id'], $monto, $metodo);
+                } catch (\Throwable $e) {
+                    error_log('Error enviando notificación de abono: ' . $e->getMessage());
+                }
+
                 return $this->jsonResponse(['success' => true, 'mensaje' => 'Abono registrado correctamente']);
             } else {
                 throw new Exception('No se pudo registrar el abono');
@@ -336,23 +344,194 @@ class ControllerFacturacion extends Controller {
     }
 
     /**
-     * NOTIFICACIÓN DE CRÉDITO (CAMPANITA DEL NAVBAR)
-     * Devuelve las facturas a crédito con +15 días de atraso.
-     * Solo ADMINISTRADORES.
+     * MEJORA 7 — Envía email al cliente cuando se registra un abono.
+     * Falla silenciosamente si EmailService no está disponible o el cliente
+     * no tiene email registrado.
      */
+    private function enviarNotificacionAbono($facturaId, $monto, $metodo) {
+        $db = new Database();
+        $db->query("SELECT 
+                        v.id, v.total, v.pago_efectivo, v.pago_transferencia, v.saldo_pendiente,
+                        CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                        COALESCE(vh.placa, v.placa) as placa,
+                        COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                        c.nombre as cliente_nombre, c.email as cliente_email
+                    FROM table_facturas v
+                    LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                    LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                    WHERE v.id = :id");
+        $db->bind(':id', $facturaId);
+        $factura = $db->single();
+
+        if (!$factura || empty($factura->cliente_email)) {
+            return; // Sin email, no se envía
+        }
+
+        // Hook hacia EmailService (si tiene el método, se usa; si no, falla silencioso)
+        if (class_exists('\App\Services\EmailService')) {
+            $emailService = new \App\Services\EmailService();
+            if (method_exists($emailService, 'notificarAbonoRegistrado')) {
+                $emailService->notificarAbonoRegistrado([
+                    'cliente_nombre' => $factura->cliente_nombre,
+                    'cliente_email'  => $factura->cliente_email,
+                    'factura_id'     => $factura->id,
+                    'id_formateado'  => $factura->id_formateado,
+                    'placa'          => $factura->placa,
+                    'modelo_vehiculo'=> $factura->modelo_vehiculo,
+                    'monto_abono'    => $monto,
+                    'metodo_pago'    => $metodo,
+                    'total'          => $factura->total,
+                    'pago_efectivo'  => $factura->pago_efectivo,
+                    'pago_transferencia' => $factura->pago_transferencia,
+                    'saldo_pendiente'=> $factura->saldo_pendiente,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * MEJORA 2 — Imprime el recibo PDF de un abono individual.
+     * GET /facturacion/imprimirReciboAbono/{id}
+     */
+    public function imprimirReciboAbono($id = null) {
+        RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
+        if (!$id) die("ID de abono no proporcionado.");
+
+        $abono = $this->facturaModel->obtenerReciboAbono($id);
+        if (!$abono) die("El abono #$id no existe.");
+
+        $empresa = $this->empresaModel->obtenerConfiguracion();
+        $tituloPestaña = 'RECIBO-ABONO-' . str_pad((string)$abono->abono_id, 4, '0', STR_PAD_LEFT);
+
+        $pdfService = new PdfService();
+        $pdfService->generarDocumento('recibo_abono', [
+            'titulo_pestaña' => $tituloPestaña,
+            'titulo_documento' => 'RECIBO DE ABONO',
+            'documento_id' => $tituloPestaña,
+            'empresa' => $empresa,
+            'abono' => $abono
+        ], $tituloPestaña . '.pdf');
+        exit;
+    }
+
+    /**
+     * MEJORA 3 — Devuelve el historial de abonos de una factura.
+     * GET /facturacion/getAbonosFactura/{facturaId}
+     */
+    public function getAbonosFactura($facturaId = null) {
+        try {
+            RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
+            if (!$facturaId) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            }
+
+            $abonos = $this->facturaModel->obtenerAbonosPorFactura($facturaId);
+            return $this->jsonResponse(['success' => true, 'data' => $abonos]);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * MEJORA 8 — Actualiza el estado de gestión de una factura.
+     * POST /facturacion/actualizarEstadoGestion
+     */
+    public function actualizarEstadoGestion() {
+        if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
+        header('Content-Type: application/json');
+
+        try {
+            RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!$input || empty($input['factura_id']) || empty($input['estado'])) {
+                throw new Exception('Datos incompletos');
+            }
+
+            $this->facturaModel->actualizarEstadoGestion((int)$input['factura_id'], $input['estado']);
+
+            logAction('FACTURACION', 'ESTADO_GESTION',
+                "Factura #{$input['factura_id']} → {$input['estado']}");
+
+            return $this->jsonResponse(['success' => true, 'mensaje' => 'Estado actualizado']);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * MEJORA 12 — Envía un recordatorio de pago al cliente por email.
+     * POST /facturacion/enviarRecordatorio
+     */
+    public function enviarRecordatorio() {
+        if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
+        header('Content-Type: application/json');
+
+        try {
+            RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!$input || empty($input['factura_id'])) {
+                throw new Exception('ID de factura requerido');
+            }
+
+            $db = new Database();
+            $db->query("SELECT 
+                            v.id, v.fecha, v.total, v.saldo_pendiente,
+                            CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                            COALESCE(vh.placa, v.placa) as placa,
+                            COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                            c.nombre as cliente_nombre, c.email as cliente_email,
+                            DATEDIFF(CURDATE(), DATE(v.fecha)) as dias_atraso
+                        FROM table_facturas v
+                        LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                        LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                        WHERE v.id = :id AND v.status = 'CREDITO' AND v.saldo_pendiente > 0.05");
+            $db->bind(':id', (int)$input['factura_id']);
+            $factura = $db->single();
+
+            if (!$factura) throw new Exception('Factura no encontrada o ya está pagada');
+            if (empty($factura->cliente_email)) throw new Exception('El cliente no tiene email registrado');
+
+            if (class_exists('\App\Services\EmailService')) {
+                $emailService = new \App\Services\EmailService();
+                if (method_exists($emailService, 'enviarRecordatorioPago')) {
+                    $emailService->enviarRecordatorioPago([
+                        'cliente_nombre'  => $factura->cliente_nombre,
+                        'cliente_email'   => $factura->cliente_email,
+                        'factura_id'      => $factura->id,
+                        'id_formateado'   => $factura->id_formateado,
+                        'placa'           => $factura->placa,
+                        'modelo_vehiculo' => $factura->modelo_vehiculo,
+                        'total'           => $factura->total,
+                        'saldo_pendiente' => $factura->saldo_pendiente,
+                        'dias_atraso'     => $factura->dias_atraso,
+                        'fecha_emision'   => $factura->fecha,
+                    ]);
+                } else {
+                    throw new Exception('El sistema de email no tiene el método enviarRecordatorioPago');
+                }
+            } else {
+                throw new Exception('El servicio de email no está disponible');
+            }
+
+            logAction('FACTURACION', 'ENVIAR_RECORDATORIO',
+                "Recordatorio enviado al cliente de Factura #{$input['factura_id']}");
+
+            return $this->jsonResponse(['success' => true, 'mensaje' => 'Recordatorio enviado al cliente']);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
     public function alertasCredito() {
         try {
             RoleGuard::hasAccess(['ADMINISTRADOR']);
-
             $dias = 15;
             $facturas = $this->facturaModel->obtenerCreditosVencidos($dias);
 
             $data = array_map(function($f) {
                 $fecha = $f->fecha ?? null;
                 $diasTranscurridos = 0;
-                if ($fecha) {
-                    $diasTranscurridos = (int)round((time() - strtotime($fecha)) / 86400);
-                }
+                if ($fecha) $diasTranscurridos = (int)round((time() - strtotime($fecha)) / 86400);
                 return [
                     'id'              => (int)$f->id,
                     'cliente_nombre'  => $f->cliente_nombre ?? 'SIN CLIENTE',
@@ -366,19 +545,13 @@ class ControllerFacturacion extends Controller {
 
             return $this->jsonResponse(['success' => true, 'data' => $data, 'total' => count($data)]);
         } catch (\Throwable $e) {
-            error_log("Error en alertasCredito: " . $e->getMessage());
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage(), 'data' => []], 500);
         }
     }
 
-    /**
-     * RESUMEN DE DEUDORES (TARJETA DEL DASHBOARD)
-     * Devuelve TODAS las facturas a crédito con saldo pendiente.
-     */
     public function getDeudoresSummary() {
         try {
             RoleGuard::hasAccess(['ADMINISTRADOR']);
-
             $db = new Database();
 
             $db->query("SELECT 
@@ -413,35 +586,14 @@ class ControllerFacturacion extends Controller {
                 ]
             ]);
         } catch (\Throwable $e) {
-            error_log("Error en getDeudoresSummary: " . $e->getMessage());
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * NUEVO: Devuelve TODAS las facturas a crédito con saldo pendiente de un
-     * cliente específico. Usado por el drawer lateral de "Ver Detalle" en la
-     * Cartera por Edades.
-     * 
-     * GET /facturacion/getFacturasCliente/{clienteId}
-     * 
-     * Respuesta:
-     * {
-     *   success: true,
-     *   data: {
-     *     cliente: { id, nombre, telefono, email },
-     *     facturas: [...],
-     *     totales: { total_deuda, cantidad_facturas }
-     *   }
-     * }
-     */
     public function getFacturasCliente($clienteId = null) {
         try {
             RoleGuard::hasAccess(['ADMINISTRADOR']);
-
-            if (!$clienteId) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de cliente requerido'], 400);
-            }
+            if (!$clienteId) return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
 
             $facturas = $this->facturaModel->obtenerFacturasCreditoPorCliente($clienteId);
 
@@ -456,7 +608,6 @@ class ControllerFacturacion extends Controller {
                 ]);
             }
 
-            // Datos del cliente (tomados de la primera factura)
             $primera = $facturas[0];
             $cliente = [
                 'id'        => $clienteId,
@@ -465,11 +616,8 @@ class ControllerFacturacion extends Controller {
                 'email'     => $primera->cliente_email ?? ''
             ];
 
-            // Totales
             $totalDeuda = 0;
-            foreach ($facturas as $f) {
-                $totalDeuda += (float)$f->saldo_pendiente;
-            }
+            foreach ($facturas as $f) $totalDeuda += (float)$f->saldo_pendiente;
 
             return $this->jsonResponse([
                 'success' => true,
@@ -483,7 +631,6 @@ class ControllerFacturacion extends Controller {
                 ]
             ]);
         } catch (\Throwable $e) {
-            error_log("Error en getFacturasCliente: " . $e->getMessage());
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
@@ -491,7 +638,6 @@ class ControllerFacturacion extends Controller {
     public function getItemsDevolucion($ventaId = null) {
         try {
             if (!$ventaId) return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
-
             $db = new Database();
             $db->query("SELECT vd.id, vd.producto_id, vd.descripcion, vd.cantidad, 
                                vd.precio_unitario, vd.costo_unitario
@@ -500,7 +646,6 @@ class ControllerFacturacion extends Controller {
                         ORDER BY vd.id");
             $db->bind(':vid', (int)$ventaId);
             $items = $db->resultSet();
-
             return $this->jsonResponse(['success' => true, 'items' => $items ?: []]);
         } catch (\Throwable $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
@@ -531,7 +676,6 @@ class ControllerFacturacion extends Controller {
 
     public function procesarDevolucion() {
         if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
-
         header('Content-Type: application/json');
         try {
             $input = json_decode(file_get_contents('php://input'), true);
@@ -548,13 +692,11 @@ class ControllerFacturacion extends Controller {
             if ($resultado) {
                 logAction('FACTURACION', 'PROCESAR_DEVOLUCION',
                     "Devolución procesada para Factura #{$input['venta_id']}, detalle #{$input['detalle_id']}");
-
                 return $this->jsonResponse(['success' => true, 'mensaje' => 'Devolución procesada correctamente']);
             } else {
                 throw new Exception('No se pudo procesar la devolución');
             }
         } catch (\Throwable $e) {
-            error_log("Error en procesarDevolucion: " . $e->getMessage());
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }

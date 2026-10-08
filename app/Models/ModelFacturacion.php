@@ -1,10 +1,13 @@
 <?php
 /**
  * Modelo de Facturación
- * Maneja la persistencia de ventas y la actualización de stock.
  * 
- * v2.1: Se agregó obtenerFacturasCreditoPorCliente() para el detalle
- *       del drawer lateral de la Cartera por Edades.
+ * v2.2 (2026-10-08):
+ *   • Nuevo: obtenerAbonosPorFactura() — historial de abonos.
+ *   • Nuevo: obtenerReciboAbono() — datos para PDF del recibo.
+ *   • Nuevo: actualizarEstadoGestion() — semáforo de cobranza.
+ *   • Modificado: obtenerFacturasCreditoPorCliente() ahora incluye
+ *     `estado_gestion` y `ultimo_abono` (fecha + monto del último pago).
  */
 class ModelFacturacion {
     private $db;
@@ -402,6 +405,8 @@ class ModelFacturacion {
             $this->db->bind(':metodo', mb_strtoupper($metodo, 'UTF-8'));
             $this->db->execute();
 
+            $abonoId = $this->db->lastInsertId();
+
             $columnaPago = ($metodo === 'TRANSFERENCIA') ? 'pago_transferencia' : 'pago_efectivo';
             $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
 
@@ -435,18 +440,12 @@ class ModelFacturacion {
             $this->db->bind(':uid', $_SESSION['user_id']);
             $this->db->execute();
 
-            return true;
+            return ['success' => true, 'abono_id' => (int)$abonoId];
         } catch (Exception $e) {
             throw $e;
         }
     }
 
-    /**
-     * Obtiene las facturas a crédito con saldo pendiente que tengan
-     * al menos $dias días de antigüedad desde su emisión.
-     * 
-     * Se usa para la CAMPANITA DE NOTIFICACIÓN del navbar (alerta de cartera vencida).
-     */
     public function obtenerCreditosVencidos($dias = 15) {
         $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, 
                                  COALESCE(vh.placa, v.placa) as placa, 
@@ -464,12 +463,8 @@ class ModelFacturacion {
     }
 
     /**
-     * NUEVO: Obtiene TODAS las facturas a crédito con saldo pendiente de un
-     * cliente específico. Se usa en el drawer lateral de "Ver Detalle" de la
-     * Cartera por Edades.
-     * 
-     * @param string $clienteId ID del cliente (varchar en la BD).
-     * @return array Lista de facturas ordenadas por fecha DESC.
+     * Obtiene TODAS las facturas a crédito con saldo pendiente de un cliente.
+     * Incluye estado_gestion y datos del último abono.
      */
     public function obtenerFacturasCreditoPorCliente($clienteId) {
         $this->db->query("SELECT 
@@ -482,6 +477,7 @@ class ModelFacturacion {
                             v.pago_transferencia,
                             v.saldo_pendiente,
                             v.status,
+                            v.estado_gestion,
                             v.origen,
                             v.observaciones,
                             CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
@@ -491,7 +487,10 @@ class ModelFacturacion {
                             DATEDIFF(CURDATE(), DATE(v.fecha)) as dias_atraso,
                             COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre,
                             c.telefono as cliente_telefono,
-                            c.email as cliente_email
+                            c.email as cliente_email,
+                            (SELECT MAX(a.fecha) FROM table_abonos_clientes a WHERE a.factura_id = v.id) as ultimo_abono_fecha,
+                            (SELECT a.monto FROM table_abonos_clientes a WHERE a.factura_id = v.id ORDER BY a.fecha DESC LIMIT 1) as ultimo_abono_monto,
+                            (SELECT a.metodo_pago FROM table_abonos_clientes a WHERE a.factura_id = v.id ORDER BY a.fecha DESC LIMIT 1) as ultimo_abono_metodo
                           FROM table_facturas v
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
@@ -501,6 +500,88 @@ class ModelFacturacion {
                           ORDER BY v.fecha DESC");
         $this->db->bind(':cid', $clienteId);
         return $this->db->resultSet() ?: [];
+    }
+
+    /**
+     * NUEVO (mejora 3): Obtiene el historial completo de abonos de una factura.
+     * 
+     * @param int $facturaId
+     * @return array
+     */
+    public function obtenerAbonosPorFactura($facturaId) {
+        $this->db->query("SELECT 
+                            a.id,
+                            a.factura_id,
+                            a.monto,
+                            a.metodo_pago,
+                            a.fecha,
+                            COALESCE(s.nombre, u.username, 'SISTEMA') as usuario_nombre
+                          FROM table_abonos_clientes a
+                          LEFT JOIN table_usuarios u ON a.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          WHERE a.factura_id = :fid
+                          ORDER BY a.fecha DESC");
+        $this->db->bind(':fid', $facturaId);
+        return $this->db->resultSet() ?: [];
+    }
+
+    /**
+     * NUEVO (mejora 2): Datos completos de un abono para generar el PDF del recibo.
+     * 
+     * @param int $abonoId
+     * @return object|null
+     */
+    public function obtenerReciboAbono($abonoId) {
+        $this->db->query("SELECT 
+                            a.id as abono_id,
+                            a.monto as abono_monto,
+                            a.metodo_pago as abono_metodo,
+                            a.fecha as abono_fecha,
+                            v.id as factura_id,
+                            v.fecha as factura_fecha,
+                            v.total as factura_total,
+                            v.subtotal as factura_subtotal,
+                            v.iva_monto as factura_iva,
+                            v.pago_efectivo,
+                            v.pago_transferencia,
+                            v.saldo_pendiente,
+                            CONCAT('FAC-', LPAD(v.id, 3, '0')) as factura_formateada,
+                            COALESCE(vh.placa, v.placa, '---') as placa,
+                            COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
+                            COALESCE(c.nombre, 'CONSUMIDOR FINAL') as cliente_nombre,
+                            c.telefono as cliente_telefono,
+                            c.email as cliente_email,
+                            c.direccion as cliente_direccion,
+                            COALESCE(s.nombre, u.username, 'SISTEMA') as usuario_nombre
+                          FROM table_abonos_clientes a
+                          JOIN table_facturas v ON a.factura_id = v.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON a.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          WHERE a.id = :aid");
+        $this->db->bind(':aid', $abonoId);
+        return $this->db->single();
+    }
+
+    /**
+     * NUEVO (mejora 8): Actualiza el estado de gestión de una factura.
+     * 
+     * @param int $facturaId
+     * @param string $estado NUEVO|GESTIONADO|PROMETIDO|ACUERDO_PAGO|JUDICIAL
+     * @return bool
+     */
+    public function actualizarEstadoGestion($facturaId, $estado) {
+        $estadosValidos = ['NUEVO','GESTIONADO','PROMETIDO','ACUERDO_PAGO','JUDICIAL'];
+        $estado = mb_strtoupper($estado, 'UTF-8');
+        if (!in_array($estado, $estadosValidos, true)) {
+            throw new Exception("Estado de gestión no válido: $estado");
+        }
+
+        $this->db->query("UPDATE table_facturas SET estado_gestion = :est WHERE id = :id");
+        $this->db->bind(':est', $estado);
+        $this->db->bind(':id', (int)$facturaId);
+        return $this->db->execute();
     }
 
     private function calcularDiferenciaDias($d1, $d2) {

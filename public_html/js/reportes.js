@@ -1,18 +1,26 @@
 /**
  * GESTIÓN DE REPORTES - UNIFICADO
  * 
- * v2.5 (2026-10-08):
- *   • El botón "Abonar" del drawer de cartera ahora es INLINE: muestra un
- *     input para el monto + selector de método en la misma tarjeta de la
- *     factura, sin abrir modal. El botón se habilita solo cuando el monto
- *     es válido (>0 y <= saldo pendiente).
- *   • Al confirmar, se ejecuta la petición AJAX y se refresca el drawer
- *     + la tabla de cartera sin recargar la página.
+ * v2.7 (2026-10-08) — FIX:
+ *   • Se agregó botón "IMPRIMIR FACTURA" en el modal de verDetalleVenta.
+ *   • Se agregó botón de imprimir 🖨 por cada factura en el drawer de cartera.
+ *   • Se agregó botón de imprimir 🖨 por cada factura en auditoría de trabajos.
+ *   • Se restauraron las funciones que se habían perdido.
  */
 
 let rawAuditData = { ventas: [], compras: [], gastos: [] };
 let activeReportTab = 'resumen';
+let drawerState = {
+    clienteId: null,
+    clienteNombre: '',
+    data: null,
+    filtro: '',
+    orden: 'fecha_desc'
+};
 
+// ═══════════════════════════════════════════════════════════════════
+//  RENDER DE FILA DE FLUJO DE CAJA
+// ═══════════════════════════════════════════════════════════════════
 window.renderFlujoRow = (m) => {
     const isIngreso = m.tipo === 'INGRESO';
     const color = m.tipo_color || (isIngreso ? 'emerald' : 'rose');
@@ -33,15 +41,15 @@ window.renderFlujoRow = (m) => {
 
     if (tipo === 'INGRESO' && (cat.includes('VENTA') || cat.includes('ABONO') || desc.includes('FACTURA') || labelUpper.includes('FACTURA'))) {
         printUrl = `${root}/facturacion/imprimir/${refId}`;
-        detailUrl = `javascript:verDetalleVenta(${refId})`;
+        detailUrl = `verDetalleVenta(${refId})`;
         printBtnClass = 'text-blue-500 hover:bg-blue-50';
     } else if (cat === 'NOMINA' || labelUpper.includes('NOMINA') || labelUpper.includes('ADELANTO')) {
         printUrl = `${root}/reportes/imprimirRecibo/${refId}`;
-        detailUrl = `javascript:verDetallePagoHistorial(${refId})`;
+        detailUrl = `verDetallePagoHistorial(${refId})`;
         printBtnClass = 'text-amber-500 hover:bg-amber-50';
     } else if (tipo === 'EGRESO' || cat.includes('PROVEEDOR') || cat.includes('GASTO') || labelUpper.includes('PAGO') || desc.includes('PAGO') || labelUpper.includes('SERVICIO') || cat.includes('COMPRA')) {
         printUrl = `${root}/gastos/imprimir/${refId}`;
-        detailUrl = `javascript:verDetalleCompra(${refId})`;
+        detailUrl = `verDetalleCompra(${refId})`;
         printBtnClass = 'text-rose-500 hover:bg-rose-50';
     }
 
@@ -105,68 +113,9 @@ window.actualizarFiltrosFechas = () => {
     if (activeReportTab === 'historial_nomina') window.cargarHistorialNomina();
 };
 
-window.cargarReporteDetallado = async () => {
-    const desde = document.getElementById('rep-desde')?.value || '1970-01-01';
-    const hasta = document.getElementById('rep-hasta')?.value || '2099-12-31';
-    const auditContainer = document.getElementById('audit-list-container');
-    const contCompras = document.getElementById('det-compras-body');
-    const contGastos = document.getElementById('det-gastos-body');
-
-    if (auditContainer) auditContainer.innerHTML = '<div class="py-20 text-center animate-pulse text-slate-400 font-bold uppercase tracking-widest">Generando Auditoría de Trabajos...</div>';
-    if (contCompras) contCompras.innerHTML = '<tr><td colspan="6" class="p-8 text-center animate-pulse">Cargando compras...</td></tr>';
-    if (contGastos) contGastos.innerHTML = '<tr><td colspan="5" class="p-8 text-center animate-pulse">Cargando gastos...</td></tr>';
-
-    try {
-        const res = await fetch(`${URLROOT}/reportes/detallado?desde=${desde}&hasta=${hasta}`);
-        if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
-        const result = await res.json();
-
-        const responseData = result.success ? result.data : result;
-
-        if (responseData && responseData.ventas) {
-            rawAuditData = responseData;
-            renderAuditoriaLista(rawAuditData.ventas);
-
-            if (contCompras && rawAuditData.compras) {
-                contCompras.innerHTML = (rawAuditData.compras || []).length ? rawAuditData.compras.map(c => `
-                    <tr class="hover:bg-slate-50 border-b border-slate-100">
-                        <td class="p-3 text-xs font-bold text-slate-400 uppercase">${new Date(c.fecha).toLocaleDateString()}</td>
-                        <td class="p-3 text-sm font-black text-rose-600 uppercase">${c.proveedor}</td>
-                        <td class="p-3 text-sm font-bold text-slate-600 uppercase">${c.descripcion}</td>
-                        <td class="p-3 text-center text-sm font-bold text-slate-500">${c.cantidad}</td>
-                        <td class="p-3 text-right text-sm font-bold text-slate-500">${AppUtils.formatCurrency(c.costo_unitario)}</td>
-                        <td class="p-3 text-right text-base font-black text-rose-600">${AppUtils.formatCurrency(c.cantidad * c.costo_unitario)}</td>
-                    </tr>`).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">No hay compras registradas</td></tr>';
-            }
-
-            if (contGastos && rawAuditData.gastos) {
-                contGastos.innerHTML = (rawAuditData.gastos || []).length ? rawAuditData.gastos.map(g => `
-                    <tr class="hover:bg-slate-50 border-b border-slate-100">
-                        <td class="p-3 text-xs font-bold text-slate-400 uppercase">${new Date(g.fecha).toLocaleDateString()}</td>
-                        <td class="p-3"><span class="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-500 uppercase">${g.categoria}</span></td>
-                        <td class="p-3 text-sm font-bold text-slate-700 uppercase">${g.descripcion}</td>
-                        <td class="p-3 text-sm font-bold text-slate-600 uppercase">${g.metodo_pago || 'EFECTIVO'}</td>
-                        <td class="p-3 text-right text-base font-black text-rose-600">${AppUtils.formatCurrency(g.monto)}</td>
-                    </tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400 italic">No hay gastos registrados</td></tr>';
-            }
-        } else {
-            if (auditContainer) auditContainer.innerHTML = '<div class="py-20 text-center text-slate-400 font-bold uppercase tracking-widest">Error al procesar los datos del servidor</div>';
-        }
-
-        if (window.lucide) lucide.createIcons();
-    } catch (e) {
-        console.error(e);
-        if (auditContainer) auditContainer.innerHTML = '<div class="py-20 text-center text-rose-500 font-bold uppercase tracking-widest">Error de conexión con el servidor</div>';
-    }
-};
-
-/**
- * Renderiza la tabla de Cartera por Edades.
- * 
- * v2.4: Ahora incluye 2 botones por fila:
- *       • "Ver Detalle" → abre drawer lateral con todas las facturas del cliente.
- *       • "Abonar"     → acceso rápido al flujo de abono.
- */
+// ═══════════════════════════════════════════════════════════════════
+//  CARTERA — TABLA PRINCIPAL
+// ═══════════════════════════════════════════════════════════════════
 window.renderCartera = (data) => {
     const tbody = document.getElementById('cartera-body');
     if (!tbody) return;
@@ -184,14 +133,11 @@ window.renderCartera = (data) => {
             <td class="px-6 py-4 text-xs font-black text-rose-600 text-center">${AppUtils.formatCurrency(c.rango_30_mas)}</td>
             <td class="px-6 py-4 text-right font-black text-navy-blue text-sm">${AppUtils.formatCurrency(c.total_deuda)}</td>
             <td class="px-6 py-4 text-right">
-                <div class="flex items-center justify-end gap-2">
-                    <button onclick="verDetalleClienteCartera('${safeClienteId}', '${safeNombre}')"
-                            ${sinId ? 'disabled' : ''}
-                            class="inline-flex items-center gap-1.5 bg-navy-blue hover:bg-slate-800 disabled:bg-slate-300 text-white font-black text-[10px] uppercase px-3 py-2 rounded-lg transition-all shadow-sm">
-                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                        Ver Detalle
-                    </button>
-                </div>
+                <button onclick="verDetalleClienteCartera('${safeClienteId}', '${safeNombre}')" ${sinId ? 'disabled' : ''}
+                        class="inline-flex items-center gap-1.5 bg-navy-blue hover:bg-slate-800 disabled:bg-slate-300 text-white font-black text-[10px] uppercase px-3 py-2 rounded-lg transition-all shadow-sm">
+                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                    Ver Detalle
+                </button>
             </td>
         </tr>
         `;
@@ -200,39 +146,26 @@ window.renderCartera = (data) => {
     if (window.lucide) lucide.createIcons();
 };
 
-/**
- * Abre un drawer lateral con TODAS las facturas a crédito de un cliente.
- * Cada factura muestra sus datos completos y un formulario INLINE para abonar
- * (sin abrir modal).
- * 
- * @param {string} clienteId
- * @param {string} clienteNombre
- */
+// ═══════════════════════════════════════════════════════════════════
+//  DRAWER — CARGA Y RENDER
+// ═══════════════════════════════════════════════════════════════════
 window.verDetalleClienteCartera = async (clienteId, clienteNombre) => {
-    if (!clienteId) {
-        return AppUtils.showToast('No se puede identificar al cliente', 'error');
-    }
+    if (!clienteId) return AppUtils.showToast('No se puede identificar al cliente', 'error');
 
     try {
         AppUtils.showLoading('Cargando facturas del cliente...');
-
-        const res = await fetch(`${URLROOT}/facturacion/getFacturasCliente/${clienteId}`, {
-            headers: { 'Accept': 'application/json' }
-        });
-
-        if (!res.ok) {
-            AppUtils.hideLoading();
-            AppUtils.showToast('Error al consultar las facturas del cliente', 'error');
-            return;
-        }
-
+        const res = await fetch(`${URLROOT}/facturacion/getFacturasCliente/${clienteId}`, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) { AppUtils.hideLoading(); return AppUtils.showToast('Error al consultar', 'error'); }
         const result = await res.json();
         AppUtils.hideLoading();
 
-        if (!result.success || !result.data) {
-            AppUtils.showToast('No se pudieron cargar las facturas', 'error');
-            return;
-        }
+        if (!result.success || !result.data) return AppUtils.showToast('No se pudieron cargar las facturas', 'error');
+
+        drawerState.clienteId = clienteId;
+        drawerState.clienteNombre = clienteNombre || '';
+        drawerState.data = result.data;
+        drawerState.filtro = '';
+        drawerState.orden = 'fecha_desc';
 
         let drawer = document.getElementById('cartera-drawer');
         let overlay = document.getElementById('cartera-drawer-overlay');
@@ -243,7 +176,6 @@ window.verDetalleClienteCartera = async (clienteId, clienteNombre) => {
             drawer.className = 'fixed inset-y-0 right-0 w-full max-w-2xl bg-white shadow-2xl transform translate-x-full transition-transform duration-300 z-[9999] flex flex-col';
             document.body.appendChild(drawer);
         }
-
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'cartera-drawer-overlay';
@@ -252,44 +184,51 @@ window.verDetalleClienteCartera = async (clienteId, clienteNombre) => {
             document.body.appendChild(overlay);
         }
 
-        // Guardamos el cliente en el dataset del drawer para poder refrescarlo
         drawer.dataset.clienteId = clienteId;
         drawer.dataset.clienteNombre = clienteNombre || '';
 
-        renderCarteraDrawerFacturas(result.data);
+        renderCarteraDrawer();
 
         overlay.classList.remove('hidden');
         void drawer.offsetWidth;
         drawer.classList.remove('translate-x-full');
-
         if (window.lucide) lucide.createIcons();
     } catch (e) {
         AppUtils.hideLoading();
-        console.error('Error en verDetalleClienteCartera:', e);
+        console.error(e);
         AppUtils.showToast('Error de conexión', 'error');
     }
 };
 
-/**
- * Renderiza el contenido del drawer lateral con las facturas del cliente.
- * 
- * v2.5: Cada factura ahora tiene un FORM INLINE de abono con:
- *   • Input de monto (bloqueado si excede el saldo)
- *   • Selector de método (Efectivo / Transferencia)
- *   • Botón "Abonar" deshabilitado hasta que el monto sea válido
- *   • Feedback de error si el monto es inválido
- * 
- * @param {object} data - { cliente, facturas, totales }
- */
-function renderCarteraDrawerFacturas(data) {
+function renderCarteraDrawer() {
     const drawer = document.getElementById('cartera-drawer');
-    if (!drawer) return;
+    if (!drawer || !drawerState.data) return;
 
-    const cliente = data.cliente || {};
-    const facturas = data.facturas || [];
-    const totales = data.totales || { total_deuda: 0, cantidad_facturas: 0 };
-
+    const cliente = drawerState.data.cliente || {};
+    const totales = drawerState.data.totales || { total_deuda: 0, cantidad_facturas: 0 };
     const fmt = (n) => AppUtils.formatCurrency(n || 0);
+
+    let facturas = [...(drawerState.data.facturas || [])];
+    if (drawerState.filtro) {
+        const t = drawerState.filtro.toLowerCase();
+        facturas = facturas.filter(f =>
+            (f.placa || '').toLowerCase().includes(t) ||
+            (f.modelo_vehiculo || '').toLowerCase().includes(t) ||
+            (f.id_formateado || '').toLowerCase().includes(t) ||
+            (f.observaciones || '').toLowerCase().includes(t) ||
+            String(f.saldo_pendiente).includes(t) ||
+            String(f.total).includes(t)
+        );
+    }
+
+    const ordenadores = {
+        'fecha_desc':   (a, b) => new Date(b.fecha) - new Date(a.fecha),
+        'fecha_asc':    (a, b) => new Date(a.fecha) - new Date(b.fecha),
+        'deuda_desc':   (a, b) => parseFloat(b.saldo_pendiente) - parseFloat(a.saldo_pendiente),
+        'deuda_asc':    (a, b) => parseFloat(a.saldo_pendiente) - parseFloat(b.saldo_pendiente),
+        'dias_desc':    (a, b) => parseInt(b.dias_atraso) - parseInt(a.dias_atraso),
+    };
+    facturas.sort(ordenadores[drawerState.orden] || ordenadores['fecha_desc']);
 
     const getDiasBadge = (dias) => {
         dias = parseInt(dias) || 0;
@@ -299,17 +238,25 @@ function renderCarteraDrawerFacturas(data) {
     };
 
     const facturasHtml = facturas.length === 0
-        ? '<div class="text-center py-12 text-slate-400 italic font-bold uppercase tracking-widest">Sin facturas pendientes</div>'
+        ? '<div class="text-center py-12 text-slate-400 italic font-bold uppercase tracking-widest">Sin facturas que coincidan</div>'
         : facturas.map(f => {
             const dias = parseInt(f.dias_atraso) || 0;
             const diasBadge = getDiasBadge(dias);
             const diasTexto = dias === 0 ? 'HOY' : `HACE ${dias} DÍAS`;
             const saldoFmt = parseFloat(f.saldo_pendiente || 0).toFixed(2);
+            const estadoGestion = f.estado_gestion || 'NUEVO';
+
+            const ultimoAbono = (f.ultimo_abono_fecha && parseFloat(f.ultimo_abono_monto) > 0)
+                ? `<div class="text-[9px] font-bold text-emerald-600 mt-0.5">
+                       <i data-lucide="check-circle-2" class="w-2.5 h-2.5 inline"></i>
+                       Últ. abono: ${fmt(f.ultimo_abono_monto)} (${new Date(f.ultimo_abono_fecha).toLocaleDateString()})
+                   </div>`
+                : '';
 
             return `
             <div class="border border-slate-200 rounded-xl p-4 hover:border-navy-blue hover:shadow-md transition-all bg-white"
-                 data-factura-card="${f.id}"
-                 data-saldo="${f.saldo_pendiente}">
+                 data-factura-card="${f.id}" data-saldo="${f.saldo_pendiente}" data-abonos-loaded="0">
+                
                 <div class="flex justify-between items-start mb-3">
                     <div class="flex items-center gap-3">
                         <div class="h-12 w-12 rounded-xl bg-navy-blue text-neon-green flex flex-col items-center justify-center shadow-sm">
@@ -321,22 +268,21 @@ function renderCarteraDrawerFacturas(data) {
                             <p class="text-[10px] font-bold text-slate-400 uppercase">
                                 ${new Date(f.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </p>
+                            ${ultimoAbono}
                         </div>
                     </div>
-                    <span class="text-[9px] font-black uppercase px-2 py-1 rounded-md ${diasBadge}">
-                        ${diasTexto}
-                    </span>
+                    <span class="text-[9px] font-black uppercase px-2 py-1 rounded-md ${diasBadge}">${diasTexto}</span>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 mb-3 text-xs">
-                    <div class="flex flex-col">
+                    <div>
                         <span class="text-[9px] font-black text-slate-400 uppercase">Vehículo</span>
-                        <span class="font-bold text-slate-700 uppercase">${f.marca_vehiculo || ''} ${f.modelo_vehiculo || 'N/A'}</span>
+                        <div class="font-bold text-slate-700 uppercase">${f.marca_vehiculo || ''} ${f.modelo_vehiculo || 'N/A'}</div>
                         <span class="font-mono text-navy-blue font-black text-sm">[${f.placa || '---'}]</span>
                     </div>
-                    <div class="flex flex-col text-right">
+                    <div class="text-right">
                         <span class="text-[9px] font-black text-slate-400 uppercase">Origen</span>
-                        <span class="font-bold text-slate-700 uppercase text-[11px]">${f.origen || 'N/A'}</span>
+                        <div class="font-bold text-slate-700 uppercase text-[11px]">${f.origen || 'N/A'}</div>
                     </div>
                 </div>
 
@@ -362,30 +308,56 @@ function renderCarteraDrawerFacturas(data) {
                     </div>
                 ` : ''}
 
-                <!-- ─────────────────────────────────────────────────── -->
-                <!-- FORM INLINE DE ABONO (v2.5)                        -->
-                <!-- ─────────────────────────────────────────────────── -->
+                <div class="mb-3">
+                    <label class="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1 mb-1">
+                        <i data-lucide="flag" class="w-3 h-3"></i> Estado de gestión
+                    </label>
+                    <select class="estado-gestion-select w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-[11px] text-slate-700 focus:ring-2 focus:ring-navy-blue outline-none"
+                            data-factura-id="${f.id}" data-previous-value="${estadoGestion}">
+                        <option value="NUEVO" ${estadoGestion === 'NUEVO' ? 'selected' : ''}>🔵 NUEVO</option>
+                        <option value="GESTIONADO" ${estadoGestion === 'GESTIONADO' ? 'selected' : ''}>📞 GESTIONADO</option>
+                        <option value="PROMETIDO" ${estadoGestion === 'PROMETIDO' ? 'selected' : ''}>🤝 PROMETIDO</option>
+                        <option value="ACUERDO_PAGO" ${estadoGestion === 'ACUERDO_PAGO' ? 'selected' : ''}>📄 ACUERDO DE PAGO</option>
+                        <option value="JUDICIAL" ${estadoGestion === 'JUDICIAL' ? 'selected' : ''}>⚖️ JUDICIAL</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <button type="button" class="historial-toggle w-full flex items-center justify-between p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-[10px] font-black uppercase text-slate-500 transition-all"
+                            data-factura-id="${f.id}">
+                        <span class="flex items-center gap-1.5">
+                            <i data-lucide="history" class="w-3 h-3"></i>
+                            Ver historial de abonos
+                        </span>
+                        <i data-lucide="chevron-down" class="historial-chevron w-3.5 h-3.5 transition-transform"></i>
+                    </button>
+                    <div class="historial-container hidden mt-2 p-3 bg-slate-50 rounded-lg border border-slate-100 text-[10px]" data-factura-id="${f.id}">
+                        <div class="text-center text-slate-400 italic">Cargando...</div>
+                    </div>
+                </div>
+
                 <div class="pt-3 border-t border-slate-100 space-y-2" data-abono-form="${f.id}">
                     <p class="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1.5">
                         <i data-lucide="hand-coins" class="w-3 h-3"></i> Registrar Abono
                     </p>
 
-                    <div class="grid grid-cols-3 gap-2">
+                    <div class="grid grid-cols-4 gap-2">
                         <div class="col-span-2">
-                            <input type="number"
-                                   min="0.01"
-                                   step="0.01"
-                                   max="${saldoFmt}"
-                                   placeholder="Monto a abonar"
-                                   class="abono-input w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-black text-navy-blue text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 outline-none"
-                                   data-factura-id="${f.id}"
-                                   data-saldo="${f.saldo_pendiente}">
+                            <input type="number" min="0.01" step="0.01" max="${saldoFmt}" placeholder="Monto"
+                                   class="abono-input w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-black text-navy-blue text-sm focus:ring-2 focus:ring-emerald-400 outline-none"
+                                   data-factura-id="${f.id}" data-saldo="${f.saldo_pendiente}">
                         </div>
                         <div>
-                            <select class="abono-metodo w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-xs text-slate-700 focus:ring-2 focus:ring-emerald-400 outline-none"
+                            <button type="button" class="btn-abonar-todo w-full p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[10px] uppercase rounded-lg transition-all"
                                     data-factura-id="${f.id}">
-                                <option value="EFECTIVO">EFECTIVO</option>
-                                <option value="TRANSFERENCIA">TRANSFER.</option>
+                                Máx
+                            </button>
+                        </div>
+                        <div>
+                            <select class="abono-metodo w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-[10px] text-slate-700 focus:ring-2 focus:ring-emerald-400 outline-none"
+                                    data-factura-id="${f.id}">
+                                <option value="EFECTIVO">EFE</option>
+                                <option value="TRANSFERENCIA">TRA</option>
                             </select>
                         </div>
                     </div>
@@ -393,13 +365,20 @@ function renderCarteraDrawerFacturas(data) {
                     <p class="abono-error hidden text-[10px] font-black text-rose-600" data-error-for="${f.id}"></p>
 
                     <div class="flex justify-end gap-2">
+                        <!-- 🖨 IMPRIMIR PDF DIRECTO -->
+                        <button onclick="window.open('${URLROOT}/facturacion/imprimir/${f.id}', '_blank')"
+                                class="p-2 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all" 
+                                title="Imprimir Factura PDF">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                        </button>
+                        <!-- 🔗 VER FACTURA COMPLETA -->
                         <button onclick="window.open('${URLROOT}/facturas/ver/${f.id}', '_blank')"
-                                class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver factura completa">
+                                class="p-2 text-slate-400 hover:text-navy-blue hover:bg-slate-50 rounded-lg transition-colors" 
+                                title="Ver factura completa">
                             <i data-lucide="external-link" class="w-4 h-4"></i>
                         </button>
                         <button class="abono-btn inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-black text-[10px] uppercase px-3 py-2 rounded-lg transition-all shadow-sm disabled:shadow-none"
-                                data-factura-id="${f.id}"
-                                disabled>
+                                data-factura-id="${f.id}" disabled>
                             <i data-lucide="hand-coins" class="w-3.5 h-3.5"></i>
                             Abonar
                         </button>
@@ -416,14 +395,13 @@ function renderCarteraDrawerFacturas(data) {
                 ${cliente.telefono ? `<p class="text-xs font-bold text-neon-green mt-1 flex items-center gap-2"><i data-lucide="phone" class="w-3 h-3"></i> ${cliente.telefono}</p>` : ''}
                 ${cliente.email ? `<p class="text-xs font-bold text-slate-300 flex items-center gap-2 mt-0.5"><i data-lucide="mail" class="w-3 h-3"></i> ${cliente.email}</p>` : ''}
             </div>
-            <button onclick="cerrarCarteraDrawer()"
-                    class="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all">
+            <button onclick="cerrarCarteraDrawer()" class="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
 
         <div class="bg-slate-50 p-4 border-b border-slate-200">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="p-3 bg-white rounded-xl border border-slate-200">
                     <p class="text-[9px] font-black text-slate-400 uppercase">Facturas Pendientes</p>
                     <p class="text-2xl font-black text-navy-blue">${totales.cantidad_facturas}</p>
@@ -433,6 +411,22 @@ function renderCarteraDrawerFacturas(data) {
                     <p class="text-2xl font-black text-rose-600">${fmt(totales.total_deuda)}</p>
                 </div>
             </div>
+
+            <div class="grid grid-cols-3 gap-2">
+                <div class="col-span-2 relative">
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400"></i>
+                    <input type="text" id="drawer-filtro" placeholder="Filtrar placa, monto, obs..."
+                           class="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-navy-blue"
+                           value="${drawerState.filtro}">
+                </div>
+                <select id="drawer-orden" class="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase text-slate-600 outline-none focus:ring-2 focus:ring-navy-blue">
+                    <option value="fecha_desc" ${drawerState.orden === 'fecha_desc' ? 'selected' : ''}>Fecha ↓</option>
+                    <option value="fecha_asc" ${drawerState.orden === 'fecha_asc' ? 'selected' : ''}>Fecha ↑</option>
+                    <option value="deuda_desc" ${drawerState.orden === 'deuda_desc' ? 'selected' : ''}>Deuda ↓</option>
+                    <option value="deuda_asc" ${drawerState.orden === 'deuda_asc' ? 'selected' : ''}>Deuda ↑</option>
+                    <option value="dias_desc" ${drawerState.orden === 'dias_desc' ? 'selected' : ''}>Antigüedad</option>
+                </select>
+            </div>
         </div>
 
         <div class="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/50" id="cartera-drawer-facturas">
@@ -440,56 +434,67 @@ function renderCarteraDrawerFacturas(data) {
         </div>
 
         <div class="p-4 bg-white border-t border-slate-200 flex justify-end">
-            <button onclick="cerrarCarteraDrawer()"
-                    class="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xs uppercase rounded-lg transition-all">
+            <button onclick="cerrarCarteraDrawer()" class="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xs uppercase rounded-lg transition-all">
                 Cerrar
             </button>
         </div>
     `;
 
-    // ─────────────────────────────────────────────────────────────
-    //  Vincular eventos de los formularios inline de abono
-    // ─────────────────────────────────────────────────────────────
-    bindDrawerAbonoEvents();
-
+    bindDrawerEvents();
     if (window.lucide) lucide.createIcons();
 }
 
-/**
- * Vincula los eventos de validación y submit de los formularios inline
- * de abono del drawer.
- */
-function bindDrawerAbonoEvents() {
-    // Inputs de monto: validar en vivo
+// ═══════════════════════════════════════════════════════════════════
+//  EVENTOS DEL DRAWER
+// ═══════════════════════════════════════════════════════════════════
+function bindDrawerEvents() {
+    document.getElementById('drawer-filtro')?.addEventListener('input', (e) => {
+        drawerState.filtro = e.target.value;
+        clearTimeout(window._drawerFiltroTimeout);
+        window._drawerFiltroTimeout = setTimeout(() => renderCarteraDrawer(), 250);
+    });
+
+    document.getElementById('drawer-orden')?.addEventListener('change', (e) => {
+        drawerState.orden = e.target.value;
+        renderCarteraDrawer();
+    });
+
     document.querySelectorAll('#cartera-drawer .abono-input').forEach(input => {
         input.addEventListener('input', () => validarAbonoInline(input));
     });
 
-    // Botones de abonar: submit directo
+    document.querySelectorAll('#cartera-drawer .btn-abonar-todo').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const fid = btn.dataset.facturaId;
+            const card = document.querySelector(`#cartera-drawer [data-factura-card="${fid}"]`);
+            if (!card) return;
+            const input = card.querySelector('.abono-input');
+            input.value = parseFloat(input.max).toFixed(2);
+            validarAbonoInline(input);
+        });
+    });
+
     document.querySelectorAll('#cartera-drawer .abono-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const facturaId = btn.dataset.facturaId;
             const card = document.querySelector(`#cartera-drawer [data-factura-card="${facturaId}"]`);
             if (!card) return;
-
             const input = card.querySelector('.abono-input');
             const metodo = card.querySelector('.abono-metodo').value;
-
             if (!validarAbonoInline(input)) return;
-
-            const monto = parseFloat(input.value);
-            ejecutarAbonoInline(facturaId, monto, metodo, card, btn);
+            ejecutarAbonoInline(facturaId, parseFloat(input.value), metodo, card, btn);
         });
+    });
+
+    document.querySelectorAll('#cartera-drawer .historial-toggle').forEach(btn => {
+        btn.addEventListener('click', () => cargarHistorialAbonos(btn));
+    });
+
+    document.querySelectorAll('#cartera-drawer .estado-gestion-select').forEach(sel => {
+        sel.addEventListener('change', () => actualizarEstadoGestionInline(sel));
     });
 }
 
-/**
- * Valida el monto de un input de abono inline y actualiza el estado visual
- * del botón "Abonar" correspondiente.
- * 
- * @param {HTMLInputElement} input
- * @returns {boolean} true si el monto es válido.
- */
 function validarAbonoInline(input) {
     const facturaId = input.dataset.facturaId;
     const saldo = parseFloat(input.dataset.saldo) || 0;
@@ -506,37 +511,14 @@ function validarAbonoInline(input) {
     if (btn) btn.disabled = !valido;
 
     if (errorEl) {
-        if (!input.value) {
-            errorEl.classList.add('hidden');
-            errorEl.textContent = '';
-            input.classList.remove('border-rose-400');
-        } else if (!esNumero || !mayorCero) {
-            errorEl.textContent = 'El monto debe ser mayor a 0.';
-            errorEl.classList.remove('hidden');
-            input.classList.add('border-rose-400');
-        } else if (!menorIgualSaldo) {
-            errorEl.textContent = 'El monto no puede superar el saldo (' + AppUtils.formatCurrency(saldo) + ').';
-            errorEl.classList.remove('hidden');
-            input.classList.add('border-rose-400');
-        } else {
-            errorEl.classList.add('hidden');
-            errorEl.textContent = '';
-            input.classList.remove('border-rose-400');
-        }
+        if (!input.value) { errorEl.classList.add('hidden'); input.classList.remove('border-rose-400'); }
+        else if (!esNumero || !mayorCero) { errorEl.textContent = 'El monto debe ser mayor a 0.'; errorEl.classList.remove('hidden'); input.classList.add('border-rose-400'); }
+        else if (!menorIgualSaldo) { errorEl.textContent = 'El monto no puede superar el saldo (' + AppUtils.formatCurrency(saldo) + ').'; errorEl.classList.remove('hidden'); input.classList.add('border-rose-400'); }
+        else { errorEl.classList.add('hidden'); input.classList.remove('border-rose-400'); }
     }
-
     return valido;
 }
 
-/**
- * Ejecuta el abono inline via AJAX y refresca el drawer + la tabla de cartera.
- * 
- * @param {number|string} facturaId
- * @param {number} monto
- * @param {string} metodo
- * @param {HTMLElement} card
- * @param {HTMLButtonElement} btn
- */
 async function ejecutarAbonoInline(facturaId, monto, metodo, card, btn) {
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
@@ -546,68 +528,132 @@ async function ejecutarAbonoInline(facturaId, monto, metodo, card, btn) {
     try {
         const res = await fetch(`${URLROOT}/facturacion/registrarAbono`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': CSRF_TOKEN
-            },
-            body: JSON.stringify({
-                venta_id: parseInt(facturaId),
-                monto: monto,
-                metodo: metodo
-            })
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            body: JSON.stringify({ venta_id: parseInt(facturaId), monto, metodo })
         });
-
-        let data;
-        try {
-            data = await res.json();
-        } catch (parseErr) {
-            console.error('Respuesta no JSON:', await res.text());
-            AppUtils.showToast('Respuesta inválida del servidor', 'error');
-            btn.disabled = false;
-            btn.innerHTML = originalHtml;
-            if (window.lucide) lucide.createIcons();
-            return;
-        }
+        const data = await res.json();
 
         if (data.success) {
             AppUtils.showToast(data.mensaje || 'Abono registrado');
-
-            // Refrescar drawer y tabla de cartera
-            const drawer = document.getElementById('cartera-drawer');
-            const clienteId = drawer?.dataset?.clienteId;
-            const clienteNombre = drawer?.dataset?.clienteNombre || '';
-
-            if (clienteId) {
-                window.verDetalleClienteCartera(clienteId, clienteNombre);
+            if (drawerState.clienteId) {
+                window.verDetalleClienteCartera(drawerState.clienteId, drawerState.clienteNombre);
             }
-
-            // Refrescar tabla de cartera de fondo
-            if (typeof window.cargarCartera === 'function') {
-                window.cargarCartera();
-            }
-
-            // Refrescar campanita de notificaciones
-            if (typeof initCreditNotifications === 'function') {
-                initCreditNotifications();
-            }
+            if (typeof window.cargarCartera === 'function') window.cargarCartera();
+            if (typeof initCreditNotifications === 'function') initCreditNotifications();
         } else {
-            AppUtils.showToast(data.mensaje || 'Error al registrar el abono', 'error');
-            btn.disabled = false;
-            btn.innerHTML = originalHtml;
+            AppUtils.showToast(data.mensaje || 'Error', 'error');
+            btn.disabled = false; btn.innerHTML = originalHtml;
             if (window.lucide) lucide.createIcons();
         }
     } catch (e) {
-        console.error('Error al registrar abono inline:', e);
+        console.error(e);
         AppUtils.showToast('Error de conexión', 'error');
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
+        btn.disabled = false; btn.innerHTML = originalHtml;
         if (window.lucide) lucide.createIcons();
     }
 }
 
-/**
- * Cierra el drawer lateral de cartera.
- */
+async function cargarHistorialAbonos(toggleBtn) {
+    const facturaId = toggleBtn.dataset.facturaId;
+    const card = toggleBtn.closest('[data-factura-card]');
+    const container = card.querySelector(`.historial-container[data-factura-id="${facturaId}"]`);
+    const chevron = toggleBtn.querySelector('.historial-chevron');
+
+    const isHidden = container.classList.contains('hidden');
+    if (!isHidden) {
+        container.classList.add('hidden');
+        chevron.style.transform = '';
+        return;
+    }
+
+    container.classList.remove('hidden');
+    chevron.style.transform = 'rotate(180deg)';
+
+    if (card.dataset.abonosLoaded === '1') return;
+    container.innerHTML = '<div class="text-center text-slate-400 italic">Cargando...</div>';
+
+    try {
+        const res = await fetch(`${URLROOT}/facturacion/getAbonosFactura/${facturaId}`);
+        const data = await res.json();
+
+        if (!data.success || !data.data || data.data.length === 0) {
+            container.innerHTML = '<div class="text-center text-slate-400 italic py-2">Sin abonos registrados</div>';
+            card.dataset.abonosLoaded = '1';
+            return;
+        }
+
+        const fmt = (n) => AppUtils.formatCurrency(n || 0);
+        container.innerHTML = `
+            <table class="w-full">
+                <thead>
+                    <tr class="text-slate-400 border-b border-slate-200">
+                        <th class="text-left py-1 text-[9px] font-black uppercase">Fecha</th>
+                        <th class="text-left py-1 text-[9px] font-black uppercase">Método</th>
+                        <th class="text-left py-1 text-[9px] font-black uppercase">Por</th>
+                        <th class="text-right py-1 text-[9px] font-black uppercase">Monto</th>
+                        <th class="text-right py-1 text-[9px] font-black uppercase">PDF</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.data.map(a => `
+                        <tr class="border-b border-slate-100 last:border-0">
+                            <td class="py-1.5 text-[10px] text-slate-600">${new Date(a.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: '2-digit' })}</td>
+                            <td class="py-1.5">
+                                <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-black ${a.metodo_pago === 'EFECTIVO' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}">
+                                    ${a.metodo_pago === 'EFECTIVO' ? 'EFE' : 'TRA'}
+                                </span>
+                            </td>
+                            <td class="py-1.5 text-[10px] text-slate-500 uppercase truncate max-w-[80px]">${a.usuario_nombre || 'SISTEMA'}</td>
+                            <td class="py-1.5 text-right font-black text-emerald-700">${fmt(a.monto)}</td>
+                            <td class="py-1.5 text-right">
+                                <a href="${URLROOT}/facturacion/imprimirReciboAbono/${a.id}" target="_blank"
+                                   class="inline-flex p-1 text-blue-500 hover:bg-blue-50 rounded transition-all" title="Recibo PDF">
+                                    <i data-lucide="printer" class="w-3 h-3"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+        card.dataset.abonosLoaded = '1';
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = '<div class="text-center text-rose-500 italic py-2">Error al cargar</div>';
+    }
+}
+
+async function actualizarEstadoGestionInline(selectEl) {
+    const facturaId = selectEl.dataset.facturaId;
+    const estado = selectEl.value;
+    const originalValue = selectEl.dataset.previousValue || 'NUEVO';
+
+    selectEl.disabled = true;
+    try {
+        const res = await fetch(`${URLROOT}/facturacion/actualizarEstadoGestion`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            body: JSON.stringify({ factura_id: parseInt(facturaId), estado })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            AppUtils.showToast('Estado de gestión actualizado', 'success');
+            selectEl.dataset.previousValue = estado;
+        } else {
+            AppUtils.showToast(data.mensaje || 'Error al actualizar', 'error');
+            selectEl.value = originalValue;
+        }
+    } catch (e) {
+        console.error(e);
+        AppUtils.showToast('Error de conexión', 'error');
+        selectEl.value = originalValue;
+    } finally {
+        selectEl.disabled = false;
+    }
+}
+
 window.cerrarCarteraDrawer = () => {
     const drawer = document.getElementById('cartera-drawer');
     const overlay = document.getElementById('cartera-drawer-overlay');
@@ -615,10 +661,24 @@ window.cerrarCarteraDrawer = () => {
     if (overlay) overlay.classList.add('hidden');
 };
 
-/**
- * Abona desde la vista de Cartera por Edades (botón rápido en la fila).
- * Reutiliza la lógica de listado de facturas.
- */
+// ═══════════════════════════════════════════════════════════════════
+//  CARTERA — CARGA
+// ═══════════════════════════════════════════════════════════════════
+window.cargarCartera = async function () {
+    const tbody = document.getElementById('cartera-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-16 text-slate-400 italic animate-pulse font-bold uppercase tracking-widest">GENERANDO REPORTE DE CARTERA...</td></tr>';
+
+    try {
+        const res = await fetch(`${URLROOT}/reportes/cartera`);
+        const result = await res.json();
+        if (result.success) window.renderCartera(result.data);
+    } catch (e) {
+        console.error(e);
+        AppUtils.showToast("Error al cargar cartera", "error");
+    }
+};
+
 window.abonarDesdeCartera = async (clienteNombre) => {
     try {
         AppUtils.showLoading('Consultando facturas pendientes...');
@@ -714,272 +774,62 @@ window._abonarFacturaDesdeLista = (index) => {
     }, 200);
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('search-audit')?.addEventListener('input', (e) => filtrarAuditoria(e.target.value));
+// ═══════════════════════════════════════════════════════════════════
+//  REPORTE DETALLADO (Auditoría) — CON BOTÓN IMPRIMIR POR FACTURA
+// ═══════════════════════════════════════════════════════════════════
+window.cargarReporteDetallado = async () => {
+    const desde = document.getElementById('rep-desde')?.value || '1970-01-01';
+    const hasta = document.getElementById('rep-hasta')?.value || '2099-12-31';
+    const auditContainer = document.getElementById('audit-list-container');
+    const contCompras = document.getElementById('det-compras-body');
+    const contGastos = document.getElementById('det-gastos-body');
 
-    const searchReport = document.getElementById('search-report');
-    if (searchReport) {
-        const wrapper = searchReport.parentElement;
-        if (wrapper && !document.getElementById('btn-print-expenses-bulk')) {
-            const btn = document.createElement('button');
-            btn.id = 'btn-print-expenses-bulk';
-            btn.type = 'button';
-            btn.onclick = window.imprimirGastosCompleto;
-            btn.className = "p-2.5 bg-navy-blue text-neon-green rounded-xl hover:bg-slate-800 transition-all shadow-sm flex items-center justify-center group flex-shrink-0";
-            btn.title = "Imprimir Reporte de Gastos";
-            btn.innerHTML = '<i data-lucide="printer" class="w-5 h-5"></i>';
-            wrapper.classList.add('flex', 'items-center', 'gap-2');
-            wrapper.appendChild(btn);
-        }
-    }
-
-    const searchAudit = document.getElementById('search-audit');
-    if (searchAudit) {
-        const wrapper = searchAudit.parentElement;
-        if (wrapper && !document.getElementById('btn-print-audit-bulk')) {
-            const btn = document.createElement('button');
-            btn.id = 'btn-print-audit-bulk';
-            btn.type = 'button';
-            btn.onclick = window.imprimirAuditoriaCompleta;
-            btn.className = "p-2.5 bg-navy-blue text-neon-green rounded-xl hover:bg-slate-800 transition-all shadow-sm flex items-center justify-center group flex-shrink-0";
-            btn.title = "Imprimir Reporte de Auditoría";
-            btn.innerHTML = '<i data-lucide="printer" class="w-5 h-5"></i>';
-            wrapper.classList.add('flex', 'items-center', 'gap-2');
-            wrapper.appendChild(btn);
-            if (window.lucide) lucide.createIcons();
-        }
-    }
-
-    window.handler_reporte_flujo = new DataTableRefactor({
-        tableId: 'reportTable',
-        tableBodyId: 'report-body',
-        endpoint: `${URLROOT}/reportes/generar`,
-        searchInputId: 'search-report',
-        limitSelectorId: 'limitSelector',
-        paginationId: 'custom-bottom-controls',
-        totalId: 'totalCount',
-        getExtraParams: () => ({
-            desde: document.getElementById('rep-desde')?.value || '',
-            hasta: document.getElementById('rep-hasta')?.value || ''
-        }),
-        onDataLoaded: (result) => {
-            if (result.totales) {
-                document.getElementById('total-repuestos').textContent = AppUtils.formatCurrency(result.totales.ingreso_repuestos || 0);
-                document.getElementById('total-servicios').textContent = AppUtils.formatCurrency(result.totales.ingreso_servicios || 0);
-                document.getElementById('total-egresos').textContent = AppUtils.formatCurrency(result.totales.egresos || 0);
-                document.getElementById('total-deuda').textContent = AppUtils.formatCurrency(result.totales.deuda || 0);
-                document.getElementById('total-balance').textContent = AppUtils.formatCurrency(result.totales.balance || 0);
-            }
-            const body = document.getElementById('report-body');
-            if (result.data && result.data.length === 0) {
-                body.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
-                    <div class="flex flex-col items-center gap-2">
-                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i> 
-                        <span>No se encontraron movimientos en este periodo</span>
-                    </div>
-                </td></tr>`;
-                if (window.lucide) lucide.createIcons();
-            }
-        },
-        renderRow: (m) => window.renderFlujoRow(m)
-    });
-
-    window.handler_reporte_devoluciones = new DataTableRefactor({
-        tableId: 'devolucionesTable',
-        tableBodyId: 'devoluciones-body',
-        endpoint: `${URLROOT}/reportes/devoluciones`,
-        searchInputId: 'search-devoluciones',
-        limitSelectorId: 'limitSelector-devoluciones',
-        paginationId: 'pagination-devoluciones',
-        totalId: 'totalCount-devoluciones',
-        getExtraParams: () => ({
-            desde: document.getElementById('rep-desde')?.value || new Date().toISOString().split('T')[0].substring(0, 8) + '01',
-            hasta: document.getElementById('rep-hasta')?.value || new Date().toISOString().split('T')[0]
-        }),
-        onDataLoaded: (result) => {
-            const body = document.getElementById('devoluciones-body');
-            if (result.data && result.data.length === 0) {
-                body.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
-                    <div class="flex flex-col items-center gap-2">
-                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i> 
-                        <span>No hay registros de devoluciones para mostrar</span>
-                    </div>
-                </td></tr>`;
-                if (window.lucide) lucide.createIcons();
-            }
-        },
-        renderRow: (d) => {
-            return `
-                <tr class="hover:bg-slate-50/50 transition-colors border-b border-slate-50">
-                    <td class="px-4 py-4 font-black text-navy-blue text-sm uppercase">#${d.id}</td>
-                    <td class="px-4 py-4 text-sm font-bold text-slate-500">${new Date(d.fecha).toLocaleDateString()}</td>
-                    <td class="px-4 py-4 text-sm font-black text-navy-blue uppercase">${d.cliente_nombre || 'N/A'}<br><span class="text-[10px] text-slate-400 font-bold">${d.placa || '---'}</span></td>
-                    <td class="px-4 py-4 text-sm text-slate-600 uppercase font-medium">${d.descripcion}</td>
-                    <td class="px-4 py-4 text-right font-black text-rose-500">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
-                    <td class="px-4 py-4 text-center">
-                        <span class="px-2 py-0.5 rounded-full text-xs font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
-                            ${d.destino}
-                        </span>
-                    </td>
-                </tr>`;
-        }
-    });
-
-    document.getElementById('rep-desde')?.addEventListener('change', window.actualizarFiltrosFechas);
-    document.getElementById('rep-hasta')?.addEventListener('change', window.actualizarFiltrosFechas);
-});
-
-window.cargarReporte = window.actualizarFiltrosFechas;
-
-window.switchReportTab = (tab) => {
-    activeReportTab = tab;
-    const secResumen = document.getElementById('sec-resumen');
-    const secDetallado = document.getElementById('sec-detallado');
-    const secDevoluciones = document.getElementById('sec-devoluciones');
-    const secNomina = document.getElementById('sec-nomina');
-    const secHistorialNomina = document.getElementById('sec-historial-nomina');
-
-    const tabResumen = document.getElementById('tab-resumen');
-    const tabDetallado = document.getElementById('tab-detallado');
-    const tabDevoluciones = document.getElementById('tab-devoluciones');
-    const tabCartera = document.getElementById('tab-cartera');
-    const tabRentabilidad = document.getElementById('tab-rentabilidad');
-    const tabNomina = document.getElementById('tab-nomina');
-    const tabHistorialNomina = document.getElementById('tab-historial-nomina');
-
-    if (secResumen) secResumen.classList.add('hidden');
-    if (secDetallado) secDetallado.classList.add('hidden');
-    if (secDevoluciones) secDevoluciones.classList.add('hidden');
-    if (document.getElementById('sec-cartera')) document.getElementById('sec-cartera').classList.add('hidden');
-    if (document.getElementById('sec-rentabilidad')) document.getElementById('sec-rentabilidad').classList.add('hidden');
-    if (secNomina) secNomina.classList.add('hidden');
-    if (secHistorialNomina) secHistorialNomina.classList.add('hidden');
-
-    [tabResumen, tabDetallado, tabDevoluciones, tabCartera, tabRentabilidad, tabNomina, tabHistorialNomina].forEach(t => {
-        if (t) {
-            t.classList.remove('border-neon-green', 'text-navy-blue');
-            t.classList.add('border-transparent', 'text-slate-400');
-        }
-    });
-
-    if (tab === 'resumen') {
-        if (secResumen) secResumen.classList.remove('hidden');
-        if (tabResumen) tabResumen.classList.add('border-neon-green', 'text-navy-blue');
-        if (window.handler_reporte_flujo) window.handler_reporte_flujo.reload();
-    } else if (tab === 'detallado') {
-        if (secDetallado) secDetallado.classList.remove('hidden');
-        if (tabDetallado) tabDetallado.classList.add('border-neon-green', 'text-navy-blue');
-        window.cargarReporteDetallado();
-    } else if (tab === 'devoluciones') {
-        if (secDevoluciones) secDevoluciones.classList.remove('hidden');
-        if (tabDevoluciones) tabDevoluciones.classList.add('border-neon-green', 'text-navy-blue');
-        if (window.handler_reporte_devoluciones) window.handler_reporte_devoluciones.reload();
-    } else if (tab === 'cartera') {
-        if (document.getElementById('sec-cartera')) document.getElementById('sec-cartera').classList.remove('hidden');
-        if (tabCartera) tabCartera.classList.add('border-neon-green', 'text-navy-blue');
-        window.cargarCartera();
-    } else if (tab === 'rentabilidad') {
-        if (document.getElementById('sec-rentabilidad')) document.getElementById('sec-rentabilidad').classList.remove('hidden');
-        if (tabRentabilidad) tabRentabilidad.classList.add('border-neon-green', 'text-navy-blue');
-        window.cargarRentabilidad();
-    } else if (tab === 'nomina') {
-        if (secNomina) secNomina.classList.remove('hidden');
-        if (tabNomina) tabNomina.classList.add('border-neon-green', 'text-navy-blue');
-        cargarNomina();
-    } else if (tab === 'historial_nomina') {
-        if (secHistorialNomina) secHistorialNomina.classList.remove('hidden');
-        if (tabHistorialNomina) tabHistorialNomina.classList.add('border-neon-green', 'text-navy-blue');
-        window.cargarHistorialNomina();
-    }
-
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-};
-
-window.cargarCartera = async function () {
-    const tbody = document.getElementById('cartera-body');
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-16 text-slate-400 italic animate-pulse font-bold uppercase tracking-widest">GENERANDO REPORTE DE CARTERA...</td></tr>';
+    if (auditContainer) auditContainer.innerHTML = '<div class="py-20 text-center animate-pulse text-slate-400 font-bold uppercase tracking-widest">Generando Auditoría de Trabajos...</div>';
+    if (contCompras) contCompras.innerHTML = '<tr><td colspan="6" class="p-8 text-center animate-pulse">Cargando compras...</td></tr>';
+    if (contGastos) contGastos.innerHTML = '<tr><td colspan="5" class="p-8 text-center animate-pulse">Cargando gastos...</td></tr>';
 
     try {
-        const res = await fetch(`${URLROOT}/reportes/cartera`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
+        const res = await fetch(`${URLROOT}/reportes/detallado?desde=${desde}&hasta=${hasta}`);
+        if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
         const result = await res.json();
-        if (result.success) window.renderCartera(result.data);
-    } catch (e) {
-        console.error("Error al cargar cartera:", e);
-        AppUtils.showToast("Error al cargar cartera", "error");
-    }
-};
 
-window.exportarCarteraProveedoresPdf = function () {
-    AppUtils.showToast("Generando reporte de proveedores...", "info");
-    window.open(`${URLROOT}/reportes/imprimirCarteraProveedores`, '_blank');
-};
+        const responseData = result.success ? result.data : result;
 
-window.imprimirReporteProveedorIndividual = function (id) {
-    if (!id) return;
-    AppUtils.showToast("Generando estado de cuenta...", "info");
-    window.open(`${URLROOT}/reportes/imprimirReporteProveedor/${id}`, '_blank');
-};
+        if (responseData && responseData.ventas) {
+            rawAuditData = responseData;
+            renderAuditoriaLista(rawAuditData.ventas);
 
-window.exportarCarteraExcel = function () {
-    window.location.href = `${URLROOT}/reportes/exportarCarteraExcel`;
-};
+            if (contCompras && rawAuditData.compras) {
+                contCompras.innerHTML = (rawAuditData.compras || []).length ? rawAuditData.compras.map(c => `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-3 text-xs font-bold text-slate-400 uppercase">${new Date(c.fecha).toLocaleDateString()}</td>
+                        <td class="p-3 text-sm font-black text-rose-600 uppercase">${c.proveedor}</td>
+                        <td class="p-3 text-sm font-bold text-slate-600 uppercase">${c.descripcion}</td>
+                        <td class="p-3 text-center text-sm font-bold text-slate-500">${c.cantidad}</td>
+                        <td class="p-3 text-right text-sm font-bold text-slate-500">${AppUtils.formatCurrency(c.costo_unitario)}</td>
+                        <td class="p-3 text-right text-base font-black text-rose-600">${AppUtils.formatCurrency(c.cantidad * c.costo_unitario)}</td>
+                    </tr>`).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">No hay compras registradas</td></tr>';
+            }
 
-window.exportarCarteraPdf = async function () {
-    AppUtils.showToast("Generando PDF de Cartera...", "info");
-    try {
-        const res = await fetch(`${URLROOT}/reportes/exportarCarteraPdf`);
-        if (!res.ok) throw new Error("Error en la respuesta del servidor");
-
-        const result = await res.json();
-        if (result.success) {
-            window.open(result.pdf_url, '_blank');
+            if (contGastos && rawAuditData.gastos) {
+                contGastos.innerHTML = (rawAuditData.gastos || []).length ? rawAuditData.gastos.map(g => `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-3 text-xs font-bold text-slate-400 uppercase">${new Date(g.fecha).toLocaleDateString()}</td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-500 uppercase">${g.categoria}</span></td>
+                        <td class="p-3 text-sm font-bold text-slate-700 uppercase">${g.descripcion}</td>
+                        <td class="p-3 text-sm font-bold text-slate-600 uppercase">${g.metodo_pago || 'EFECTIVO'}</td>
+                        <td class="p-3 text-right text-base font-black text-rose-600">${AppUtils.formatCurrency(g.monto)}</td>
+                    </tr>`).join('') : '<tr><td colspan="5" class="p-8 text-center text-slate-400 italic">No hay gastos registrados</td></tr>';
+            }
         } else {
-            AppUtils.showToast(result.mensaje || "No se pudo generar el PDF", "error");
+            if (auditContainer) auditContainer.innerHTML = '<div class="py-20 text-center text-slate-400 font-bold uppercase tracking-widest">Error al procesar los datos del servidor</div>';
         }
+
+        if (window.lucide) lucide.createIcons();
     } catch (e) {
-        console.error("Error al exportar PDF:", e);
-        AppUtils.showToast("Error de conexión al generar PDF", "error");
+        console.error(e);
+        if (auditContainer) auditContainer.innerHTML = '<div class="py-20 text-center text-rose-500 font-bold uppercase tracking-widest">Error de conexión con el servidor</div>';
     }
-};
-
-window.cargarRentabilidad = async function () {
-    const desde = document.getElementById('rep-desde')?.value || '';
-    const hasta = document.getElementById('rep-hasta')?.value || '';
-    const tbody = document.getElementById('rentabilidad-body');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-slate-400 italic animate-pulse uppercase font-black">Analizando Rentabilidad...</td></tr>';
-
-    try {
-        const res = await fetch(`${URLROOT}/reportes/rentabilidad?desde=${desde}&hasta=${hasta}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const result = await res.json();
-        if (result.success && result.data) {
-            window.renderRentabilidad(result.data);
-        }
-    } catch (e) { console.error(e); }
-};
-
-window.renderRentabilidad = (data) => {
-    const tbody = document.getElementById('rentabilidad-body');
-    if (!tbody) return;
-    tbody.innerHTML = (Array.isArray(data) && data.length > 0) ? data.map(r => {
-        const margen = r.ingreso_total > 0 ? ((r.utilidad_bruta / r.ingreso_total) * 100).toFixed(2) : 0;
-        return `
-            <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
-                <td class="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">${r.tipo}</td>
-                <td class="px-6 py-4 text-sm font-bold text-slate-700 text-center">${r.cantidad_operaciones}</td>
-                <td class="px-6 py-4 text-sm font-bold text-slate-600 text-right">${AppUtils.formatCurrency(r.ingreso_total)}</td>
-                <td class="px-6 py-4 text-sm font-bold text-slate-400 text-right">${AppUtils.formatCurrency(r.costo_total)}</td>
-                <td class="px-6 py-4 text-sm font-black text-emerald-600 text-right">${AppUtils.formatCurrency(r.utilidad_bruta)}</td>
-                <td class="px-6 py-4 text-right">
-                    <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-black text-xs">${margen}%</span>
-                </td>
-            </tr>`;
-    }).join('') : '<tr><td colspan="6" class="text-center py-20 text-slate-400 italic font-bold uppercase">Sin datos de rentabilidad</td></tr>';
-    if (window.lucide) lucide.createIcons();
 };
 
 function renderAuditoriaLista(items) {
@@ -989,7 +839,7 @@ function renderAuditoriaLista(items) {
         return;
     }
 
-    const meses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+    const meses = ["ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO","JULIO","AGOSTO","SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"];
 
     const groupedByMonth = items.reduce((acc, current) => {
         if (!current.fecha) return acc;
@@ -1087,7 +937,7 @@ function renderAuditoriaLista(items) {
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-10">
+                    <div class="flex items-center gap-3">
                         <div class="text-right">
                             <p class="text-sm font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Técnico: <span class="text-navy-blue font-black">${f.usuario}</span></p>
                             <p class="text-sm font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Total Factura: <span class="text-slate-600">${AppUtils.formatCurrency(totalFactura)}</span></p>
@@ -1097,18 +947,34 @@ function renderAuditoriaLista(items) {
                                 ${isCredit ? `<span class="text-[10px] font-black bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase tracking-tighter border border-rose-200">En Crédito</span>` : ''}
                             </div>
                         </div>
+
+                        <!-- 🖨 IMPRIMIR FACTURA -->
+                        <button onclick="window.open('${URLROOT}/facturacion/imprimir/${f.id}', '_blank')" 
+                                class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all shadow-sm" 
+                                title="Imprimir Factura PDF">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                        </button>
+                        <!-- 👁 VER DETALLE -->
+                        <button onclick="verDetalleVenta(${f.id})" 
+                                class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-navy-blue hover:border-navy-blue hover:bg-slate-50 transition-all shadow-sm"
+                                title="Ver detalle">
+                            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                        </button>
+                        <!-- ↩️ DEVOLUCIÓN -->
+                        <button onclick="iniciarDevolucion(${f.id}, '${f.fecha}')" 
+                                class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm" 
+                                title="Devolución">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        </button>
+                        <!-- 💰 ABONAR (solo si tiene crédito) -->
                         ${isCredit ? `
-                            <button onclick="registrarAbonoCliente(${f.id}, ${f.saldo_pendiente})" class="p-3 rounded-xl bg-rose-500 text-white hover:bg-rose-600 transition-all shadow-md flex items-center gap-2 group/btn" title="Registrar Pago">
+                            <button onclick="registrarAbonoCliente(${f.id}, ${f.saldo_pendiente})" 
+                                    class="p-3 rounded-xl bg-rose-500 text-white hover:bg-rose-600 transition-all shadow-md flex items-center gap-2 group/btn" 
+                                    title="Registrar Pago">
                                 <i data-lucide="hand-coins" class="w-4 h-4 group-hover/btn:scale-110 transition-transform"></i>
                                 <span class="text-[10px] font-black uppercase">Abonar</span>
                             </button>
                         ` : ''}
-                        <button onclick="verDetalleVenta(${f.id})" class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-navy-blue hover:border-navy-blue hover:bg-slate-50 transition-all shadow-sm">
-                            <i data-lucide="maximize-2" class="w-4 h-4"></i>
-                        </button>
-                        <button onclick="iniciarDevolucion(${f.id}, '${f.fecha}')" class="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm ml-2" title="Devolución">
-                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -1165,7 +1031,7 @@ function renderAuditoriaLista(items) {
                     </div>
                 </div>
             `;
-            lucide.createIcons();
+            if (window.lucide) lucide.createIcons();
             debtorsContainer.classList.remove('hidden');
         } else {
             debtorsContainer.classList.add('hidden');
@@ -1174,6 +1040,10 @@ function renderAuditoriaLista(items) {
     container.innerHTML = html;
     if (window.lucide) lucide.createIcons();
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  MODAL DE DETALLE — CON BOTÓN IMPRIMIR FACTURA
+// ═══════════════════════════════════════════════════════════════════
 
 window.verDetalleVenta = async (ventaId) => {
     const idLimpio = String(ventaId).replace(/\D/g, '');
@@ -1188,8 +1058,10 @@ window.verDetalleVenta = async (ventaId) => {
             return AppUtils.showToast('No se encontró el detalle de la venta #' + idLimpio, 'error');
         }
 
+        const ventaIdFinal = venta.id || idLimpio;
+
         Swal.fire({
-            title: `<span class="text-sm uppercase text-slate-400 font-black tracking-widest">Detalle de Operación</span><br><span class="text-navy-blue text-2xl">FACTURA #${venta.id || idLimpio}</span>`,
+            title: `<span class="text-sm uppercase text-slate-400 font-black tracking-widest">Detalle de Operación</span><br><span class="text-navy-blue text-2xl">FACTURA #${ventaIdFinal}</span>`,
             html: `
                 <div class="text-left space-y-6 pt-4">
                     <div class="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -1284,34 +1156,23 @@ window.verDetalleVenta = async (ventaId) => {
                     </div>
                 </div>
             `,
-            showConfirmButton: false,
+            showConfirmButton: true,
+            confirmButtonText: 'IMPRIMIR FACTURA',
+            confirmButtonColor: '#10b981',
             showCancelButton: true,
-            cancelButtonText: 'Cerrar Detalle',
-            width: '500px',
+            cancelButtonText: 'CERRAR',
+            cancelButtonColor: '#64748b',
+            width: '520px',
             didOpen: () => lucide.createIcons()
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.open(`${URLROOT}/facturacion/imprimir/${ventaIdFinal}`, '_blank');
+            }
         });
     } catch (e) {
         console.error(e);
         AppUtils.showToast('Error al conectar con el servidor', 'error');
     }
-};
-
-window.imprimirAuditoriaCompleta = () => {
-    const desde = document.getElementById('rep-desde')?.value || '';
-    const hasta = document.getElementById('rep-hasta')?.value || '';
-    const search = document.getElementById('search-audit')?.value || '';
-
-    AppUtils.showToast("Generando reporte de auditoría...", "info");
-    window.open(`${URLROOT}/reportes/imprimirAuditoria?desde=${desde}&hasta=${hasta}&q=${search}`, '_blank');
-};
-
-window.imprimirGastosCompleto = () => {
-    const desde = document.getElementById('rep-desde')?.value || '';
-    const hasta = document.getElementById('rep-hasta')?.value || '';
-    const search = document.getElementById('search-report')?.value || '';
-
-    AppUtils.showToast("Generando reporte de gastos...", "info");
-    window.open(`${URLROOT}/reportes/imprimirGastos?desde=${desde}&hasta=${hasta}&q=${search}`, '_blank');
 };
 
 window.verDetalleCompra = async (id) => {
@@ -1395,11 +1256,90 @@ window.verDetalleCompra = async (id) => {
     } catch (e) { console.error(e); }
 };
 
+window.verDetallePagoHistorial = async (id) => {
+    try {
+        const res = await fetch(`${URLROOT}/reportes/detallePagoNomina/${id}`);
+        const result = await res.json();
+
+        if (result.success && result.data) {
+            const p = result.data;
+            Swal.fire({
+                title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Resumen de Pago</span><br><span class="text-navy-blue">RECIBO #${p.id}</span>`,
+                html: `
+                    <div class="text-left space-y-4 pt-4">
+                        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl text-xs">
+                            <div><p class="text-slate-400 font-bold uppercase">Empleado:</p><p class="font-black text-navy-blue">${p.staff_nombre}</p></div>
+                            <div><p class="text-slate-400 font-bold uppercase">Fecha:</p><p class="font-black text-slate-700">${new Date(p.fecha).toLocaleString()}</p></div>
+                            <div><p class="text-slate-400 font-bold uppercase">Tipo:</p><p class="font-black text-slate-700">${p.tipo}</p></div>
+                            <div><p class="text-slate-400 font-bold uppercase">Método:</p><p class="font-black text-slate-700">${p.metodo_pago}</p></div>
+                        </div>
+                        ${p.trabajos && p.trabajos.length > 0 ? `
+                        <div class="border rounded-lg overflow-hidden">
+                            <table class="w-full text-[10px]">
+                                <thead class="bg-slate-50"><tr><th class="p-2 text-left">Trabajo (Factura)</th><th class="p-2 text-right">Monto</th></tr></thead>
+                                <tbody class="divide-y">
+                                    ${p.trabajos.map(t => {
+                    const vehicleDetails = [];
+                    if (t.placa) vehicleDetails.push(t.placa);
+                    if (t.modelo_vehiculo && t.modelo_vehiculo !== 'N/A') vehicleDetails.push(t.modelo_vehiculo);
+                    const vehicleDisplay = vehicleDetails.length > 0 ? `(${vehicleDetails.join(' - ')})` : '';
+                    return `<tr><td class="p-2">${t.descripcion} <span class="text-[9px] text-slate-400 font-bold">${vehicleDisplay}</span> <span class="font-mono text-navy-blue">#${t.venta_id}</span></td><td class="p-2 text-right font-bold">${AppUtils.formatCurrency(t.precio_unitario)}</td></tr>`;
+                }).join('')}
+                                </tbody>
+                            </table>
+                        </div>` : ''}
+                        <div class="bg-navy-blue p-4 rounded-xl text-white flex justify-between items-center">
+                            <span class="text-xs font-bold uppercase">Total Cancelado:</span>
+                            <span class="text-2xl font-black text-neon-green">${AppUtils.formatCurrency(p.monto)}</span>
+                        </div>
+                        ${p.notas ? `<p class="text-[10px] italic text-slate-500">Nota: ${p.notas}</p>` : ''}
+                    </div>`,
+                showCloseButton: true,
+                showConfirmButton: false
+            });
+        }
+    } catch (e) { console.error(e); }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  IMPRIMIR (AUDITORÍA / GASTOS)
+// ═══════════════════════════════════════════════════════════════════
+window.imprimirAuditoriaCompleta = () => {
+    const desde = document.getElementById('rep-desde')?.value || '';
+    const hasta = document.getElementById('rep-hasta')?.value || '';
+    const search = document.getElementById('search-audit')?.value || '';
+
+    AppUtils.showToast("Generando reporte de auditoría...", "info");
+    window.open(`${URLROOT}/reportes/imprimirAuditoria?desde=${desde}&hasta=${hasta}&q=${search}`, '_blank');
+};
+
+window.imprimirGastosCompleto = () => {
+    const desde = document.getElementById('rep-desde')?.value || '';
+    const hasta = document.getElementById('rep-hasta')?.value || '';
+    const search = document.getElementById('search-report')?.value || '';
+
+    AppUtils.showToast("Generando reporte de gastos...", "info");
+    window.open(`${URLROOT}/reportes/imprimirGastos?desde=${desde}&hasta=${hasta}&q=${search}`, '_blank');
+};
+
 window.printVenta = (id) => {
     AppUtils.showToast('Generando documento...', 'info');
     window.open(`${URLROOT}/facturacion/imprimir/${id}`, '_blank');
 };
 
+window.imprimirReciboPago = function (pagoId) {
+    AppUtils.showToast("Abriendo comprobante...", "info");
+    window.open(`${URLROOT}/reportes/imprimirRecibo/${pagoId}`, '_blank');
+};
+
+window.reimprimirPagoNomina = function (id) {
+    AppUtils.showToast("Abriendo copia del recibo...", "info");
+    window.open(`${URLROOT}/reportes/imprimirRecibo/${id}`, '_blank');
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  MODAL DE ABONO
+// ═══════════════════════════════════════════════════════════════════
 window.registrarAbonoCliente = async (ventaId, saldoPendiente) => {
     const { value: formValues } = await Swal.fire({
         title: `<span class="text-xs uppercase text-slate-400 font-black">Registrar Pago</span><br>ORDEN #${ventaId}`,
@@ -1466,13 +1406,9 @@ window.registrarAbonoCliente = async (ventaId, saldoPendiente) => {
 
             if (data.success) {
                 AppUtils.showToast(data.mensaje || 'Pago registrado correctamente');
-                if (activeReportTab === 'detallado') {
-                    cargarReporteDetallado();
-                } else if (activeReportTab === 'resumen') {
-                    if (window.handler_reporte_flujo) window.handler_reporte_flujo.reload();
-                } else if (activeReportTab === 'cartera') {
-                    window.cargarCartera();
-                }
+                if (activeReportTab === 'detallado') cargarReporteDetallado();
+                else if (activeReportTab === 'resumen') { if (window.handler_reporte_flujo) window.handler_reporte_flujo.reload(); }
+                else if (activeReportTab === 'cartera') window.cargarCartera();
 
                 if (typeof initCreditNotifications === 'function') {
                     initCreditNotifications();
@@ -1488,6 +1424,46 @@ window.registrarAbonoCliente = async (ventaId, saldoPendiente) => {
     }
 };
 
+// ═══════════════════════════════════════════════════════════════════
+//  RENTABILIDAD
+// ═══════════════════════════════════════════════════════════════════
+window.cargarRentabilidad = async function () {
+    const desde = document.getElementById('rep-desde')?.value || '';
+    const hasta = document.getElementById('rep-hasta')?.value || '';
+    const tbody = document.getElementById('rentabilidad-body');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-slate-400 italic animate-pulse uppercase font-black">Analizando Rentabilidad...</td></tr>';
+
+    try {
+        const res = await fetch(`${URLROOT}/reportes/rentabilidad?desde=${desde}&hasta=${hasta}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const result = await res.json();
+        if (result.success && result.data) window.renderRentabilidad(result.data);
+    } catch (e) { console.error(e); }
+};
+
+window.renderRentabilidad = (data) => {
+    const tbody = document.getElementById('rentabilidad-body');
+    if (!tbody) return;
+    tbody.innerHTML = (Array.isArray(data) && data.length > 0) ? data.map(r => {
+        const margen = r.ingreso_total > 0 ? ((r.utilidad_bruta / r.ingreso_total) * 100).toFixed(2) : 0;
+        return `
+            <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
+                <td class="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">${r.tipo}</td>
+                <td class="px-6 py-4 text-sm font-bold text-slate-700 text-center">${r.cantidad_operaciones}</td>
+                <td class="px-6 py-4 text-sm font-bold text-slate-600 text-right">${AppUtils.formatCurrency(r.ingreso_total)}</td>
+                <td class="px-6 py-4 text-sm font-bold text-slate-400 text-right">${AppUtils.formatCurrency(r.costo_total)}</td>
+                <td class="px-6 py-4 text-sm font-black text-emerald-600 text-right">${AppUtils.formatCurrency(r.utilidad_bruta)}</td>
+                <td class="px-6 py-4 text-right">
+                    <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-black text-xs">${margen}%</span>
+                </td>
+            </tr>`;
+    }).join('') : '<tr><td colspan="6" class="text-center py-20 text-slate-400 italic font-bold uppercase">Sin datos de rentabilidad</td></tr>';
+    if (window.lucide) lucide.createIcons();
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  FILTRO AUDITORÍA
+// ═══════════════════════════════════════════════════════════════════
 function filtrarAuditoria(term) {
     if (!rawAuditData) return;
     const t = term.toLowerCase();
@@ -1503,6 +1479,9 @@ function filtrarAuditoria(term) {
     renderAuditoriaLista(filtrados);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  NÓMINA
+// ═══════════════════════════════════════════════════════════════════
 window.cargarNomina = async function () {
     const staffId = document.getElementById('staff-selector')?.value;
     const desde = document.getElementById('rep-desde')?.value;
@@ -1732,9 +1711,7 @@ window.recalcularVistaPreviaPago = function () {
 
     let total = isPorcentaje ? (base * (factor / 100)) : factor;
 
-    if (previewEl) {
-        previewEl.innerText = AppUtils.formatCurrency(total);
-    }
+    if (previewEl) previewEl.innerText = AppUtils.formatCurrency(total);
 };
 
 window.toggleModoPago = function (el) {
@@ -1754,11 +1731,9 @@ window.toggleModoPago = function (el) {
     window.recalcularVistaPreviaPago();
 };
 
-window.imprimirReciboPago = function (pagoId) {
-    AppUtils.showToast("Abriendo comprobante...", "info");
-    window.open(`${URLROOT}/reportes/imprimirRecibo/${pagoId}`, '_blank');
-};
-
+// ═══════════════════════════════════════════════════════════════════
+//  HISTORIAL DE NÓMINA
+// ═══════════════════════════════════════════════════════════════════
 window.cargarHistorialNomina = async () => {
     const desde = document.getElementById('rep-desde')?.value || '';
     const hasta = document.getElementById('rep-hasta')?.value || '';
@@ -1801,52 +1776,190 @@ window.cargarHistorialNomina = async () => {
     }
 };
 
-window.verDetallePagoHistorial = async (id) => {
-    try {
-        const res = await fetch(`${URLROOT}/reportes/detallePagoNomina/${id}`);
-        const result = await res.json();
-
-        if (result.success && result.data) {
-            const p = result.data;
-            Swal.fire({
-                title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Resumen de Pago</span><br><span class="text-navy-blue">RECIBO #${p.id}</span>`,
-                html: `
-                    <div class="text-left space-y-4 pt-4">
-                        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl text-xs">
-                            <div><p class="text-slate-400 font-bold uppercase">Empleado:</p><p class="font-black text-navy-blue">${p.staff_nombre}</p></div>
-                            <div><p class="text-slate-400 font-bold uppercase">Fecha:</p><p class="font-black text-slate-700">${new Date(p.fecha).toLocaleString()}</p></div>
-                            <div><p class="text-slate-400 font-bold uppercase">Tipo:</p><p class="font-black text-slate-700">${p.tipo}</p></div>
-                            <div><p class="text-slate-400 font-bold uppercase">Método:</p><p class="font-black text-slate-700">${p.metodo_pago}</p></div>
-                        </div>
-                        ${p.trabajos && p.trabajos.length > 0 ? `
-                        <div class="border rounded-lg overflow-hidden">
-                            <table class="w-full text-[10px]">
-                                <thead class="bg-slate-50"><tr><th class="p-2 text-left">Trabajo (Factura)</th><th class="p-2 text-right">Monto</th></tr></thead>
-                                <tbody class="divide-y">
-                                    ${p.trabajos.map(t => {
-                    const vehicleDetails = [];
-                    if (t.placa) vehicleDetails.push(t.placa);
-                    if (t.modelo_vehiculo && t.modelo_vehiculo !== 'N/A') vehicleDetails.push(t.modelo_vehiculo);
-                    const vehicleDisplay = vehicleDetails.length > 0 ? `(${vehicleDetails.join(' - ')})` : '';
-                    return `<tr><td class="p-2">${t.descripcion} <span class="text-[9px] text-slate-400 font-bold">${vehicleDisplay}</span> <span class="font-mono text-navy-blue">#${t.venta_id}</span></td><td class="p-2 text-right font-bold">${AppUtils.formatCurrency(t.precio_unitario)}</td></tr>`;
-                }).join('')}
-                                </tbody>
-                            </table>
-                        </div>` : ''}
-                        <div class="bg-navy-blue p-4 rounded-xl text-white flex justify-between items-center">
-                            <span class="text-xs font-bold uppercase">Total Cancelado:</span>
-                            <span class="text-2xl font-black text-neon-green">${AppUtils.formatCurrency(p.monto)}</span>
-                        </div>
-                        ${p.notas ? `<p class="text-[10px] italic text-slate-500">Nota: ${p.notas}</p>` : ''}
-                    </div>`,
-                showCloseButton: true,
-                showConfirmButton: false
-            });
-        }
-    } catch (e) { console.error(e); }
+// ═══════════════════════════════════════════════════════════════════
+//  EXPORTACIONES DE CARTERA
+// ═══════════════════════════════════════════════════════════════════
+window.exportarCarteraProveedoresPdf = function () {
+    AppUtils.showToast("Generando reporte de proveedores...", "info");
+    window.open(`${URLROOT}/reportes/imprimirCarteraProveedores`, '_blank');
 };
 
-window.reimprimirPagoNomina = function (id) {
-    AppUtils.showToast("Abriendo copia del recibo...", "info");
-    window.open(`${URLROOT}/reportes/imprimirRecibo/${id}`, '_blank');
+window.imprimirReporteProveedorIndividual = function (id) {
+    if (!id) return;
+    AppUtils.showToast("Generando estado de cuenta...", "info");
+    window.open(`${URLROOT}/reportes/imprimirReporteProveedor/${id}`, '_blank');
+};
+
+window.exportarCarteraExcel = function () {
+    window.location.href = `${URLROOT}/reportes/exportarCarteraExcel`;
+};
+
+window.exportarCarteraPdf = async function () {
+    AppUtils.showToast("Generando PDF de Cartera...", "info");
+    try {
+        const res = await fetch(`${URLROOT}/reportes/exportarCarteraPdf`);
+        if (!res.ok) throw new Error("Error en la respuesta del servidor");
+
+        const result = await res.json();
+        if (result.success) {
+            window.open(result.pdf_url, '_blank');
+        } else {
+            AppUtils.showToast(result.mensaje || "No se pudo generar el PDF", "error");
+        }
+    } catch (e) {
+        console.error("Error al exportar PDF:", e);
+        AppUtils.showToast("Error de conexión al generar PDF", "error");
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  INIT Y SWITCH DE TABS
+// ═══════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('search-audit')?.addEventListener('input', (e) => filtrarAuditoria(e.target.value));
+
+    const searchReport = document.getElementById('search-report');
+    if (searchReport) {
+        const wrapper = searchReport.parentElement;
+        if (wrapper && !document.getElementById('btn-print-expenses-bulk')) {
+            const btn = document.createElement('button');
+            btn.id = 'btn-print-expenses-bulk';
+            btn.type = 'button';
+            btn.onclick = window.imprimirGastosCompleto;
+            btn.className = "p-2.5 bg-navy-blue text-neon-green rounded-xl hover:bg-slate-800 transition-all shadow-sm flex items-center justify-center group flex-shrink-0";
+            btn.title = "Imprimir Reporte de Gastos";
+            btn.innerHTML = '<i data-lucide="printer" class="w-5 h-5"></i>';
+            wrapper.classList.add('flex', 'items-center', 'gap-2');
+            wrapper.appendChild(btn);
+        }
+    }
+
+    const searchAudit = document.getElementById('search-audit');
+    if (searchAudit) {
+        const wrapper = searchAudit.parentElement;
+        if (wrapper && !document.getElementById('btn-print-audit-bulk')) {
+            const btn = document.createElement('button');
+            btn.id = 'btn-print-audit-bulk';
+            btn.type = 'button';
+            btn.onclick = window.imprimirAuditoriaCompleta;
+            btn.className = "p-2.5 bg-navy-blue text-neon-green rounded-xl hover:bg-slate-800 transition-all shadow-sm flex items-center justify-center group flex-shrink-0";
+            btn.title = "Imprimir Reporte de Auditoría";
+            btn.innerHTML = '<i data-lucide="printer" class="w-5 h-5"></i>';
+            wrapper.classList.add('flex', 'items-center', 'gap-2');
+            wrapper.appendChild(btn);
+            if (window.lucide) lucide.createIcons();
+        }
+    }
+
+    window.handler_reporte_flujo = new DataTableRefactor({
+        tableId: 'reportTable',
+        tableBodyId: 'report-body',
+        endpoint: `${URLROOT}/reportes/generar`,
+        searchInputId: 'search-report',
+        limitSelectorId: 'limitSelector',
+        paginationId: 'custom-bottom-controls',
+        totalId: 'totalCount',
+        getExtraParams: () => ({
+            desde: document.getElementById('rep-desde')?.value || '',
+            hasta: document.getElementById('rep-hasta')?.value || ''
+        }),
+        onDataLoaded: (result) => {
+            if (result.totales) {
+                document.getElementById('total-repuestos').textContent = AppUtils.formatCurrency(result.totales.ingreso_repuestos || 0);
+                document.getElementById('total-servicios').textContent = AppUtils.formatCurrency(result.totales.ingreso_servicios || 0);
+                document.getElementById('total-egresos').textContent = AppUtils.formatCurrency(result.totales.egresos || 0);
+                document.getElementById('total-deuda').textContent = AppUtils.formatCurrency(result.totales.deuda || 0);
+                document.getElementById('total-balance').textContent = AppUtils.formatCurrency(result.totales.balance || 0);
+            }
+            const body = document.getElementById('report-body');
+            if (result.data && result.data.length === 0) {
+                body.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
+                    <div class="flex flex-col items-center gap-2">
+                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i> 
+                        <span>No se encontraron movimientos en este periodo</span>
+                    </div>
+                </td></tr>`;
+                if (window.lucide) lucide.createIcons();
+            }
+        },
+        renderRow: (m) => window.renderFlujoRow(m)
+    });
+
+    window.handler_reporte_devoluciones = new DataTableRefactor({
+        tableId: 'devolucionesTable',
+        tableBodyId: 'devoluciones-body',
+        endpoint: `${URLROOT}/reportes/devoluciones`,
+        searchInputId: 'search-devoluciones',
+        limitSelectorId: 'limitSelector-devoluciones',
+        paginationId: 'pagination-devoluciones',
+        totalId: 'totalCount-devoluciones',
+        getExtraParams: () => ({
+            desde: document.getElementById('rep-desde')?.value || new Date().toISOString().split('T')[0].substring(0, 8) + '01',
+            hasta: document.getElementById('rep-hasta')?.value || new Date().toISOString().split('T')[0]
+        }),
+        onDataLoaded: (result) => {
+            const body = document.getElementById('devoluciones-body');
+            if (result.data && result.data.length === 0) {
+                body.innerHTML = `<tr><td colspan="6" class="px-8 py-16 text-center text-slate-400 italic font-medium uppercase tracking-widest">
+                    <div class="flex flex-col items-center gap-2">
+                        <i data-lucide="info" class="w-8 h-8 text-slate-300"></i> 
+                        <span>No hay registros de devoluciones para mostrar</span>
+                    </div>
+                </td></tr>`;
+                if (window.lucide) lucide.createIcons();
+            }
+        },
+        renderRow: (d) => `
+            <tr class="hover:bg-slate-50/50 transition-colors border-b border-slate-50">
+                <td class="px-4 py-4 font-black text-navy-blue text-sm uppercase">#${d.id}</td>
+                <td class="px-4 py-4 text-sm font-bold text-slate-500">${new Date(d.fecha).toLocaleDateString()}</td>
+                <td class="px-4 py-4 text-sm font-black text-navy-blue uppercase">${d.cliente_nombre || 'N/A'}<br><span class="text-[10px] text-slate-400 font-bold">${d.placa || '---'}</span></td>
+                <td class="px-4 py-4 text-sm text-slate-600 uppercase font-medium">${d.descripcion}</td>
+                <td class="px-4 py-4 text-right font-black text-rose-500">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
+                <td class="px-4 py-4 text-center">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
+                        ${d.destino}
+                    </span>
+                </td>
+            </tr>`
+    });
+
+    document.getElementById('rep-desde')?.addEventListener('change', window.actualizarFiltrosFechas);
+    document.getElementById('rep-hasta')?.addEventListener('change', window.actualizarFiltrosFechas);
+});
+
+window.cargarReporte = window.actualizarFiltrosFechas;
+
+window.switchReportTab = (tab) => {
+    activeReportTab = tab;
+
+    ['resumen','detallado','devoluciones','cartera','rentabilidad','nomina','historial_nomina'].forEach(t => {
+        const el = document.getElementById(`sec-${t}`);
+        if (el) el.classList.add('hidden');
+        const tb = document.getElementById(`tab-${t}`);
+        if (tb) { tb.classList.remove('border-neon-green', 'text-navy-blue'); tb.classList.add('border-transparent', 'text-slate-400'); }
+    });
+
+    const sec = document.getElementById(`sec-${tab}`);
+    const tb = document.getElementById(`tab-${tab}`);
+    if (sec) sec.classList.remove('hidden');
+    if (tb) { tb.classList.add('border-neon-green', 'text-navy-blue'); tb.classList.remove('border-transparent', 'text-slate-400'); }
+
+    if (tab === 'resumen') {
+        if (window.handler_reporte_flujo) window.handler_reporte_flujo.reload();
+    } else if (tab === 'detallado') {
+        window.cargarReporteDetallado();
+    } else if (tab === 'devoluciones') {
+        if (window.handler_reporte_devoluciones) window.handler_reporte_devoluciones.reload();
+    } else if (tab === 'cartera') {
+        window.cargarCartera();
+    } else if (tab === 'rentabilidad') {
+        window.cargarRentabilidad();
+    } else if (tab === 'nomina') {
+        window.cargarNomina();
+    } else if (tab === 'historial_nomina') {
+        window.cargarHistorialNomina();
+    }
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 };

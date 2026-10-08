@@ -25,10 +25,7 @@
                 <div>
                     <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha</p>
                     <p class="font-bold text-slate-700">
-                        <?php 
-                            $fecha = new DateTime($data['factura']->fecha);
-                            echo $fecha->format('d/m/Y H:i:s');
-                        ?>
+                        <?php $fecha = new DateTime($data['factura']->fecha); echo $fecha->format('d/m/Y H:i:s'); ?>
                     </p>
                 </div>
                 <div>
@@ -36,8 +33,7 @@
                     <p class="font-bold text-slate-700">
                         <?php 
                             $status = $data['factura']->status;
-                            $badgeClass = '';
-                            $icon = '';
+                            $badgeClass = ''; $icon = '';
                             switch ($status) {
                                 case 'COMPLETADO': $badgeClass = 'bg-green-100 text-green-800'; $icon = 'check-circle'; break;
                                 case 'CREDITO': $badgeClass = 'bg-amber-100 text-amber-800'; $icon = 'clock'; break;
@@ -56,13 +52,9 @@
                         <?php 
                             $origen = $data['factura']->origen ?? '';
                             $tipo = $data['factura']->tipo_procedencia;
-                            $badgeClass = '';
-                            $icon = '';
-
-                            if ($origen === 'PRESUPUESTO') {
-                                $badgeClass = 'bg-violet-100 text-violet-800'; $icon = 'file-text';
-                                $tipo = 'PRESUPUESTO';
-                            } else {
+                            $badgeClass = ''; $icon = '';
+                            if ($origen === 'PRESUPUESTO') { $badgeClass = 'bg-violet-100 text-violet-800'; $icon = 'file-text'; $tipo = 'PRESUPUESTO'; }
+                            else {
                                 switch ($tipo) {
                                     case 'OS': $badgeClass = 'bg-blue-100 text-blue-800'; $icon = 'clipboard-list'; break;
                                     case 'TALLER': $badgeClass = 'bg-purple-100 text-purple-800'; $icon = 'wrench'; break;
@@ -98,11 +90,8 @@
                     <?php if (!empty($data['factura']->marca_vehiculo)): ?>
                     <p class="text-sm text-slate-500"><?php echo s($data['factura']->marca_vehiculo); ?> <?php echo s($data['factura']->modelo_vehiculo ?? ''); ?></p>
                     <?php endif; ?>
-                    <?php if (!empty($data['factura']->kilometraje)): ?>
-                    <p class="text-sm text-slate-500"><i data-lucide="gauge" class="w-4 h-4 inline mr-1"></i>Km: <?php echo s($data['factura']->kilometraje); ?></p>
-                    <?php endif; ?>
                     <?php else: ?>
-                    <p class="text-slate-400 italic">Sin vehículo asociado (Venta mostrador)</p>
+                    <p class="text-slate-400 italic">Sin vehículo asociado</p>
                     <?php endif; ?>
                 </div>
             </div>
@@ -120,29 +109,17 @@
             </div>
 
             <!-- Observaciones -->
-            <?php if (!empty($data['factura']->observaciones) || !empty($data['factura']->diagnostico_entrada) || !empty($data['factura']->observaciones_orden) || !empty($data['factura']->diagnostico_salida)): ?>
+            <?php if (!empty($data['factura']->observaciones) || !empty($data['factura']->diagnostico_entrada) || !empty($data['factura']->diagnostico_salida)): ?>
             <div class="space-y-4">
                 <?php if (!empty($data['factura']->diagnostico_entrada)): ?>
                 <div class="p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                    <p class="text-[10px] font-bold text-blue-800 uppercase mb-2 flex items-center gap-2"><i data-lucide="stethoscope" class="w-4 h-4"></i> Diagnóstico de Entrada</p>
+                    <p class="text-[10px] font-bold text-blue-800 uppercase mb-2">Diagnóstico de Entrada</p>
                     <p class="text-slate-700 whitespace-pre-wrap"><?php echo s($data['factura']->diagnostico_entrada); ?></p>
-                </div>
-                <?php endif; ?>
-                <?php if (!empty($data['factura']->diagnostico_salida)): ?>
-                <div class="p-4 bg-green-50 border border-green-100 rounded-xl">
-                    <p class="text-[10px] font-bold text-green-800 uppercase mb-2 flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4"></i> Diagnóstico de Salida</p>
-                    <p class="text-slate-700 whitespace-pre-wrap"><?php echo s($data['factura']->diagnostico_salida); ?></p>
-                </div>
-                <?php endif; ?>
-                <?php if (!empty($data['factura']->observaciones_orden)): ?>
-                <div class="p-4 bg-purple-50 border border-purple-100 rounded-xl">
-                    <p class="text-[10px] font-bold text-purple-800 uppercase mb-2 flex items-center gap-2"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Observaciones Orden</p>
-                    <p class="text-slate-700 whitespace-pre-wrap"><?php echo s($data['factura']->observaciones_orden); ?></p>
                 </div>
                 <?php endif; ?>
                 <?php if (!empty($data['factura']->observaciones)): ?>
                 <div class="p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                    <p class="text-[10px] font-bold text-amber-800 uppercase mb-2 flex items-center gap-2"><i data-lucide="message-square" class="w-4 h-4"></i> Observaciones Factura</p>
+                    <p class="text-[10px] font-bold text-amber-800 uppercase mb-2">Observaciones</p>
                     <p class="text-slate-700 whitespace-pre-wrap"><?php echo s($data['factura']->observaciones); ?></p>
                 </div>
                 <?php endif; ?>
@@ -206,18 +183,14 @@
                     <div class="grid grid-cols-3 gap-2">
                         <div class="col-span-2">
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Monto</label>
-                            <input type="number"
-                                   id="abonoMonto"
-                                   min="0.01"
-                                   step="0.01"
+                            <input type="number" id="abonoMonto" min="0.01" step="0.01"
                                    max="<?php echo (float)$data['factura']->saldo_pendiente; ?>"
                                    placeholder="0.00"
-                                   class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-navy-blue text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 outline-none">
+                                   class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-navy-blue text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Método</label>
-                            <select id="abonoMetodo"
-                                    class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-700 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 outline-none">
+                            <select id="abonoMetodo" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm text-slate-700 focus:ring-2 focus:ring-emerald-400 outline-none">
                                 <option value="EFECTIVO">EFECTIVO</option>
                                 <option value="TRANSFERENCIA">TRANSFERENCIA</option>
                             </select>
@@ -226,18 +199,62 @@
 
                     <p id="abonoError" class="hidden text-[11px] text-rose-600 font-bold"></p>
 
-                    <button type="button"
-                            id="btnRegistrarAbono"
-                            disabled
-                            class="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-black py-3 rounded-xl uppercase text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 disabled:shadow-none">
-                        <i data-lucide="hand-coins" class="w-4 h-4"></i>
-                        Registrar Abono
+                    <button type="button" id="btnRegistrarAbono" disabled
+                            class="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-black py-3 rounded-xl uppercase text-xs flex items-center justify-center gap-2 transition-all">
+                        <i data-lucide="hand-coins" class="w-4 h-4"></i> Registrar Abono
                     </button>
                 </div>
                 <?php endif; ?>
             </div>
         </div>
     </div>
+
+    <!-- MEJORA 3: Historial de Abonos -->
+    <?php if (!empty($data['factura']->abonos)): ?>
+    <div class="glass-card rounded-2xl overflow-hidden shadow-xl mb-6">
+        <div class="p-6 border-b border-slate-100">
+            <h3 class="text-lg font-bold text-navy-blue uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="history" class="w-5 h-5"></i> Historial de Abonos (<?php echo count($data['factura']->abonos); ?>)
+            </h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                        <th class="px-6 py-4">Fecha</th>
+                        <th class="px-6 py-4">Método</th>
+                        <th class="px-6 py-4">Registrado por</th>
+                        <th class="px-6 py-4 text-right">Monto</th>
+                        <th class="px-6 py-4 text-right">Recibo</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-sm text-slate-600">
+                    <?php foreach ($data['factura']->abonos as $abono): ?>
+                    <tr class="hover:bg-slate-50/50">
+                        <td class="px-6 py-4"><?php echo date('d/m/Y H:i', strtotime($abono->fecha)); ?></td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold <?php echo $abono->metodo_pago === 'EFECTIVO' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'; ?>">
+                                <?php echo $abono->metodo_pago; ?>
+                            </span>
+                        </td>
+                        <td class="px-6 py-4"><?php echo s($abono->usuario_nombre ?? 'SISTEMA'); ?></td>
+                        <td class="px-6 py-4 text-right font-black text-emerald-600">
+                            $<?php echo number_format($abono->monto, 0, ',', '.'); ?>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <a href="<?php echo URLROOT; ?>/facturacion/imprimirReciboAbono/<?php echo $abono->id; ?>" 
+                               target="_blank"
+                               class="inline-flex items-center gap-1 text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition-all">
+                                <i data-lucide="printer" class="w-4 h-4"></i> PDF
+                            </a>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Items de la Factura -->
     <div class="glass-card rounded-2xl overflow-hidden shadow-xl">
@@ -255,7 +272,6 @@
                         <th class="px-6 py-4 text-center">Tipo</th>
                         <th class="px-6 py-4 text-center">Cant.</th>
                         <th class="px-6 py-4 text-right">Precio Unit.</th>
-                        <th class="px-6 py-4 text-right">Costo Unit.</th>
                         <th class="px-6 py-4 text-right">Subtotal</th>
                         <th class="px-6 py-4 text-center">Mecánico</th>
                     </tr>
@@ -263,132 +279,78 @@
                 <tbody class="divide-y divide-slate-100 text-sm text-slate-600">
                     <?php if (!empty($data['factura']->items)): ?>
                         <?php $index = 1; foreach ($data['factura']->items as $item): ?>
-                        <tr class="hover:bg-slate-50/50 transition-colors">
+                        <tr class="hover:bg-slate-50/50">
                             <td class="px-6 py-4 text-center font-mono text-slate-400"><?php echo $index++; ?></td>
                             <td class="px-6 py-4 font-medium text-slate-700"><?php echo s($item->descripcion); ?></td>
                             <td class="px-6 py-4 text-center">
-                                <?php 
-                                    $tipo = $item->producto_id ? 'PRODUCTO' : 'SERVICIO';
-                                    $badgeClass = $tipo === 'PRODUCTO' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
-                                    $icon = $tipo === 'PRODUCTO' ? 'package' : 'wrench';
-                                ?>
+                                <?php $tipo = $item->producto_id ? 'PRODUCTO' : 'SERVICIO';
+                                      $badgeClass = $tipo === 'PRODUCTO' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
+                                      $icon = $tipo === 'PRODUCTO' ? 'package' : 'wrench'; ?>
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold <?php echo $badgeClass; ?>">
                                     <i data-lucide="<?php echo $icon; ?>" class="w-3 h-3 mr-1"></i><?php echo $tipo; ?>
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-center font-bold text-navy-blue"><?php echo (int)$item->cantidad; ?></td>
-                            <td class="px-6 py-4 text-right font-mono text-slate-700"><?php echo number_format($item->precio_unitario, 0, ',', '.'); ?></td>
-                            <td class="px-6 py-4 text-right font-mono text-slate-500"><?php echo number_format($item->costo_unitario ?? 0, 0, ',', '.'); ?></td>
+                            <td class="px-6 py-4 text-right font-mono"><?php echo number_format($item->precio_unitario, 0, ',', '.'); ?></td>
                             <td class="px-6 py-4 text-right font-bold text-navy-blue"><?php echo number_format($item->precio_unitario * $item->cantidad, 0, ',', '.'); ?></td>
                             <td class="px-6 py-4 text-center text-slate-500"><?php echo s($item->mecanico_nombre ?? '-'); ?></td>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <tr>
-                            <td colspan="8" class="px-8 py-16 text-center text-slate-400 italic">No hay items en esta factura</td>
-                        </tr>
+                        <tr><td colspan="7" class="px-8 py-16 text-center text-slate-400 italic">No hay items en esta factura</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
-
-    <!-- Checklist (si viene de Orden de Servicio) -->
-    <?php if (!empty($data['factura']->checklist)): ?>
-    <div class="glass-card rounded-2xl overflow-hidden shadow-xl mt-6">
-        <div class="p-6 border-b border-slate-100">
-            <h3 class="text-lg font-bold text-navy-blue uppercase tracking-wider flex items-center gap-2">
-                <i data-lucide="clipboard-check" class="w-5 h-5"></i> Checklist de Entrada
-            </h3>
-        </div>
-        <div class="p-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <?php foreach ($data['factura']->checklist as $check): ?>
-                <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-                    <i data-lucide="<?php echo $check->estado ? 'check-circle' : 'x-circle'; ?>" class="w-5 h-5 <?php echo $check->estado ? 'text-green-500' : 'text-red-500'; ?> flex-shrink-0"></i>
-                    <span class="text-sm text-slate-700"><?php echo s($check->item); ?></span>
-                    <?php if (!empty($check->observacion)): ?>
-                    <span class="text-xs text-slate-400 italic ml-auto"><?php echo s($check->observacion); ?></span>
-                    <?php endif; ?>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
 </div>
 
 <script>
-    // ─────────────────────────────────────────────────────────────
-    //  Helpers
-    // ─────────────────────────────────────────────────────────────
     function imprimirFactura() {
         window.open('<?php echo URLROOT; ?>/facturas/imprimir/<?php echo $data['factura']->id; ?>', '_blank');
     }
 
-    // Formato de moneda idéntico al de PHP: number_format($x, 0, ',', '.')
     function fmtNum(n) {
-        return new Intl.NumberFormat('es-CO', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(n || 0);
+        return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n || 0);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Registro de Abono INLINE + actualización dinámica (sin reload)
-    // ─────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
         const form = document.getElementById('abonoForm');
-        if (!form) {
-            if (window.lucide) lucide.createIcons();
-            return;
-        }
+        if (!form) { if (window.lucide) lucide.createIcons(); return; }
 
-        // ── Estado local (fuente de verdad para el cálculo dinámico) ──
-        const facturaId       = parseInt(form.dataset.facturaId, 10);
-        let   pagoEfectivo    = parseFloat(form.dataset.pagoEfectivo) || 0;
-        let   pagoTransfer    = parseFloat(form.dataset.pagoTransferencia) || 0;
-        let   saldoActual     = parseFloat(form.dataset.saldo) || 0;
-        const totalFactura    = parseFloat(form.dataset.total) || 0;
+        const facturaId = parseInt(form.dataset.facturaId, 10);
+        let   pagoEfectivo = parseFloat(form.dataset.pagoEfectivo) || 0;
+        let   pagoTransfer = parseFloat(form.dataset.pagoTransferencia) || 0;
+        let   saldoActual  = parseFloat(form.dataset.saldo) || 0;
+        const totalFactura = parseFloat(form.dataset.total) || 0;
 
-        // ── Referencias DOM ──
-        const inputMonto   = document.getElementById('abonoMonto');
+        const inputMonto = document.getElementById('abonoMonto');
         const selectMetodo = document.getElementById('abonoMetodo');
-        const btnAbono     = document.getElementById('btnRegistrarAbono');
-        const errorMsg     = document.getElementById('abonoError');
+        const btnAbono = document.getElementById('btnRegistrarAbono');
+        const errorMsg = document.getElementById('abonoError');
 
-        // ── Helpers de validación / UI ──
         function setError(msg) {
             if (!msg) {
-                errorMsg.classList.add('hidden');
-                errorMsg.textContent = '';
+                errorMsg.classList.add('hidden'); errorMsg.textContent = '';
                 inputMonto.classList.remove('border-rose-400');
             } else {
-                errorMsg.textContent = msg;
-                errorMsg.classList.remove('hidden');
+                errorMsg.textContent = msg; errorMsg.classList.remove('hidden');
                 inputMonto.classList.add('border-rose-400');
             }
         }
 
         function validarMonto() {
             const valor = parseFloat(inputMonto.value);
-            const esNumero        = !isNaN(valor);
-            const mayorCero       = esNumero && valor > 0;
+            const esNumero = !isNaN(valor);
+            const mayorCero = esNumero && valor > 0;
             const menorIgualSaldo = esNumero && valor <= (saldoActual + 0.001);
-
             const valido = esNumero && mayorCero && menorIgualSaldo;
             btnAbono.disabled = !valido;
 
-            if (!inputMonto.value) {
-                setError('');
-            } else if (!esNumero || !mayorCero) {
-                setError('El monto debe ser mayor a 0.');
-            } else if (!menorIgualSaldo) {
-                setError('El monto no puede superar el saldo pendiente (' + fmtNum(saldoActual) + ').');
-            } else {
-                setError('');
-            }
-
+            if (!inputMonto.value) setError('');
+            else if (!esNumero || !mayorCero) setError('El monto debe ser mayor a 0.');
+            else if (!menorIgualSaldo) setError('El monto no puede superar el saldo (' + fmtNum(saldoActual) + ').');
+            else setError('');
             return valido;
         }
 
@@ -399,152 +361,81 @@
                 btnAbono.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Procesando...';
                 if (window.lucide) lucide.createIcons();
             } else {
-                if (btnAbono.dataset.originalHtml) {
-                    btnAbono.innerHTML = btnAbono.dataset.originalHtml;
-                    delete btnAbono.dataset.originalHtml;
-                }
+                if (btnAbono.dataset.originalHtml) btnAbono.innerHTML = btnAbono.dataset.originalHtml;
                 if (window.lucide) lucide.createIcons();
             }
         }
 
-        // ── Actualización dinámica del resumen (SIN recargar) ──
         function refrescarResumen(monto, metodo) {
-            // 1) Acumular el pago según método
-            if (metodo === 'EFECTIVO') {
-                pagoEfectivo += monto;
-            } else {
-                pagoTransfer += monto;
-            }
-
-            // 2) Recalcular saldo
+            if (metodo === 'EFECTIVO') pagoEfectivo += monto; else pagoTransfer += monto;
             saldoActual = Math.max(0, totalFactura - pagoEfectivo - pagoTransfer);
+            form.dataset.pagoEfectivo = pagoEfectivo;
+            form.dataset.pagoTransferencia = pagoTransfer;
+            form.dataset.saldo = saldoActual;
 
-            // 3) Persistir en dataset (por si se hacen múltiples abonos)
-            form.dataset.pagoEfectivo        = pagoEfectivo;
-            form.dataset.pagoTransferencia   = pagoTransfer;
-            form.dataset.saldo               = saldoActual;
-
-            // 4) Pintar Efectivo
-            const rowEf  = document.getElementById('rowEfectivo');
-            const montoEf = document.getElementById('montoEfectivo');
             if (pagoEfectivo > 0) {
-                montoEf.textContent = fmtNum(pagoEfectivo);
-                rowEf.style.display = '';
+                document.getElementById('montoEfectivo').textContent = fmtNum(pagoEfectivo);
+                document.getElementById('rowEfectivo').style.display = '';
             }
-
-            // 5) Pintar Transferencia
-            const rowTr  = document.getElementById('rowTransferencia');
-            const montoTr = document.getElementById('montoTransferencia');
             if (pagoTransfer > 0) {
-                montoTr.textContent = fmtNum(pagoTransfer);
-                rowTr.style.display = '';
+                document.getElementById('montoTransferencia').textContent = fmtNum(pagoTransfer);
+                document.getElementById('rowTransferencia').style.display = '';
             }
-
-            // 6) Pintar Saldo
-            const rowSaldo   = document.getElementById('rowSaldo');
-            const montoSaldo = document.getElementById('montoSaldo');
             if (saldoActual > 0.05) {
-                montoSaldo.textContent = fmtNum(saldoActual);
-                rowSaldo.style.display = '';
+                document.getElementById('montoSaldo').textContent = fmtNum(saldoActual);
+                document.getElementById('rowSaldo').style.display = '';
             } else {
-                rowSaldo.style.display = 'none';
-            }
-
-            // 7) Si ya no hay saldo → marcar COMPLETADO y ocultar formulario
-            if (saldoActual <= 0.05) {
+                document.getElementById('rowSaldo').style.display = 'none';
                 const badge = document.getElementById('estadoBadge');
                 if (badge) {
                     badge.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800';
                     badge.innerHTML = '<i data-lucide="check-circle" class="w-3 h-3 mr-1"></i>COMPLETADO';
                 }
                 form.style.display = 'none';
-            } else {
-                // 8) Aún queda saldo: limpiar input y revalidar
+            }
+            if (saldoActual > 0.05) {
                 inputMonto.max = saldoActual.toFixed(2);
                 inputMonto.value = '';
                 validarMonto();
             }
-
-            // 9) Refrescar iconos
             if (window.lucide) lucide.createIcons();
         }
 
-        // ── Eventos de validación en vivo ──
         inputMonto.addEventListener('input', validarMonto);
         selectMetodo.addEventListener('change', validarMonto);
 
-        // ── Submit ──
         btnAbono.addEventListener('click', async () => {
             if (!validarMonto()) return;
-
-            const monto  = parseFloat(inputMonto.value);
+            const monto = parseFloat(inputMonto.value);
             const metodo = selectMetodo.value;
-
             setLoading(true);
 
             try {
                 const res = await fetch(`${URLROOT}/facturacion/registrarAbono`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': CSRF_TOKEN
-                    },
-                    body: JSON.stringify({
-                        venta_id: facturaId,
-                        monto: monto,
-                        metodo: metodo
-                    })
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                    body: JSON.stringify({ venta_id: facturaId, monto, metodo })
                 });
-
-                let data;
-                try {
-                    data = await res.json();
-                } catch (parseErr) {
-                    const raw = await res.text();
-                    console.error('Respuesta no JSON del servidor:', raw);
-                    setLoading(false);
-                    validarMonto();
-                    if (window.AppUtils && AppUtils.showToast) {
-                        AppUtils.showToast('Respuesta inválida del servidor. Revisa la consola (F12).', 'error');
-                    } else {
-                        alert('Respuesta inválida del servidor.');
-                    }
-                    return;
-                }
-
+                const data = await res.json();
                 setLoading(false);
 
                 if (data.success) {
-                    if (window.AppUtils && AppUtils.showToast) {
-                        AppUtils.showToast(data.mensaje || 'Pago registrado correctamente', 'success');
-                    }
-                    // ► Actualización DINÁMICA, sin recargar la página
+                    AppUtils.showToast(data.mensaje || 'Pago registrado');
                     refrescarResumen(monto, metodo);
+                    // Recargar la página tras un pequeño delay para ver el historial actualizado
+                    setTimeout(() => window.location.reload(), 1200);
                 } else {
-                    if (window.AppUtils && AppUtils.showToast) {
-                        AppUtils.showToast(data.mensaje || 'Error al registrar el pago', 'error');
-                    } else {
-                        alert(data.mensaje || 'Error al registrar el pago');
-                    }
+                    AppUtils.showToast(data.mensaje || 'Error', 'error');
                     validarMonto();
                 }
             } catch (e) {
-                setLoading(false);
-                validarMonto();
-                console.error('Error al registrar abono:', e);
-                if (window.AppUtils && AppUtils.showToast) {
-                    AppUtils.showToast('Error de conexión', 'error');
-                } else {
-                    alert('Error de conexión');
-                }
+                setLoading(false); validarMonto();
+                console.error(e);
+                AppUtils.showToast('Error de conexión', 'error');
             }
         });
 
-        // Estado inicial
         validarMonto();
         if (window.lucide) lucide.createIcons();
     });
-
-    // Iconos iniciales
-    if (window.lucide) lucide.createIcons();
 </script>

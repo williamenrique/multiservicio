@@ -20,6 +20,12 @@ use PHPMailer\PHPMailer\Exception;
  *   - ['content' => $binario, 'name' => 'archivo.pdf']  → en memoria (recomendado)
  *   - ['path' => '/ruta/absoluta/archivo.pdf', 'name' => 'archivo.pdf']  → archivo físico
  *   - '/ruta/absoluta/archivo.pdf'  → archivo físico (solo ruta)
+ * 
+ * v2.1.0 (2026-10-08):
+ *   • Nuevo método notificarAbonoRegistrado() — envía email al cliente
+ *     cuando se registra un abono a su factura.
+ *   • Nuevo método enviarRecordatorioPago() — envía un recordatorio de
+ *     pago a clientes con saldo pendiente en facturas a crédito.
  */
 class EmailService
 {
@@ -388,6 +394,85 @@ class EmailService
             'referencia_tipo' => 'NINGUNO',
             'referencia_id'   => null,
         ], $ok, $ok ? null : 'Error al enviar resumen mensual');
+
+        return $ok;
+    }
+
+    // ============================================================
+    // v2.1.0 — NOTIFICACIONES DE ABONOS Y RECORDATORIOS DE PAGO
+    // ============================================================
+
+    /**
+     * Notifica al cliente que se registró un abono a su factura.
+     * 
+     * Se dispara automáticamente desde ControllerFacturacion::registrarAbono()
+     * (hook opcional: si el cliente no tiene email, se ignora silenciosamente).
+     * 
+     * @param array $datos Estructura esperada:
+     *   - cliente_nombre      (string)
+     *   - cliente_email       (string)
+     *   - factura_id          (int)
+     *   - id_formateado       (string)  Ej: 'FAC-013'
+     *   - placa               (string)
+     *   - modelo_vehiculo     (string)
+     *   - monto_abono         (float)   Monto abonado en esta transacción
+     *   - metodo_pago         (string)  EFECTIVO|TRANSFERENCIA
+     *   - total               (float)   Total original de la factura
+     *   - pago_efectivo       (float)   Acumulado de efectivo
+     *   - pago_transferencia  (float)   Acumulado de transferencia
+     *   - saldo_pendiente     (float)   Saldo restante después del abono
+     */
+    public function notificarAbonoRegistrado(array $datos): bool
+    {
+        $asunto = '💰 Abono registrado a Factura #' . ($datos['id_formateado'] ?? $datos['factura_id']) . ' — ' . SITENAME;
+        $html = $this->renderizar('abono_registrado', $datos);
+        $ok = $this->enviar($datos['cliente_email'], $datos['cliente_nombre'], $asunto, $html);
+
+        $this->logEnvio([
+            'tipo'            => 'FACTURA',
+            'to'              => $datos['cliente_email'],
+            'to_name'         => $datos['cliente_nombre'] ?? null,
+            'subject'         => $asunto,
+            'body_html'       => $html,
+            'referencia_tipo' => 'FACTURA',
+            'referencia_id'   => $datos['factura_id'] ?? null,
+        ], $ok, $ok ? null : 'Error al enviar email de abono registrado');
+
+        return $ok;
+    }
+
+    /**
+     * Envía un recordatorio de pago al cliente por una factura con saldo pendiente.
+     * 
+     * Se dispara manualmente desde el botón "Recordatorio" en el módulo de Facturas.
+     * 
+     * @param array $datos Estructura esperada:
+     *   - cliente_nombre      (string)
+     *   - cliente_email       (string)
+     *   - factura_id          (int)
+     *   - id_formateado       (string)  Ej: 'FAC-013'
+     *   - placa               (string)
+     *   - modelo_vehiculo     (string)
+     *   - total               (float)   Total original de la factura
+     *   - saldo_pendiente     (float)   Saldo actual
+     *   - dias_atraso         (int)     Días desde la emisión
+     *   - fecha_emision       (string)  Fecha original (Y-m-d H:i:s)
+     */
+    public function enviarRecordatorioPago(array $datos): bool
+    {
+        $asunto = '📢 Recordatorio de Pago — Factura #' . ($datos['id_formateado'] ?? $datos['factura_id']) . ' — ' . SITENAME;
+        $html = $this->renderizar('recordatorio_pago', $datos);
+        $ok = $this->enviar($datos['cliente_email'], $datos['cliente_nombre'], $asunto, $html);
+
+        $this->logEnvio([
+            'tipo'            => 'FACTURA',
+            'to'              => $datos['cliente_email'],
+            'to_name'         => $datos['cliente_nombre'] ?? null,
+            'subject'         => $asunto,
+            'body_html'       => $html,
+            'referencia_tipo' => 'FACTURA',
+            'referencia_id'   => $datos['factura_id'] ?? null,
+        ], $ok, $ok ? null : 'Error al enviar recordatorio de pago');
 
         return $ok;
     }

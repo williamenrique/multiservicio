@@ -1,5 +1,5 @@
 -- =============================================================================
--- ESQUEMA DE BASE DE DATOS MULTISERVICIO V2.0 "TALLER PRO"
+-- ESQUEMA DE BASE DE DATOS MULTISERVICIO V2.1.0 "TALLER PRO"
 -- =============================================================================
 -- Este script crea TODAS las tablas del sistema en el orden correcto de
 -- dependencias (foreign keys) y termina con los datos mínimos para arrancar:
@@ -33,6 +33,16 @@
 --     convertir un presupuesto a venta directamente (botón "Convertir a
 --     Venta"), el sistema marca origen = 'PRESUPUESTO', pero como el ENUM
 --     no lo incluía, MySQL guardaba '' silenciosamente.
+--
+-- CAMBIOS v2.1.0 (2026-10-08):
+--   • Se agregó la columna `estado_gestion` (ENUM) a table_facturas para el
+--     semáforo de gestión de cobranza. Valores posibles:
+--         NUEVO, GESTIONADO, PROMETIDO, ACUERDO_PAGO, JUDICIAL
+--     Default: 'NUEVO'. Se agrega el índice `idx_estado_gestion` para
+--     filtrados rápidos.
+--     Motivo: el módulo de Cartera por Edades ahora muestra por cada factura
+--     un selector con el estado de gestión (llamado, promesa de pago, etc.)
+--     que se persiste en esta columna.
 -- =============================================================================
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -288,6 +298,11 @@ CREATE TABLE IF NOT EXISTS `table_cuentas_pago` (
 --   "Convertir a Venta" en el módulo de presupuestos. Los presupuestos
 --   anexados a OS/POS conservan origen 'TALLER' o 'MOSTRADOR'.
 -- 
+-- NOTA SOBRE estado_gestion (v2.1.0):
+--   Semáforo de gestión de cobranza. El módulo de "Cartera por Edades"
+--   muestra un selector por factura para marcar el avance de la cobranza.
+--   Valores: NUEVO, GESTIONADO, PROMETIDO, ACUERDO_PAGO, JUDICIAL.
+-- 
 --   La FK `table_facturas_ibfk_4` se crea DESPUÉS del bloque 11
 --   (ALTER TABLE) porque table_presupuestos se define más adelante.
 -- -----------------------------------------------------------------------------
@@ -306,6 +321,7 @@ CREATE TABLE IF NOT EXISTS `table_facturas` (
   `pago_transferencia` decimal(15,2) DEFAULT 0.00,
   `saldo_pendiente` decimal(15,2) DEFAULT 0.00,
   `status` enum('COMPLETADO','CREDITO','ANULADO','PENDIENTE') DEFAULT 'COMPLETADO',
+  `estado_gestion` enum('NUEVO','GESTIONADO','PROMETIDO','ACUERDO_PAGO','JUDICIAL') DEFAULT 'NUEVO' COMMENT 'Estado de gestión de cobranza para el semáforo de cartera',
   `origen` enum('MOSTRADOR','CATALOGO','TALLER','GARANTIA','PRESUPUESTO') DEFAULT 'MOSTRADOR',
   `observaciones` text DEFAULT NULL,
   `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -314,6 +330,7 @@ CREATE TABLE IF NOT EXISTS `table_facturas` (
   KEY `presupuesto_activo_id` (`presupuesto_activo_id`),
   KEY `cliente_id` (`cliente_id`),
   KEY `usuario_id` (`usuario_id`),
+  KEY `idx_estado_gestion` (`estado_gestion`),
   CONSTRAINT `table_facturas_ibfk_1` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`),
   CONSTRAINT `table_facturas_ibfk_2` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`),
   CONSTRAINT `table_facturas_ibfk_3` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
