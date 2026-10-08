@@ -65,9 +65,6 @@ class ControllerFacturacion extends Controller {
         }
     }
 
-    /**
-     * Procesa el guardado de la venta.
-     */
     public function procesar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
@@ -117,18 +114,8 @@ class ControllerFacturacion extends Controller {
                     }
                 }
 
-                error_log("FACTURACION::procesar - Payload: " . json_encode([
-                    'cliente_id' => $datos['cliente_id'] ?? null,
-                    'items_count' => is_array($datos['items'] ?? null) ? count($datos['items']) : 0,
-                    'presupuesto_activo_id' => $datos['presupuesto_activo_id'] ?? null,
-                    'iva_activo' => $datos['iva_activo'] ?? null,
-                    'placa' => $datos['placa'] ?? null,
-                    'origen' => $datos['origen'] ?? null,
-                ]));
-
                 $ventaId = $this->billingService->procesarVentaCompleta($datos, $_SESSION['user_id']);
 
-                // Marcar presupuesto como CONVERTIDO (post-venta)
                 if (!empty($datos['presupuesto_activo_id'])) {
                     try {
                         $presupuestoModel = $this->model('Presupuesto');
@@ -185,28 +172,15 @@ class ControllerFacturacion extends Controller {
                     'venta_id' => $ventaId
                 ]);
             } catch (\Throwable $e) {
-                $errorMsg = $e->getMessage();
-                $errorFile = $e->getFile();
-                $errorLine = $e->getLine();
-                
-                error_log("FACTURACION::procesar FALLÓ: [$errorMsg] en $errorFile:$errorLine");
-                error_log("FACTURACION::procesar Stack: " . $e->getTraceAsString());
-
+                error_log("FACTURACION::procesar FALLÓ: [" . $e->getMessage() . "]");
                 return $this->jsonResponse([
                     'success' => false,
-                    'mensaje' => 'Error al procesar la venta: ' . $errorMsg,
-                    'debug' => [
-                        'file' => basename($errorFile),
-                        'line' => $errorLine,
-                    ]
+                    'mensaje' => 'Error al procesar la venta: ' . $e->getMessage(),
                 ], 500);
             }
         }
     }
 
-    /**
-     * Sincroniza un borrador de factura desde el POS.
-     */
     public function sincronizarBorrador() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
@@ -230,18 +204,11 @@ class ControllerFacturacion extends Controller {
                 $ptra = (float)($datos['pago_transferencia'] ?? 0);
                 $saldo = max(0, $total - ($pef + $ptra));
 
-                $totales = [
-                    'subtotal' => $subtotal,
-                    'iva' => $iva,
-                    'total' => $total,
-                    'saldo' => $saldo
-                ];
-
+                $totales = ['subtotal' => $subtotal, 'iva' => $iva, 'total' => $total, 'saldo' => $saldo];
                 $status = 'PENDIENTE';
 
                 $ventaId = $this->facturaModel->guardarCabeceraVenta($datos, $status, $totales, $_SESSION['user_id']);
 
-                // Guardar items
                 $db = new Database();
                 $db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :fid");
                 $db->bind(':fid', $ventaId);
@@ -267,20 +234,13 @@ class ControllerFacturacion extends Controller {
                     }
                 }
 
-                return $this->jsonResponse([
-                    'success' => true,
-                    'venta_id' => $ventaId
-                ]);
+                return $this->jsonResponse(['success' => true, 'venta_id' => $ventaId]);
             } catch (\Throwable $e) {
-                error_log("Error en sincronizarBorrador: " . $e->getMessage());
                 return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
             }
         }
     }
 
-    /**
-     * Elimina un borrador de factura.
-     */
     public function eliminarBorrador($id = null) {
         try {
             if (!$id) {
@@ -312,26 +272,15 @@ class ControllerFacturacion extends Controller {
         }
     }
 
-    /**
-     * Genera el PDF de una factura vía AJAX.
-     */
     public function generarPdfAjax($id = null) {
         try {
-            if (!$id) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
-            }
-            return $this->jsonResponse([
-                'success' => true,
-                'pdf_url' => URLROOT . '/facturacion/imprimir/' . (int)$id
-            ]);
+            if (!$id) return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
+            return $this->jsonResponse(['success' => true, 'pdf_url' => URLROOT . '/facturacion/imprimir/' . (int)$id]);
         } catch (\Throwable $e) {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Imprime una factura en PDF.
-     */
     public function imprimir($id) {
         $venta = $this->facturaModel->obtenerVentaCompleta($id);
         if (!$venta) die("Factura no encontrada.");
@@ -348,9 +297,6 @@ class ControllerFacturacion extends Controller {
         exit;
     }
 
-    /**
-     * Registra un abono a una factura a crédito.
-     */
     public function registrarAbono() {
         if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
 
@@ -379,43 +325,23 @@ class ControllerFacturacion extends Controller {
                 logAction('FACTURACION', 'REGISTRAR_ABONO',
                     "Abono de $" . number_format($monto, 2) . " a Factura #{$input['venta_id']} vía $metodo");
 
-                return $this->jsonResponse([
-                    'success' => true,
-                    'mensaje' => 'Abono registrado correctamente'
-                ]);
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Abono registrado correctamente']);
             } else {
                 throw new Exception('No se pudo registrar el abono');
             }
         } catch (\Throwable $e) {
             error_log("Error en registrarAbono: " . $e->getMessage());
-            return $this->jsonResponse([
-                'success' => false,
-                'mensaje' => $e->getMessage()
-            ], 500);
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
 
     /**
      * NOTIFICACIÓN DE CRÉDITO (CAMPANITA DEL NAVBAR)
-     * Devuelve las facturas a crédito con saldo pendiente y +15 días de atraso.
-     * 
-     * Solo accesible para ADMINISTRADORES.
-     * 
-     * GET /facturacion/alertasCredito
-     * 
-     * Respuesta:
-     * {
-     *   success: true,
-     *   data: [
-     *     { id, cliente_nombre, placa, modelo_vehiculo, saldo_pendiente, fecha, dias_vencido },
-     *     ...
-     *   ],
-     *   total: N
-     * }
+     * Devuelve las facturas a crédito con +15 días de atraso.
+     * Solo ADMINISTRADORES.
      */
     public function alertasCredito() {
         try {
-            // Solo administradores
             RoleGuard::hasAccess(['ADMINISTRADOR']);
 
             $dias = 15;
@@ -438,47 +364,23 @@ class ControllerFacturacion extends Controller {
                 ];
             }, $facturas ?: []);
 
-            return $this->jsonResponse([
-                'success' => true,
-                'data'    => $data,
-                'total'   => count($data)
-            ]);
+            return $this->jsonResponse(['success' => true, 'data' => $data, 'total' => count($data)]);
         } catch (\Throwable $e) {
             error_log("Error en alertasCredito: " . $e->getMessage());
-            return $this->jsonResponse([
-                'success' => false,
-                'mensaje' => $e->getMessage(),
-                'data'    => []
-            ], 500);
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage(), 'data' => []], 500);
         }
     }
 
     /**
      * RESUMEN DE DEUDORES (TARJETA DEL DASHBOARD)
-     * Devuelve TODAS las facturas a crédito con saldo pendiente,
-     * sin importar los días de atraso (incluso 1 día cuenta).
-     * 
-     * Solo accesible para ADMINISTRADORES.
-     * 
-     * GET /facturacion/getDeudoresSummary
-     * 
-     * Respuesta:
-     * {
-     *   success: true,
-     *   data: {
-     *     resumen: { total_deuda, cantidad_deudores },
-     *     lista: [ { id, cliente_nombre, placa, modelo_vehiculo, saldo_pendiente, fecha }, ... ]
-     *   }
-     * }
+     * Devuelve TODAS las facturas a crédito con saldo pendiente.
      */
     public function getDeudoresSummary() {
         try {
-            // Solo administradores
             RoleGuard::hasAccess(['ADMINISTRADOR']);
 
             $db = new Database();
 
-            // Resumen global
             $db->query("SELECT 
                             COALESCE(SUM(v.saldo_pendiente), 0) as total_deuda,
                             COUNT(DISTINCT v.cliente_id) as cantidad_deudores
@@ -487,7 +389,6 @@ class ControllerFacturacion extends Controller {
                           AND v.saldo_pendiente > 0.05");
             $resumen = $db->single();
 
-            // Lista de TODAS las facturas a crédito con saldo pendiente
             $db->query("SELECT v.id, v.saldo_pendiente, v.fecha,
                                COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre,
                                COALESCE(vh.placa, v.placa, '---') as placa,
@@ -513,21 +414,83 @@ class ControllerFacturacion extends Controller {
             ]);
         } catch (\Throwable $e) {
             error_log("Error en getDeudoresSummary: " . $e->getMessage());
-            return $this->jsonResponse([
-                'success' => false,
-                'mensaje' => $e->getMessage()
-            ], 500);
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
 
     /**
-     * Devuelve los items de una factura aptos para devolución (solo repuestos).
+     * NUEVO: Devuelve TODAS las facturas a crédito con saldo pendiente de un
+     * cliente específico. Usado por el drawer lateral de "Ver Detalle" en la
+     * Cartera por Edades.
+     * 
+     * GET /facturacion/getFacturasCliente/{clienteId}
+     * 
+     * Respuesta:
+     * {
+     *   success: true,
+     *   data: {
+     *     cliente: { id, nombre, telefono, email },
+     *     facturas: [...],
+     *     totales: { total_deuda, cantidad_facturas }
+     *   }
+     * }
      */
+    public function getFacturasCliente($clienteId = null) {
+        try {
+            RoleGuard::hasAccess(['ADMINISTRADOR']);
+
+            if (!$clienteId) {
+                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de cliente requerido'], 400);
+            }
+
+            $facturas = $this->facturaModel->obtenerFacturasCreditoPorCliente($clienteId);
+
+            if (empty($facturas)) {
+                return $this->jsonResponse([
+                    'success' => true,
+                    'data' => [
+                        'cliente' => null,
+                        'facturas' => [],
+                        'totales' => ['total_deuda' => 0, 'cantidad_facturas' => 0]
+                    ]
+                ]);
+            }
+
+            // Datos del cliente (tomados de la primera factura)
+            $primera = $facturas[0];
+            $cliente = [
+                'id'        => $clienteId,
+                'nombre'    => $primera->cliente_nombre ?? 'SIN CLIENTE',
+                'telefono'  => $primera->cliente_telefono ?? '',
+                'email'     => $primera->cliente_email ?? ''
+            ];
+
+            // Totales
+            $totalDeuda = 0;
+            foreach ($facturas as $f) {
+                $totalDeuda += (float)$f->saldo_pendiente;
+            }
+
+            return $this->jsonResponse([
+                'success' => true,
+                'data' => [
+                    'cliente' => $cliente,
+                    'facturas' => $facturas,
+                    'totales' => [
+                        'total_deuda' => $totalDeuda,
+                        'cantidad_facturas' => count($facturas)
+                    ]
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            error_log("Error en getFacturasCliente: " . $e->getMessage());
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+
     public function getItemsDevolucion($ventaId = null) {
         try {
-            if (!$ventaId) {
-                return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
-            }
+            if (!$ventaId) return $this->jsonResponse(['success' => false, 'mensaje' => 'ID requerido'], 400);
 
             $db = new Database();
             $db->query("SELECT vd.id, vd.producto_id, vd.descripcion, vd.cantidad, 
@@ -538,21 +501,12 @@ class ControllerFacturacion extends Controller {
             $db->bind(':vid', (int)$ventaId);
             $items = $db->resultSet();
 
-            return $this->jsonResponse([
-                'success' => true,
-                'items' => $items ?: []
-            ]);
+            return $this->jsonResponse(['success' => true, 'items' => $items ?: []]);
         } catch (\Throwable $e) {
-            return $this->jsonResponse([
-                'success' => false,
-                'mensaje' => $e->getMessage()
-            ], 500);
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Lista el historial de devoluciones.
-     */
     public function listarDevoluciones() {
         try {
             $limit = (int)($_GET['limit'] ?? 10);
@@ -575,9 +529,6 @@ class ControllerFacturacion extends Controller {
         }
     }
 
-    /**
-     * Procesa una devolución de un ítem de factura.
-     */
     public function procesarDevolucion() {
         if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
 
@@ -598,19 +549,13 @@ class ControllerFacturacion extends Controller {
                 logAction('FACTURACION', 'PROCESAR_DEVOLUCION',
                     "Devolución procesada para Factura #{$input['venta_id']}, detalle #{$input['detalle_id']}");
 
-                return $this->jsonResponse([
-                    'success' => true,
-                    'mensaje' => 'Devolución procesada correctamente'
-                ]);
+                return $this->jsonResponse(['success' => true, 'mensaje' => 'Devolución procesada correctamente']);
             } else {
                 throw new Exception('No se pudo procesar la devolución');
             }
         } catch (\Throwable $e) {
             error_log("Error en procesarDevolucion: " . $e->getMessage());
-            return $this->jsonResponse([
-                'success' => false,
-                'mensaje' => $e->getMessage()
-            ], 500);
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
 }

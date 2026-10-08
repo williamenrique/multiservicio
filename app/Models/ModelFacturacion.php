@@ -3,8 +3,8 @@
  * Modelo de Facturación
  * Maneja la persistencia de ventas y la actualización de stock.
  * 
- * v2.0: Resueltos conflictos de Git merge que rompían el archivo.
- *       Se conservaron los cambios del branch REGISTRO-EMAIL (presupuesto_activo_id).
+ * v2.1: Se agregó obtenerFacturasCreditoPorCliente() para el detalle
+ *       del drawer lateral de la Cartera por Edades.
  */
 class ModelFacturacion {
     private $db;
@@ -56,12 +56,6 @@ class ModelFacturacion {
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene todos los borradores con sus respectivos items cargados.
-     * 
-     * FIX: Ahora incluye presupuesto_activo_id para que el POS pueda mostrar
-     * el panel verde del presupuesto anexado al cargar el borrador.
-     */
     public function obtenerBorradoresCompleto() {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
                                  os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
@@ -103,11 +97,6 @@ class ModelFacturacion {
         return $ventas;
     }
 
-    /**
-     * Busca un borrador pendiente vinculado a una Orden de Servicio específica.
-     * 
-     * FIX: Incluye presupuesto_activo_id.
-     */
     public function obtenerBorradorPorOrden($ordenId) {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
                                  os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
@@ -146,11 +135,6 @@ class ModelFacturacion {
         return $venta;
     }
 
-    /**
-     * Registra o actualiza la cabecera de una venta.
-     * 
-     * FIX: Ahora persiste presupuesto_activo_id cuando viene en los datos.
-     */
     public function guardarCabeceraVenta($datos, $status, $totales, $usuarioId) {
         try {
             $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
@@ -163,7 +147,6 @@ class ModelFacturacion {
                 $facturaActual = $this->db->single();
                 if ($facturaActual) {
                     $ordenIdPersist = !empty($facturaActual->orden_id) ? (int)$facturaActual->orden_id : null;
-                    // Preservar presupuesto_activo_id si no se envió uno nuevo
                     if ($presupuestoActivoId === null && !empty($facturaActual->presupuesto_activo_id)) {
                         $presupuestoActivoId = (int)$facturaActual->presupuesto_activo_id;
                     }
@@ -203,7 +186,6 @@ class ModelFacturacion {
             $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? '', 'UTF-8'));
             $this->db->execute();
 
-            // Cierre automático de Orden de Servicio
             $esFacturaOrdenServicio = !empty($ordenIdPersist);
             if ($esFacturaOrdenServicio && in_array($status, ['COMPLETADO', 'CREDITO'], true)) {
                 $this->sincronizarOrdenServicio(
@@ -464,9 +446,6 @@ class ModelFacturacion {
      * al menos $dias días de antigüedad desde su emisión.
      * 
      * Se usa para la CAMPANITA DE NOTIFICACIÓN del navbar (alerta de cartera vencida).
-     * 
-     * @param int $dias Mínimo de días de atraso para considerar vencida (por defecto 15).
-     * @return array Lista de facturas vencidas ordenadas por antigüedad (más vieja primero).
      */
     public function obtenerCreditosVencidos($dias = 15) {
         $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, 
@@ -482,6 +461,46 @@ class ModelFacturacion {
                           ORDER BY v.fecha ASC");
         $this->db->bind(':dias', $dias);
         return $this->db->resultSet();
+    }
+
+    /**
+     * NUEVO: Obtiene TODAS las facturas a crédito con saldo pendiente de un
+     * cliente específico. Se usa en el drawer lateral de "Ver Detalle" de la
+     * Cartera por Edades.
+     * 
+     * @param string $clienteId ID del cliente (varchar en la BD).
+     * @return array Lista de facturas ordenadas por fecha DESC.
+     */
+    public function obtenerFacturasCreditoPorCliente($clienteId) {
+        $this->db->query("SELECT 
+                            v.id,
+                            v.fecha,
+                            v.total,
+                            v.subtotal,
+                            v.iva_monto,
+                            v.pago_efectivo,
+                            v.pago_transferencia,
+                            v.saldo_pendiente,
+                            v.status,
+                            v.origen,
+                            v.observaciones,
+                            CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                            COALESCE(vh.placa, v.placa, '---') as placa,
+                            COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
+                            vh.marca as marca_vehiculo,
+                            DATEDIFF(CURDATE(), DATE(v.fecha)) as dias_atraso,
+                            COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre,
+                            c.telefono as cliente_telefono,
+                            c.email as cliente_email
+                          FROM table_facturas v
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.cliente_id = :cid
+                            AND v.status = 'CREDITO'
+                            AND v.saldo_pendiente > 0.05
+                          ORDER BY v.fecha DESC");
+        $this->db->bind(':cid', $clienteId);
+        return $this->db->resultSet() ?: [];
     }
 
     private function calcularDiferenciaDias($d1, $d2) {

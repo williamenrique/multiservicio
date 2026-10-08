@@ -248,35 +248,36 @@ class ModelReportes {
 
     /**
      * Obtiene el reporte de cartera clasificado por antigüedad de deuda.
-     * Divide la deuda en rangos de 0-15, 16-30 y más de 30 días. 
-     * Se usa DATE() para asegurar que deudas del mismo día (diff 0) sean incluidas.
+     * Divide la deuda en rangos de 0-15, 16-30 y más de 30 días.
+     * 
+     * ⚠️ IMPORTANTE: Este reporte NO filtra por rango de fechas. La "Cartera
+     * por Edades" es un reporte del ESTADO ACTUAL de la deuda. Debe mostrar
+     * TODAS las facturas a crédito con saldo pendiente, sin importar cuándo
+     * se emitieron. Si se filtrara por fecha, una deuda de Septiembre
+     * desaparecería al consultar en Octubre, lo cual es incorrecto: la
+     * deuda sigue vigente y debe seguir apareciendo en la cartera.
+     * 
+     * Se usa DATE() para asegurar que deudas del mismo día (diff 0) sean
+     * incluidas en el rango 0-15.
      */
-    public function obtenerCarteraPorEdades($desde = null, $hasta = null) {
-        $where = "WHERE v.status = 'CREDITO' AND v.saldo_pendiente > 0.05";
-        if ($desde && $hasta) {
-            $where .= " AND DATE(v.fecha) BETWEEN :desde AND :hasta";
-        }
-
+    public function obtenerCarteraPorEdades() {
         $this->db->query("SELECT 
+                            c.id as cliente_id,
                             c.nombre as cliente_nombre,
                             c.telefono as cliente_telefono,
                             SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) <= 15 THEN v.saldo_pendiente ELSE 0 END) as rango_0_15,
                             SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) > 15 AND DATEDIFF(CURDATE(), DATE(v.fecha)) <= 30 THEN v.saldo_pendiente ELSE 0 END) as rango_16_30,
                             SUM(CASE WHEN DATEDIFF(CURDATE(), DATE(v.fecha)) > 30 THEN v.saldo_pendiente ELSE 0 END) as rango_30_mas,
-                            SUM(v.saldo_pendiente) as total_deuda
+                            SUM(v.saldo_pendiente) as total_deuda,
+                            COUNT(v.id) as total_facturas
                           FROM table_facturas v
                           JOIN table_clientes c ON v.cliente_id = c.id
-                          $where
+                          WHERE v.status = 'CREDITO' 
+                            AND v.saldo_pendiente > 0.05
                           GROUP BY c.id
-                          ORDER BY total_deuda ASC");
+                          ORDER BY total_deuda DESC");
         
-        if ($desde && $hasta) {
-            $this->db->bind(':desde', $desde);
-            $this->db->bind(':hasta', $hasta);
-        }
-
-        $results = $this->db->resultSet() ?: [];
-        return $results;
+        return $this->db->resultSet() ?: [];
     }
 
     /**

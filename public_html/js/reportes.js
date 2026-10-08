@@ -1,19 +1,18 @@
 /**
  * GESTIÓN DE REPORTES - UNIFICADO
  * 
- * v2.2: 
- *   • renderCartera() ahora incluye botón "Abonar" por cliente.
- *   • Nueva función abonarDesdeCartera() que lista las facturas del
- *     cliente y permite abonar a una específica.
+ * v2.5 (2026-10-08):
+ *   • El botón "Abonar" del drawer de cartera ahora es INLINE: muestra un
+ *     input para el monto + selector de método en la misma tarjeta de la
+ *     factura, sin abrir modal. El botón se habilita solo cuando el monto
+ *     es válido (>0 y <= saldo pendiente).
+ *   • Al confirmar, se ejecuta la petición AJAX y se refresca el drawer
+ *     + la tabla de cartera sin recargar la página.
  */
 
-// Variables de estado global para filtros y auditoría
 let rawAuditData = { ventas: [], compras: [], gastos: [] };
 let activeReportTab = 'resumen';
 
-/**
- * Renderiza una fila del Flujo de Caja (6 columnas)
- */
 window.renderFlujoRow = (m) => {
     const isIngreso = m.tipo === 'INGRESO';
     const color = m.tipo_color || (isIngreso ? 'emerald' : 'rose');
@@ -96,27 +95,16 @@ window.renderFlujoRow = (m) => {
         </tr>`;
 };
 
-/**
- * Actualiza filtros de fecha para todos los manejadores activos
- */
 window.actualizarFiltrosFechas = () => {
-    if (window.handler_reporte_flujo) {
-        window.handler_reporte_flujo.reload();
-    }
-    if (window.handler_reporte_devoluciones) {
-        window.handler_reporte_devoluciones.reload();
-    }
+    if (window.handler_reporte_flujo) window.handler_reporte_flujo.reload();
+    if (window.handler_reporte_devoluciones) window.handler_reporte_devoluciones.reload();
 
     if (activeReportTab === 'detallado') window.cargarReporteDetallado();
-    if (activeReportTab === 'cartera') window.cargarCartera();
     if (activeReportTab === 'rentabilidad') window.cargarRentabilidad();
     if (activeReportTab === 'nomina') window.cargarNomina();
     if (activeReportTab === 'historial_nomina') window.cargarHistorialNomina();
 };
 
-/**
- * Carga Auditoría de Trabajos (Reporte Detallado)
- */
 window.cargarReporteDetallado = async () => {
     const desde = document.getElementById('rep-desde')?.value || '1970-01-01';
     const hasta = document.getElementById('rep-hasta')?.value || '2099-12-31';
@@ -175,16 +163,19 @@ window.cargarReporteDetallado = async () => {
 /**
  * Renderiza la tabla de Cartera por Edades.
  * 
- * v2.2: Ahora incluye una columna "Acciones" con botón "Abonar"
- *       que abre el flujo de pago para las facturas del cliente.
+ * v2.4: Ahora incluye 2 botones por fila:
+ *       • "Ver Detalle" → abre drawer lateral con todas las facturas del cliente.
+ *       • "Abonar"     → acceso rápido al flujo de abono.
  */
 window.renderCartera = (data) => {
     const tbody = document.getElementById('cartera-body');
     if (!tbody) return;
 
     tbody.innerHTML = (Array.isArray(data) && data.length > 0) ? data.map(c => {
-        // Escapar comillas simples para el onclick
         const safeNombre = (c.cliente_nombre || '').replace(/'/g, "\\'");
+        const safeClienteId = (c.cliente_id || '').toString().replace(/'/g, "\\'");
+        const sinId = !c.cliente_id;
+
         return `
         <tr class="hover:bg-slate-50 border-b border-slate-100">
             <td class="px-6 py-4 text-sm font-bold text-slate-700 uppercase">${c.cliente_nombre}</td>
@@ -193,28 +184,440 @@ window.renderCartera = (data) => {
             <td class="px-6 py-4 text-xs font-black text-rose-600 text-center">${AppUtils.formatCurrency(c.rango_30_mas)}</td>
             <td class="px-6 py-4 text-right font-black text-navy-blue text-sm">${AppUtils.formatCurrency(c.total_deuda)}</td>
             <td class="px-6 py-4 text-right">
-                <button onclick="abonarDesdeCartera('${safeNombre}')" 
-                        class="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[10px] uppercase px-3 py-2 rounded-lg transition-all shadow-sm">
-                    <i data-lucide="hand-coins" class="w-3.5 h-3.5"></i>
-                    Abonar
-                </button>
+                <div class="flex items-center justify-end gap-2">
+                    <button onclick="verDetalleClienteCartera('${safeClienteId}', '${safeNombre}')"
+                            ${sinId ? 'disabled' : ''}
+                            class="inline-flex items-center gap-1.5 bg-navy-blue hover:bg-slate-800 disabled:bg-slate-300 text-white font-black text-[10px] uppercase px-3 py-2 rounded-lg transition-all shadow-sm">
+                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                        Ver Detalle
+                    </button>
+                </div>
             </td>
         </tr>
-    `;
+        `;
     }).join('') : '<tr><td colspan="6" class="text-center py-20 text-slate-400 italic font-bold uppercase tracking-widest">Sin deudas de cartera</td></tr>';
+
     if (window.lucide) lucide.createIcons();
 };
 
 /**
- * NUEVO: Abona desde la vista de Cartera por Edades.
+ * Abre un drawer lateral con TODAS las facturas a crédito de un cliente.
+ * Cada factura muestra sus datos completos y un formulario INLINE para abonar
+ * (sin abrir modal).
  * 
- * Flow:
- *   1. Consulta el resumen de deudores (todas las facturas a crédito).
- *   2. Filtra las facturas del cliente seleccionado.
- *   3. Muestra un modal con la lista de facturas pendientes.
- *   4. Al seleccionar una factura, abre el modal de abono normal.
- * 
+ * @param {string} clienteId
  * @param {string} clienteNombre
+ */
+window.verDetalleClienteCartera = async (clienteId, clienteNombre) => {
+    if (!clienteId) {
+        return AppUtils.showToast('No se puede identificar al cliente', 'error');
+    }
+
+    try {
+        AppUtils.showLoading('Cargando facturas del cliente...');
+
+        const res = await fetch(`${URLROOT}/facturacion/getFacturasCliente/${clienteId}`, {
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!res.ok) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error al consultar las facturas del cliente', 'error');
+            return;
+        }
+
+        const result = await res.json();
+        AppUtils.hideLoading();
+
+        if (!result.success || !result.data) {
+            AppUtils.showToast('No se pudieron cargar las facturas', 'error');
+            return;
+        }
+
+        let drawer = document.getElementById('cartera-drawer');
+        let overlay = document.getElementById('cartera-drawer-overlay');
+
+        if (!drawer) {
+            drawer = document.createElement('div');
+            drawer.id = 'cartera-drawer';
+            drawer.className = 'fixed inset-y-0 right-0 w-full max-w-2xl bg-white shadow-2xl transform translate-x-full transition-transform duration-300 z-[9999] flex flex-col';
+            document.body.appendChild(drawer);
+        }
+
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'cartera-drawer-overlay';
+            overlay.className = 'fixed inset-0 bg-black/50 z-[9998] hidden transition-opacity duration-300';
+            overlay.onclick = window.cerrarCarteraDrawer;
+            document.body.appendChild(overlay);
+        }
+
+        // Guardamos el cliente en el dataset del drawer para poder refrescarlo
+        drawer.dataset.clienteId = clienteId;
+        drawer.dataset.clienteNombre = clienteNombre || '';
+
+        renderCarteraDrawerFacturas(result.data);
+
+        overlay.classList.remove('hidden');
+        void drawer.offsetWidth;
+        drawer.classList.remove('translate-x-full');
+
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        AppUtils.hideLoading();
+        console.error('Error en verDetalleClienteCartera:', e);
+        AppUtils.showToast('Error de conexión', 'error');
+    }
+};
+
+/**
+ * Renderiza el contenido del drawer lateral con las facturas del cliente.
+ * 
+ * v2.5: Cada factura ahora tiene un FORM INLINE de abono con:
+ *   • Input de monto (bloqueado si excede el saldo)
+ *   • Selector de método (Efectivo / Transferencia)
+ *   • Botón "Abonar" deshabilitado hasta que el monto sea válido
+ *   • Feedback de error si el monto es inválido
+ * 
+ * @param {object} data - { cliente, facturas, totales }
+ */
+function renderCarteraDrawerFacturas(data) {
+    const drawer = document.getElementById('cartera-drawer');
+    if (!drawer) return;
+
+    const cliente = data.cliente || {};
+    const facturas = data.facturas || [];
+    const totales = data.totales || { total_deuda: 0, cantidad_facturas: 0 };
+
+    const fmt = (n) => AppUtils.formatCurrency(n || 0);
+
+    const getDiasBadge = (dias) => {
+        dias = parseInt(dias) || 0;
+        if (dias <= 15) return 'bg-slate-100 text-slate-600';
+        if (dias <= 30) return 'bg-amber-100 text-amber-700';
+        return 'bg-rose-100 text-rose-700';
+    };
+
+    const facturasHtml = facturas.length === 0
+        ? '<div class="text-center py-12 text-slate-400 italic font-bold uppercase tracking-widest">Sin facturas pendientes</div>'
+        : facturas.map(f => {
+            const dias = parseInt(f.dias_atraso) || 0;
+            const diasBadge = getDiasBadge(dias);
+            const diasTexto = dias === 0 ? 'HOY' : `HACE ${dias} DÍAS`;
+            const saldoFmt = parseFloat(f.saldo_pendiente || 0).toFixed(2);
+
+            return `
+            <div class="border border-slate-200 rounded-xl p-4 hover:border-navy-blue hover:shadow-md transition-all bg-white"
+                 data-factura-card="${f.id}"
+                 data-saldo="${f.saldo_pendiente}">
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="h-12 w-12 rounded-xl bg-navy-blue text-neon-green flex flex-col items-center justify-center shadow-sm">
+                            <span class="text-[8px] font-black uppercase opacity-70">FAC</span>
+                            <span class="text-sm font-black leading-none">#${String(f.id).padStart(3, '0')}</span>
+                        </div>
+                        <div>
+                            <p class="text-xs font-black text-navy-blue uppercase">${f.id_formateado || ('FAC-' + f.id)}</p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">
+                                ${new Date(f.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-[9px] font-black uppercase px-2 py-1 rounded-md ${diasBadge}">
+                        ${diasTexto}
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-3 text-xs">
+                    <div class="flex flex-col">
+                        <span class="text-[9px] font-black text-slate-400 uppercase">Vehículo</span>
+                        <span class="font-bold text-slate-700 uppercase">${f.marca_vehiculo || ''} ${f.modelo_vehiculo || 'N/A'}</span>
+                        <span class="font-mono text-navy-blue font-black text-sm">[${f.placa || '---'}]</span>
+                    </div>
+                    <div class="flex flex-col text-right">
+                        <span class="text-[9px] font-black text-slate-400 uppercase">Origen</span>
+                        <span class="font-bold text-slate-700 uppercase text-[11px]">${f.origen || 'N/A'}</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 mb-3">
+                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                        <p class="text-[9px] font-black text-slate-400 uppercase mb-0.5">Total</p>
+                        <p class="font-black text-slate-700 text-sm">${fmt(f.total)}</p>
+                    </div>
+                    <div class="p-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                        <p class="text-[9px] font-black text-emerald-600 uppercase mb-0.5">Abonado</p>
+                        <p class="font-black text-emerald-700 text-sm">${fmt(parseFloat(f.pago_efectivo || 0) + parseFloat(f.pago_transferencia || 0))}</p>
+                    </div>
+                    <div class="p-2 bg-rose-50 rounded-lg border border-rose-100">
+                        <p class="text-[9px] font-black text-rose-600 uppercase mb-0.5">Debe</p>
+                        <p class="font-black text-rose-700 text-sm">${fmt(f.saldo_pendiente)}</p>
+                    </div>
+                </div>
+
+                ${f.observaciones ? `
+                    <div class="p-2 bg-amber-50 rounded-lg border border-amber-100 mb-3">
+                        <p class="text-[9px] font-black text-amber-700 uppercase mb-0.5">Observaciones</p>
+                        <p class="text-[10px] text-amber-800 italic font-bold leading-tight">${f.observaciones}</p>
+                    </div>
+                ` : ''}
+
+                <!-- ─────────────────────────────────────────────────── -->
+                <!-- FORM INLINE DE ABONO (v2.5)                        -->
+                <!-- ─────────────────────────────────────────────────── -->
+                <div class="pt-3 border-t border-slate-100 space-y-2" data-abono-form="${f.id}">
+                    <p class="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1.5">
+                        <i data-lucide="hand-coins" class="w-3 h-3"></i> Registrar Abono
+                    </p>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="col-span-2">
+                            <input type="number"
+                                   min="0.01"
+                                   step="0.01"
+                                   max="${saldoFmt}"
+                                   placeholder="Monto a abonar"
+                                   class="abono-input w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-black text-navy-blue text-sm focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 outline-none"
+                                   data-factura-id="${f.id}"
+                                   data-saldo="${f.saldo_pendiente}">
+                        </div>
+                        <div>
+                            <select class="abono-metodo w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-xs text-slate-700 focus:ring-2 focus:ring-emerald-400 outline-none"
+                                    data-factura-id="${f.id}">
+                                <option value="EFECTIVO">EFECTIVO</option>
+                                <option value="TRANSFERENCIA">TRANSFER.</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <p class="abono-error hidden text-[10px] font-black text-rose-600" data-error-for="${f.id}"></p>
+
+                    <div class="flex justify-end gap-2">
+                        <button onclick="window.open('${URLROOT}/facturas/ver/${f.id}', '_blank')"
+                                class="p-2 text-slate-400 hover:text-navy-blue transition-colors" title="Ver factura completa">
+                            <i data-lucide="external-link" class="w-4 h-4"></i>
+                        </button>
+                        <button class="abono-btn inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-black text-[10px] uppercase px-3 py-2 rounded-lg transition-all shadow-sm disabled:shadow-none"
+                                data-factura-id="${f.id}"
+                                disabled>
+                            <i data-lucide="hand-coins" class="w-3.5 h-3.5"></i>
+                            Abonar
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+
+    drawer.innerHTML = `
+        <div class="bg-navy-blue text-white p-6 flex justify-between items-start border-b border-gray-800">
+            <div class="flex-1">
+                <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Detalle de Cartera</p>
+                <h2 class="text-xl font-black text-white uppercase leading-tight">${cliente.nombre || 'SIN CLIENTE'}</h2>
+                ${cliente.telefono ? `<p class="text-xs font-bold text-neon-green mt-1 flex items-center gap-2"><i data-lucide="phone" class="w-3 h-3"></i> ${cliente.telefono}</p>` : ''}
+                ${cliente.email ? `<p class="text-xs font-bold text-slate-300 flex items-center gap-2 mt-0.5"><i data-lucide="mail" class="w-3 h-3"></i> ${cliente.email}</p>` : ''}
+            </div>
+            <button onclick="cerrarCarteraDrawer()"
+                    class="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="bg-slate-50 p-4 border-b border-slate-200">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="p-3 bg-white rounded-xl border border-slate-200">
+                    <p class="text-[9px] font-black text-slate-400 uppercase">Facturas Pendientes</p>
+                    <p class="text-2xl font-black text-navy-blue">${totales.cantidad_facturas}</p>
+                </div>
+                <div class="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                    <p class="text-[9px] font-black text-rose-600 uppercase">Deuda Total</p>
+                    <p class="text-2xl font-black text-rose-600">${fmt(totales.total_deuda)}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/50" id="cartera-drawer-facturas">
+            ${facturasHtml}
+        </div>
+
+        <div class="p-4 bg-white border-t border-slate-200 flex justify-end">
+            <button onclick="cerrarCarteraDrawer()"
+                    class="px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xs uppercase rounded-lg transition-all">
+                Cerrar
+            </button>
+        </div>
+    `;
+
+    // ─────────────────────────────────────────────────────────────
+    //  Vincular eventos de los formularios inline de abono
+    // ─────────────────────────────────────────────────────────────
+    bindDrawerAbonoEvents();
+
+    if (window.lucide) lucide.createIcons();
+}
+
+/**
+ * Vincula los eventos de validación y submit de los formularios inline
+ * de abono del drawer.
+ */
+function bindDrawerAbonoEvents() {
+    // Inputs de monto: validar en vivo
+    document.querySelectorAll('#cartera-drawer .abono-input').forEach(input => {
+        input.addEventListener('input', () => validarAbonoInline(input));
+    });
+
+    // Botones de abonar: submit directo
+    document.querySelectorAll('#cartera-drawer .abono-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const facturaId = btn.dataset.facturaId;
+            const card = document.querySelector(`#cartera-drawer [data-factura-card="${facturaId}"]`);
+            if (!card) return;
+
+            const input = card.querySelector('.abono-input');
+            const metodo = card.querySelector('.abono-metodo').value;
+
+            if (!validarAbonoInline(input)) return;
+
+            const monto = parseFloat(input.value);
+            ejecutarAbonoInline(facturaId, monto, metodo, card, btn);
+        });
+    });
+}
+
+/**
+ * Valida el monto de un input de abono inline y actualiza el estado visual
+ * del botón "Abonar" correspondiente.
+ * 
+ * @param {HTMLInputElement} input
+ * @returns {boolean} true si el monto es válido.
+ */
+function validarAbonoInline(input) {
+    const facturaId = input.dataset.facturaId;
+    const saldo = parseFloat(input.dataset.saldo) || 0;
+    const valor = parseFloat(input.value);
+    const esNumero = !isNaN(valor);
+    const mayorCero = esNumero && valor > 0;
+    const menorIgualSaldo = esNumero && valor <= (saldo + 0.001);
+    const valido = esNumero && mayorCero && menorIgualSaldo;
+
+    const card = input.closest('[data-factura-card]');
+    const btn = card?.querySelector('.abono-btn');
+    const errorEl = card?.querySelector(`.abono-error[data-error-for="${facturaId}"]`);
+
+    if (btn) btn.disabled = !valido;
+
+    if (errorEl) {
+        if (!input.value) {
+            errorEl.classList.add('hidden');
+            errorEl.textContent = '';
+            input.classList.remove('border-rose-400');
+        } else if (!esNumero || !mayorCero) {
+            errorEl.textContent = 'El monto debe ser mayor a 0.';
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-rose-400');
+        } else if (!menorIgualSaldo) {
+            errorEl.textContent = 'El monto no puede superar el saldo (' + AppUtils.formatCurrency(saldo) + ').';
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-rose-400');
+        } else {
+            errorEl.classList.add('hidden');
+            errorEl.textContent = '';
+            input.classList.remove('border-rose-400');
+        }
+    }
+
+    return valido;
+}
+
+/**
+ * Ejecuta el abono inline via AJAX y refresca el drawer + la tabla de cartera.
+ * 
+ * @param {number|string} facturaId
+ * @param {number} monto
+ * @param {string} metodo
+ * @param {HTMLElement} card
+ * @param {HTMLButtonElement} btn
+ */
+async function ejecutarAbonoInline(facturaId, monto, metodo, card, btn) {
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Procesando...';
+    if (window.lucide) lucide.createIcons();
+
+    try {
+        const res = await fetch(`${URLROOT}/facturacion/registrarAbono`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF_TOKEN
+            },
+            body: JSON.stringify({
+                venta_id: parseInt(facturaId),
+                monto: monto,
+                metodo: metodo
+            })
+        });
+
+        let data;
+        try {
+            data = await res.json();
+        } catch (parseErr) {
+            console.error('Respuesta no JSON:', await res.text());
+            AppUtils.showToast('Respuesta inválida del servidor', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        if (data.success) {
+            AppUtils.showToast(data.mensaje || 'Abono registrado');
+
+            // Refrescar drawer y tabla de cartera
+            const drawer = document.getElementById('cartera-drawer');
+            const clienteId = drawer?.dataset?.clienteId;
+            const clienteNombre = drawer?.dataset?.clienteNombre || '';
+
+            if (clienteId) {
+                window.verDetalleClienteCartera(clienteId, clienteNombre);
+            }
+
+            // Refrescar tabla de cartera de fondo
+            if (typeof window.cargarCartera === 'function') {
+                window.cargarCartera();
+            }
+
+            // Refrescar campanita de notificaciones
+            if (typeof initCreditNotifications === 'function') {
+                initCreditNotifications();
+            }
+        } else {
+            AppUtils.showToast(data.mensaje || 'Error al registrar el abono', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            if (window.lucide) lucide.createIcons();
+        }
+    } catch (e) {
+        console.error('Error al registrar abono inline:', e);
+        AppUtils.showToast('Error de conexión', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+/**
+ * Cierra el drawer lateral de cartera.
+ */
+window.cerrarCarteraDrawer = () => {
+    const drawer = document.getElementById('cartera-drawer');
+    const overlay = document.getElementById('cartera-drawer-overlay');
+    if (drawer) drawer.classList.add('translate-x-full');
+    if (overlay) overlay.classList.add('hidden');
+};
+
+/**
+ * Abona desde la vista de Cartera por Edades (botón rápido en la fila).
+ * Reutiliza la lógica de listado de facturas.
  */
 window.abonarDesdeCartera = async (clienteNombre) => {
     try {
@@ -238,7 +641,6 @@ window.abonarDesdeCartera = async (clienteNombre) => {
             return;
         }
 
-        // Filtrar las facturas de este cliente
         const facturasCliente = result.data.lista.filter(
             f => String(f.cliente_nombre || '').toUpperCase() === String(clienteNombre || '').toUpperCase()
                 && parseFloat(f.saldo_pendiente) > 0.05
@@ -249,13 +651,11 @@ window.abonarDesdeCartera = async (clienteNombre) => {
             return;
         }
 
-        // Si solo hay 1 factura, abonar directo
         if (facturasCliente.length === 1) {
             const f = facturasCliente[0];
             return window.registrarAbonoCliente(f.id, parseFloat(f.saldo_pendiente));
         }
 
-        // Si hay varias, mostrar selector
         const opcionesHtml = facturasCliente.map((f, i) => `
             <div class="p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
                  onclick="window._abonarFacturaDesdeLista(${i})">
@@ -277,7 +677,6 @@ window.abonarDesdeCartera = async (clienteNombre) => {
             </div>
         `).join('');
 
-        // Guardar la lista en window para que el callback la recupere
         window._facturasClienteCartera = facturasCliente;
 
         Swal.fire({
@@ -306,10 +705,6 @@ window.abonarDesdeCartera = async (clienteNombre) => {
     }
 };
 
-/**
- * Callback interno: cuando el usuario selecciona una factura del selector
- * del cartera, se cierra el Swal y se abre el modal de abono.
- */
 window._abonarFacturaDesdeLista = (index) => {
     const factura = window._facturasClienteCartera?.[index];
     if (!factura) return;
@@ -320,10 +715,8 @@ window._abonarFacturaDesdeLista = (index) => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Vincular buscador de auditoría
     document.getElementById('search-audit')?.addEventListener('input', (e) => filtrarAuditoria(e.target.value));
 
-    // Inyectar botón de impresión al lado del buscador de flujo de caja (Gastos)
     const searchReport = document.getElementById('search-report');
     if (searchReport) {
         const wrapper = searchReport.parentElement;
@@ -340,7 +733,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Inyectar botón de impresión al lado del buscador de auditoría
     const searchAudit = document.getElementById('search-audit');
     if (searchAudit) {
         const wrapper = searchAudit.parentElement;
@@ -358,7 +750,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Instancia para el Flujo de Caja (Resumen)
     window.handler_reporte_flujo = new DataTableRefactor({
         tableId: 'reportTable',
         tableBodyId: 'report-body',
@@ -393,7 +784,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRow: (m) => window.renderFlujoRow(m)
     });
 
-    // Instancia para Historial de Devoluciones
     window.handler_reporte_devoluciones = new DataTableRefactor({
         tableId: 'devolucionesTable',
         tableBodyId: 'devoluciones-body',
@@ -435,12 +825,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Vincular filtros de fecha
     document.getElementById('rep-desde')?.addEventListener('change', window.actualizarFiltrosFechas);
     document.getElementById('rep-hasta')?.addEventListener('change', window.actualizarFiltrosFechas);
 });
 
-// Alias para el botón de refrescar en la cabecera del reporte
 window.cargarReporte = window.actualizarFiltrosFechas;
 
 window.switchReportTab = (tab) => {
@@ -507,19 +895,14 @@ window.switchReportTab = (tab) => {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 };
 
-/**
- * Carga Reporte de Cartera
- */
 window.cargarCartera = async function () {
-    const desde = document.getElementById('rep-desde')?.value || '';
-    const hasta = document.getElementById('rep-hasta')?.value || '';
     const tbody = document.getElementById('cartera-body');
     if (!tbody) return;
 
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-16 text-slate-400 italic animate-pulse font-bold uppercase tracking-widest">GENERANDO REPORTE DE CARTERA...</td></tr>';
 
     try {
-        const res = await fetch(`${URLROOT}/reportes/cartera?desde=${desde}&hasta=${hasta}`);
+        const res = await fetch(`${URLROOT}/reportes/cartera`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const result = await res.json();
@@ -792,9 +1175,6 @@ function renderAuditoriaLista(items) {
     if (window.lucide) lucide.createIcons();
 }
 
-/**
- * Muestra el modal detallado de una venta (Vista previa similar a historial)
- */
 window.verDetalleVenta = async (ventaId) => {
     const idLimpio = String(ventaId).replace(/\D/g, '');
 
@@ -1020,9 +1400,6 @@ window.printVenta = (id) => {
     window.open(`${URLROOT}/facturacion/imprimir/${id}`, '_blank');
 };
 
-/**
- * Abre el modal para registrar un abono a una deuda.
- */
 window.registrarAbonoCliente = async (ventaId, saldoPendiente) => {
     const { value: formValues } = await Swal.fire({
         title: `<span class="text-xs uppercase text-slate-400 font-black">Registrar Pago</span><br>ORDEN #${ventaId}`,

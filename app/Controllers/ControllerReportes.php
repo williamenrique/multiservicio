@@ -50,12 +50,15 @@ class ControllerReportes extends Controller {
     }
 
     /**
-     * Endpoint para el reporte de Cartera por Edades
+     * Endpoint para el reporte de Cartera por Edades.
+     * 
+     * ⚠️ IMPORTANTE: NO recibe filtros de fecha. La "Cartera por Edades" es
+     * un reporte del ESTADO ACTUAL de la deuda. Debe mostrar TODAS las
+     * facturas a crédito con saldo pendiente, sin importar cuándo se emitieron.
+     * Filtrar por fecha ocultaría deudas antiguas que siguen vigentes.
      */
     public function cartera() {
-        $desde = $_GET['desde'] ?? date('Y-m-01');
-        $hasta = $_GET['hasta'] ?? date('Y-m-d');
-        $res = $this->reporteModel->obtenerCarteraPorEdades($desde, $hasta);
+        $res = $this->reporteModel->obtenerCarteraPorEdades();
         return $this->jsonResponse(['success' => true, 'data' => $res]);
     }
 
