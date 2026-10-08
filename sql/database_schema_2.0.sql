@@ -12,6 +12,27 @@
 -- USO:
 --   Ejecutar UNA sola vez sobre una base de datos VACÍA.
 --   El sistema auto-migra la clave en texto plano a bcrypt al primer login.
+--
+-- CAMBIOS v2.0.1 (2026-10-07):
+--   • Se agregó el estado 'ANEXADO' al ENUM de table_presupuestos.estado.
+--     Motivo: al anexar un presupuesto a una OS o Factura, el sistema
+--     marcaba estado = 'ANEXADO' pero MySQL lo guardaba como '' (vacío),
+--     causando que el presupuesto siguiera apareciendo como disponible.
+--
+-- CAMBIOS v2.0.2 (2026-10-08):
+--   • Se agregó la columna `presupuesto_activo_id` a table_facturas para
+--     vincular el borrador de factura con el presupuesto que se le anexó.
+--     Permite que el POS muestre el panel verde "Presupuesto #X anexado"
+--     incluso cuando la factura se creó desde una Orden de Servicio.
+--   • La FK `fk_facturas_presupuesto` se crea al final del script (después
+--     de table_presupuestos) mediante ALTER TABLE, porque table_facturas
+--     se define antes en el orden de dependencias.
+--
+-- CAMBIOS v2.0.3 (2026-10-08):
+--   • Se agregó 'PRESUPUESTO' al ENUM de table_facturas.origen. Motivo: al
+--     convertir un presupuesto a venta directamente (botón "Convertir a
+--     Venta"), el sistema marca origen = 'PRESUPUESTO', pero como el ENUM
+--     no lo incluía, MySQL guardaba '' silenciosamente.
 -- =============================================================================
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -22,10 +43,6 @@ SET NAMES utf8mb4;
 -- BLOQUE 1: IDENTIDAD Y SEGURIDAD
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_roles
--- Propósito: Catálogo de roles del sistema (permisos por rol).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_roles` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre_rol` varchar(50) NOT NULL,
@@ -33,10 +50,6 @@ CREATE TABLE IF NOT EXISTS `table_roles` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_staff
--- Propósito: Datos personales de los empleados del taller (no de acceso).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_staff` (
   `id` varchar(50) NOT NULL,
   `cedula` varchar(20) NOT NULL,
@@ -53,10 +66,6 @@ CREATE TABLE IF NOT EXISTS `table_staff` (
   UNIQUE KEY `cedula` (`cedula`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_usuarios
--- Propósito: Cuentas de acceso al sistema (login).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_usuarios` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `staff_id` varchar(50) DEFAULT NULL,
@@ -73,10 +82,6 @@ CREATE TABLE IF NOT EXISTS `table_usuarios` (
   CONSTRAINT `table_usuarios_ibfk_2` FOREIGN KEY (`role_id`) REFERENCES `table_roles` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_usuario_sessions
--- Propósito: Control de sesión única por usuario/plataforma (WEB/APP).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_usuario_sessions` (
   `usuario_id` int(11) NOT NULL,
   `tipo` enum('WEB','APP') NOT NULL DEFAULT 'APP',
@@ -90,10 +95,6 @@ CREATE TABLE IF NOT EXISTS `table_usuario_sessions` (
   CONSTRAINT `table_usuario_sessions_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_company_settings
--- Propósito: Configuración global de la empresa (nombre, NIT, IVA, etc.).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_company_settings` (
   `id` int(11) NOT NULL DEFAULT 1,
   `name` varchar(100) NOT NULL,
@@ -111,10 +112,6 @@ CREATE TABLE IF NOT EXISTS `table_company_settings` (
 -- BLOQUE 2: ENTIDADES MAESTRAS
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_clientes
--- Propósito: Maestro de clientes (persona natural o jurídica).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_clientes` (
   `id` varchar(50) NOT NULL,
   `nombre` varchar(100) NOT NULL,
@@ -127,10 +124,6 @@ CREATE TABLE IF NOT EXISTS `table_clientes` (
   KEY `telefono` (`telefono`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_vehiculos
--- Propósito: Maestro de vehículos vinculados a un cliente.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_vehiculos` (
   `placa` varchar(20) NOT NULL,
   `cliente_id` varchar(50) DEFAULT NULL,
@@ -143,10 +136,6 @@ CREATE TABLE IF NOT EXISTS `table_vehiculos` (
   CONSTRAINT `table_vehiculos_ibfk_1` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_proveedores
--- Propósito: Maestro de proveedores de repuestos.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_proveedores` (
   `id` varchar(50) NOT NULL,
   `nombre` varchar(100) NOT NULL,
@@ -160,10 +149,6 @@ CREATE TABLE IF NOT EXISTS `table_proveedores` (
 -- BLOQUE 3: INVENTARIO Y COSTEO (CPP)
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_inventario
--- Propósito: Productos y servicios con costeo por Costo Promedio Ponderado.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_inventario` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `codigo` varchar(50) DEFAULT NULL,
@@ -190,10 +175,6 @@ CREATE TABLE IF NOT EXISTS `table_inventario` (
   KEY `oferta_activa` (`oferta_activa`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_kardex
--- Propósito: Historial de movimientos de stock por producto.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_kardex` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `producto_id` int(11) DEFAULT NULL,
@@ -216,10 +197,6 @@ CREATE TABLE IF NOT EXISTS `table_kardex` (
 -- BLOQUE 4: OPERACIONES DEL TALLER
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_ordenes_servicio
--- Propósito: Hoja de vida técnica del vehículo (no es factura).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_ordenes_servicio` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `cliente_id` varchar(50) DEFAULT NULL,
@@ -244,10 +221,6 @@ CREATE TABLE IF NOT EXISTS `table_ordenes_servicio` (
   CONSTRAINT `table_ordenes_servicio_ibfk_3` FOREIGN KEY (`mecanico_id`) REFERENCES `table_staff` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_orden_checklist
--- Propósito: Checklist de entrada del vehículo (accesorios, estado).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_orden_checklist` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `orden_id` int(11) NOT NULL,
@@ -259,10 +232,6 @@ CREATE TABLE IF NOT EXISTS `table_orden_checklist` (
   CONSTRAINT `table_orden_checklist_ibfk_1` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_orden_servicios
--- Propósito: Servicios/revisiones específicos de cada orden.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_orden_servicios` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `orden_id` int(11) NOT NULL,
@@ -277,10 +246,6 @@ CREATE TABLE IF NOT EXISTS `table_orden_servicios` (
   CONSTRAINT `table_orden_servicios_ibfk_1` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_orden_estados_log
--- Propósito: Historial de cambios de estado de cada orden.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_orden_estados_log` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `orden_id` int(11) NOT NULL,
@@ -300,10 +265,6 @@ CREATE TABLE IF NOT EXISTS `table_orden_estados_log` (
 -- BLOQUE 5: FINANZAS Y FACTURACIÓN
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_cuentas_pago
--- Propósito: Catálogo de cajas/bancos para el libro mayor.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_cuentas_pago` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre` varchar(50) NOT NULL,
@@ -315,10 +276,25 @@ CREATE TABLE IF NOT EXISTS `table_cuentas_pago` (
 -- -----------------------------------------------------------------------------
 -- Tabla: table_facturas
 -- Propósito: Cabecera de facturas (registro contable de ventas).
+-- 
+-- NOTA SOBRE presupuesto_activo_id:
+--   Almacena el ID del presupuesto que fue anexado a esta factura (cuando
+--   se procesa una venta desde el POS o se crea una O.S. con presupuesto).
+--   Permite mostrar el panel verde "Presupuesto #X anexado" en el POS y
+--   saber qué presupuesto marcar como CONVERTIDO al facturar.
+-- 
+-- NOTA SOBRE origen:
+--   Incluye 'PRESUPUESTO' para facturas creadas desde el botón
+--   "Convertir a Venta" en el módulo de presupuestos. Los presupuestos
+--   anexados a OS/POS conservan origen 'TALLER' o 'MOSTRADOR'.
+-- 
+--   La FK `table_facturas_ibfk_4` se crea DESPUÉS del bloque 11
+--   (ALTER TABLE) porque table_presupuestos se define más adelante.
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_facturas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `orden_id` int(11) DEFAULT NULL,
+  `presupuesto_activo_id` int(11) DEFAULT NULL,
   `cliente_id` varchar(50) DEFAULT NULL,
   `placa` varchar(20) DEFAULT NULL,
   `modelo_vehiculo` varchar(100) DEFAULT NULL,
@@ -330,11 +306,12 @@ CREATE TABLE IF NOT EXISTS `table_facturas` (
   `pago_transferencia` decimal(15,2) DEFAULT 0.00,
   `saldo_pendiente` decimal(15,2) DEFAULT 0.00,
   `status` enum('COMPLETADO','CREDITO','ANULADO','PENDIENTE') DEFAULT 'COMPLETADO',
-  `origen` enum('MOSTRADOR','CATALOGO','TALLER','GARANTIA') DEFAULT 'MOSTRADOR',
+  `origen` enum('MOSTRADOR','CATALOGO','TALLER','GARANTIA','PRESUPUESTO') DEFAULT 'MOSTRADOR',
   `observaciones` text DEFAULT NULL,
   `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `orden_id` (`orden_id`),
+  KEY `presupuesto_activo_id` (`presupuesto_activo_id`),
   KEY `cliente_id` (`cliente_id`),
   KEY `usuario_id` (`usuario_id`),
   CONSTRAINT `table_facturas_ibfk_1` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`),
@@ -342,10 +319,6 @@ CREATE TABLE IF NOT EXISTS `table_facturas` (
   CONSTRAINT `table_facturas_ibfk_3` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_facturas_detalle
--- Propósito: Detalle de items por factura con atribución al mecánico.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_facturas_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `factura_id` int(11) DEFAULT NULL,
@@ -365,10 +338,6 @@ CREATE TABLE IF NOT EXISTS `table_facturas_detalle` (
   CONSTRAINT `table_facturas_detalle_ibfk_3` FOREIGN KEY (`mecanico_id`) REFERENCES `table_staff` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_abonos_clientes
--- Propósito: Historial de abonos parciales a deudas de clientes.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `factura_id` int(11) DEFAULT NULL,
@@ -384,10 +353,6 @@ CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
 -- BLOQUE 6: COMPRAS Y EGRESOS A PROVEEDORES
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_compras
--- Propósito: Cabecera de compras a proveedores.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_compras` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `proveedor_id` varchar(50) DEFAULT NULL,
@@ -404,10 +369,6 @@ CREATE TABLE IF NOT EXISTS `table_compras` (
   CONSTRAINT `table_compras_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_compras_detalle
--- Propósito: Detalle de items por compra (actualiza stock y CPP).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `compra_id` int(11) DEFAULT NULL,
@@ -422,10 +383,6 @@ CREATE TABLE IF NOT EXISTS `table_compras_detalle` (
   CONSTRAINT `table_compras_detalle_ibfk_2` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_abonos_proveedores
--- Propósito: Historial de abonos parciales a deudas con proveedores.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_abonos_proveedores` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `compra_id` int(11) NOT NULL,
@@ -444,10 +401,6 @@ CREATE TABLE IF NOT EXISTS `table_abonos_proveedores` (
 -- BLOQUE 7: LIBRO MAYOR CENTRALIZADO
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_transacciones
--- Propósito: Libro mayor (todas las entradas/salidas de caja y banco).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_transacciones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `cuenta_id` int(11) DEFAULT NULL,
@@ -467,10 +420,6 @@ CREATE TABLE IF NOT EXISTS `table_transacciones` (
   CONSTRAINT `table_transacciones_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_gastos
--- Propósito: Gastos operativos del taller (servicios, insumos, etc.).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_gastos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `categoria` varchar(50) DEFAULT NULL,
@@ -482,10 +431,6 @@ CREATE TABLE IF NOT EXISTS `table_gastos` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_pagos_empleados
--- Propósito: Registro de adelantos y pagos de nómina.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_pagos_empleados` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `staff_id` varchar(50) DEFAULT NULL,
@@ -509,10 +454,6 @@ CREATE TABLE IF NOT EXISTS `table_pagos_empleados` (
 -- BLOQUE 8: AUDITORÍA Y SISTEMA
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_audit_logs
--- Propósito: Bitácora de acciones críticas del sistema.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_audit_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) DEFAULT NULL,
@@ -524,10 +465,6 @@ CREATE TABLE IF NOT EXISTS `table_audit_logs` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_recuperaciones
--- Propósito: Solicitudes de recuperación de contraseña.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) DEFAULT NULL,
@@ -538,10 +475,6 @@ CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
   CONSTRAINT `table_recuperaciones_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_devoluciones
--- Propósito: Historial de devoluciones de productos al cliente.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_devoluciones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `factura_id` int(11) DEFAULT NULL,
@@ -568,10 +501,6 @@ CREATE TABLE IF NOT EXISTS `table_devoluciones` (
 -- BLOQUE 9: GARANTÍAS
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_garantias
--- Propósito: Cabecera de garantías (anula factura original, genera una nueva).
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_garantias` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `factura_original_id` int(11) NOT NULL COMMENT 'Factura que se anula',
@@ -604,10 +533,6 @@ CREATE TABLE IF NOT EXISTS `table_garantias` (
   CONSTRAINT `table_garantias_ibfk_4` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_garantias_detalle
--- Propósito: Detalle de items procesados en cada garantía.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_garantias_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `garantia_id` int(11) NOT NULL,
@@ -634,10 +559,6 @@ CREATE TABLE IF NOT EXISTS `table_garantias_detalle` (
 -- BLOQUE 10: EMAILS Y COMUNICACIONES
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_emails
--- Propósito: Registro de todos los emails enviados por el sistema.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_emails` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `tipo` enum('FACTURA','PRESUPUESTO','NOTIFICACION','RECUPERACION','ORDEN_SERVICIO','PEDIDO_CATALOGO','RESUMEN_MENSUAL','ALERTA_PROVEEDOR','GARANTIA','OTRO') NOT NULL DEFAULT 'OTRO',
@@ -663,10 +584,6 @@ CREATE TABLE IF NOT EXISTS `table_emails` (
   CONSTRAINT `table_emails_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_email_templates
--- Propósito: Plantillas reutilizables para envío rápido de emails.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_email_templates` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre` varchar(100) NOT NULL,
@@ -686,10 +603,6 @@ CREATE TABLE IF NOT EXISTS `table_email_templates` (
 -- BLOQUE 11: PRESUPUESTOS / COTIZACIONES
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: table_presupuestos
--- Propósito: Cabecera de presupuestos enviados a clientes.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_presupuestos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `numero` varchar(20) NOT NULL COMMENT 'Formato: PRES-YYYY-XXXX',
@@ -709,7 +622,7 @@ CREATE TABLE IF NOT EXISTS `table_presupuestos` (
   `total` decimal(15,2) NOT NULL DEFAULT 0.00,
   `iva_activo` tinyint(1) DEFAULT 1,
   `tasa_iva` decimal(5,2) DEFAULT 19.00,
-  `estado` enum('BORRADOR','ENVIADO','ACTIVO','EN_PROCESO','ACEPTADO','RECHAZADO','EXPIRADO','CONVERTIDO') DEFAULT 'BORRADOR',
+  `estado` enum('BORRADOR','ENVIADO','ACTIVO','EN_PROCESO','ANEXADO','ACEPTADO','RECHAZADO','EXPIRADO','CONVERTIDO') DEFAULT 'BORRADOR',
   `validez_dias` int(11) DEFAULT 30,
   `fecha_emision` date NOT NULL DEFAULT curdate(),
   `fecha_vencimiento` date DEFAULT NULL,
@@ -733,10 +646,6 @@ CREATE TABLE IF NOT EXISTS `table_presupuestos` (
   CONSTRAINT `table_presupuestos_ibfk_3` FOREIGN KEY (`usuario_activacion_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_presupuestos_detalle
--- Propósito: Detalle de items por presupuesto.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_presupuestos_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `presupuesto_id` int(11) NOT NULL,
@@ -760,10 +669,6 @@ CREATE TABLE IF NOT EXISTS `table_presupuestos_detalle` (
   CONSTRAINT `table_presupuestos_detalle_ibfk_2` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: table_presupuestos_reservas
--- Propósito: Reservas de stock activas por presupuesto.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_presupuestos_reservas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `presupuesto_id` int(11) NOT NULL,
@@ -785,13 +690,22 @@ CREATE TABLE IF NOT EXISTS `table_presupuestos_reservas` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- =============================================================================
+-- ALTER: FK de table_facturas.presupuesto_activo_id
+-- =============================================================================
+-- Se ejecuta aquí porque table_presupuestos se creó en el bloque anterior.
+-- Vincula cada borrador de factura con el presupuesto que se le anexó.
+-- ON DELETE SET NULL: si se borra el presupuesto, la factura queda sin vínculo
+-- pero NO se elimina (la factura ya está emitida o en proceso).
+-- =============================================================================
+
+ALTER TABLE `table_facturas`
+  ADD CONSTRAINT `table_facturas_ibfk_4`
+  FOREIGN KEY (`presupuesto_activo_id`) REFERENCES `table_presupuestos` (`id`) ON DELETE SET NULL;
+
+-- =============================================================================
 -- BLOQUE 12: CATÁLOGO PÚBLICO Y PEDIDOS EN LÍNEA
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Tabla: pedidos_clientes
--- Propósito: Pedidos realizados desde el catálogo público.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `pedidos_clientes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre_cliente` varchar(150) NOT NULL,
@@ -814,10 +728,6 @@ CREATE TABLE IF NOT EXISTS `pedidos_clientes` (
   CONSTRAINT `pedidos_clientes_ibfk_1` FOREIGN KEY (`usuario_procesa`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- -----------------------------------------------------------------------------
--- Tabla: pedido_detalles
--- Propósito: Detalle de productos por pedido público.
--- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `pedido_detalles` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `pedido_id` int(11) NOT NULL,
@@ -836,39 +746,20 @@ CREATE TABLE IF NOT EXISTS `pedido_detalles` (
 -- SEMILLAS (DATOS INICIALES PARA ARRANCAR EL SISTEMA)
 -- =============================================================================
 
--- -----------------------------------------------------------------------------
--- Roles básicos del sistema
--- -----------------------------------------------------------------------------
 INSERT INTO `table_roles` (`id`, `nombre_rol`, `descripcion`) VALUES
 (1, 'ADMINISTRADOR', 'CONTROL TOTAL DEL SISTEMA'),
 (2, 'MECANICO',      'GESTION DE ORDENES Y TRABAJOS'),
 (3, 'CAJERO',        'GESTION DE FACTURACION Y CAJA');
 
--- -----------------------------------------------------------------------------
--- Empleado/Staff inicial del administrador
--- -----------------------------------------------------------------------------
 INSERT INTO `table_staff` (`id`, `cedula`, `nombre`, `cargo`, `estado`) VALUES
 ('STAFF-001', 'V-00000000', 'ADMINISTRADOR', 'ADMINISTRADOR', 'ACTIVO');
 
--- -----------------------------------------------------------------------------
--- Usuario administrador inicial
--- Usuario: admin
--- Clave:   admin123
--- NOTA: la clave se guarda en texto plano. Al primer login, el sistema
---       la migra automáticamente a bcrypt (auto-migración soportada).
--- -----------------------------------------------------------------------------
 INSERT INTO `table_usuarios` (`staff_id`, `username`, `password`, `role_id`, `estado`) VALUES
 ('STAFF-001', 'admin', 'admin123', 1, 'ACTIVO');
 
--- -----------------------------------------------------------------------------
--- Configuración inicial de la empresa
--- -----------------------------------------------------------------------------
 INSERT INTO `table_company_settings` (`id`, `name`, `nit`, `iva`, `direccion`, `telefono`) VALUES
 (1, 'TALLER PRO', 'J-00000000-0', 19.00, 'DIRECCIÓN DE LA EMPRESA', '000-0000000');
 
--- -----------------------------------------------------------------------------
--- Cuentas de caja y banco base (para el libro mayor)
--- -----------------------------------------------------------------------------
 INSERT INTO `table_cuentas_pago` (`nombre`, `tipo`, `saldo_actual`) VALUES
 ('CAJA GENERAL EFECTIVO', 'EFECTIVO', 0.00),
 ('CUENTA BANCO',          'VIRTUAL',  0.00);

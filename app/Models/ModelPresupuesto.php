@@ -2,6 +2,33 @@
 /**
  * Modelo de Presupuestos
  * Gestiona la creación, edición y seguimiento de presupuestos/cotizaciones.
+ * 
+ * FLUJO DE ESTADOS:
+ *   BORRADOR → ENVIADO → ACEPTADO → ANEXADO → CONVERTIDO
+ *                    ↘  RECHAZADO / EXPIRADO
+ * 
+ * REGLAS DE STOCK:
+ *   ┌──────────────┬─────────────────┬────────────────────┬──────────────────┐
+ *   │ Estado       │ Stock Físico    │ Reserva            │ Disponible       │
+ *   ├──────────────┼─────────────────┼────────────────────┼──────────────────┤
+ *   │ BORRADOR     │ No toca         │ No reserva         │ Normal           │
+ *   │ ENVIADO      │ No toca         │ No reserva         │ Normal           │
+ *   │ ACEPTADO     │ No toca         │ ✅ RESERVADA       │ Bloqueado        │
+ *   │ ANEXADO      │ No toca         │ LIBERADA*          │ Bloqueado*       │
+ *   │ CONVERTIDO   │ ✅ DESCUENTA    │ FACTURADA          │ Ya salió         │
+ *   └──────────────┴─────────────────┴────────────────────┴──────────────────┘
+ * 
+ *   (*) Al ANEXAR (a OS o Facturación), la reserva del presupuesto se LIBERA
+ *       porque el borrador de factura (status PENDIENTE) que se crea al anexar
+ *       ya bloquea el stock_disponible. Así se evita el DOBLE CONTEO.
+ * 
+ * v2.4 (2026-10-08):
+ *   • FIX: al actualizar un presupuesto, si no viene fecha_vencimiento en el
+ *     payload, se recalcula desde fecha_emision + validez_dias. Antes se
+ *     guardaba NULL y rompía la tabla (columna Vencimiento vacía).
+ *   • FIX: crear() ahora respeta validez_dias real del form (antes usaba
+ *     un default de +30 días hardcoded).
+ *   • Se agregó helper privado calcularFechaVencimiento().
  */
 class ModelPresupuesto {
     private $db;
@@ -10,9 +37,6 @@ class ModelPresupuesto {
         $this->db = $db ?: new Database();
     }
 
-    /**
-     * Genera el siguiente número de presupuesto (PRES-YYYY-XXXX)
-     */
     private function generarNumero() {
         $year = date('Y');
         $this->db->query("SELECT COUNT(*) as total FROM table_presupuestos WHERE numero LIKE :pattern");
@@ -23,8 +47,215 @@ class ModelPresupuesto {
     }
 
     /**
-     * Lista presupuestos con paginación y filtros
+     * Calcula la fecha de vencimiento a partir de fecha_emision + validez_dias.
+     * Si ya viene una fecha_vencimiento explícita en $data, la respeta.
      */
+    private function calcularFechaVencimiento($data) {
+        if (!empty($data['fecha_vencimiento'])) {
+            return $data['fecha_vencimiento'];
+        }
+        $fechaEmision = !empty($data['fecha_emision']) ? $data['fecha_emision'] : date('Y-m-d');
+        $validezDias = (int)($data['validez_dias'] ?? 30);
+        if ($validezDias <= 0) $validezDias = 30;
+        return date('Y-m-d', strtotime("$fechaEmision + $validezDias days"));
+    }
+
+    /**
+     * Normaliza un item para asegurar que todos los campos requeridos existan.
+     */
+    private function normalizarItem($item, $index) {
+        $tipo = strtoupper($item['tipo_item'] ?? 'PRODUCTO');
+        $productoId = ($tipo === 'PRODUCTO') ? ($item['producto_id'] ?? null) : null;
+        if (empty($productoId)) $productoId = null;
+
+        $descripcion = trim((string)($item['descripcion'] ?? $item['nombre'] ?? ''));
+        if ($descripcion === '') {
+            $descripcion = 'ITEM SIN DESCRIPCIÓN';
+        }
+
+        return [
+            'producto_id'           => $productoId,
+            'tipo_item'             => $tipo,
+            'descripcion'           => $descripcion,
+            'cantidad'              => max(1, (int)($item['cantidad'] ?? 1)),
+            'precio_unitario'       => (float)($item['precio_unitario'] ?? 0),
+            'descuento_porcentaje'  => (float)($item['descuento_porcentaje'] ?? 0),
+            'descuento_monto'       => (float)($item['descuento_monto'] ?? 0),
+            'subtotal'              => (float)($item['subtotal'] ?? 0),
+            'iva_porcentaje'        => (float)($item['iva_porcentaje'] ?? 0),
+            'iva_monto'             => (float)($item['iva_monto'] ?? 0),
+            'total'                 => (float)($item['total'] ?? 0),
+            'orden_visual'          => (int)($item['orden_visual'] ?? $index),
+            'notas'                 => $item['notas'] ?? null,
+        ];
+    }
+
+    /**
+     * Calcula el stock_disponible real de un producto (para validaciones).
+     */
+    private function stockDisponibleProducto($productoId) {
+        $this->db->query("SELECT 
+                          (i.stock 
+                           - COALESCE((
+                                SELECT SUM(vd.cantidad) 
+                                FROM table_facturas_detalle vd 
+                                JOIN table_facturas v ON vd.factura_id = v.id 
+                                WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
+                             ), 0)
+                           - COALESCE((
+                                SELECT SUM(pr.cantidad_reservada) 
+                                FROM table_presupuestos_reservas pr
+                                JOIN table_presupuestos p ON pr.presupuesto_id = p.id
+                                WHERE pr.producto_id = i.id 
+                                  AND pr.estado = 'RESERVADA' 
+                                  AND p.estado IN ('ACEPTADO', 'ACTIVO')
+                             ), 0)
+                          ) as stock_disponible,
+                          i.nombre
+                          FROM table_inventario i WHERE i.id = :id");
+        $this->db->bind(':id', $productoId);
+        return $this->db->single();
+    }
+
+    /**
+     * Crea reservas de stock (RESERVADA) SIN tocar el stock físico.
+     */
+    private function reservarStockPresupuesto($id) {
+        $this->db->query("SELECT COUNT(*) as cnt FROM table_presupuestos_reservas 
+                          WHERE presupuesto_id = :id AND estado IN ('RESERVADA', 'FACTURADA')");
+        $this->db->bind(':id', (int)$id);
+        if ((int)$this->db->single()->cnt > 0) {
+            return true;
+        }
+
+        $this->db->query("SELECT pd.producto_id, pd.cantidad, i.nombre
+                          FROM table_presupuestos_detalle pd
+                          INNER JOIN table_inventario i ON pd.producto_id = i.id
+                          WHERE pd.presupuesto_id = :id AND pd.tipo_item = 'PRODUCTO'");
+        $this->db->bind(':id', (int)$id);
+        $items = $this->db->resultSet();
+
+        foreach ($items as $item) {
+            $stockInfo = $this->stockDisponibleProducto($item->producto_id);
+            if (!$stockInfo || $stockInfo->stock_disponible < $item->cantidad) {
+                $disponible = $stockInfo ? $stockInfo->stock_disponible : 0;
+                throw new Exception("Stock insuficiente para '{$item->nombre}'. Disponible: {$disponible}, Requerido: {$item->cantidad}");
+            }
+        }
+
+        foreach ($items as $item) {
+            $this->db->query("INSERT INTO table_presupuestos_reservas 
+                              (presupuesto_id, producto_id, cantidad_reservada, estado) 
+                              VALUES (:pid, :producto_id, :cant, 'RESERVADA')");
+            $this->db->bind(':pid', (int)$id);
+            $this->db->bind(':producto_id', $item->producto_id);
+            $this->db->bind(':cant', $item->cantidad);
+            $this->db->execute();
+        }
+
+        return true;
+    }
+
+    /**
+     * Libera las reservas RESERVADA de un presupuesto (sin devolver stock físico).
+     */
+    private function liberarReservasSinStock($id) {
+        $this->db->query("UPDATE table_presupuestos_reservas 
+                          SET estado = 'LIBERADA',
+                              cantidad_liberada = cantidad_reservada,
+                              fecha_liberacion = NOW(),
+                              usuario_liberacion_id = :uid
+                          WHERE presupuesto_id = :pid AND estado = 'RESERVADA'");
+        $this->db->bind(':pid', (int)$id);
+        $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
+        $this->db->execute();
+    }
+
+    /**
+     * Descuenta el stock físico real de los productos de un presupuesto.
+     */
+    private function descontarStockFisicoReal($id, $referencia = null) {
+        $this->db->query("SELECT pd.producto_id, pd.cantidad, i.nombre, i.stock
+                          FROM table_presupuestos_detalle pd
+                          INNER JOIN table_inventario i ON pd.producto_id = i.id
+                          WHERE pd.presupuesto_id = :id AND pd.tipo_item = 'PRODUCTO'");
+        $this->db->bind(':id', (int)$id);
+        $items = $this->db->resultSet();
+
+        foreach ($items as $item) {
+            $stockAnterior = (int)$item->stock;
+            $stockActual = $stockAnterior - (int)$item->cantidad;
+
+            $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
+            $this->db->bind(':cant', $item->cantidad);
+            $this->db->bind(':pid', $item->producto_id);
+            $this->db->execute();
+
+            $this->db->query("INSERT INTO table_kardex 
+                              (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_actual, referencia_id, usuario_id, observacion)
+                              VALUES (:pid, 'SALIDA_VENTA', :cant, :ant, :act, :ref, :uid, :obs)");
+            $this->db->bind(':pid', $item->producto_id);
+            $this->db->bind(':cant', $item->cantidad);
+            $this->db->bind(':ant', $stockAnterior);
+            $this->db->bind(':act', $stockActual);
+            $this->db->bind(':ref', $referencia ?? $id);
+            $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
+            $this->db->bind(':obs', mb_strtoupper("PRESUPUESTO #$id - SALIDA DE STOCK", 'UTF-8'));
+            $this->db->execute();
+        }
+
+        $this->db->query("UPDATE table_presupuestos_reservas 
+                          SET estado = 'FACTURADA',
+                              cantidad_liberada = cantidad_reservada,
+                              fecha_liberacion = NOW(),
+                              usuario_liberacion_id = :uid
+                          WHERE presupuesto_id = :pid AND estado = 'RESERVADA'");
+        $this->db->bind(':pid', (int)$id);
+        $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
+        $this->db->execute();
+    }
+
+    /**
+     * Devuelve stock físico de reservas FACTURADA.
+     */
+    private function devolverStockFisico($id) {
+        $this->db->query("SELECT pr.id as reserva_id, pr.producto_id, pr.cantidad_reservada
+                          FROM table_presupuestos_reservas pr
+                          WHERE pr.presupuesto_id = :id AND pr.estado = 'FACTURADA'");
+        $this->db->bind(':id', (int)$id);
+        $reservas = $this->db->resultSet();
+
+        foreach ($reservas as $r) {
+            $this->db->query("UPDATE table_inventario SET stock = stock + :cant WHERE id = :pid");
+            $this->db->bind(':cant', $r->cantidad_reservada);
+            $this->db->bind(':pid', $r->producto_id);
+            $this->db->execute();
+
+            $this->db->query("SELECT stock FROM table_inventario WHERE id = :id");
+            $this->db->bind(':id', $r->producto_id);
+            $stockActual = (int)$this->db->single()->stock;
+
+            $this->db->query("INSERT INTO table_kardex 
+                              (producto_id, tipo_movimiento, cantidad, stock_anterior, stock_actual, referencia_id, usuario_id, observacion)
+                              VALUES (:pid, 'DEVOLUCION', :cant, :ant, :act, :ref, :uid, :obs)");
+            $this->db->bind(':pid', $r->producto_id);
+            $this->db->bind(':cant', $r->cantidad_reservada);
+            $this->db->bind(':ant', $stockActual - (int)$r->cantidad_reservada);
+            $this->db->bind(':act', $stockActual);
+            $this->db->bind(':ref', $id);
+            $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
+            $this->db->bind(':obs', mb_strtoupper("LIBERACIÓN PRESUPUESTO #$id - REINGRESO DE STOCK", 'UTF-8'));
+            $this->db->execute();
+
+            $this->db->query("UPDATE table_presupuestos_reservas 
+                              SET estado = 'LIBERADA', fecha_liberacion = NOW(), usuario_liberacion_id = :uid
+                              WHERE id = :rid");
+            $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
+            $this->db->bind(':rid', $r->reserva_id);
+            $this->db->execute();
+        }
+    }
+
     public function listar($limit = 20, $offset = 0, $filters = []) {
         $where = "WHERE 1=1";
         $params = [];
@@ -50,12 +281,10 @@ class ModelPresupuesto {
             $params[':search'] = "%{$filters['search']}%";
         }
 
-        // Contar total
         $this->db->query("SELECT COUNT(*) as total FROM table_presupuestos p $where");
         foreach ($params as $k => $v) $this->db->bind($k, $v);
         $total = (int)$this->db->single()->total;
 
-        // Obtener datos
         $this->db->query("SELECT p.*, u.username as usuario_nombre, s.email as usuario_email
                           FROM table_presupuestos p
                           LEFT JOIN table_usuarios u ON p.usuario_id = u.id
@@ -70,9 +299,6 @@ class ModelPresupuesto {
         return ['data' => $this->db->resultSet(), 'total' => $total];
     }
 
-    /**
-     * Obtiene un presupuesto completo con sus items
-     */
     public function obtenerCompleto($id) {
         $this->db->query("SELECT p.*, u.username as usuario_nombre, s.nombre as staff_nombre, s.email as usuario_email
                           FROM table_presupuestos p
@@ -84,8 +310,8 @@ class ModelPresupuesto {
 
         if (!$presupuesto) return null;
 
-        // Obtener items
-        $this->db->query("SELECT pd.*, i.nombre as producto_nombre, i.codigo as producto_codigo, i.imagen as producto_imagen
+        $this->db->query("SELECT pd.*, i.nombre as producto_nombre, i.codigo as producto_codigo, 
+                                 i.imagen as producto_imagen, i.costo_promedio, i.stock as stock_actual
                           FROM table_presupuestos_detalle pd
                           LEFT JOIN table_inventario i ON pd.producto_id = i.id
                           WHERE pd.presupuesto_id = :id
@@ -96,22 +322,18 @@ class ModelPresupuesto {
         return $presupuesto;
     }
 
-    /**
-     * Crea un nuevo presupuesto
-     */
     public function crear($data) {
         try {
             $this->db->beginTransaction();
 
-            // Generar número
             $numero = $this->generarNumero();
-
-            // Calcular fecha de vencimiento
             $fechaEmision = $data['fecha_emision'] ?? date('Y-m-d');
-            $validezDias = $data['validez_dias'] ?? 30;
-            $fechaVencimiento = date('Y-m-d', strtotime("$fechaEmision + $validezDias days"));
+            $validezDias = (int)($data['validez_dias'] ?? 30);
+            if ($validezDias <= 0) $validezDias = 30;
 
-            // Insertar cabecera
+            // ✅ FIX: usar el helper para calcular vencimiento correctamente
+            $fechaVencimiento = $this->calcularFechaVencimiento($data);
+
             $this->db->query("INSERT INTO table_presupuestos 
                               (numero, cliente_id, cliente_nombre, cliente_cedula, cliente_telefono, 
                                cliente_email, cliente_direccion, vehiculo_placa, vehiculo_marca, 
@@ -129,27 +351,27 @@ class ModelPresupuesto {
 
             $this->db->bind(':numero', $numero);
             $this->db->bind(':cliente_id', $data['cliente_id'] ?? null);
-            $this->db->bind(':cliente_nombre', $data['cliente_nombre']);
-            $this->db->bind(':cliente_cedula', $data['cliente_cedula'] ?? null);
+            $this->db->bind(':cliente_nombre', mb_strtoupper($data['cliente_nombre'] ?? '', 'UTF-8'));
+            $this->db->bind(':cliente_cedula', !empty($data['cliente_cedula']) ? mb_strtoupper($data['cliente_cedula'], 'UTF-8') : null);
             $this->db->bind(':cliente_telefono', $data['cliente_telefono'] ?? null);
-            $this->db->bind(':cliente_email', $data['cliente_email'] ?? null);
-            $this->db->bind(':cliente_direccion', $data['cliente_direccion'] ?? null);
-            $this->db->bind(':vehiculo_placa', $data['vehiculo_placa'] ?? null);
-            $this->db->bind(':vehiculo_marca', $data['vehiculo_marca'] ?? null);
-            $this->db->bind(':vehiculo_modelo', $data['vehiculo_modelo'] ?? null);
-            $this->db->bind(':vehiculo_anio', $data['vehiculo_anio'] ?? null);
-            $this->db->bind(':vehiculo_color', $data['vehiculo_color'] ?? null);
+            $this->db->bind(':cliente_email', !empty($data['cliente_email']) ? mb_strtolower($data['cliente_email'], 'UTF-8') : null);
+            $this->db->bind(':cliente_direccion', !empty($data['cliente_direccion']) ? mb_strtoupper($data['cliente_direccion'], 'UTF-8') : null);
+            $this->db->bind(':vehiculo_placa', !empty($data['vehiculo_placa']) ? mb_strtoupper(trim($data['vehiculo_placa']), 'UTF-8') : null);
+            $this->db->bind(':vehiculo_marca', !empty($data['vehiculo_marca']) ? mb_strtoupper($data['vehiculo_marca'], 'UTF-8') : null);
+            $this->db->bind(':vehiculo_modelo', !empty($data['vehiculo_modelo']) ? mb_strtoupper($data['vehiculo_modelo'], 'UTF-8') : null);
+            $this->db->bind(':vehiculo_anio', !empty($data['vehiculo_anio']) ? (int)$data['vehiculo_anio'] : null);
+            $this->db->bind(':vehiculo_color', !empty($data['vehiculo_color']) ? mb_strtoupper($data['vehiculo_color'], 'UTF-8') : null);
             $this->db->bind(':subtotal', $data['subtotal'] ?? 0);
             $this->db->bind(':iva_monto', $data['iva_monto'] ?? 0);
             $this->db->bind(':total', $data['total'] ?? 0);
             $this->db->bind(':iva_activo', $data['iva_activo'] ?? 1);
             $this->db->bind(':tasa_iva', $data['tasa_iva'] ?? 19.00);
             $this->db->bind(':estado', $data['estado'] ?? 'BORRADOR');
-            $this->db->bind(':validez_dias', $data['validez_dias'] ?? 30);
-            $this->db->bind(':fecha_emision', $data['fecha_emision'] ?? date('Y-m-d'));
-            $this->db->bind(':fecha_vencimiento', $data['fecha_vencimiento'] ?? date('Y-m-d', strtotime("+30 days")));
-            $this->db->bind(':observaciones', $data['observaciones'] ?? null);
-            $this->db->bind(':condiciones', $data['condiciones'] ?? null);
+            $this->db->bind(':validez_dias', $validezDias);
+            $this->db->bind(':fecha_emision', $fechaEmision);
+            $this->db->bind(':fecha_vencimiento', $fechaVencimiento);
+            $this->db->bind(':observaciones', !empty($data['observaciones']) ? mb_strtoupper($data['observaciones'], 'UTF-8') : null);
+            $this->db->bind(':condiciones', !empty($data['condiciones']) ? mb_strtoupper($data['condiciones'], 'UTF-8') : null);
             $this->db->bind(':usuario_id', $data['usuario_id']);
 
             if (!$this->db->execute()) {
@@ -158,15 +380,10 @@ class ModelPresupuesto {
 
             $presupuestoId = $this->db->lastInsertId();
 
-            // Insertar items
             if (!empty($data['items'])) {
                 foreach ($data['items'] as $index => $item) {
-                    // Para servicios, producto_id debe ser null
-                    $productoId = null;
-                    if (($item['tipo_item'] ?? 'PRODUCTO') === 'PRODUCTO') {
-                        $productoId = $item['producto_id'] ?? null;
-                    }
-                    
+                    $it = $this->normalizarItem($item, $index);
+
                     $this->db->query("INSERT INTO table_presupuestos_detalle 
                                       (presupuesto_id, producto_id, tipo_item, descripcion, cantidad, 
                                        precio_unitario, descuento_porcentaje, descuento_monto, subtotal,
@@ -177,19 +394,19 @@ class ModelPresupuesto {
                                        :iva_porcentaje, :iva_monto, :total, :orden_visual, :notas)");
 
                     $this->db->bind(':pid', $presupuestoId);
-                    $this->db->bind(':producto_id', $productoId);
-                    $this->db->bind(':tipo_item', $item['tipo_item'] ?? 'PRODUCTO');
-                    $this->db->bind(':descripcion', $item['descripcion']);
-                    $this->db->bind(':cantidad', $item['cantidad'] ?? 1);
-                    $this->db->bind(':precio_unitario', $item['precio_unitario'] ?? 0);
-                    $this->db->bind(':descuento_porcentaje', $item['descuento_porcentaje'] ?? 0);
-                    $this->db->bind(':descuento_monto', $item['descuento_monto'] ?? 0);
-                    $this->db->bind(':subtotal', $item['subtotal'] ?? 0);
-                    $this->db->bind(':iva_porcentaje', $item['iva_porcentaje'] ?? 0);
-                    $this->db->bind(':iva_monto', $item['iva_monto'] ?? 0);
-                    $this->db->bind(':total', $item['total'] ?? 0);
-                    $this->db->bind(':orden_visual', $item['orden_visual'] ?? $index);
-                    $this->db->bind(':notas', $item['notas'] ?? null);
+                    $this->db->bind(':producto_id', $it['producto_id']);
+                    $this->db->bind(':tipo_item', $it['tipo_item']);
+                    $this->db->bind(':descripcion', mb_strtoupper($it['descripcion'], 'UTF-8'));
+                    $this->db->bind(':cantidad', $it['cantidad']);
+                    $this->db->bind(':precio_unitario', $it['precio_unitario']);
+                    $this->db->bind(':descuento_porcentaje', $it['descuento_porcentaje']);
+                    $this->db->bind(':descuento_monto', $it['descuento_monto']);
+                    $this->db->bind(':subtotal', $it['subtotal']);
+                    $this->db->bind(':iva_porcentaje', $it['iva_porcentaje']);
+                    $this->db->bind(':iva_monto', $it['iva_monto']);
+                    $this->db->bind(':total', $it['total']);
+                    $this->db->bind(':orden_visual', $it['orden_visual']);
+                    $this->db->bind(':notas', !empty($it['notas']) ? mb_strtoupper($it['notas'], 'UTF-8') : null);
 
                     if (!$this->db->execute()) {
                         throw new Exception("Error al insertar item del presupuesto");
@@ -206,14 +423,17 @@ class ModelPresupuesto {
         }
     }
 
-    /**
-     * Actualiza un presupuesto existente
-     */
     public function actualizar($id, $data) {
         try {
             $this->db->beginTransaction();
 
-            // Actualizar cabecera
+            // ✅ FIX: recalcular fecha_vencimiento si no viene en el payload.
+            // Antes se guardaba NULL y rompía la columna en la tabla.
+            $fechaEmision = $data['fecha_emision'] ?? date('Y-m-d');
+            $validezDias = (int)($data['validez_dias'] ?? 30);
+            if ($validezDias <= 0) $validezDias = 30;
+            $fechaVencimiento = $this->calcularFechaVencimiento($data);
+
             $this->db->query("UPDATE table_presupuestos SET
                               cliente_id = :cliente_id,
                               cliente_nombre = :cliente_nombre,
@@ -240,47 +460,41 @@ class ModelPresupuesto {
                               WHERE id = :id");
 
             $this->db->bind(':cliente_id', $data['cliente_id'] ?? null);
-            $this->db->bind(':cliente_nombre', $data['cliente_nombre']);
-            $this->db->bind(':cliente_cedula', $data['cliente_cedula'] ?? null);
+            $this->db->bind(':cliente_nombre', mb_strtoupper($data['cliente_nombre'] ?? '', 'UTF-8'));
+            $this->db->bind(':cliente_cedula', !empty($data['cliente_cedula']) ? mb_strtoupper($data['cliente_cedula'], 'UTF-8') : null);
             $this->db->bind(':cliente_telefono', $data['cliente_telefono'] ?? null);
-            $this->db->bind(':cliente_email', $data['cliente_email'] ?? null);
-            $this->db->bind(':cliente_direccion', $data['cliente_direccion'] ?? null);
-            $this->db->bind(':vehiculo_placa', $data['vehiculo_placa'] ?? null);
-            $this->db->bind(':vehiculo_marca', $data['vehiculo_marca'] ?? null);
-            $this->db->bind(':vehiculo_modelo', $data['vehiculo_modelo'] ?? null);
-            $this->db->bind(':vehiculo_anio', $data['vehiculo_anio'] ?? null);
-            $this->db->bind(':vehiculo_color', $data['vehiculo_color'] ?? null);
+            $this->db->bind(':cliente_email', !empty($data['cliente_email']) ? mb_strtolower($data['cliente_email'], 'UTF-8') : null);
+            $this->db->bind(':cliente_direccion', !empty($data['cliente_direccion']) ? mb_strtoupper($data['cliente_direccion'], 'UTF-8') : null);
+            $this->db->bind(':vehiculo_placa', !empty($data['vehiculo_placa']) ? mb_strtoupper(trim($data['vehiculo_placa']), 'UTF-8') : null);
+            $this->db->bind(':vehiculo_marca', !empty($data['vehiculo_marca']) ? mb_strtoupper($data['vehiculo_marca'], 'UTF-8') : null);
+            $this->db->bind(':vehiculo_modelo', !empty($data['vehiculo_modelo']) ? mb_strtoupper($data['vehiculo_modelo'], 'UTF-8') : null);
+            $this->db->bind(':vehiculo_anio', !empty($data['vehiculo_anio']) ? (int)$data['vehiculo_anio'] : null);
+            $this->db->bind(':vehiculo_color', !empty($data['vehiculo_color']) ? mb_strtoupper($data['vehiculo_color'], 'UTF-8') : null);
             $this->db->bind(':subtotal', $data['subtotal'] ?? 0);
             $this->db->bind(':iva_monto', $data['iva_monto'] ?? 0);
             $this->db->bind(':total', $data['total'] ?? 0);
             $this->db->bind(':iva_activo', $data['iva_activo'] ?? 1);
             $this->db->bind(':tasa_iva', $data['tasa_iva'] ?? 19.00);
             $this->db->bind(':estado', $data['estado'] ?? 'BORRADOR');
-            $this->db->bind(':validez_dias', $data['validez_dias'] ?? 30);
-            $this->db->bind(':fecha_emision', $data['fecha_emision'] ?? date('Y-m-d'));
-            $this->db->bind(':fecha_vencimiento', $data['fecha_vencimiento'] ?? null);
-            $this->db->bind(':observaciones', $data['observaciones'] ?? null);
-            $this->db->bind(':condiciones', $data['condiciones'] ?? null);
+            $this->db->bind(':validez_dias', $validezDias);
+            $this->db->bind(':fecha_emision', $fechaEmision);
+            $this->db->bind(':fecha_vencimiento', $fechaVencimiento);
+            $this->db->bind(':observaciones', !empty($data['observaciones']) ? mb_strtoupper($data['observaciones'], 'UTF-8') : null);
+            $this->db->bind(':condiciones', !empty($data['condiciones']) ? mb_strtoupper($data['condiciones'], 'UTF-8') : null);
             $this->db->bind(':id', (int)$id);
 
             if (!$this->db->execute()) {
                 throw new Exception("Error al actualizar la cabecera del presupuesto");
             }
 
-            // Eliminar items existentes y volver a insertar
             $this->db->query("DELETE FROM table_presupuestos_detalle WHERE presupuesto_id = :id");
             $this->db->bind(':id', (int)$id);
             $this->db->execute();
 
-            // Insertar nuevos items
             if (!empty($data['items'])) {
                 foreach ($data['items'] as $index => $item) {
-                    // Para servicios, producto_id debe ser null
-                    $productoId = null;
-                    if (($item['tipo_item'] ?? 'PRODUCTO') === 'PRODUCTO') {
-                        $productoId = $item['producto_id'] ?? null;
-                    }
-                    
+                    $it = $this->normalizarItem($item, $index);
+
                     $this->db->query("INSERT INTO table_presupuestos_detalle 
                                       (presupuesto_id, producto_id, tipo_item, descripcion, cantidad, 
                                        precio_unitario, descuento_porcentaje, descuento_monto, subtotal,
@@ -291,19 +505,19 @@ class ModelPresupuesto {
                                        :iva_porcentaje, :iva_monto, :total, :orden_visual, :notas)");
 
                     $this->db->bind(':pid', (int)$id);
-                    $this->db->bind(':producto_id', $productoId);
-                    $this->db->bind(':tipo_item', $item['tipo_item'] ?? 'PRODUCTO');
-                    $this->db->bind(':descripcion', $item['descripcion']);
-                    $this->db->bind(':cantidad', $item['cantidad'] ?? 1);
-                    $this->db->bind(':precio_unitario', $item['precio_unitario'] ?? 0);
-                    $this->db->bind(':descuento_porcentaje', $item['descuento_porcentaje'] ?? 0);
-                    $this->db->bind(':descuento_monto', $item['descuento_monto'] ?? 0);
-                    $this->db->bind(':subtotal', $item['subtotal'] ?? 0);
-                    $this->db->bind(':iva_porcentaje', $item['iva_porcentaje'] ?? 0);
-                    $this->db->bind(':iva_monto', $item['iva_monto'] ?? 0);
-                    $this->db->bind(':total', $item['total'] ?? 0);
-                    $this->db->bind(':orden_visual', $item['orden_visual'] ?? $index);
-                    $this->db->bind(':notas', $item['notas'] ?? null);
+                    $this->db->bind(':producto_id', $it['producto_id']);
+                    $this->db->bind(':tipo_item', $it['tipo_item']);
+                    $this->db->bind(':descripcion', mb_strtoupper($it['descripcion'], 'UTF-8'));
+                    $this->db->bind(':cantidad', $it['cantidad']);
+                    $this->db->bind(':precio_unitario', $it['precio_unitario']);
+                    $this->db->bind(':descuento_porcentaje', $it['descuento_porcentaje']);
+                    $this->db->bind(':descuento_monto', $it['descuento_monto']);
+                    $this->db->bind(':subtotal', $it['subtotal']);
+                    $this->db->bind(':iva_porcentaje', $it['iva_porcentaje']);
+                    $this->db->bind(':iva_monto', $it['iva_monto']);
+                    $this->db->bind(':total', $it['total']);
+                    $this->db->bind(':orden_visual', $it['orden_visual']);
+                    $this->db->bind(':notas', !empty($it['notas']) ? mb_strtoupper($it['notas'], 'UTF-8') : null);
 
                     if (!$this->db->execute()) {
                         throw new Exception("Error al insertar item del presupuesto");
@@ -320,13 +534,10 @@ class ModelPresupuesto {
         }
     }
 
-    /**
-     * Cambia el estado de un presupuesto
-     */
     public function cambiarEstado($id, $estado) {
-        $estadosValidos = ['BORRADOR', 'ENVIADO', 'ACTIVO', 'EN_PROCESO', 'ACEPTADO', 'RECHAZADO', 'EXPIRADO', 'CONVERTIDO'];
+        $estadosValidos = ['BORRADOR', 'ENVIADO', 'ACTIVO', 'EN_PROCESO', 'ANEXADO', 'ACEPTADO', 'RECHAZADO', 'EXPIRADO', 'CONVERTIDO'];
         if (!in_array($estado, $estadosValidos)) {
-            throw new Exception("Estado no válido");
+            throw new Exception("Estado no válido: $estado");
         }
 
         $this->db->query("UPDATE table_presupuestos SET estado = :estado WHERE id = :id");
@@ -335,9 +546,6 @@ class ModelPresupuesto {
         return $this->db->execute();
     }
 
-    /**
-     * Elimina un presupuesto (solo si está en BORRADOR)
-     */
     public function eliminar($id) {
         $this->db->query("SELECT estado FROM table_presupuestos WHERE id = :id");
         $this->db->bind(':id', (int)$id);
@@ -356,9 +564,6 @@ class ModelPresupuesto {
         return $this->db->execute();
     }
 
-    /**
-     * Obtiene estadísticas de presupuestos
-     */
     public function obtenerEstadisticas($desde = null, $hasta = null) {
         $where = "WHERE 1=1";
         $params = [];
@@ -377,7 +582,7 @@ class ModelPresupuesto {
                             SUM(CASE WHEN estado = 'BORRADOR' THEN 1 ELSE 0 END) as borradores,
                             SUM(CASE WHEN estado = 'ENVIADO' THEN 1 ELSE 0 END) as enviados,
                             SUM(CASE WHEN estado = 'ACTIVO' THEN 1 ELSE 0 END) as activos,
-                            SUM(CASE WHEN estado = 'EN_PROCESO' THEN 1 ELSE 0 END) as en_proceso,
+                            SUM(CASE WHEN estado IN ('ANEXADO', 'EN_PROCESO') THEN 1 ELSE 0 END) as en_proceso,
                             SUM(CASE WHEN estado = 'ACEPTADO' THEN 1 ELSE 0 END) as aceptados,
                             SUM(CASE WHEN estado = 'RECHAZADO' THEN 1 ELSE 0 END) as rechazados,
                             SUM(CASE WHEN estado = 'EXPIRADO' THEN 1 ELSE 0 END) as expirados,
@@ -388,9 +593,6 @@ class ModelPresupuesto {
         return $this->db->single();
     }
 
-    /**
-     * Obtiene productos del inventario para el selector
-     */
     public function obtenerProductosInventario($search = null) {
         $sql = "SELECT i.id, i.codigo, i.nombre, i.marca, i.precio, i.costo_promedio, i.stock,
                        i.oferta_activa, i.oferta_porcentaje, i.oferta_fecha_inicio, i.oferta_fecha_fin,
@@ -427,9 +629,6 @@ class ModelPresupuesto {
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene clientes para el selector
-     */
     public function obtenerClientes($search = null) {
         $sql = "SELECT c.id, c.nombre, c.telefono, c.email, c.direccion,
                        v.placa, v.marca, v.modelo, v.anio, v.color
@@ -457,203 +656,48 @@ class ModelPresupuesto {
         return $this->db->resultSet();
     }
 
-    /**
-     * Activa un presupuesto y reserva el inventario
-     * Cambia estado a ACTIVO y reserva stock en inventario
-     */
     public function activar($id, $usuarioId) {
         try {
             $this->db->beginTransaction();
 
-            // Verificar que el presupuesto existe y está en estado válido para activar
-            $this->db->query("SELECT estado FROM table_presupuestos WHERE id = :id");
+            $this->reservarStockPresupuesto($id);
+
+            $this->db->query("UPDATE table_presupuestos 
+                              SET estado = 'ACTIVO', 
+                                  fecha_activacion = NOW(), 
+                                  usuario_activacion_id = :uid 
+                              WHERE id = :id AND estado IN ('BORRADOR', 'ENVIADO')");
             $this->db->bind(':id', (int)$id);
-            $presupuesto = $this->db->single();
-
-            if (!$presupuesto) {
-                throw new Exception("Presupuesto no encontrado");
-            }
-
-            $estadosValidosParaActivar = ['BORRADOR', 'ENVIADO'];
-            if (!in_array($presupuesto->estado, $estadosValidosParaActivar)) {
-                throw new Exception("Solo se pueden activar presupuestos en estado BORRADOR o ENVIADO");
-            }
-
-            // Obtener items del presupuesto que son productos (no servicios)
-            $this->db->query("SELECT pd.*, i.stock, i.nombre 
-                              FROM table_presupuestos_detalle pd
-                              LEFT JOIN table_inventario i ON pd.producto_id = i.id
-                              WHERE pd.presupuesto_id = :id AND pd.tipo_item = 'PRODUCTO' AND pd.producto_id IS NOT NULL");
-            $this->db->bind(':id', (int)$id);
-            $items = $this->db->resultSet();
-
-            // Verificar stock disponible para cada item
-            foreach ($items as $item) {
-                $stockDisponible = $item->stock;
-                if ($stockDisponible < $item->cantidad) {
-                    throw new Exception("Stock insuficiente para '{$item->nombre}'. Disponible: {$stockDisponible}, Requerido: {$item->cantidad}");
-                }
-            }
-
-            // Cambiar estado a ACTIVO
-            $this->db->query("UPDATE table_presupuestos SET 
-                              estado = 'ACTIVO', 
-                              fecha_activacion = NOW(), 
-                              usuario_activacion_id = :usuarioId 
-                              WHERE id = :id");
-            $this->db->bind(':id', (int)$id);
-            $this->db->bind(':usuarioId', (int)$usuarioId);
-            $this->db->execute();
-
-            // Reservar inventario para cada item producto
-            foreach ($items as $item) {
-                // Descontar stock del inventario
-                $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
-                $this->db->bind(':cant', $item->cantidad);
-                $this->db->bind(':pid', $item->producto_id);
-                $this->db->execute();
-
-                // Registrar reserva en table_presupuestos_reservas
-                $this->db->query("INSERT INTO table_presupuestos_reservas 
-                                  (presupuesto_id, producto_id, cantidad_reservada, estado) 
-                                  VALUES (:pid, :producto_id, :cant, 'RESERVADA')");
-                $this->db->bind(':pid', (int)$id);
-                $this->db->bind(':producto_id', $item->producto_id);
-                $this->db->bind(':cant', $item->cantidad);
-                $this->db->execute();
-
-                // Registrar movimiento en Kardex
-                $invModel = new ModelInventario($this->db);
-                $invModel->registrarMovimiento(
-                    $item->producto_id, 
-                    'RESERVA_PRESUPUESTO', 
-                    $item->cantidad, 
-                    $id, 
-                    "Reserva por Presupuesto #{$id}"
-                );
-            }
-
-            // Auditoría
-            $this->db->query("INSERT INTO table_audit_logs (usuario_id, modulo, accion, descripcion, ip_address, fecha) 
-                              VALUES (:uid, 'PRESUPUESTO', 'ACTIVAR', :desc, :ip, NOW())");
-            $this->db->bind(':uid', $usuarioId);
-            $this->db->bind(':desc', "Presupuesto #{$id} activado y stock reservado");
-            $this->db->bind(':ip', $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+            $this->db->bind(':uid', (int)$usuarioId);
             $this->db->execute();
 
             $this->db->commit();
             return true;
-
         } catch (Exception $e) {
             $this->db->rollBack();
             throw $e;
         }
     }
 
-    /**
-     * Libera el inventario reservado por un presupuesto
-     * Cambia estado de reservas a LIBERADA y devuelve stock al inventario
-     */
     public function liberarInventario($id, $usuarioId, $motivo = 'CANCELACION') {
         try {
             $this->db->beginTransaction();
 
-            // Obtener reservas activas
-            $this->db->query("SELECT * FROM table_presupuestos_reservas 
-                              WHERE presupuesto_id = :id AND estado = 'RESERVADA'");
-            $this->db->bind(':id', (int)$id);
-            $reservas = $this->db->resultSet();
+            $this->devolverStockFisico($id);
 
-            foreach ($reservas as $reserva) {
-                // Devolver stock al inventario
-                $this->db->query("UPDATE table_inventario SET stock = stock + :cant WHERE id = :pid");
-                $this->db->bind(':cant', $reserva->cantidad_reservada);
-                $this->db->bind(':pid', $reserva->producto_id);
-                $this->db->execute();
-
-                // Actualizar reserva a LIBERADA
-                $this->db->query("UPDATE table_presupuestos_reservas SET 
-                                  estado = 'LIBERADA', 
+            $this->db->query("UPDATE table_presupuestos_reservas 
+                              SET estado = 'LIBERADA',
                                   cantidad_liberada = cantidad_reservada,
                                   fecha_liberacion = NOW(),
                                   usuario_liberacion_id = :uid
-                                  WHERE id = :rid");
-                $this->db->bind(':uid', (int)$usuarioId);
-                $this->db->bind(':rid', $reserva->id);
-                $this->db->execute();
-
-                // Registrar movimiento en Kardex
-                $invModel = new ModelInventario($this->db);
-                $invModel->registrarMovimiento(
-                    $reserva->producto_id, 
-                    'LIBERACION_PRESUPUESTO', 
-                    $reserva->cantidad_reservada, 
-                    $id, 
-                    "Liberación reserva Presupuesto #{$id}: {$motivo}"
-                );
-            }
-
-            // Cambiar estado del presupuesto a BORRADOR si estaba ACTIVO
-            $this->db->query("UPDATE table_presupuestos SET estado = 'BORRADOR' WHERE id = :id AND estado = 'ACTIVO'");
-            $this->db->bind(':id', (int)$id);
-            $this->db->execute();
-
-            // Auditoría
-            $this->db->query("INSERT INTO table_audit_logs (usuario_id, modulo, accion, descripcion, ip_address, fecha) 
-                              VALUES (:uid, 'PRESUPUESTO', 'LIBERAR_INVENTARIO', :desc, :ip, NOW())");
-            $this->db->bind(':uid', $usuarioId);
-            $this->db->bind(':desc', "Inventario liberado para Presupuesto #{$id}: {$motivo}");
-            $this->db->bind(':ip', $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
-            $this->db->execute();
-
-            $this->db->commit();
-            return true;
-
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
-    }
-
-    /**
-     * Libera inventario cuando se factura un presupuesto activo
-     * Marca reservas como FACTURADA
-     */
-    public function liberarInventarioPorFacturacion($id, $usuarioId) {
-        try {
-            $this->db->beginTransaction();
-
-            // Obtener reservas activas
-            $this->db->query("SELECT * FROM table_presupuestos_reservas 
                               WHERE presupuesto_id = :id AND estado = 'RESERVADA'");
+            $this->db->bind(':uid', (int)$usuarioId);
             $this->db->bind(':id', (int)$id);
-            $reservas = $this->db->resultSet();
+            $this->db->execute();
 
-            foreach ($reservas as $reserva) {
-                // Actualizar reserva a FACTURADA (el stock ya fue descontado al activar)
-                $this->db->query("UPDATE table_presupuestos_reservas SET 
-                                  estado = 'FACTURADA', 
-                                  cantidad_liberada = cantidad_reservada,
-                                  fecha_liberacion = NOW(),
-                                  usuario_liberacion_id = :uid
-                                  WHERE id = :rid");
-                $this->db->bind(':uid', (int)$usuarioId);
-                $this->db->bind(':rid', $reserva->id);
-                $this->db->execute();
-
-                // Registrar movimiento en Kardex
-                $invModel = new ModelInventario($this->db);
-                $invModel->registrarMovimiento(
-                    $reserva->producto_id, 
-                    'FACTURACION_PRESUPUESTO', 
-                    $reserva->cantidad_reservada, 
-                    $id, 
-                    "Facturación de Presupuesto #{$id}"
-                );
-            }
-
-            // Cambiar estado del presupuesto a CONVERTIDO
-            $this->db->query("UPDATE table_presupuestos SET estado = 'CONVERTIDO' WHERE id = :id AND estado = 'ACTIVO'");
+            $this->db->query("UPDATE table_presupuestos SET estado = 'BORRADOR' 
+                              WHERE id = :id 
+                              AND estado IN ('ACTIVO', 'ANEXADO', 'ACEPTADO', 'EN_PROCESO')");
             $this->db->bind(':id', (int)$id);
             $this->db->execute();
 
@@ -666,83 +710,67 @@ class ModelPresupuesto {
         }
     }
 
-    /**
-     * Busca presupuestos en estado ACTIVO para anexar a OS/Facturación/Venta
-     */
     public function buscarActivos($search = null) {
         $sql = "SELECT p.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email
                 FROM table_presupuestos p
                 LEFT JOIN table_clientes c ON p.cliente_id = c.id
-                WHERE p.estado = 'ACTIVO'";
+                WHERE p.estado NOT IN ('CONVERTIDO', 'RECHAZADO', 'EXPIRADO', 'ANEXADO')";
         
         $params = [];
         
         if ($search) {
-            $sql .= " AND (p.numero LIKE :search OR p.cliente_nombre LIKE :search OR p.cliente_cedula LIKE :search)";
+            $sql .= " AND (p.numero LIKE :search OR p.cliente_nombre LIKE :search OR p.cliente_cedula LIKE :search OR p.vehiculo_placa LIKE :search)";
             $params[':search'] = "%$search%";
         }
         
-        $sql .= " ORDER BY p.fecha_activacion DESC LIMIT 50";
+        $sql .= " ORDER BY p.fecha_emision DESC, p.id DESC LIMIT 50";
         
         $this->db->query($sql);
         foreach ($params as $k => $v) $this->db->bind($k, $v);
         return $this->db->resultSet();
     }
 
-    /**
-     * Obtiene el detalle completo de un presupuesto activo con items y stock reservado
-     */
-    public function obtenerActivoCompleto($id) {
+    public function obtenerParaAnexar($id) {
         $presupuesto = $this->obtenerCompleto($id);
         
-        if (!$presupuesto || $presupuesto->estado !== 'ACTIVO') {
+        if (!$presupuesto) {
             return null;
         }
 
-        // Obtener reservas de stock
-        $this->db->query("SELECT pr.*, i.nombre as producto_nombre, i.codigo as producto_codigo, i.stock as stock_actual
-                          FROM table_presupuestos_reservas pr
-                          LEFT JOIN table_inventario i ON pr.producto_id = i.id
-                          WHERE pr.presupuesto_id = :id AND pr.estado = 'RESERVADA'");
-        $this->db->bind(':id', (int)$id);
-        $presupuesto->reservas = $this->db->resultSet();
+        if (in_array($presupuesto->estado, ['CONVERTIDO', 'RECHAZADO', 'EXPIRADO', 'ANEXADO'])) {
+            return null;
+        }
+
+        $itemsNormalizados = [];
+        foreach ($presupuesto->items as $item) {
+            $itemsNormalizados[] = [
+                'id'             => $item->producto_id,
+                'nombre'         => $item->descripcion,
+                'descripcion'    => $item->descripcion,
+                'precio'         => (float)$item->precio_unitario,
+                'precio_unitario'=> (float)$item->precio_unitario,
+                'cantidad'       => (int)$item->cantidad,
+                'tipo'           => $item->tipo_item === 'SERVICIO' ? 'SERVICIO' : 'PRODUCTO',
+                'tipo_item'      => $item->tipo_item,
+                'producto_id'    => $item->producto_id,
+                'costo_promedio' => (float)($item->costo_promedio ?? 0),
+                'notas'          => $item->notas,
+            ];
+        }
+
+        $presupuesto->items_normalizados = $itemsNormalizados;
 
         return $presupuesto;
     }
 
-    /**
-     * Cambia el estado de un presupuesto (actualizado con nuevos estados)
-     */
-    // public function cambiarEstado($id, $estado) {
-    //     $estadosValidos = ['BORRADOR', 'ENVIADO', 'ACTIVO', 'EN_PROCESO', 'ACEPTADO', 'RECHAZADO', 'EXPIRADO', 'CONVERTIDO'];
-    //     if (!in_array($estado, $estadosValidos)) {
-    //         throw new Exception("Estado no válido");
-    //     }
-
-    //     $this->db->query("UPDATE table_presupuestos SET estado = :estado WHERE id = :id");
-    //     $this->db->bind(':estado', $estado);
-    //     $this->db->bind(':id', (int)$id);
-    //     return $this->db->execute();
-    // }
-
-    /**
-     * Pasa un presupuesto de ACTIVO a EN_PROCESO cuando se anexa a OS/Facturación/Venta
-     */
-    public function iniciarProceso($id) {
-        $this->db->query("UPDATE table_presupuestos SET estado = 'EN_PROCESO' WHERE id = :id AND estado = 'ACTIVO'");
-        $this->db->bind(':id', (int)$id);
-        return $this->db->execute();
+    public function obtenerActivoCompleto($id) {
+        return $this->obtenerParaAnexar($id);
     }
 
-    /**
-     * Acepta un presupuesto y reserva inventario
-     * Cambia estado a ACEPTADO y reserva stock en inventario
-     */
-    public function aceptar($id, $usuarioId) {
+    public function iniciarProceso($id, $crearReservas = true) {
         try {
             $this->db->beginTransaction();
 
-            // Verificar que el presupuesto existe y está en estado válido para aceptar
             $this->db->query("SELECT estado FROM table_presupuestos WHERE id = :id");
             $this->db->bind(':id', (int)$id);
             $presupuesto = $this->db->single();
@@ -751,71 +779,19 @@ class ModelPresupuesto {
                 throw new Exception("Presupuesto no encontrado");
             }
 
-            $estadosValidosParaAceptar = ['BORRADOR', 'ENVIADO', 'ACTIVO'];
-            if (!in_array($presupuesto->estado, $estadosValidosParaAceptar)) {
-                throw new Exception("Solo se pueden aceptar presupuestos en estado BORRADOR, ENVIADO o ACTIVO");
+            if (in_array($presupuesto->estado, ['CONVERTIDO', 'RECHAZADO', 'EXPIRADO'])) {
+                throw new Exception("El presupuesto está {$presupuesto->estado} y no puede anexarse");
             }
 
-            // Obtener items del presupuesto que son productos (no servicios)
-            $this->db->query("SELECT pd.*, i.stock, i.nombre 
-                              FROM table_presupuestos_detalle pd
-                              LEFT JOIN table_inventario i ON pd.producto_id = i.id
-                              WHERE pd.presupuesto_id = :id AND pd.tipo_item = 'PRODUCTO' AND pd.producto_id IS NOT NULL");
+            if ($presupuesto->estado === 'ANEXADO') {
+                $this->db->commit();
+                return true;
+            }
+
+            $this->liberarReservasSinStock($id);
+
+            $this->db->query("UPDATE table_presupuestos SET estado = 'ANEXADO' WHERE id = :id");
             $this->db->bind(':id', (int)$id);
-            $items = $this->db->resultSet();
-
-            // Verificar stock disponible para cada item
-            foreach ($items as $item) {
-                $stockDisponible = $item->stock;
-                if ($stockDisponible < $item->cantidad) {
-                    throw new Exception("Stock insuficiente para '{$item->nombre}'. Disponible: {$stockDisponible}, Requerido: {$item->cantidad}");
-                }
-            }
-
-            // Cambiar estado a ACEPTADO
-            $this->db->query("UPDATE table_presupuestos SET 
-                              estado = 'ACEPTADO', 
-                              fecha_activacion = NOW(), 
-                              usuario_activacion_id = :usuarioId 
-                              WHERE id = :id");
-            $this->db->bind(':id', (int)$id);
-            $this->db->bind(':usuarioId', (int)$usuarioId);
-            $this->db->execute();
-
-            // Reservar inventario para cada item producto
-            foreach ($items as $item) {
-                // Descontar stock del inventario
-                $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
-                $this->db->bind(':cant', $item->cantidad);
-                $this->db->bind(':pid', $item->producto_id);
-                $this->db->execute();
-
-                // Registrar reserva en table_presupuestos_reservas
-                $this->db->query("INSERT INTO table_presupuestos_reservas 
-                                  (presupuesto_id, producto_id, cantidad_reservada, estado) 
-                                  VALUES (:pid, :producto_id, :cant, 'RESERVADA')");
-                $this->db->bind(':pid', (int)$id);
-                $this->db->bind(':producto_id', $item->producto_id);
-                $this->db->bind(':cant', $item->cantidad);
-                $this->db->execute();
-
-                // Registrar movimiento en Kardex
-                $invModel = new ModelInventario($this->db);
-                $invModel->registrarMovimiento(
-                    $item->producto_id, 
-                    'RESERVA_PRESUPUESTO', 
-                    $item->cantidad, 
-                    $id, 
-                    "Reserva por Presupuesto ACEPTADO #{$id}"
-                );
-            }
-
-            // Auditoría
-            $this->db->query("INSERT INTO table_audit_logs (usuario_id, modulo, accion, descripcion, ip_address, fecha) 
-                              VALUES (:uid, 'PRESUPUESTO', 'ACEPTAR', :desc, :ip, NOW())");
-            $this->db->bind(':uid', $usuarioId);
-            $this->db->bind(':desc', "Presupuesto #{$id} aceptado y stock reservado");
-            $this->db->bind(':ip', $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
             $this->db->execute();
 
             $this->db->commit();
@@ -827,59 +803,84 @@ class ModelPresupuesto {
         }
     }
 
-    /**
-     * Convierte un presupuesto en una venta (factura)
-     * Crea registro en table_facturas y table_facturas_detalle
-     * Descuenta inventario y cambia estado a CONVERTIDO
-     */
+    public function puedeAnexar($id) {
+        $this->db->query("SELECT estado FROM table_presupuestos WHERE id = :id");
+        $this->db->bind(':id', (int)$id);
+        $presupuesto = $this->db->single();
+        if (!$presupuesto) return false;
+        return !in_array($presupuesto->estado, ['CONVERTIDO', 'RECHAZADO', 'EXPIRADO', 'ANEXADO']);
+    }
+
+    public function aceptar($id, $usuarioId) {
+        try {
+            $this->db->beginTransaction();
+
+            $this->db->query("SELECT estado FROM table_presupuestos WHERE id = :id");
+            $this->db->bind(':id', (int)$id);
+            $presupuesto = $this->db->single();
+
+            if (!$presupuesto) {
+                throw new Exception("Presupuesto no encontrado");
+            }
+
+            if (in_array($presupuesto->estado, ['CONVERTIDO', 'RECHAZADO', 'EXPIRADO'])) {
+                throw new Exception("El presupuesto está {$presupuesto->estado} y no puede aceptarse");
+            }
+
+            if ($presupuesto->estado === 'ACEPTADO') {
+                $this->db->commit();
+                return true;
+            }
+
+            $this->reservarStockPresupuesto($id);
+
+            $this->db->query("UPDATE table_presupuestos 
+                              SET estado = 'ACEPTADO', 
+                                  fecha_activacion = NOW(), 
+                                  usuario_activacion_id = :uid 
+                              WHERE id = :id");
+            $this->db->bind(':id', (int)$id);
+            $this->db->bind(':uid', (int)$usuarioId);
+            $this->db->execute();
+
+            $this->db->commit();
+            return true;
+
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
     public function convertirAVenta($id, $usuarioId, $datosPago = []) {
         try {
             $this->db->beginTransaction();
 
-            // Obtener presupuesto completo
             $presupuesto = $this->obtenerCompleto((int)$id);
             if (!$presupuesto) {
                 throw new Exception("Presupuesto no encontrado");
             }
 
-            // Verificar que el presupuesto está en estado válido para convertir
-            $estadosValidosParaConvertir = ['BORRADOR', 'ENVIADO', 'ACTIVO', 'ACEPTADO'];
-            if (!in_array($presupuesto->estado, $estadosValidosParaConvertir)) {
-                throw new Exception("Solo se pueden convertir presupuestos en estado BORRADOR, ENVIADO, ACTIVO o ACEPTADO");
+            $estadosValidos = ['BORRADOR', 'ENVIADO', 'ACTIVO', 'ANEXADO', 'ACEPTADO', 'EN_PROCESO'];
+            if (!in_array($presupuesto->estado, $estadosValidos)) {
+                throw new Exception("El presupuesto no puede convertirse desde el estado {$presupuesto->estado}");
             }
 
-            // Obtener items del presupuesto
-            $this->db->query("SELECT pd.*, i.nombre as producto_nombre, i.costo_promedio
-                              FROM table_presupuestos_detalle pd
-                              LEFT JOIN table_inventario i ON pd.producto_id = i.id
-                              WHERE pd.presupuesto_id = :id
-                              ORDER BY pd.orden_visual, pd.id");
-            $this->db->bind(':id', (int)$id);
-            $items = $this->db->resultSet();
-
-            if (empty($items)) {
-                throw new Exception("El presupuesto no tiene items para convertir a venta");
-            }
-
-            // Verificar stock para items de producto
-            foreach ($items as $item) {
+            foreach ($presupuesto->items as $item) {
                 if ($item->tipo_item === 'PRODUCTO' && $item->producto_id) {
-                    $this->db->query("SELECT stock FROM table_inventario WHERE id = :pid");
-                    $this->db->bind(':pid', $item->producto_id);
-                    $producto = $this->db->single();
-                    if ($producto && $producto->stock < $item->cantidad) {
-                        throw new Exception("Stock insuficiente para '{$item->producto_nombre}'. Disponible: {$producto->stock}, Requerido: {$item->cantidad}");
+                    if ((int)$item->stock_actual < (int)$item->cantidad) {
+                        throw new Exception("Stock físico insuficiente para '{$item->producto_nombre}'. Disponible: {$item->stock_actual}, Requerido: {$item->cantidad}");
                     }
                 }
             }
 
-            // Preparar datos para la venta
+            $this->descontarStockFisicoReal($id, $id);
+
             $pagoEfectivo = $datosPago['pago_efectivo'] ?? $presupuesto->total;
             $pagoTransferencia = $datosPago['pago_transferencia'] ?? 0;
             $saldoPendiente = max(0, $presupuesto->total - ($pagoEfectivo + $pagoTransferencia));
             $status = $saldoPendiente > 0 ? 'CREDITO' : 'COMPLETADO';
 
-            // Crear cabecera de venta en table_facturas
             $this->db->query("INSERT INTO table_facturas 
                               (cliente_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
                                pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status, origen, observaciones) 
@@ -888,7 +889,7 @@ class ModelPresupuesto {
 
             $this->db->bind(':cid', $presupuesto->cliente_id);
             $this->db->bind(':placa', $presupuesto->vehiculo_placa);
-            $this->db->bind(':modelo', $presupuesto->vehiculo_marca . ' ' . $presupuesto->vehiculo_modelo);
+            $this->db->bind(':modelo', trim(($presupuesto->vehiculo_marca ?? '') . ' ' . ($presupuesto->vehiculo_modelo ?? '')));
             $this->db->bind(':sub', $presupuesto->subtotal);
             $this->db->bind(':iva', $presupuesto->iva_monto);
             $this->db->bind(':total', $presupuesto->total);
@@ -903,8 +904,7 @@ class ModelPresupuesto {
 
             $ventaId = $this->db->lastInsertId();
 
-            // Crear detalles de la venta en table_facturas_detalle
-            foreach ($items as $item) {
+            foreach ($presupuesto->items as $item) {
                 $this->db->query("INSERT INTO table_facturas_detalle 
                                   (factura_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
                                   VALUES 
@@ -917,48 +917,10 @@ class ModelPresupuesto {
                 $this->db->bind(':pre', $item->precio_unitario);
                 $this->db->bind(':costo', $item->tipo_item === 'PRODUCTO' ? ($item->costo_promedio ?? 0) : 0);
                 $this->db->execute();
-
-                // Descontar inventario para productos
-                if ($item->tipo_item === 'PRODUCTO' && $item->producto_id) {
-                    $this->db->query("UPDATE table_inventario SET stock = stock - :cant WHERE id = :pid");
-                    $this->db->bind(':cant', $item->cantidad);
-                    $this->db->bind(':pid', $item->producto_id);
-                    $this->db->execute();
-
-                    // Registrar movimiento en Kardex
-                    $invModel = new ModelInventario($this->db);
-                    $invModel->registrarMovimiento(
-                        $item->producto_id, 
-                        'VENTA_PRESUPUESTO', 
-                        $item->cantidad, 
-                        $ventaId, 
-                        "Venta generada desde Presupuesto #{$presupuesto->numero} (Factura #{$ventaId})"
-                    );
-                }
             }
 
-            // Si el presupuesto tenía reservas activas, marcarlas como FACTURADA
-            $this->db->query("UPDATE table_presupuestos_reservas 
-                              SET estado = 'FACTURADA', 
-                                  cantidad_liberada = cantidad_reservada,
-                                  fecha_liberacion = NOW(),
-                                  usuario_liberacion_id = :uid
-                              WHERE presupuesto_id = :pid AND estado = 'RESERVADA'");
-            $this->db->bind(':pid', (int)$id);
-            $this->db->bind(':uid', $usuarioId);
-            $this->db->execute();
-
-            // Cambiar estado del presupuesto a CONVERTIDO
             $this->db->query("UPDATE table_presupuestos SET estado = 'CONVERTIDO' WHERE id = :id");
             $this->db->bind(':id', (int)$id);
-            $this->db->execute();
-
-            // Auditoría
-            $this->db->query("INSERT INTO table_audit_logs (usuario_id, modulo, accion, descripcion, ip_address, fecha) 
-                              VALUES (:uid, 'PRESUPUESTO', 'CONVERTIR_A_VENTA', :desc, :ip, NOW())");
-            $this->db->bind(':uid', $usuarioId);
-            $this->db->bind(':desc', "Presupuesto #{$id} convertido a Venta #{$ventaId}");
-            $this->db->bind(':ip', $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
             $this->db->execute();
 
             $this->db->commit();
@@ -970,41 +932,36 @@ class ModelPresupuesto {
         }
     }
 
-    /**
-     * Obtiene estadísticas de presupuestos (actualizado con nuevos estados)
-     */
-    // public function obtenerEstadisticas($desde = null, $hasta = null) {
-    //     $where = "WHERE 1=1";
-    //     $params = [];
-        
-    //     if ($desde) {
-    //         $where .= " AND fecha_emision >= :desde";
-    //         $params[':desde'] = $desde;
-    //     }
-    //     if ($hasta) {
-    //         $where .= " AND fecha_emision <= :hasta";
-    //         $params[':hasta'] = $hasta;
-    //     }
-        
-    //     $this->db->query("SELECT 
-    //                         COUNT(*) as total,
-    //                         SUM(CASE WHEN estado = 'BORRADOR' THEN 1 ELSE 0 END) as borradores,
-    //                         SUM(CASE WHEN estado = 'ENVIADO' THEN 1 ELSE 0 END) as enviados,
-    //                         SUM(CASE WHEN estado = 'ACTIVO' THEN 1 ELSE 0 END) as activos,
-    //                         SUM(CASE WHEN estado = 'EN_PROCESO' THEN 1 ELSE 0 END) as en_proceso,
-    //                         SUM(CASE WHEN estado = 'ACEPTADO' THEN 1 ELSE 0 END) as aceptados,
-    //                         SUM(CASE WHEN estado = 'RECHAZADO' THEN 1 ELSE 0 END) as rechazados,
-    //                         SUM(CASE WHEN estado = 'EXPIRADO' THEN 1 ELSE 0 END) as expirados,
-    //                         SUM(CASE WHEN estado = 'CONVERTIDO' THEN 1 ELSE 0 END) as convertidos,
-    //                         COALESCE(SUM(CASE WHEN estado IN ('ACEPTADO','CONVERTIDO') THEN total ELSE 0 END), 0) as monto_aceptado
-    //                       FROM table_presupuestos $where");
-    //     foreach ($params as $k => $v) $this->db->bind($k, $v);
-    //     return $this->db->single();
-    // }
+    public function marcarComoConvertido($id, $ventaId = null, $usuarioId = null) {
+        try {
+            $this->db->beginTransaction();
 
-    /**
-     * Obtiene las reservas de un presupuesto
-     */
+            $this->db->query("UPDATE table_presupuestos_reservas 
+                              SET estado = 'FACTURADA',
+                                  cantidad_liberada = cantidad_reservada,
+                                  fecha_liberacion = NOW(),
+                                  usuario_liberacion_id = :uid
+                              WHERE presupuesto_id = :pid 
+                                AND estado IN ('RESERVADA', 'FACTURADA')");
+            $this->db->bind(':pid', (int)$id);
+            $this->db->bind(':uid', $usuarioId ?? ($_SESSION['user_id'] ?? null));
+            $this->db->execute();
+
+            $this->db->query("UPDATE table_presupuestos 
+                              SET estado = 'CONVERTIDO' 
+                              WHERE id = :id 
+                                AND estado IN ('ANEXADO', 'ACTIVO', 'ACEPTADO', 'EN_PROCESO', 'ENVIADO')");
+            $this->db->bind(':id', (int)$id);
+            $this->db->execute();
+
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
     public function obtenerReservas($id) {
         $this->db->query("SELECT pr.*, i.nombre as producto_nombre, i.codigo as producto_codigo, i.stock as stock_actual
                           FROM table_presupuestos_reservas pr
@@ -1013,15 +970,5 @@ class ModelPresupuesto {
                           ORDER BY pr.fecha_reserva");
         $this->db->bind(':id', (int)$id);
         return $this->db->resultSet();
-    }
-
-    /**
-     * Verifica si un presupuesto puede ser anexado (estado ACTIVO)
-     */
-    public function puedeAnexar($id) {
-        $this->db->query("SELECT estado FROM table_presupuestos WHERE id = :id");
-        $this->db->bind(':id', (int)$id);
-        $presupuesto = $this->db->single();
-        return $presupuesto && $presupuesto->estado === 'ACTIVO';
     }
 }

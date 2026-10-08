@@ -29,14 +29,11 @@ class ControllerTaller extends Controller {
             'cliente' => null
         ];
         
-        // Si viene una placa por parámetro GET, buscar el vehículo y cliente
         $placa = isset($_GET['placa']) ? strtoupper(trim($_GET['placa'])) : '';
         if (!empty($placa)) {
             $vehiculo = $this->vehiculoModel->buscarPorPlaca($placa);
             if ($vehiculo) {
                 $data['vehiculo'] = $vehiculo;
-                
-                // Buscar información del cliente
                 $clienteModel = $this->model('Cliente');
                 if ($vehiculo->cliente_id) {
                     $data['cliente'] = $clienteModel->obtenerPorId($vehiculo->cliente_id);
@@ -47,50 +44,31 @@ class ControllerTaller extends Controller {
         $this->view('taller/nueva_orden', $data);
     }
 
-    /**
-     * Vista del historial de órdenes finalizadas
-     */
     public function cerradas() {
         $this->view('taller/cerradas', [
             'titulo' => 'Historial de Órdenes Finalizadas'
         ]);
     }
 
-    /**
-     * Genera el comprobante PDF de la Orden de Servicio
-     * URL: /taller/imprimir/ID
-     */
     public function imprimir($id) {
-        // Primero, verificar si esta orden ya tiene una factura final (COMPLETADO o CREDITO)
-        // Si es así, redirigimos a la impresión de la factura para centralizar la lógica.
         $db = new Database();
         $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status IN ('COMPLETADO', 'CREDITO') ORDER BY id DESC LIMIT 1");
         $db->bind(':oid', $id);
         $facturaAsociada = $db->single();
 
         if ($facturaAsociada) {
-            // Si existe una factura final, redirigir a la ruta de impresión de factura
             redirect('facturacion/imprimir/' . $facturaAsociada->id);
         } else {
-            // Si no hay factura final, o la factura está PENDIENTE/ANULADO,
-            // entonces generamos el PDF de la Orden de Servicio.
             $orden = $this->ordenModel->obtenerDetalleOrden($id);
             
             if (!$orden) {
                 die("La orden de servicio #$id no existe.");
             }
 
-            // Mapeo de datos para compatibilidad con la vista orden.php
             $orden->fecha_entrada = $orden->fecha_ingreso;
             $orden->observaciones_entrada = $orden->diagnostico_entrada;
-            
-            // Cargar el Checklist de entrada para el PDF
             $orden->checklist = $this->ordenModel->obtenerChecklist($id);
-            
-            // Cargar los Servicios / Revisiones de la orden para el PDF
             $orden->servicios = $this->ordenModel->obtenerServicios($id);
-            
-            // Cargar los ítems de la orden (si existen en el borrador de factura)
             $orden->items = $this->ordenModel->obtenerItemsOrden($id);
 
             $empresa = $this->model('Empresa')->obtenerConfiguracion();
@@ -100,15 +78,11 @@ class ControllerTaller extends Controller {
                 'titulo_pestaña' => 'Orden de Servicio',
                 'orden' => $orden,
                 'empresa' => $empresa,
-                // Las variables de cabecera (titulo_documento, documento_numero, etc.) se definirán dentro de orden.php
             ], 'Orden_Servicio_' . $id . '.pdf');
             exit;
         }
     }
 
-    /**
-     * API para listar órdenes entregadas (Paginado)
-     */
     public function listarCerradas() {
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
         $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
@@ -126,11 +100,7 @@ class ControllerTaller extends Controller {
         ]);
     }
 
-    /**
-     * Muestra la hoja de vida de un vehículo por placa
-     */
     public function historial($tipo = 'placa', $valor = '') {
-        // Compatibilidad: si solo llega un parámetro, es la placa
         if (empty($valor)) {
             $valor = $tipo;
             $tipo = 'placa';
@@ -157,7 +127,6 @@ class ControllerTaller extends Controller {
                 break;
 
             case 'ORDEN':
-                // Si busca una orden específica, encontramos su placa y mostramos el historial de ese vehículo
                 $db = new Database();
                 $db->query("SELECT placa FROM table_ordenes_servicio WHERE id = :id");
                 $db->bind(':id', $valor);
@@ -165,26 +134,21 @@ class ControllerTaller extends Controller {
                 if ($res) redirect("taller/historial/placa/{$res->placa}");
                 break;
 
-            default: // PLACA
+            default:
                 $vehiculo = $this->vehiculoModel->buscarPorPlaca($valor);
                 $historial = $vehiculo ? $this->vehiculoModel->obtenerHistorial($vehiculo->placa) : [];
                 $titulo = "Hoja de Vida: " . strtoupper($valor);
                 break;
         }
 
-        // Enriquecer cada registro del historial con su checklist e ítems facturados
         if (!empty($historial)) {
             $facturaModel = $this->model('Facturacion');
             $db = new Database();
             foreach ($historial as &$itemH) {
-                // Cargar Checklist
                 $itemH->checklist_data = $this->ordenModel->obtenerChecklist($itemH->id);
-                
-                // Buscar si tiene factura para traer los repuestos/servicios
                 $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status != 'ANULADO' ORDER BY id DESC LIMIT 1");
                 $db->bind(':oid', $itemH->id);
                 $resFac = $db->single();
-                
                 $itemH->items_facturados = [];
                 if ($resFac) {
                     $vDetalle = $facturaModel->obtenerVentaCompleta($resFac->id);
@@ -193,7 +157,6 @@ class ControllerTaller extends Controller {
             }
         }
 
-        // CORRECCIÓN: La vista está en taller/historial.php directamente
         $this->view('taller/historial', [
             'titulo' => $titulo,
             'vehiculo' => $vehiculo,
@@ -203,9 +166,6 @@ class ControllerTaller extends Controller {
         ]);
     }
 
-    /**
-     * API para búsqueda dinámica en el panel de taller (AJAX)
-     */
     public function buscar() {
         $term = trim($_GET['q'] ?? '');
         if (strlen($term) < 2) return $this->jsonResponse(['success' => true, 'results' => []]);
@@ -213,28 +173,24 @@ class ControllerTaller extends Controller {
         $db = new Database();
         $results = [];
 
-        // 1. Buscar Órdenes
         $db->query("SELECT id, placa FROM table_ordenes_servicio WHERE id LIKE :term OR placa LIKE :term LIMIT 3");
         $db->bind(':term', "%$term%");
         foreach($db->resultSet() as $r) {
             $results[] = ['id' => $r->id, 'tipo' => 'orden', 'title' => "Orden #{$r->id}", 'subtitle' => "Placa vinculada: {$r->placa}", 'icon' => 'file-text'];
         }
 
-        // 2. Buscar Clientes
         $db->query("SELECT id, nombre FROM table_clientes WHERE nombre LIKE :term OR id LIKE :term LIMIT 3");
         $db->bind(':term', "%$term%");
         foreach($db->resultSet() as $r) {
             $results[] = ['id' => $r->id, 'tipo' => 'cliente', 'title' => $r->nombre, 'subtitle' => "Cliente ID: {$r->id}", 'icon' => 'user'];
         }
 
-        // 3. Buscar Mecánicos
         $db->query("SELECT id, nombre FROM table_staff WHERE cargo LIKE '%MECANICO%' AND (nombre LIKE :term OR id LIKE :term) LIMIT 3");
         $db->bind(':term', "%$term%");
         foreach($db->resultSet() as $r) {
             $results[] = ['id' => $r->id, 'tipo' => 'mecanico', 'title' => $r->nombre, 'subtitle' => "Técnico Especialista", 'icon' => 'wrench'];
         }
 
-        // 4. Buscar Placas
         $db->query("SELECT placa, marca, modelo FROM table_vehiculos WHERE placa LIKE :term LIMIT 3");
         $db->bind(':term', "%$term%");
         foreach($db->resultSet() as $r) {
@@ -245,23 +201,19 @@ class ControllerTaller extends Controller {
     }
 
     /**
-     * Procesa la creación de una nueva Orden de Servicio
+     * Procesa la creación de una nueva Orden de Servicio.
      */
     public function guardarOrden() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
 
-            // Punto 3: Asignación de mecánico. Se respeta si viene del input (asignado por Admin/Cajero).
-            // Si está vacío y el usuario es mecánico, se auto-asigna como responsable.
             if (empty($input['mecanico_id']) && $_SESSION['user_role'] === 'MECANICO') {
                 $input['mecanico_id'] = $_SESSION['user_staff_id'];
             }
 
-            // Lógica: Si el vehículo no existe, se registra primero
             $vehiculo = $this->vehiculoModel->buscarPorPlaca($input['placa']);
             
             if (!$vehiculo) {
-                // Validar que el cliente exista antes de registrar el vehículo
                 $clienteModel = $this->model('Cliente');
                 if (!$clienteModel->obtenerPorId($input['cliente_id'])) {
                     return $this->jsonResponse(['success' => false, 'error' => "El cliente con ID {$input['cliente_id']} no existe. Por favor, regístrelo primero en el módulo de Clientes."], 404);
@@ -273,32 +225,40 @@ class ControllerTaller extends Controller {
                 $input['cliente_id'] = $vehiculo->cliente_id;
             }
 
-            // En el esquema 2.0 la relación es por PLACA, no por un ID numérico
             $input['placa'] = strtoupper(trim($input['placa']));
             $ordenId = $this->ordenModel->crear($input);
             
             if ($ordenId) {
-                // Guardar Checklist de entrada
                 if (!empty($input['checklist'])) {
                     $this->ordenModel->guardarChecklist($ordenId, $input['checklist']);
                 }
 
-                // Guardar Servicios / Revisiones de la orden
                 if (!empty($input['servicios'])) {
                     $this->ordenModel->guardarServicios($ordenId, $input['servicios']);
                 }
 
-                // Punto 1: Guardar ítems dinámicos.
-                // En el esquema 2.0, los ítems (repuestos/servicios) de una O.S. se persisten como 
-                // un borrador de factura vinculado para reservar stock y preparar el cobro.
                 if (!empty($input['items'])) {
                     $this->sincronizarItemsOrden($ordenId, $input);
+                }
+
+                // ────────────────────────────────────────────────────────────
+                // ANEXAR PRESUPUESTO: cambia estado a ANEXADO y libera reservas.
+                // El borrador de factura PENDIENTE (creado arriba) toma el relevo
+                // del bloqueo de stock_disponible.
+                // ────────────────────────────────────────────────────────────
+                if (!empty($input['presupuesto_activo_id'])) {
+                    try {
+                        $presupuestoModel = $this->model('Presupuesto');
+                        $presupuestoModel->iniciarProceso((int)$input['presupuesto_activo_id'], false);
+                        logAction('TALLER', 'ANEXAR_PRESUPUESTO', "Presupuesto #{$input['presupuesto_activo_id']} anexado a O.S. #{$ordenId}");
+                    } catch (\Exception $e) {
+                        error_log("Error anexando presupuesto a OS #{$ordenId}: " . $e->getMessage());
+                    }
                 }
 
                 logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
 
                 // Enviar email de notificación al cliente
-                // (EmailService registra automáticamente el envío en table_emails)
                 try {
                     $ordenCreada = $this->ordenModel->obtenerDetalleOrden($ordenId);
                     if ($ordenCreada && !empty($ordenCreada->cliente_email)) {
@@ -309,11 +269,10 @@ class ControllerTaller extends Controller {
                             foreach ($input['items'] as $it) {
                                 $precio = (float)($it['precio'] ?? 0);
                                 $cant = (int)($it['cantidad'] ?? 0);
-                                // Solo incluir ítems con cantidad real
                                 if ($cant <= 0) continue;
                                 $sub = $precio * $cant;
                                 $itemsEmail[] = [
-                                    'descripcion' => $it['descripcion'] ?? 'Ítem',
+                                    'descripcion' => $it['nombre'] ?? $it['descripcion'] ?? 'Ítem',
                                     'cantidad' => $cant,
                                     'precio' => $precio,
                                     'subtotal' => $sub
@@ -321,7 +280,6 @@ class ControllerTaller extends Controller {
                                 $totalEmail += $sub;
                             }
                         }
-                        // Construir datos del email — solo incluir items si hay algo real
                         $datosEmail = [
                             'cliente_email' => $ordenCreada->cliente_email,
                             'cliente_nombre' => $ordenCreada->cliente_nombre ?? 'Cliente',
@@ -334,7 +292,7 @@ class ControllerTaller extends Controller {
                             'mecanico_nombre' => $ordenCreada->mecanico_nombre ?? 'Por asignar',
                             'fecha_ingreso' => date('d/m/Y H:i'),
                             'fecha_entrega_estimada' => !empty($input['fecha_entrega']) ? date('d/m/Y', strtotime($input['fecha_entrega'])) : 'No especificada',
-                            'observaciones' => $input['observaciones'] ?? '',
+                            'observaciones' => $input['observaciones_entrada'] ?? '',
                         ];
                         if (!empty($itemsEmail)) {
                             $datosEmail['items'] = $itemsEmail;
@@ -353,13 +311,17 @@ class ControllerTaller extends Controller {
     }
 
     /**
-     * Helper para persistir ítems dinámicos vinculados a la OS en la tabla de facturación (Borrador).
+     * Sincroniza los items de la OS con un borrador de factura PENDIENTE.
+     * 
+     * ⚠️ FIX CRÍTICO v2.1:
+     *   Se sanitizan los FK opcionales (mecanico_id, producto_id) para convertir
+     *   strings vacíos a NULL. Esto evita FK violations silenciosas que impedían
+     *   insertar los items y, por ende, que el inventario mostrara la reserva.
      */
     private function sincronizarItemsOrden($ordenId, $input) {
         try {
             $modelFacturacion = $this->model('Facturacion');
             
-            // En el esquema 2.0, si ya existe un borrador para esta orden, lo reutilizamos
             $db = new Database();
             $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status = 'PENDIENTE' LIMIT 1");
             $db->bind(':oid', $ordenId);
@@ -372,6 +334,9 @@ class ControllerTaller extends Controller {
                 $subtotal += ((float)($item['precio'] ?? 0) * (int)($item['cantidad'] ?? 0));
             }
 
+            // ⚠️ SANITIZACIÓN CRÍTICA: Convertir strings vacíos a NULL para FK
+            $mecanicoIdSanitizado = !empty($input['mecanico_id']) ? $input['mecanico_id'] : null;
+
             $datosFactura = [
                 'id_db' => $facturaId,
                 'orden_id' => $ordenId,
@@ -380,7 +345,9 @@ class ControllerTaller extends Controller {
                 'modelo' => $input['modelo'] ?? '',
                 'pago_efectivo' => 0,
                 'pago_transferencia' => 0,
-                'mecanico_id' => $input['mecanico_id'] ?? null
+                'mecanico_id' => $mecanicoIdSanitizado,
+                // ✅ Guardar el vínculo con el presupuesto anexado
+                'presupuesto_activo_id' => !empty($input['presupuesto_activo_id']) ? (int)$input['presupuesto_activo_id'] : null
             ];
 
             $totales = [
@@ -392,37 +359,56 @@ class ControllerTaller extends Controller {
 
             $ventaId = $modelFacturacion->guardarCabeceraVenta($datosFactura, 'PENDIENTE', $totales, $_SESSION['user_id']);
 
-            // Limpiamos items previos si es una actualización de borrador
+            if (!$ventaId) {
+                error_log("sincronizarItemsOrden: No se pudo crear/actualizar la cabecera del borrador para OS #$ordenId");
+                return;
+            }
+
             if ($facturaId) {
                 $db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :fid");
                 $db->bind(':fid', $ventaId);
                 $db->execute();
             }
 
+            $itemsInsertados = 0;
+            $itemsConError = 0;
+
             foreach ($itemsArr as $item) {
-                // Saltar items que no tengan datos válidos
-                if (empty($item['nombre']) && empty($item['id'])) continue;
+                // Aceptar items con 'nombre' o 'id' (o ambos)
+                if (empty($item['nombre']) && empty($item['id'])) {
+                    continue;
+                }
 
                 $esProducto = (strtoupper($item['tipo'] ?? '') === 'PRODUCTO');
+                $descripcion = $item['nombre'] ?? $item['descripcion'] ?? 'Ítem';
+
+                // ⚠️ SANITIZACIÓN: producto_id solo si es producto y tiene id válido
+                $productoIdSanitizado = ($esProducto && !empty($item['id'])) ? (int)$item['id'] : null;
+
                 $db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
                             VALUES (:fid, :pid, :mid, :desc, :cant, :pre, :costo)");
                 $db->bind(':fid', $ventaId);
-                $db->bind(':pid', $esProducto ? $item['id'] : null);
-                $db->bind(':mid', $input['mecanico_id'] ?? null);
-                $db->bind(':desc', mb_strtoupper($item['nombre'] ?? '', 'UTF-8'));
-                $db->bind(':cant', $item['cantidad'] ?? 0);
-                $db->bind(':pre', $item['precio'] ?? 0);
-                $db->bind(':costo', $esProducto ? ($item['costo_promedio'] ?? $item['costo'] ?? 0) : 0);
-                $db->execute();
+                $db->bind(':pid', $productoIdSanitizado);
+                $db->bind(':mid', $mecanicoIdSanitizado);
+                $db->bind(':desc', mb_strtoupper($descripcion, 'UTF-8'));
+                $db->bind(':cant', (int)($item['cantidad'] ?? 0));
+                $db->bind(':pre', (float)($item['precio'] ?? 0));
+                $db->bind(':costo', $esProducto ? (float)($item['costo_promedio'] ?? $item['costo'] ?? 0) : 0);
+
+                if ($db->execute()) {
+                    $itemsInsertados++;
+                } else {
+                    $itemsConError++;
+                    error_log("sincronizarItemsOrden: Fallo INSERT item para factura #$ventaId - " . json_encode($item));
+                }
             }
+
+            error_log("sincronizarItemsOrden: OS #$ordenId → Factura #$ventaId | Insertados: $itemsInsertados | Errores: $itemsConError");
         } catch (Exception $e) {
             error_log("Error sincronizando items de OS: " . $e->getMessage());
         }
     }
 
-    /**
-     * API para obtener el detalle completo de una orden (AJAX)
-     */
     public function obtenerDetalle($id) {
         try {
             $orden = $this->ordenModel->obtenerDetalleOrden($id);
@@ -433,7 +419,6 @@ class ControllerTaller extends Controller {
             $reportModel = $this->model('Reportes');
             $staff = $reportModel->obtenerStaffSimple();
             
-            // Punto 2: Carga de items desde el borrador vinculado
             $db = new Database();
             $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status = 'PENDIENTE' LIMIT 1");
             $db->bind(':oid', $id);
@@ -444,8 +429,6 @@ class ControllerTaller extends Controller {
                 $facturaModel = $this->model('Facturacion');
                 $venta = $facturaModel->obtenerVentaCompleta($borrador->id);
                 if ($venta && !empty($venta->items)) {
-                    // Mapeo de compatibilidad: El frontend espera 'nombre' 
-                    // pero la DB de facturación guarda 'descripcion'
                     $items = array_map(function($it) {
                         return [
                             'id' => $it->producto_id,
@@ -458,10 +441,7 @@ class ControllerTaller extends Controller {
                 }
             }
 
-            // Cargar servicios / revisiones de la orden
             $servicios = $this->ordenModel->obtenerServicios($id);
-
-            // Información técnica adicional requerida por el modal
             $logs = $this->ordenModel->obtenerLogsEstado($id);
             $checklist = $this->ordenModel->obtenerChecklist($id);
 
@@ -479,9 +459,6 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * API para obtener información de un vehículo y su dueño por placa (AJAX)
-     */
     public function obtenerVehiculoPorPlaca($placa) {
         $vehiculo = $this->vehiculoModel->buscarPorPlaca($placa);
         $ultimoKilometraje = null;
@@ -496,25 +473,16 @@ class ControllerTaller extends Controller {
         ]);
     }
 
-    /**
-     * Endpoint para obtener el historial de estados de una orden (AJAX)
-     */
     public function obtenerLogs($id) {
         $logs = $this->ordenModel->obtenerLogsEstado($id);
         return $this->jsonResponse(['success' => true, 'data' => $logs]);
     }
 
-    /**
-     * Endpoint para obtener el checklist detallado de la orden (AJAX)
-     */
     public function obtenerChecklist($id) {
         $checklist = $this->ordenModel->obtenerChecklist($id);
         return $this->jsonResponse(['success' => true, 'data' => $checklist]);
     }
 
-    /**
-     * Procesa el cambio de estado de una orden desde la tabla (AJAX)
-     */
     public function cambiarEstado() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
@@ -524,17 +492,13 @@ class ControllerTaller extends Controller {
             }
 
             if ($this->ordenModel->actualizarEstado($input['id'], $input['estado'], 'Cambio de estado desde el panel de taller')) {
-                // Si la orden entra en fase técnica, activamos el borrador en facturación
                 if (in_array($input['estado'], ['DIAGNOSTICANDO', 'EN_REPARACION', 'LISTO'])) {
                     $this->prepararBorradorDesdeOrden($input['id']);
                 }
 
-                // ── Enviar email de notificación de cambio de estado ──
-                // (EmailService registra automáticamente el envío)
                 try {
                     $orden = $this->ordenModel->obtenerDetalleOrden($input['id']);
                     if ($orden && !empty($orden->cliente_email)) {
-                        // Obtener el estado anterior desde los logs
                         $logs = $this->ordenModel->obtenerLogsEstado($input['id']);
                         $estadoAnterior = (count($logs) >= 2) ? $logs[1]->estado : 'RECIBIDO';
                         $emailService = new \App\Services\EmailService();
@@ -563,14 +527,9 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * Asegura que exista un borrador (factura PENDIENTE) vinculado a la orden
-     * para que sea visible en el POS de facturación inmediatamente.
-     */
     private function prepararBorradorDesdeOrden($ordenId) {
         $modelFacturacion = $this->model('Facturacion');
         
-        // Verificar si ya existe un borrador para evitar duplicados
         $borrador = $modelFacturacion->obtenerBorradorPorOrden($ordenId);
         if ($borrador) return;
 
@@ -582,14 +541,11 @@ class ControllerTaller extends Controller {
             'cliente_id' => $orden->cliente_id,
             'modelo' => $orden->modelo,
             'mecanico_id' => $orden->mecanico_id,
-            'items' => [] // Se crea inicialmente sin ítems
+            'items' => []
         ];
         $this->sincronizarItemsOrden($ordenId, $datosBase);
     }
 
-    /**
-     * Finaliza una orden de servicio marcándola como ENTREGADO (AJAX)
-     */
     public function entregarOrden() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
@@ -600,18 +556,14 @@ class ControllerTaller extends Controller {
 
             $comentario = !empty($input['comentario']) ? $input['comentario'] : 'Vehículo entregado al cliente.';
             
-            // Antes de cerrar la orden, marcar todos los servicios pendientes como COMPLETADO
             $this->ordenModel->completarServiciosPendientes($input['id']);
             
             if ($this->ordenModel->actualizarEstado($input['id'], 'ENTREGADO', $comentario)) {
-                // ─── Enviar email de notificación: vehículo listo ───
-                // (EmailService registra automáticamente el envío)
                 try {
                     $ordenado = $this->ordenModel->obtenerDetalleOrden($input['id']);
                     if ($ordenado && !empty($ordenado->cliente_email)) {
-                        // Obtener ítems desde la factura PENDIENTE vinculada
                         $db = new Database();
-                        $db->query("SELECT fd.descripcion, fd.cantidad, fd.precio, (fd.cantidad * fd.precio) as subtotal
+                        $db->query("SELECT fd.descripcion, fd.cantidad, fd.precio_unitario, (fd.cantidad * fd.precio_unitario) as subtotal
                                      FROM table_facturas_detalle fd
                                      JOIN table_facturas f ON fd.factura_id = f.id
                                      WHERE f.orden_id = :oid AND f.status = 'PENDIENTE'");
@@ -623,7 +575,7 @@ class ControllerTaller extends Controller {
                             $itemsEmail[] = [
                                 'descripcion' => $it->descripcion,
                                 'cantidad' => (int)$it->cantidad,
-                                'precio' => (float)$it->precio,
+                                'precio' => (float)$it->precio_unitario,
                                 'subtotal' => (float)$it->subtotal
                             ];
                             $totalEmail += (float)$it->subtotal;
@@ -653,14 +605,8 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * Punto 4: Disparador de notificaciones (Icono de la Llave)
-     * Obtiene todas las órdenes activas para mostrar en el contador del header.
-     */
     public function obtenerAlertas() {
         $db = new Database();
-        // Punto 4: Consulta inteligente para el dropdown de notificaciones (Llave)
-        // Categorizamos las alertas para que el frontend distinga entre órdenes sin mecánico, vencidas o estancadas.
         $db->query("SELECT os.id, os.placa, os.estado, os.mecanico_id, os.fecha_entrega_estimada, os.fecha_ingreso,
                           TIMESTAMPDIFF(MINUTE, NOW(), os.fecha_entrega_estimada) as minutos_restantes,
                           v.marca, v.modelo,
@@ -690,9 +636,6 @@ class ControllerTaller extends Controller {
         ]);
     }
 
-    /**
-     * API para asignar un mecánico responsable a una orden (AJAX)
-     */
     public function asignarMecanico() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
@@ -713,17 +656,11 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * Endpoint para obtener los servicios/revisiones de la orden (AJAX)
-     */
     public function obtenerServicios($id) {
         $servicios = $this->ordenModel->obtenerServicios($id);
         return $this->jsonResponse(['success' => true, 'data' => $servicios]);
     }
 
-    /**
-     * Endpoint para actualizar el estado de un servicio específico (AJAX)
-     */
     public function actualizarEstadoServicio() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
@@ -744,9 +681,6 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * Agrega un nuevo servicio/revisión a una orden existente (AJAX)
-     */
     public function guardarServicio() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
@@ -767,9 +701,6 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * Elimina un servicio específico (AJAX)
-     */
     public function eliminarServicio() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
@@ -785,10 +716,6 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * Busca presupuestos en estado ACTIVO para anexar a una Orden de Servicio
-     * GET /taller/buscarPresupuestosActivos?q=termino
-     */
     public function buscarPresupuestosActivos() {
         try {
             $search = $_GET['q'] ?? '';

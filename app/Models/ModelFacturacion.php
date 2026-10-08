@@ -6,18 +6,10 @@
 class ModelFacturacion {
     private $db;
 
-    /**
-     * Constructor: Permite inyectar una instancia de base de datos
-     * para compartir transacciones con el BillingService.
-     */
     public function __construct($db = null) {
         $this->db = $db ?: new Database();
     }
 
-    /**
-     * Busca facturas por ID, nombre de cliente o placa para el buscador global.
-     * @param string $term Término de búsqueda
-     */
     public function searchInvoices($term) {
         $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                   COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre,
@@ -40,12 +32,7 @@ class ModelFacturacion {
         return $this->db->resultSet();
     }
 
-    /**
-     * Busca productos o servicios disponibles en el inventario
-     * @param string $termino Nombre o categoría
-     */
     public function buscarItems($termino) {
-        // Traemos solo columnas necesarias para el POS (excluimos imagen por peso)
         $this->db->query("SELECT i.id, i.nombre, i.categoria, i.stock, i.precio, i.costo_promedio,
                           (i.stock - COALESCE((
                               SELECT SUM(vd.cantidad) 
@@ -67,7 +54,10 @@ class ModelFacturacion {
     }
 
     /**
-     * Obtiene todos los borradores con sus respectivos items cargados
+     * Obtiene todos los borradores con sus respectivos items cargados.
+     * 
+     * FIX: Ahora incluye presupuesto_activo_id para que el POS pueda mostrar
+     * el panel verde del presupuesto anexado al cargar el borrador.
      */
     public function obtenerBorradoresCompleto() {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
@@ -112,6 +102,8 @@ class ModelFacturacion {
 
     /**
      * Busca un borrador pendiente vinculado a una Orden de Servicio específica.
+     * 
+     * FIX: Incluye presupuesto_activo_id.
      */
     public function obtenerBorradorPorOrden($ordenId) {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
@@ -136,7 +128,6 @@ class ModelFacturacion {
             $this->db->bind(':vid', $venta->id);
             $items = $this->db->resultSet();
             
-            // Mapeo al formato que el POS de facturacion.js requiere
             $venta->items = array_map(function($it) {
                 return [
                     'id' => $it->producto_id,
@@ -145,7 +136,7 @@ class ModelFacturacion {
                     'costo_promedio' => (float)($it->costo_unitario ?? 0),
                     'cantidad' => (int)$it->cantidad,
                     'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO',
-                    'temp_id' => bin2hex(random_bytes(4)) // ID único para el manejo en el DOM del POS
+                    'temp_id' => bin2hex(random_bytes(4))
                 ];
             }, $items);
         }
@@ -154,24 +145,25 @@ class ModelFacturacion {
 
     /**
      * Registra o actualiza la cabecera de una venta.
-     * Los cálculos deben venir ya procesados desde el BillingService.
-     * @param array $datos Datos de la venta
-     * @param string $status Estado (COMPLETADO, CREDITO, PENDIENTE)
-     * @param array $totales Resumen de montos
-     * @param int $usuarioId ID del usuario que procesa
-     * @return int ID de la venta
+     * 
+     * FIX: Ahora persiste presupuesto_activo_id cuando viene en los datos.
      */
     public function guardarCabeceraVenta($datos, $status, $totales, $usuarioId) {
         try {
             $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
             $ordenIdPersist = !empty($datos['orden_id']) ? (int)$datos['orden_id'] : null;
+            $presupuestoActivoId = !empty($datos['presupuesto_activo_id']) ? (int)$datos['presupuesto_activo_id'] : null;
 
             if ($ventaId && $ordenIdPersist === null) {
-                $this->db->query("SELECT orden_id FROM table_facturas WHERE id = :id");
+                $this->db->query("SELECT orden_id, presupuesto_activo_id FROM table_facturas WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
                 $facturaActual = $this->db->single();
                 if ($facturaActual) {
                     $ordenIdPersist = !empty($facturaActual->orden_id) ? (int)$facturaActual->orden_id : null;
+                    // Preservar presupuesto_activo_id si no se envió uno nuevo
+                    if ($presupuestoActivoId === null && !empty($facturaActual->presupuesto_activo_id)) {
+                        $presupuestoActivoId = (int)$facturaActual->presupuesto_activo_id;
+                    }
                 }
             }
 
@@ -179,21 +171,23 @@ class ModelFacturacion {
 
             if ($ventaId) {
                 $this->db->query("UPDATE table_facturas SET
-                                  cliente_id = :cid, orden_id = :oid, placa = :placa, modelo_vehiculo = :modelo,
+                                  cliente_id = :cid, orden_id = :oid, presupuesto_activo_id = :paid, 
+                                  placa = :placa, modelo_vehiculo = :modelo,
                                   subtotal = :sub, iva_monto = :iva, total = :total, 
                                   pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
                                   status = :status, origen = :origen, observaciones = :obs
                                   WHERE id = :id");
                 $this->db->bind(':id', $ventaId);
             } else {
-                $this->db->query("INSERT INTO table_facturas (cliente_id, orden_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
+                $this->db->query("INSERT INTO table_facturas (cliente_id, orden_id, presupuesto_activo_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
                                   pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status, origen, observaciones) 
-                                  VALUES (:cid, :oid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status, :origen, :obs)");
+                                  VALUES (:cid, :oid, :paid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status, :origen, :obs)");
                 $this->db->bind(':uid', $usuarioId);
             }
             $this->db->bind(':origen', $origen);
             $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
             $this->db->bind(':oid', $ordenIdPersist);
+            $this->db->bind(':paid', $presupuestoActivoId);
             $this->db->bind(':placa', !empty($datos['placa']) ? $datos['placa'] : null);
             $this->db->bind(':modelo', !empty($datos['modelo']) ? $datos['modelo'] : null);
             $this->db->bind(':sub', $totales['subtotal']);
@@ -206,8 +200,7 @@ class ModelFacturacion {
             $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? '', 'UTF-8'));
             $this->db->execute();
 
-            // CIERRE AUTOMÁTICO DE ORDEN (Reemplaza al Trigger tg_actualizar_orden_al_facturar)
-            // Solo actualizamos la orden si la factura está vinculada a una Orden de Servicio real.
+            // Cierre automático de Orden de Servicio
             $esFacturaOrdenServicio = !empty($ordenIdPersist);
             if ($esFacturaOrdenServicio && in_array($status, ['COMPLETADO', 'CREDITO'], true)) {
                 $this->sincronizarOrdenServicio(
@@ -227,10 +220,6 @@ class ModelFacturacion {
         }
     }
 
-    /**
-     * Sincroniza una orden de servicio con el cierre de la factura.
-     * Marca la orden como ENTREGADO cuando la factura pasa a COMPLETADO o CREDITO.
-     */
     private function sincronizarOrdenServicio($ordenId, $statusFactura, $observacionesFactura, $diagnosticoSalidaFactura, $usuarioId, $motivo) {
         if (!$ordenId || !in_array($statusFactura, ['COMPLETADO', 'CREDITO'], true)) {
             return;
@@ -279,9 +268,6 @@ class ModelFacturacion {
         $this->db->execute();
     }
 
-    /**
-     * Obtiene los detalles completos de una venta para su impresión
-     */
     public function obtenerVentaCompleta($id) {
         $this->db->query("SELECT v.*, v.observaciones as observaciones_factura, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
@@ -311,7 +297,6 @@ class ModelFacturacion {
             $venta->items = $this->db->resultSet();
         }
 
-        // Cargar Checklist si la factura proviene de una Orden de Servicio
         if ($venta && $venta->orden_id) {
             $this->db->query("SELECT item, observacion FROM table_orden_checklist WHERE orden_id = :oid");
             $this->db->bind(':oid', $venta->orden_id);
@@ -321,10 +306,6 @@ class ModelFacturacion {
         return $venta;
     }
 
-    /**
-     * Lista las ventas realizadas por mostrador (sin placa vinculada)
-     * para el historial específico de repuestos.
-     */
     public function obtenerVentasMostrador($limit = 10, $offset = 0, $search = null, $desde = null, $hasta = null) {
         $where = "WHERE v.orden_id IS NULL AND (v.placa IS NULL OR v.placa = '') AND v.status IN ('COMPLETADO', 'CREDITO')";
         
@@ -338,14 +319,12 @@ class ModelFacturacion {
             $where .= " AND DATE(v.fecha) <= :hasta";
         }
 
-        // Obtener total de registros filtrados
         $this->db->query("SELECT COUNT(*) as total FROM table_facturas v LEFT JOIN table_clientes c ON v.cliente_id = c.id $where");
         if ($search) $this->db->bind(':search', "%$search%");
         if ($desde) $this->db->bind(':desde', $desde);
         if ($hasta) $this->db->bind(':hasta', $hasta);
         $total = (int)$this->db->single()->total;
 
-        // Obtener los datos paginados
         $this->db->query("SELECT v.*, c.nombre as cliente_nombre, 
                           COALESCE(sv.nombre, u.username, 'SISTEMA') as vendedor_nombre, 
                           (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id AND producto_id IS NOT NULL) as cant_productos
@@ -365,47 +344,30 @@ class ModelFacturacion {
         return ['data' => $this->db->resultSet(), 'total' => $total];
     }
 
-    /**
-     * Métodos de gestión de borradores requeridos por el controlador
-     */
     public function obtenerBorradorPorId($id) {
         $this->db->query("SELECT * FROM table_facturas WHERE id = :id AND status = 'PENDIENTE'");
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
 
-    /**
-     * Elimina un borrador de factura (Venta en estado PENDIENTE).
-     * Elimina primero el detalle para evitar errores de integridad referencial (FK).
-     */
     public function eliminarBorrador($id) {
-        // 1. Eliminar el detalle asociado a la factura
         $this->db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :id");
         $this->db->bind(':id', $id);
         $this->db->execute();
 
-        // 2. Eliminar la cabecera de la factura
         $this->db->query("DELETE FROM table_facturas WHERE id = :id AND status = 'PENDIENTE'");
         $this->db->bind(':id', $id);
         return $this->db->execute();
     }
 
-    /**
-     * Obtiene los datos para el reporte de auditoría de trabajos.
-     * Retorna el resumen de deudas (para tarjetas) y la lista de trabajos realizados.
-     * Se agrega paginación y corrección en el conteo de deudores (Clientes únicos).
-     */
     public function obtenerAuditoriaTrabajos($limit = 10, $offset = 0) {
-        // 1. Resumen de Deudores (Monto total y cantidad de CLIENTES únicos con saldo pendiente)
         $this->db->query("SELECT SUM(saldo_pendiente) as total_deuda, COUNT(DISTINCT cliente_id) as cantidad_deudores 
                           FROM table_facturas WHERE status = 'CREDITO' AND saldo_pendiente > 0.05 AND (orden_id IS NOT NULL OR placa IS NOT NULL)");
         $resumen = $this->db->single();
 
-        // 2. Conteo total para paginación
         $this->db->query("SELECT COUNT(*) as total FROM table_facturas WHERE status IN ('COMPLETADO', 'CREDITO', 'PENDIENTE') AND (orden_id IS NOT NULL OR placa IS NOT NULL)");
         $total = $this->db->single()->total;
 
-        // 3. Lista de trabajos con paginación
         $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                  v.fecha, v.total, v.saldo_pendiente, v.status,
                                  c.nombre as cliente_nombre, c.telefono as cliente_telefono, sv.nombre as vendedor_nombre, 
@@ -438,10 +400,6 @@ class ModelFacturacion {
         ];
     }
 
-    /**
-     * Registra un abono a una venta con deuda.
-     * Si el saldo llega a cero, la factura pasa a COMPLETADO.
-     */
     public function registrarAbono($ventaId, $monto, $metodo) {
         try {
             $this->db->query("SELECT id, orden_id, observaciones, total, pago_efectivo, pago_transferencia, saldo_pendiente FROM table_facturas WHERE id = :id");
@@ -453,18 +411,14 @@ class ModelFacturacion {
             $monto = (float)$monto;
             $nuevoPendiente = $venta->saldo_pendiente - $monto;
             
-            // 1. Insertar el registro en la tabla de abonos
             $this->db->query("INSERT INTO table_abonos_clientes (factura_id, monto, metodo_pago) VALUES (:vid, :monto, :metodo)");
             $this->db->bind(':vid', $ventaId);
             $this->db->bind(':monto', $monto);
             $this->db->bind(':metodo', $metodo);
             $this->db->execute();
 
-            // 2. Determinar qué columna de pago actualizar
             $columnaPago = ($metodo === 'TRANSFERENCIA') ? 'pago_transferencia' : 'pago_efectivo';
             
-            // 3. Actualizar la venta principal
-            // Si el saldo pendiente es muy cercano a cero (por decimales), marcar como COMPLETADO
             $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
 
             $this->db->query("UPDATE table_facturas SET 
@@ -479,7 +433,6 @@ class ModelFacturacion {
 
             $this->db->execute();
 
-            // 4. Si el abono deja la factura saldada, sincronizar la orden de servicio asociada.
             $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
             if ($venta->orden_id && in_array($nuevoStatus, ['COMPLETADO', 'CREDITO'], true)) {
                 $this->sincronizarOrdenServicio(
@@ -492,8 +445,6 @@ class ModelFacturacion {
                 );
             }
 
-            // 5. Registrar el abono como un ingreso en table_transacciones
-            // Esto asegura que el flujo de caja refleje el dinero recibido.
             $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
                               VALUES (1, 'INGRESO', 'ABONO_CLIENTE', :monto_abono, :ref_id, :desc_abono, :uid)");
             $this->db->bind(':monto_abono', $monto);
@@ -508,11 +459,6 @@ class ModelFacturacion {
         }
     }
 
-    /**
-     * Obtiene ventas a crédito con más de 15 días de antigüedad.
-     * @param int $dias Límite de días para considerar vencido.
-     * @return array
-     */
     public function obtenerCreditosVencidos($dias = 15) {
         $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre 
                           FROM table_facturas v
@@ -527,21 +473,11 @@ class ModelFacturacion {
         return $this->db->resultSet();
     }
 
-    /**
-     * Helper interno para calcular diferencia de días entre fechas
-     */
     private function calcularDiferenciaDias($d1, $d2) {
         return round(abs(strtotime($d1) - strtotime($d2)) / 86400);
     }
 
-    /**
-     * Obtiene los días de garantía aplicables a un repuesto.
-     * Prioridad: dias_garantia del repuesto → dias_garantia_devolucion global → 5 (default)
-     * @param int|null $productoId
-     * @return int
-     */
     private function obtenerDiasGarantia($productoId) {
-        // 1. Revisar si el repuesto tiene días de garantía específicos
         if (!empty($productoId)) {
             $this->db->query("SELECT dias_garantia FROM table_inventario WHERE id = :pid");
             $this->db->bind(':pid', $productoId);
@@ -551,31 +487,17 @@ class ModelFacturacion {
             }
         }
 
-        // 2. Revisar configuración global de la empresa
         $this->db->query("SELECT dias_garantia_devolucion FROM table_company_settings WHERE id = 1");
         $row = $this->db->single();
         if ($row && !empty($row->dias_garantia_devolucion) && $row->dias_garantia_devolucion > 0) {
             return (int)$row->dias_garantia_devolucion;
         }
 
-        // 3. Default
         return 5;
     }
 
-    /**
-     * Procesa la devolución de un ítem específico de una factura.
-     * @param int $ventaId ID de la factura
-     * @param int $detalleId ID de la línea de detalle
-     * @param string $destino Destino del ítem (STOCK o DANADO)
-     * @param string $motivo Motivo de la devolución (opcional)
-     * @return bool
-     */
     public function procesarDevolucion($ventaId, $detalleId, $destino, $motivo = '') {
         try {
-            // Se elimina beginTransaction de aquí. 
-            // La transacción ahora es controlada por BillingService.
-
-            // 1. Obtener datos exactos del ítem y de la factura
             $this->db->query("SELECT vd.producto_id, vd.descripcion, vd.cantidad, vd.precio_unitario, 
                                      v.fecha, v.subtotal, v.iva_monto, v.total, v.saldo_pendiente,
                                      v.pago_efectivo, v.pago_transferencia
@@ -590,20 +512,17 @@ class ModelFacturacion {
                 throw new Exception("El ítem de la factura no existe.");
             }
 
-            // 1.1 Validar plazo de garantía configurable
             $diasTranscurridos = $this->calcularDiferenciaDias(date('Y-m-d'), $item->fecha);
             $diasGarantia = $this->obtenerDiasGarantia($item->producto_id);
             if ($diasTranscurridos > $diasGarantia) {
                 throw new Exception("Plazo de devolución vencido. La garantía para este repuesto es de {$diasGarantia} día(s) y han transcurrido {$diasTranscurridos} día(s).");
             }
 
-            // 2. Calcular montos proporcionales (Base + IVA)
             $montoBase = (float)$item->precio_unitario * (int)$item->cantidad;
             $factorIva = ((float)$item->subtotal > 0) ? ((float)$item->iva_monto / (float)$item->subtotal) : 0;
             $ivaDevolver = $montoBase * $factorIva;
             $totalARestar = $montoBase + $ivaDevolver;
 
-            // 2. Si es producto y el destino es REINGRESO, sumar al inventario
             if (!empty($item->producto_id)) {
                 if ($destino === 'STOCK') {
                     $this->db->query("UPDATE table_inventario SET stock = stock + :cant WHERE id = :pid");
@@ -611,13 +530,11 @@ class ModelFacturacion {
                     $this->db->bind(':pid', $item->producto_id);
                     $this->db->execute();
                     
-                    // Sugerencia: Pasa la conexión de DB actual al modelo de inventario
                     $invModel = new ModelInventario($this->db);
                     $invModel->registrarMovimiento($item->producto_id, 'DEVOLUCION', $item->cantidad, $ventaId, "Devolución Factura #$ventaId");
                 }
             }
 
-            // 3. Registrar en el historial de devoluciones para auditoría
             $this->db->query("INSERT INTO table_devoluciones (factura_id, producto_id, descripcion, cantidad, monto_devuelto, destino, motivo, usuario_id, dias_garantia_aplicado, dias_transcurridos) 
                               VALUES (:vid, :pid, :desc, :cant, :monto, :dest, :motivo, :uid, :dga, :dt)");
             $this->db->bind(':vid', $ventaId);
@@ -632,13 +549,10 @@ class ModelFacturacion {
             $this->db->bind(':dt', $diasTranscurridos);
             $this->db->execute();
 
-            // 4. Ajustar la factura (Restar del total y del saldo si es crédito)
             $nuevoSubtotal = max(0, (float)$item->subtotal - $montoBase);
             $nuevoIva = max(0, (float)$item->iva_monto - $ivaDevolver);
             $nuevoTotal = max(0, (float)$item->total - $totalARestar);
 
-            // Lógica de Devolución de Dinero:
-            // 1. Primero restamos del saldo pendiente (si el cliente debía dinero)
             $saldoAReducir = min((float)$item->saldo_pendiente, $totalARestar);
             $restoParaPagos = $totalARestar - $saldoAReducir;
             
@@ -646,7 +560,6 @@ class ModelFacturacion {
             $nuevoPagoEfe = (float)$item->pago_efectivo;
             $nuevoPagoTra = (float)$item->pago_transferencia;
 
-            // 2. Si aún queda monto por devolver, lo restamos de lo pagado (priorizando efectivo)
             if ($restoParaPagos > 0) {
                 if ($nuevoPagoEfe >= $restoParaPagos) {
                     $nuevoPagoEfe -= $restoParaPagos;
@@ -674,7 +587,6 @@ class ModelFacturacion {
             $this->db->bind(':vid', $ventaId);
             $this->db->execute();
 
-            // REGISTRAR EN LIBRO MAYOR (EGRESO POR DEVOLUCIÓN)
             $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
                               VALUES (1, 'EGRESO', 'DEVOLUCION', :monto, :ref, :desc, :uid)");
             $this->db->bind(':monto', $totalARestar);
@@ -683,7 +595,6 @@ class ModelFacturacion {
             $this->db->bind(':uid', $_SESSION['user_id']);
             $this->db->execute();
 
-            // 5. Eliminar el detalle de la factura original
             $this->db->query("DELETE FROM table_facturas_detalle WHERE id = :id");
             $this->db->bind(':id', $detalleId);
             $this->db->execute();
@@ -695,9 +606,6 @@ class ModelFacturacion {
         }
     }
 
-    /**
-     * Obtiene un reporte de utilidad bruta (Venta - Costo)
-     */
     public function obtenerReporteUtilidad($desde, $hasta) {
         $this->db->query("SELECT 
                             SUM(vd.precio_unitario * vd.cantidad) as total_ventas,

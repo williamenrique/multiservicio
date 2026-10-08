@@ -15,6 +15,11 @@ use PHPMailer\PHPMailer\Exception;
  * la tabla `table_emails` (ver método `logEnvio`). Los controladores
  * NO deben llamar a ModelEmail->registrar() después de invocar
  * cualquiera de los métodos públicos de este servicio.
+ * 
+ * Adjuntos soportados en `enviarEmailGenerico()`:
+ *   - ['content' => $binario, 'name' => 'archivo.pdf']  → en memoria (recomendado)
+ *   - ['path' => '/ruta/absoluta/archivo.pdf', 'name' => 'archivo.pdf']  → archivo físico
+ *   - '/ruta/absoluta/archivo.pdf'  → archivo físico (solo ruta)
  */
 class EmailService
 {
@@ -389,12 +394,18 @@ class EmailService
 
     /**
      * Envía un email genérico con los datos proporcionados.
-     * Usado para emails compuestos manualmente desde la interfaz de Email.
+     * Usado para emails compuestos manualmente desde la interfaz de Email
+     * y para adjuntar PDFs generados en memoria (ej: presupuestos).
      * 
      * Acepta metadatos opcionales:
      *   - tipo             (string)  Ej: 'FACTURA', 'PRESUPUESTO', 'OTRO'
      *   - referencia_tipo  (string)  Ej: 'FACTURA', 'ORDEN', 'NINGUNO'
      *   - referencia_id    (int)     ID del documento referenciado
+     * 
+     * Adjuntos soportados en `attachments`:
+     *   - ['content' => $binario, 'name' => 'archivo.pdf']  → en memoria
+     *   - ['path' => '/ruta/absoluta/archivo.pdf', 'name' => 'archivo.pdf']  → archivo físico
+     *   - '/ruta/absoluta/archivo.pdf'  → archivo físico (solo ruta)
      */
     public function enviarEmailGenerico(array $datos): array {
         try {
@@ -409,12 +420,20 @@ class EmailService
             // Versión texto plano
             $this->mailer->AltBody = $datos['body_text'] ?? strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $datos['body_html']));
             
-            // Adjuntos
+            // Adjuntos (soporta binario en memoria y archivo físico)
             if (!empty($datos['attachments'])) {
                 foreach ($datos['attachments'] as $attachment) {
-                    if (is_array($attachment)) {
+                    if (is_array($attachment) && isset($attachment['content'])) {
+                        // ── Contenido binario en memoria (sin archivo físico) ──
+                        $this->mailer->addStringAttachment(
+                            $attachment['content'],
+                            $attachment['name'] ?? 'documento.pdf'
+                        );
+                    } elseif (is_array($attachment) && isset($attachment['path'])) {
+                        // ── Adjunto desde archivo físico ──
                         $this->mailer->addAttachment($attachment['path'], $attachment['name'] ?? '');
-                    } else {
+                    } elseif (is_string($attachment)) {
+                        // ── Ruta simple a archivo físico ──
                         $this->mailer->addAttachment($attachment);
                     }
                 }

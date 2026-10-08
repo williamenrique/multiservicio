@@ -164,7 +164,7 @@ if (typeof URLROOT === 'undefined') {
                         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400"></i>
                         <input type="text" id="buscarPresupuestoActivo" placeholder="Buscar por # presupuesto, cliente, placa..." 
                             class="w-full pl-10 pr-4 py-2 bg-white border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm">
-                        <div id="presupuesto-activo-results" class="absolute w-full mt-1 max-h-60 overflow-y-auto hidden border border-blue-200 rounded-xl shadow-2xl bg-white z-[100] py-1"></div>
+                        <div id="presupuesto-activo-results" class="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto hidden border border-blue-200 rounded-xl shadow-2xl bg-white z-[100]"></div>
                     </div>
                     <div id="presupuesto-seleccionado" class="mt-3 hidden p-3 bg-green-50 border border-green-200 rounded-lg">
                         <div class="flex justify-between items-center">
@@ -307,7 +307,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     inputClienteNombre.value = v.cliente_nombre || '';
                     inputClienteNombre.classList.add('bg-green-50');
                 } else {
-                    // If vehicle found but no client_id linked (shouldn't happen if DB is consistent)
                     inputClienteId.value = '';
                     inputClienteNombre.value = '';
                     inputClienteNombre.classList.remove('bg-green-50');
@@ -557,6 +556,13 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
         }
     });
 
+    // ─── Determinar qué items enviar al backend ───
+    // Si hay un presupuesto anexado, usamos sus items (tienen producto_id, precio, cantidad).
+    // Si no, enviamos lista vacía (el checklist NO es items de factura).
+    const itemsParaEnviar = (window.presupuestoItems && window.presupuestoItems.length > 0)
+        ? window.presupuestoItems
+        : [];
+
     const data = {
         placa: formData.get('placa'),
         cliente_id: formData.get('cliente_id'),
@@ -571,7 +577,9 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
         observaciones_entrada: formData.get('observaciones_entrada'),
         checklist: checklist,
         servicios: servicios,
-        items: checklist // Sincronizamos con items para que el controlador procese los detalles de la orden
+        items: itemsParaEnviar,
+        presupuesto_activo_id: window.presupuestoSeleccionadoId || null,
+        presupuesto_items: itemsParaEnviar
     };
 
     try {
@@ -600,6 +608,11 @@ document.getElementById('formNuevaOrden').addEventListener('submit', async funct
             const serviciosContainer = document.getElementById('servicios-container');
             if (serviciosContainer) serviciosContainer.innerHTML =
                 '<div class="text-center py-4 text-slate-400 text-xs italic" id="empty-servicios-msg">No hay servicios agregados</div>';
+
+            // ✅ Limpiar presupuesto anexado SIN PEDIR CONFIRMACIÓN (ya se guardó la OS)
+            if (typeof window.desanexarPresupuesto === 'function') {
+                window.desanexarPresupuesto(true);
+            }
 
             // Resetear estilos de cliente
             const inputNombre = document.getElementById('cliente_nombre');
