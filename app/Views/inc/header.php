@@ -7,11 +7,7 @@
     <title><?php echo isset($titulo) ? s($titulo) : SITENAME; ?></title>
     <link rel="shortcut icon" href="<?php echo !empty($company->logo) ? URLROOT . '/' . $company->logo : URL_IMG . 'logo.png'; ?>" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css"> -->
-    <!-- <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css"> -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
     <script>
         // Definimos la constante global para que todos los JS la usen
@@ -22,11 +18,38 @@
         window.USER_ROLE = "<?php echo $user_role ?? ($_SESSION['user_role'] ?? 'INVITADO'); ?>";
         window.USER_ROLE_ID = <?php echo (int)($user_role_id ?? ($_SESSION['user_role_id'] ?? 0)); ?>;
     </script>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Núcleo de polling global (sincrónico, pequeño, sin dependencias).
+         Debe cargar ANTES que cualquier otro script para que
+         window.PollingManager y window.DashboardCache estén disponibles.
+         ═══════════════════════════════════════════════════════════════ -->
+    <script src="<?php echo URLROOT; ?>/js/polling.js"></script>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Scripts globales del dashboard — cargados con `defer`
+         (v2.1 — FIX P1-05) para descarga en paralelo.
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- Librerías de UI -->
+    <script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+    <!-- Iconos Lucide (versión específica para estabilidad) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+
+    <!-- Motor de Tablas Dinámicas -->
+    <script defer src="<?php echo URLROOT; ?>/js/DataTableRefactor.js"></script>
+
+    <!-- Núcleo: utils.js → app.js (orden obligatorio) -->
+    <script defer src="<?php echo URL_JS; ?>utils.js"></script>
+    <script defer src="<?php echo URL_JS; ?>app.js"></script>
 </head>
 <body class="bg-main-dark text-slate-800 font-sans">
 
     <div class="flex h-screen overflow-hidden">
-        <!-- Overlay para Sidebar en móviles (Se activa vía JS cuando el sidebar está abierto) -->
+        <!-- Overlay para Sidebar en móviles -->
         <div id="sidebarOverlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden transition-opacity duration-300 opacity-0"></div>
 
         <!-- Sidebar -->
@@ -123,18 +146,17 @@
                         <input type="text" id="globalSearchInput" placeholder="Buscar factura, placa, cliente..." class="w-64 bg-gray-800 border border-gray-700 text-white text-xs px-4 py-2 rounded-lg focus:outline-none focus:border-neon-green transition-all">
                         <div id="globalSearchResults" class="absolute top-full right-0 mt-2 w-80 bg-white shadow-2xl rounded-xl border border-slate-100 hidden z-[100] overflow-hidden"></div>
                     </div>
-                    <!-- Contenedor dinámico para la campana de recuperación -->
+                    <!-- Contenedores de notificaciones dinámicas -->
                     <div id="recovery-bell-container" class="hidden"></div>
                     <div id="low-stock-notifications-container" class="hidden"></div>
                     <div id="credit-notifications-container" class="hidden"></div>
                     <div id="notifications-area" class="hidden"></div>
-                    <!-- Notificaciones de Pedidos Pendientes (Icono de Carrito) -->
+                    <!-- Notificaciones de Pedidos Pendientes -->
                     <div id="pedidos-bell-container" class="relative group hidden">
                         <button id="btn-notificaciones-pedidos" class="p-2 bg-slate-800/50 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-amber-400 transition-all relative">
                             <i data-lucide="shopping-cart" class="w-5 h-5"></i>
                             <span id="pedidos-notif-badge" class="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-black px-1.5 rounded-full border-2 border-navy-blue hidden">0</span>
                         </button>
-                        <!-- Dropdown -->
                         <div class="absolute right-0 top-full pt-2 w-80 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                             <div class="bg-black rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-800 overflow-hidden">
                                 <div class="p-4 border-b border-slate-800 bg-slate-900/50">
@@ -155,15 +177,12 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Notificaciones de Taller (Icono de Llave) -->
+                    <!-- Notificaciones de Taller -->
                     <div id="workshop-bell-container" class="relative group hidden">
                         <button id="btn-notificaciones-taller" class="p-2 bg-slate-800/50 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-neon-green transition-all relative">
                             <i data-lucide="wrench" class="w-5 h-5"></i>
-                            <!-- El badge se muestra automáticamente cuando hay órdenes pendientes -->
                             <span id="taller-notif-badge" class="absolute -top-1 -right-1 bg-rose-600 text-white text-[10px] font-black px-1.5 rounded-full border-2 border-navy-blue hidden">0</span>
                         </button>
-                        
-                        <!-- Dropdown Desplegable -->
                         <div class="absolute right-0 top-full pt-2 w-80 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                             <div class="bg-black rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-800 overflow-hidden">
                                 <div class="p-4 border-b border-slate-800 bg-slate-900/50">
@@ -171,14 +190,11 @@
                                         <i data-lucide="wrench" class="w-4 h-4 text-neon-green"></i> Monitor de Taller
                                     </h3>
                                 </div>
-                                
-                                <!-- Lista de Alertas (Se llena vía app.js) -->
                                 <div id="taller-notif-list" class="max-h-96 overflow-y-auto custom-scrollbar bg-black">
                                     <div class="p-8 text-center text-slate-500 italic text-xs uppercase font-bold tracking-widest">
                                         Sincronizando...
                                     </div>
                                 </div>
-                                
                                 <div class="p-3 bg-slate-900/80 border-t border-slate-800">
                                     <a href="<?php echo URLROOT; ?>/taller" class="block text-center text-[10px] font-black text-neon-green uppercase hover:underline tracking-tighter">
                                         Gestionar Todas las Órdenes

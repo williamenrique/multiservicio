@@ -1,22 +1,24 @@
 /**
  * APP CORE - UNIFICADO Y LEGIBLE
- * Este archivo centraliza las utilidades, la gestión de sesión y la lógica principal de la UI.
  * 
- * v2.2 (2026-10-09) — FIX P0-02:
- *   • Se eliminó la definición DUPLICADA de `AppUtils` que existía aquí y en utils.js.
- *     Ahora `AppUtils` vive únicamente en utils.js (fuente única de verdad).
- *     footer.php carga utils.js ANTES de este archivo, garantizando que AppUtils
- *     esté disponible cuando app.js lo necesite (runtime, no load-time).
+ * v2.3 (2026-10-09) — FIX bloque Core (P1-01, P1-02, P1-03, P1-11):
+ *   • Todos los setInterval() sueltos fueron reemplazados por llamadas a
+ *     PollingManager.register(). Ahora hay un único timer maestro global
+ *     (definido en polling.js) que:
+ *       - Se pausa automáticamente cuando la pestaña no está visible.
+ *       - Reduce a la mitad los requests en background.
+ *   • Los 3 componentes que consumían /dashboard/getStats por separado
+ *     ahora usan DashboardCache.get() → 1 solo fetch compartido.
+ *   • Se eliminó la doble lectura de stats en el arranque.
  * 
- * v2.1: Endpoints opcionales (alertasCredito, getDeudoresSummary) ahora fallan
- *       silenciosamente si devuelven 404, en lugar de spamear la consola con
- *       errores de red. Esto permite desplegar el frontend sin los métodos
- *       backend correspondientes sin generar ruido en la consola.
+ * v2.2: Se eliminó la definición duplicada de AppUtils (vive en utils.js).
+ * v2.1: Endpoints opcionales fallan silenciosamente si devuelven 404.
  * 
- * ⚠️ DEPENDENCIAS (cargar en este orden desde footer.php):
- *   1. utils.js          → define window.AppUtils
- *   2. DataTableRefactor → clase para tablas dinámicas
- *   3. app.js            → este archivo (usa AppUtils en runtime)
+ * DEPENDENCIAS (cargar en este orden desde header.php):
+ *   1. polling.js        → define window.PollingManager y window.DashboardCache
+ *   2. utils.js          → define window.AppUtils
+ *   3. DataTableRefactor
+ *   4. app.js            → este archivo
  */
 
 // =============================================================================
@@ -29,9 +31,13 @@ window.currentLoggedInUser = null;
 // =============================================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
-    // Guard defensivo: si utils.js no se cargó, avisar y abortar.
+    // Guard defensivo: si utils.js o polling.js no se cargaron, avisar.
     if (typeof AppUtils === 'undefined') {
-        console.error('[app.js] CRÍTICO: AppUtils no está definido. Verifica que utils.js se cargue ANTES de app.js en footer.php.');
+        console.error('[app.js] CRÍTICO: AppUtils no está definido. Verifica utils.js.');
+        return;
+    }
+    if (typeof PollingManager === 'undefined') {
+        console.error('[app.js] CRÍTICO: PollingManager no está definido. Verifica polling.js.');
         return;
     }
 
@@ -83,34 +89,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Notificar a otros módulos (como dashboard.js) que el usuario ya está cargado
     document.dispatchEvent(new CustomEvent("userLoaded", { detail: window.currentLoggedInUser }));
 
-    // Inicializar funciones exclusivas de administrador
+    // ─── Registrar tareas en el PollingManager (según rol) ───
     const user = window.currentLoggedInUser;
-    if (user && (parseInt(user.roleId) === 1 || user.role.toUpperCase() === "ADMINISTRADOR")) {
-        initRecoveryNotifications();
-        setInterval(initRecoveryNotifications, 30000); // Polling cada 30 segundos
-        initWorkshopAlerts();
-        setInterval(initWorkshopAlerts, 60000); // Chequeo de taller cada minuto
-        initPedidosAlerts();
-        setInterval(initPedidosAlerts, 60000); // Chequeo de pedidos cada minuto
-        initCreditNotifications();
-        setInterval(initCreditNotifications, 60000); // Chequeo de cartera cada minuto
-        initDebtorsCard();
-        setInterval(initDebtorsCard, 300000); // Polling cada 5 minutos para la tarjeta de deudores
-        initLowStockNotifications();
-        setInterval(initLowStockNotifications, 120000); // Chequeo de stock cada 2 minutos
-        initProfitabilityCard();
-        setInterval(initProfitabilityCard, 600000); // Polling cada 10 minutos
+    const isAdmin = user && (parseInt(user.roleId) === 1 || user.role.toUpperCase() === "ADMINISTRADOR");
+    const isMecanico = user && user.role.toUpperCase() === "MECANICO";
+
+    if (isAdmin) {
+        PollingManager.register('recovery-notifications', initRecoveryNotifications, 30000);
+        PollingManager.register('workshop-alerts',        initWorkshopAlerts,        60000);
+        PollingManager.register('pedidos-alerts',         initPedidosAlerts,         60000);
+        PollingManager.register('credit-notifications',   initCreditNotifications,   60000);
+        PollingManager.register('debtors-card',           initDebtorsCard,          300000);
+        PollingManager.register('low-stock-notifications',initLowStockNotifications, 120000);
+        PollingManager.register('profitability-card',     initProfitabilityCard,    600000);
+    } else if (isMecanico) {
+        PollingManager.register('workshop-alerts', initWorkshopAlerts, 60000);
+        PollingManager.register('pedidos-alerts',  initPedidosAlerts,  60000);
     }
 
-    if (user && user.role.toUpperCase() === "MECANICO") {
-        initWorkshopAlerts();
-        setInterval(initWorkshopAlerts, 60000); // Chequeo de taller cada minuto
-        initPedidosAlerts();
-        setInterval(initPedidosAlerts, 60000); // Chequeo de pedidos cada minuto
-    }
+    // Arranca el loop maestro (una sola vez, ejecuta todo inmediatamente + programa intervalos)
+    PollingManager.start();
 
-    renderTopBarUserInfo(); // Actualiza nombre y rol en la UI
-    window.initGlobalTooltips(); // Inicialización inicial
+    renderTopBarUserInfo();
+    window.initGlobalTooltips();
 });
 
 /**
@@ -118,7 +119,6 @@ document.addEventListener("DOMContentLoaded", async () => {
  */
 window.initGlobalTooltips = function () {
     if (typeof tippy === 'function') {
-        // Seleccionamos todos los elementos con atributo title que no hayan sido inicializados
         const elements = document.querySelectorAll('[title]:not([data-tippy-content])');
         if (elements.length > 0) {
             tippy(elements, {
@@ -144,9 +144,6 @@ window.addEventListener("popstate", () => {
 // 3. FUNCIONES DEL NÚCLEO
 // =============================================================================
 
-/**
- * Inicializa el reloj digital de la barra superior.
- */
 function initClock() {
     const clockElement = document.getElementById("digitalClock");
     if (clockElement) {
@@ -157,9 +154,6 @@ function initClock() {
     }
 }
 
-/**
- * Obtiene la información del usuario autenticado desde el servidor.
- */
 async function fetchLoggedInUserFromDB() {
     try {
         const response = await fetch(`${URLROOT}/auth/getLoggedInUser`);
@@ -173,9 +167,6 @@ async function fetchLoggedInUserFromDB() {
     }
 }
 
-/**
- * Inicializa el menú desplegable del usuario y el manejador de logout.
- */
 function initUserDropdown() {
     const trigger = document.getElementById("userDropdownTrigger");
     const menu = document.getElementById("userDropdownMenu");
@@ -194,7 +185,6 @@ function initUserDropdown() {
             }
         });
 
-        // Manejo de Logout con confirmación delegada
         document.addEventListener("click", (e) => {
             const logoutBtn = e.target.closest(".logout");
             if (logoutBtn) {
@@ -213,9 +203,6 @@ function initUserDropdown() {
     }
 }
 
-/**
- * Renderiza la información del usuario en la barra superior.
- */
 async function renderTopBarUserInfo() {
     const topbarUsername = document.getElementById("topbar-username");
     const topbarUserrole = document.getElementById("topbar-userrole");
@@ -233,9 +220,6 @@ async function renderTopBarUserInfo() {
     }
 }
 
-/**
- * Controla el comportamiento de apertura/cierre del Sidebar.
- */
 function initSidebar() {
     const btn = document.getElementById("toggleSidebar");
     const sidebar = document.getElementById("sidebar");
@@ -262,58 +246,48 @@ function initSidebar() {
 // 4. NOTIFICACIONES Y GESTIÓN DE ACCESO (ADMIN)
 // =============================================================================
 
-/**
- * Gestiona las notificaciones de la campana para el administrador.
- */
 async function initRecoveryNotifications() {
     const bellContainer = document.getElementById("recovery-bell-container");
-    if (bellContainer)
-        try {
-            const response = await fetch(`${URLROOT}/auth/getSolicitudes`);
-            if (!response.ok) return;
-            const contentType = response.headers.get("content-type");
-            if (!contentType || !contentType.includes("application/json")) return;
+    if (!bellContainer) return;
+    try {
+        const response = await fetch(`${URLROOT}/auth/getSolicitudes`);
+        if (!response.ok) return;
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) return;
 
-            const result = await response.json();
-            if (result.success && result.data.length > 0) {
-                bellContainer.classList.remove('hidden');
-                bellContainer.innerHTML = `
-                <div class="relative group">
-                    <button onclick="window.location.href='${URLROOT}/recuperar'" class="p-2 bg-amber-500/10 text-amber-500 rounded-lg alert-shake border border-amber-500/20">
-                        <i data-lucide="bell-ring" class="w-5 h-5"></i>
-                        <span class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black px-1.5 rounded-full border-2 border-white">${result.data.length}</span>
-                    </button>
-                    <div class="hidden group-hover:block absolute top-full right-0 w-64 pt-2 z-50">
-                        <div class="bg-black shadow-2xl rounded-xl p-3 border border-slate-700">
-                            <p class="text-[10px] font-bold text-white uppercase mb-2">Solicitudes Pendientes</p>
-                            <div class="space-y-2">
-                                ${result.data.slice(0, 3).map(s => `
-                                    <div class="text-xs border-b border-slate-700 pb-1">
-                                        <p class="font-bold text-white uppercase">${s.username}</p>
-                                        <p class="text-white text-[10px] opacity-80">${s.tipo} - ${new Date(s.fecha).toLocaleTimeString()}</p>
-                                    </div>`).join("")}
-                            </div>
-                            <a href="${URLROOT}/recuperar" class="block text-center text-[10px] font-bold text-blue-600 mt-2 uppercase hover:underline">Ver todas</a>
+        const result = await response.json();
+        if (result.success && result.data.length > 0) {
+            bellContainer.classList.remove('hidden');
+            bellContainer.innerHTML = `
+            <div class="relative group">
+                <button onclick="window.location.href='${URLROOT}/recuperar'" class="p-2 bg-amber-500/10 text-amber-500 rounded-lg alert-shake border border-amber-500/20">
+                    <i data-lucide="bell-ring" class="w-5 h-5"></i>
+                    <span class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black px-1.5 rounded-full border-2 border-white">${result.data.length}</span>
+                </button>
+                <div class="hidden group-hover:block absolute top-full right-0 w-64 pt-2 z-50">
+                    <div class="bg-black shadow-2xl rounded-xl p-3 border border-slate-700">
+                        <p class="text-[10px] font-bold text-white uppercase mb-2">Solicitudes Pendientes</p>
+                        <div class="space-y-2">
+                            ${result.data.slice(0, 3).map(s => `
+                                <div class="text-xs border-b border-slate-700 pb-1">
+                                    <p class="font-bold text-white uppercase">${s.username}</p>
+                                    <p class="text-white text-[10px] opacity-80">${s.tipo} - ${new Date(s.fecha).toLocaleTimeString()}</p>
+                                </div>`).join("")}
                         </div>
+                        <a href="${URLROOT}/recuperar" class="block text-center text-[10px] font-bold text-blue-600 mt-2 uppercase hover:underline">Ver todas</a>
                     </div>
-                </div>`;
-                window.lucide && lucide.createIcons();
-            } else {
-                bellContainer.innerHTML = "";
-                bellContainer.classList.add('hidden');
-            }
-        } catch (error) {
-            console.error("Error en notificaciones:", error);
+                </div>
+            </div>`;
+            window.lucide && lucide.createIcons();
+        } else {
+            bellContainer.innerHTML = "";
+            bellContainer.classList.add('hidden');
         }
+    } catch (error) {
+        // Silencioso
+    }
 }
 
-/**
- * Gestiona las notificaciones de créditos vencidos (+15 días).
- * 
- * Si el endpoint `/facturacion/alertasCredito` devuelve 404 (método no
- * implementado en el controlador), simplemente se omite silenciosamente
- * sin generar errores en consola.
- */
 async function initCreditNotifications() {
     const container = document.getElementById("credit-notifications-container");
     if (!container) return;
@@ -322,7 +296,6 @@ async function initCreditNotifications() {
             headers: { 'Accept': 'application/json' }
         });
 
-        // Endpoint no implementado → skip silencioso
         if (response.status === 404) {
             container.classList.add('hidden');
             const dashContainer = document.getElementById("dashboard-overdue-alert");
@@ -334,7 +307,6 @@ async function initCreditNotifications() {
 
         const contentType = response.headers.get("content-type");
         if (!contentType || !contentType.includes("application/json")) {
-            // No es JSON → probablemente HTML de error 404/500
             container.classList.add('hidden');
             return;
         }
@@ -369,7 +341,6 @@ async function initCreditNotifications() {
                 </div>
             </div>`;
 
-            // Inyectar alerta visual en el dashboard si existe el contenedor
             const dashContainer = document.getElementById("dashboard-overdue-alert");
             if (dashContainer) {
                 dashContainer.innerHTML = `
@@ -393,25 +364,19 @@ async function initCreditNotifications() {
             if (dashContainer) dashContainer.innerHTML = "";
         }
     } catch (error) {
-        console.error("Error en notificaciones de crédito:", error);
+        // Silencioso
     }
 }
 
-/**
- * Gestiona las alertas de stock mínimo (Header y Dashboard).
- */
 async function initLowStockNotifications() {
     const container = document.getElementById("low-stock-notifications-container");
     const dashContainer = document.getElementById("dashboard-stock-alert");
     if (!container && !dashContainer) return;
 
     try {
-        const response = await fetch(`${URLROOT}/dashboard/getStats`);
-        if (!response.ok) return;
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) return;
-
-        const result = await response.json();
+        // Usa la caché compartida (evita fetch duplicado con profitability/dashboard)
+        const result = await DashboardCache.get();
+        if (!result) return;
         const lowStock = result.lowStock || [];
 
         if (container && window.currentLoggedInUser && (parseInt(window.currentLoggedInUser.roleId) === 1 || window.currentLoggedInUser.role.toUpperCase() === "ADMINISTRADOR")) {
@@ -454,15 +419,9 @@ async function initLowStockNotifications() {
             } else dashContainer.innerHTML = "";
         }
         window.lucide && lucide.createIcons();
-    } catch (e) { console.error(e); }
+    } catch (e) { /* silencioso */ }
 }
 
-/**
- * Gestiona la tarjeta de resumen de deudores para el dashboard.
- * 
- * Si el endpoint `/facturacion/getDeudoresSummary` devuelve 404, se omite
- * silenciosamente sin spamear la consola.
- */
 async function initDebtorsCard() {
     const container = document.getElementById("dashboard-debtors-card-container");
     if (!container) return;
@@ -472,7 +431,6 @@ async function initDebtorsCard() {
             headers: { 'Accept': 'application/json' }
         });
 
-        // Endpoint no implementado → skip silencioso
         if (response.status === 404) return;
         if (!response.ok) return;
 
@@ -535,7 +493,7 @@ async function initDebtorsCard() {
                 </div>
             `;
             window.lucide && lucide.createIcons();
-        } else { // No hay deudas pendientes
+        } else {
             container.innerHTML = `
                 <div class="glass-card rounded-2xl border border-green-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-500 h-full flex flex-col">
                     <div class="bg-green-50/50 px-6 py-4 border-b border-green-100 flex justify-between items-center">
@@ -562,25 +520,18 @@ async function initDebtorsCard() {
             window.lucide && lucide.createIcons();
         }
     } catch (error) {
-        console.error("Error al cargar la tarjeta de deudores:", error);
         container.innerHTML = `<div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center text-gray-500">Error al cargar datos de deudores.</div>`;
     }
 }
 
-/**
- * Gestiona la tarjeta de utilidad bruta (Rentabilidad) en el dashboard.
- */
 async function initProfitabilityCard() {
     const container = document.getElementById("dashboard-profitability-container");
     if (!container) return;
 
     try {
-        const response = await fetch(`${URLROOT}/dashboard/getStats`);
-        if (!response.ok) return;
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) return;
-
-        const result = await response.json();
+        // Usa caché compartida (evita fetch duplicado con low-stock y dashboard)
+        const result = await DashboardCache.get();
+        if (!result) return;
 
         if (result.profitability) {
             const p = result.profitability;
@@ -642,7 +593,7 @@ async function initProfitabilityCard() {
                 </div>
             `;
             if (window.lucide) lucide.createIcons();
-        } else { // No hay datos de rentabilidad
+        } else {
             container.innerHTML = `
                 <div class="glass-card rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-2 duration-500 h-full flex flex-col">
                     <div class="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
@@ -666,12 +617,13 @@ async function initProfitabilityCard() {
                     </div>
                 </div>`;
         }
-    } catch (error) { console.error("Error en tarjeta rentabilidad:", error); }
+    } catch (error) { /* silencioso */ }
 }
 
-/**
- * Abre el flujo de devolución para una factura (Solo repuestos, garantía configurable en servidor)
- */
+// =============================================================================
+// 5. UTILIDADES GLOBALES (devoluciones, recuperación, búsqueda, PDF)
+// =============================================================================
+
 window.iniciarDevolucion = async (ventaId, fecha) => {
     try {
         const res = await fetch(`${URLROOT}/facturacion/getItemsDevolucion/${ventaId}`);
@@ -731,6 +683,7 @@ window.iniciarDevolucion = async (ventaId, fecha) => {
 
             if (result.success) {
                 AppUtils.showToast(result.mensaje);
+                DashboardCache.invalidate();
                 if (typeof updateDashboard === 'function') updateDashboard();
                 if (typeof cargarReporte === 'function') cargarReporte();
                 if (typeof cargarReporteDetallado === 'function') cargarReporteDetallado();
@@ -740,14 +693,10 @@ window.iniciarDevolucion = async (ventaId, fecha) => {
             }
         }
     } catch (e) {
-        AppUtils.hideLoading(); // Asegurar que el cargador se oculte en caso de error
-        console.error(e);
+        AppUtils.hideLoading();
     }
 };
 
-/**
- * Carga la tabla de solicitudes de recuperación (Administrador).
- */
 window.cargarTablaRecuperacion = async function () {
     const container = document.getElementById("recovery-list-container");
     if (!container) return;
@@ -787,9 +736,6 @@ window.cargarTablaRecuperacion = async function () {
     window.lucide && lucide.createIcons();
 };
 
-/**
- * Alterna la visibilidad de las contraseñas en la tabla de recuperación.
- */
 window.togglePassVisibility = function (id) {
     const input = document.getElementById(`pass-${id}`);
     const icon = document.getElementById(`icon-${id}`);
@@ -799,9 +745,6 @@ window.togglePassVisibility = function (id) {
     window.lucide && lucide.createIcons();
 };
 
-/**
- * Permite al administrador asignar una nueva clave a través de un prompt seguro.
- */
 window.resetearClaveSolicitud = async function (userId, solicitudId) {
     const { value: newPassword } = await Swal.fire({
         title: 'Asignar Nueva Clave',
@@ -832,21 +775,16 @@ window.resetearClaveSolicitud = async function (userId, solicitudId) {
 
             if (result.success) {
                 await AppUtils.showAlert("¡Hecho!", `La clave ha sido cambiada a: ${newPassword}. Entrégala al usuario.`, "success");
-                // Una vez cambiada, marcamos la solicitud como comprobada automáticamente
                 confirmarSolicitud(solicitudId);
             } else {
                 AppUtils.showAlert("Error", result.error || "No se pudo cambiar la clave", "error");
             }
         } catch (e) {
-            AppUtils.hideLoading(); // Asegurar que el cargador se oculte en caso de error
-            console.error(e);
+            AppUtils.hideLoading();
         }
     }
 };
 
-/**
- * Procesa la eliminación de una solicitud confirmada.
- */
 window.confirmarSolicitud = async function (id) {
     const response = await fetch(`${URLROOT}/auth/eliminarSolicitud/${id}`, {
         method: "POST",
@@ -859,9 +797,6 @@ window.confirmarSolicitud = async function (id) {
     }
 };
 
-/**
- * Inicializa la búsqueda global en el header con debounce.
- */
 function initGlobalSearch() {
     const input = document.getElementById('globalSearchInput');
     const results = document.getElementById('globalSearchResults');
@@ -908,15 +843,11 @@ function initGlobalSearch() {
             } catch (err) {
                 results.innerHTML = '<div class="p-4 text-xs text-rose-500 text-center font-bold italic uppercase tracking-tighter">Error en el buscador global</div>';
                 results.classList.remove('hidden');
-                console.error("Global search error:", err);
             }
         }, 400);
     });
 }
 
-/**
- * Genera una factura de forma asíncrona y la abre en una nueva pestaña.
- */
 window.printInvoice = async (ventaId) => {
     try {
         AppUtils.showLoading('Generando Documento...');
@@ -935,10 +866,9 @@ window.printInvoice = async (ventaId) => {
 };
 
 // =============================================================================
-// 5. NOTIFICACIONES GLOBALES (AppNotifications)
+// 6. NOTIFICACIONES GLOBALES (AppNotifications)
 // =============================================================================
 const AppNotifications = {
-    /* Verifica deudas vencidas y actualiza el área de notificaciones. */
     checkSupplierDebts: async () => {
         const response = await fetch(`${URLROOT}/proveedores/listarDeudas`);
         const result = await response.json();
@@ -977,9 +907,6 @@ const AppNotifications = {
     },
 };
 
-/**
- * Gestiona las notificaciones de pedidos pendientes del catálogo público.
- */
 async function initPedidosAlerts() {
     const containerBell = document.getElementById('pedidos-bell-container');
     const badge = document.getElementById('pedidos-notif-badge');
@@ -1011,7 +938,6 @@ async function initPedidosAlerts() {
                 }
             }
 
-            // Actualizar badge en sidebar
             if (sidebarBadge) {
                 if (result.total > 0) {
                     sidebarBadge.textContent = result.total;
@@ -1043,9 +969,6 @@ async function initPedidosAlerts() {
     }
 }
 
-/**
- * Gestiona las notificaciones de entregas próximas o atrasadas en el taller.
- */
 async function initWorkshopAlerts() {
     const btnLlave = document.getElementById('btn-notificaciones-taller');
     const containerBell = document.getElementById('workshop-bell-container');
@@ -1063,7 +986,6 @@ async function initWorkshopAlerts() {
         if (result.success) {
             const data = result.data || [];
 
-            // 1. Mostrar contenedor y actualizar Badge
             if (containerBell) {
                 if (result.total > 0) {
                     containerBell.classList.remove('hidden');
@@ -1083,7 +1005,6 @@ async function initWorkshopAlerts() {
                 }
             }
 
-            // 2. Llenar lista desplegable del Header
             if (lista) {
                 lista.innerHTML = data.length === 0
                     ? '<div class="p-8 text-center text-slate-600 italic text-xs">No hay alertas activas</div>'
@@ -1104,7 +1025,6 @@ async function initWorkshopAlerts() {
                     }).join('');
             }
 
-            // 3. Renderizado en el Index de Taller (Píldoras críticas)
             if (containerIndex) {
                 containerIndex.classList.remove('hidden');
                 containerIndex.innerHTML = `
@@ -1129,13 +1049,9 @@ async function initWorkshopAlerts() {
             }
         }
         if (window.lucide) lucide.createIcons();
-    } catch (e) { console.error("Error workshop alerts:", e); }
+    } catch (e) { /* silencioso */ }
 }
 
-/**
- * Abre el modal de gestión para una orden de servicio en el taller.
- * Permite ver detalles, asignar mecánico (solo Admin) y gestionar servicios/revisiones.
- */
 window.verDetalleOrdenTaller = async (id) => {
     try {
         AppUtils.showLoading('Cargando hoja de ruta...');
@@ -1154,10 +1070,8 @@ window.verDetalleOrdenTaller = async (id) => {
         const orden = result.data;
         const staff = result.staff || [];
         const servicios = result.servicios || [];
-        // Usar variables globales del header para mayor rapidez y fiabilidad
         const isAdmin = (parseInt(window.USER_ROLE_ID || 0) === 1 || (window.USER_ROLE || "").toUpperCase() === 'ADMINISTRADOR');
 
-        // Mapeo de colores para el badge de estado en el detalle
         const statusColors = {
             'RECIBIDO': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
             'DIAGNOSTICANDO': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
@@ -1167,7 +1081,6 @@ window.verDetalleOrdenTaller = async (id) => {
         };
         const statusClass = statusColors[orden.estado] || 'bg-slate-500/10 text-slate-400 border-slate-500/20';
 
-        // Mapeo de colores para estados de servicios
         const servicioStatusColors = {
             'PENDIENTE': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
             'EN_PROCESO': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -1175,7 +1088,6 @@ window.verDetalleOrdenTaller = async (id) => {
             'CANCELADO': 'bg-rose-500/10 text-rose-400 border-rose-500/20'
         };
 
-        // Generar HTML de la tabla de servicios
         const serviciosHtml = servicios.length > 0 ? `
             <div class="space-y-2">
                 <div class="flex justify-between items-center">
@@ -1314,12 +1226,10 @@ window.verDetalleOrdenTaller = async (id) => {
             }
         }
     } catch (err) {
-        console.error("Workshop detail error:", err);
         AppUtils.showToast('Error de comunicación', 'error');
     }
 };
 
-// Funciones globales para gestión de servicios en el modal
 window.agregarServicioModal = async (ordenId) => {
     const { value: formValues } = await Swal.fire({
         title: 'Agregar Servicio / Revisión',
@@ -1371,7 +1281,6 @@ window.agregarServicioModal = async (ordenId) => {
 
             if (result.success) {
                 AppUtils.showToast('Servicio agregado correctamente');
-                // Recargar el modal
                 window.verDetalleOrdenTaller(ordenId);
             } else {
                 AppUtils.showToast(result.error || 'Error al agregar servicio', 'error');
@@ -1396,7 +1305,6 @@ window.actualizarEstadoServicioModal = async (servicioId, estado) => {
         const result = await response.json();
 
         if (result.success) {
-            // Actualizar color del select
             const select = document.querySelector(`tr[data-servicio-id="${servicioId}"] .servicio-estado-select`);
             if (select) {
                 const servicioStatusColors = {
@@ -1410,7 +1318,6 @@ window.actualizarEstadoServicioModal = async (servicioId, estado) => {
             AppUtils.showToast('Estado actualizado');
         } else {
             AppUtils.showToast(result.mensaje || 'Error al actualizar', 'error');
-            // Revertir el select al valor anterior (recargar modal)
             window.verDetalleOrdenTaller(document.querySelector('#swal-mecanico-id')?.dataset?.ordenId || 0);
         }
     } catch (err) {
@@ -1451,11 +1358,6 @@ window.eliminarServicioModal = async (servicioId) => {
 
             if (result.success) {
                 AppUtils.showToast('Servicio eliminado');
-                // Recargar el modal - necesitamos obtener el ordenId del DOM
-                const mecanicoSelect = document.getElementById('swal-mecanico-id');
-                // Buscar el ordenId en el contexto actual
-                // Como no tenemos acceso directo, recargamos la página o buscamos otra forma
-                // Por simplicidad, mostramos mensaje y el usuario puede volver a abrir
                 AppUtils.showToast('Vuelva a abrir el detalle para ver los cambios', 'info');
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al eliminar', 'error');
@@ -1467,7 +1369,4 @@ window.eliminarServicioModal = async (servicioId) => {
     }
 };
 
-/**
- * Alias global para disparar el detalle desde cualquier tabla (Ej: taller/index.php)
- */
 window.abrirModalDetalleOrden = window.verDetalleOrdenTaller;

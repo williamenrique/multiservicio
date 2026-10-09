@@ -1,6 +1,16 @@
 <?php
 
 /**
+ * HELPERS GLOBALES DEL SISTEMA
+ * 
+ * v2.1 (2026-10-09):
+ *   • FIX P1-07: renderView() cachea la configuración de empresa (query
+ *     solo se ejecuta 1 vez por request, no en cada render).
+ *   • FIX P1-08: logAction() envuelto en try/catch — si falla la auditoría,
+ *     NO rompe la acción principal del usuario.
+ */
+
+/**
  * Encripta una cadena de texto usando AES-256-CBC
  */
 function encryption($string) {
@@ -53,21 +63,45 @@ function csrf_token() {
 
 /**
  * Función centralizada para renderizar vistas con layout (header/footer) opcional.
+ * 
+ * FIX P1-07: La configuración de empresa se cachea en una variable static
+ * para evitar ejecutar la query en cada llamada dentro del mismo request.
+ * En la práctica, esto ahorra 1 query por cada `renderView()` invocado.
  */
 function renderView($view, $data = []) {
+    static $companyCache = null;
+    
     $viewPath = APPROOT . '/Views/' . $view . '.php';
     
     if (file_exists($viewPath)) {
         extract($data);
 
-        // Obtener configuración de empresa globalmente
-        try {
-            $db = new Database();
-            $db->query("SELECT * FROM table_company_settings WHERE id = 1");
-            $company = $db->single();
-        } catch (Throwable $e) { 
-            $company = (object) ['name' => 'TALLER PRO']; 
+        // Cargar configuración de empresa solo la primera vez por request
+        if ($companyCache === null) {
+            try {
+                $db = new Database();
+                $db->query("SELECT * FROM table_company_settings WHERE id = 1");
+                $result = $db->single();
+                $companyCache = $result ?: (object) [
+                    'name' => 'TALLER PRO',
+                    'nit' => null,
+                    'iva' => 19.00,
+                    'logo' => null,
+                    'direccion' => null,
+                    'telefono' => null
+                ];
+            } catch (Throwable $e) {
+                $companyCache = (object) [
+                    'name' => 'TALLER PRO',
+                    'nit' => null,
+                    'iva' => 19.00,
+                    'logo' => null,
+                    'direccion' => null,
+                    'telefono' => null
+                ];
+            }
         }
+        $company = $companyCache;
 
         // Determinar si usar el layout del dashboard
         // Las vistas de login, errores o vistas públicas no deben cargar header/footer
@@ -131,18 +165,29 @@ function detectarTipoCliente() {
 
 /**
  * Registra una acción en la bitácora de auditoría.
+ * 
+ * FIX P1-08: Envuelto en try/catch. Si falla el registro de auditoría,
+ * se registra el error en el log del servidor pero NO interrumpe el
+ * flujo principal de la aplicación.
+ * 
  * @param string $modulo Nombre del módulo (AUTH, PERSONAL, INVENTARIO, etc.)
  * @param string $accion Acción realizada (LOGIN, CREATE, UPDATE, DELETE)
  * @param string $descripcion Detalle textual de lo que se hizo
+ * @return bool  true si se registró, false si falló
  */
 function logAction($modulo, $accion, $descripcion = '') {
-    $db = new Database();
-    $db->query("INSERT INTO table_audit_logs (usuario_id, modulo, accion, descripcion, ip_address, fecha) 
-                VALUES (:uid, :mod, :acc, :des, :ip, NOW())");
-    $db->bind(':uid', $_SESSION['user_id'] ?? null);
-    $db->bind(':mod', mb_strtoupper($modulo, 'UTF-8'));
-    $db->bind(':acc', mb_strtoupper($accion, 'UTF-8'));
-    $db->bind(':des', $descripcion);
-    $db->bind(':ip', $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
-    return $db->execute();
+    try {
+        $db = new Database();
+        $db->query("INSERT INTO table_audit_logs (usuario_id, modulo, accion, descripcion, ip_address, fecha) 
+                    VALUES (:uid, :mod, :acc, :des, :ip, NOW())");
+        $db->bind(':uid', $_SESSION['user_id'] ?? null);
+        $db->bind(':mod', mb_strtoupper($modulo, 'UTF-8'));
+        $db->bind(':acc', mb_strtoupper($accion, 'UTF-8'));
+        $db->bind(':des', $descripcion);
+        $db->bind(':ip', $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+        return $db->execute();
+    } catch (Throwable $e) {
+        error_log("logAction falló: " . $e->getMessage());
+        return false;
+    }
 }

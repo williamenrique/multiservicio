@@ -9,6 +9,10 @@ P0-06	Eliminar routes.php duplicado. Idéntico en /app/Config/. Verificar cuál 
 P0-07	Consolidar procesarDevolucion. Lógica duplicada en ModelFacturacion::procesarDevolucion y ModelDevoluciones::procesarDevolucion. Dejar solo ModelDevoluciones (más moderno, con kardex) y hacer que BillingService::procesarDevolucionSegura apunte ahí.	🟡 Medio	45 min	3 archivos
 P0-08	Centralizar CSRF. Unificar el envío de X-CSRF-TOKEN. Ahora mismo: login.js (body), carrito.js (FormData), facturacion.js (header), catalogo-publico.js (FormData), inventario.js (ambos), proveedores.js (ambos). Estandarizar header X-CSRF-TOKEN + Content-Type: application/json.	🟢 Alto	2 h	8 archivos JS
 P0-09	Arreglar PdfService::generarDocumento($stream=false). Devuelve binario pero ControllerDevoluciones::pdf() y ControllerGarantia::pdf() arman una URL inexistente. Endpoints rotos. Cambiar a generarBinario() o escribir temp correctamente.	🟢 Alto	30 min	3 archivos
+
+
+LISTA
+
 🟠 PRIORIDAD 1 — ALTO (Cuellos de botella reales)
 ID	Tarea	Impacto	Esfuerzo	Archivos
 P1-01	Reducir polling agresivo en app.js. Actualmente 6 setInterval corriendo (30s, 60s×3, 120s, 300s, 600s) + 3 más en facturacion.js (10s) y dashboard.js (60s). Total: ~9 timers activos por pestaña. Estrategia: un solo timer maestro de 60s que llama un método orquestador que decide qué refrescar según visibilidad de pestaña (document.visibilityState). Ahorro estimado: ~70% de requests.	🟢 Muy Alto	3 h	app.js, facturacion.js, dashboard.js
@@ -23,6 +27,7 @@ P1-09	ModelPresupuesto::stockDisponibleProducto vs ModelInventario::getSqlReserv
 P1-10	Consolidar initNewInvoice + loadInvoicesFromServer. En facturacion.js, hay dos flujos que crean facturas localmente y luego piden al servidor. Redundancia de renders.	🟡 Medio	1 h	facturacion.js
 P1-11	Reducir setInterval(loadInvoicesFromServer, 10000) de 10s a 30s. En la práctica un borrador no se modifica tan rápido desde otra pestaña.	🟡 Medio	5 min	facturacion.js
 P1-12	Mover scripts inline enormes a archivos externos. presupuesto/index.php (~700 líneas), garantia/index.php (~500), devoluciones/index.php (~400), taller/nueva_orden.php (~300), reportes/index.php (~300). Esto bloquea parsing y no se cachea en el navegador.	🟢 Alto	4 h	5 vistas
+
 🟡 PRIORIDAD 2 — MEDIO (Fluidez y UX)
 ID	Tarea	Impacto	Esfuerzo	Archivos
 P2-01	Reemplazar setTimeout(() => location.reload(), 1500) por actualización local del DOM. Ocurre en garantia, presupuesto/ver, taller/index, reportes. Cada acción fuerza recarga completa (~2s de latencia percibida).	🟢 Alto	2 h	4 vistas
@@ -39,6 +44,7 @@ P2-11	RoleGuard::hasAccess compara $userRoleId (int) contra array mixto de strin
 P2-12	AuthGuard::handle(): valida session_id() contra BD en cada request. Invalida sesiones concurrentes legítimas. Añadir ventana de gracia (ej: válida por 5 min tras último uso).	🟡 Medio	1 h	AuthGuard.php
 P2-13	NotificationChecker instancia new ModelProveedor() y new ModelDashboard() sin DB compartida. Aceptar $db en constructor.	🟡 Bajo	20 min	NotificationChecker.php
 P2-14	NotificationChecker::verificarResumenMensual: eliminar if ($diaActual < 1) return; (código muerto).	🟡 Bajo	5 min	NotificationChecker.php
+
 🟢 PRIORIDAD 3 — BAJO (Mejoras y pulido)
 ID	Tarea	Impacto	Esfuerzo	Archivos
 P3-01	CSS crítico inline. Tailwind se carga por CDN desde cero en cada vista (≈300 KB sin compresión). Generar tailwind.config + compilar a CSS local.	🟢 Alto	4 h	header.php, Login.php, build

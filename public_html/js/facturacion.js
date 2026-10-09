@@ -1,22 +1,20 @@
 /**
  * Lógica de Facturación con Gestión de Colas
  * 
- * v2.5 (2026-10-09):
- *   • FIX CSRF: Todas las peticiones POST ahora envían 'X-CSRF-TOKEN'.
- *     El registro rápido de cliente (btnQuickClient) fallaba con 403
- *     "Token CSRF no válido o sesión expirada" porque no incluía el header.
- *   • FIX: Se eliminó doble llamada updateActiveData('cliente_id', ...).
- *   • FIX: Al registrar cliente desde el POS, ahora se vincula correctamente
- *     al select oculto, al input de búsqueda, a la factura activa y se
- *     sincroniza con el servidor.
- *   • initNewInvoice también envía CSRF al llamar sincronizarBorrador.
+ * v2.6 (2026-10-09) — FIX P1-11:
+ *   • Eliminado el setInterval(loadInvoicesFromServer, 10000) que corría
+ *     permanentemente. Ahora se registra en PollingManager con un intervalo
+ *     de 30s (el doble que antes, pero gestionado por el tick maestro y
+ *     pausado automáticamente cuando la pestaña no está visible).
  * 
- * v2.4 (2026-10-08):
- *   • El panel del presupuesto anexado ahora se muestra automáticamente
- *     cuando la factura activa tiene presupuesto_activo_id.
- *   • Se cargan los detalles completos del presupuesto desde
- *     /presupuesto/obtener/{id} para poblar el panel verde.
- *   • Flag de "ya cargado" para no refetchear en cada re-render.
+ * v2.5: FIX CSRF (todas las peticiones POST envían X-CSRF-TOKEN).
+ * v2.4: Panel del presupuesto anexado se muestra automáticamente.
+ * 
+ * DEPENDENCIAS (cargar en este orden desde header.php):
+ *   1. polling.js → define window.PollingManager y window.DashboardCache
+ *   2. utils.js   → define window.AppUtils
+ *   3. app.js     → inicia PollingManager.start()
+ *   4. facturacion.js (este archivo, cargado desde la vista)
  */
 document.addEventListener('DOMContentLoaded', () => {
     const inputPlaca = document.getElementById('pos-placa');
@@ -44,8 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const displaySaldoPendiente = document.getElementById('pos-saldo-pendiente');
 
     const IVA_PERCENT = (typeof IVA_RATE !== 'undefined') ? (IVA_RATE * 100) : 0;
-
-    // Token CSRF seguro (con fallback a cadena vacía para entornos sin sesión)
     const CSRF = (typeof CSRF_TOKEN !== 'undefined' && CSRF_TOKEN) ? CSRF_TOKEN : '';
 
     let syncTimeout = null;
@@ -55,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastSearchResults = [];
     let lastClientResults = [];
 
-    // Set de presupuestos cuyos detalles ya se cargaron desde el backend.
     const presupuestosDetallesCache = new Set();
 
     document.addEventListener('userLoaded', () => {
@@ -63,9 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
-    // ───────────────────────────────────────────────────────────────────────
-    // HELPERS DE RED (inyectan CSRF automáticamente)
-    // ───────────────────────────────────────────────────────────────────────
     const postJSON = async (url, body) => {
         return fetch(url, {
             method: 'POST',
@@ -164,9 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // ───────────────────────────────────────────────────────────────────────
-    // REGISTRO RÁPIDO DE CLIENTE (CORREGIDO: incluye CSRF y vincula a la factura)
-    // ───────────────────────────────────────────────────────────────────────
     btnQuickClient.addEventListener('click', async () => {
         const { value: formValues } = await Swal.fire({
             title: 'REGISTRO DE CLIENTE',
@@ -192,10 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showCancelButton: true,
             confirmButtonText: 'REGISTRAR',
             confirmButtonColor: '#10b981',
-            customClass: {
-                popup: 'swal2-compact',
-                htmlContainer: 'swal2-html-compact'
-            },
+            customClass: { popup: 'swal2-compact', htmlContainer: 'swal2-html-compact' },
             preConfirm: () => {
                 const id = document.getElementById('swal-input1').value.trim();
                 const nombre = document.getElementById('swal-input2').value.trim();
@@ -204,8 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return false;
                 }
                 return [
-                    id,
-                    nombre,
+                    id, nombre,
                     document.getElementById('swal-input3').value.trim(),
                     document.getElementById('swal-input4').value.trim(),
                     document.getElementById('swal-input5').value.trim()
@@ -217,11 +202,8 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 AppUtils.showLoading('Registrando cliente...');
                 const res = await postJSON(`${URLROOT}/clientes/guardar`, {
-                    id: formValues[0],
-                    nombre: formValues[1],
-                    email: formValues[3],
-                    telefono: formValues[2],
-                    direccion: formValues[4]
+                    id: formValues[0], nombre: formValues[1], email: formValues[3],
+                    telefono: formValues[2], direccion: formValues[4]
                 });
                 AppUtils.hideLoading();
 
@@ -236,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const clienteId = formValues[0].toUpperCase();
                     const clienteNombre = formValues[1].toUpperCase();
 
-                    // 1) Agregar/actualizar opción en el <select> oculto
                     let option = inputCliente.querySelector(`option[value="${clienteId}"]`);
                     if (!option) {
                         option = document.createElement('option');
@@ -247,17 +228,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         option.textContent = clienteNombre;
                     }
                     inputCliente.value = clienteId;
-
-                    // 2) Reflejar en el input de búsqueda visual
                     if (clientSearchInput) clientSearchInput.value = clienteNombre;
 
-                    // 3) Vincular a la factura activa
                     const activeInv = openInvoices.find(i => i.id === activeInvoiceId);
                     if (activeInv) {
                         activeInv.cliente_id = clienteId;
                         activeInv.cliente_nombre = clienteNombre;
                     } else {
-                        // Si no hay factura activa, crear una nueva primero
                         await initNewInvoice(true);
                         const nueva = openInvoices.find(i => i.id === activeInvoiceId);
                         if (nueva) {
@@ -266,18 +243,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
-                    // 4) Sincronizar con el servidor y re-renderizar
                     await syncActiveInvoice(true);
                     renderQueue();
                     renderInvoice();
-
                     AppUtils.showToast('Cliente registrado y vinculado a la factura');
                 } else {
                     AppUtils.showToast(data.mensaje || 'Error al registrar cliente', 'error');
                 }
             } catch (e) {
                 AppUtils.hideLoading();
-                console.error("Error registrando cliente:", e);
                 AppUtils.showToast('Error de conexión al registrar cliente', 'error');
             }
         }
@@ -306,7 +280,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const userName = currentLoggedInUser ? currentLoggedInUser.staffName : '---';
         const isMechanic = currentLoggedInUser && (parseInt(currentLoggedInUser.roleId) === 2 || currentLoggedInUser.role.toUpperCase() === 'MECANICO');
         const staffId = currentLoggedInUser ? (currentLoggedInUser.staffId || currentLoggedInUser.staff_id) : '';
-
         const ordenIdFromDom = displayFacturaId.dataset.ordenId || null;
 
         const invData = {
@@ -360,7 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
     inputPlaca.addEventListener('input', (e) => {
         const val = e.target.value.toUpperCase();
         updateActiveData('placa', val);
-
         if (val.trim() !== '') {
             updateActiveData('tipo_procedencia', 'TALLER');
         } else {
@@ -385,7 +357,6 @@ document.addEventListener('DOMContentLoaded', () => {
         posObservaciones.addEventListener('input', (e) => {
             updateActiveData('observaciones', e.target.value.toUpperCase());
         });
-
         posObservaciones.addEventListener('blur', () => {
             syncActiveInvoice();
         });
@@ -424,8 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lastClientResults = data.data || [];
 
             if (lastClientResults.length > 0) {
-                clientSearchResults.innerHTML = lastClientResults.map((c, i) => {
-                    return `
+                clientSearchResults.innerHTML = lastClientResults.map((c, i) => `
                     <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center group transition-colors" 
                          onclick="selectClientFromResults('${i}')">
                         <div>
@@ -433,8 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <p class="text-[10px] text-slate-400 font-mono italic font-bold">CC/NIT: ${c.id}</p>
                         </div>
                         <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 group-hover:text-neon-green"></i>
-                    </div>`;
-                }).join('');
+                    </div>`).join('');
                 clientSearchResults.classList.remove('hidden');
                 if (window.lucide) lucide.createIcons();
             } else {
@@ -480,10 +449,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             presupuestosDetallesCache.add(String(presupuestoId));
-
             const res = await fetch(`${URLROOT}/presupuesto/obtener/${presupuestoId}`);
             if (!res.ok) return;
-
             const data = await res.json();
             if (!data.success || !data.data) return;
 
@@ -502,7 +469,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (window.lucide) lucide.createIcons();
         } catch (e) {
-            console.warn('No se pudieron cargar los detalles del presupuesto #' + presupuestoId, e);
             presupuestosDetallesCache.delete(String(presupuestoId));
         }
     }
@@ -529,7 +495,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         resultsContainerPresupuesto.classList.remove('hidden');
                     }
                 } catch (e) {
-                    console.error("Error buscando presupuestos:", e);
                     resultsContainerPresupuesto.innerHTML = '<div class="p-4 text-center text-red-400 text-xs italic">Error al buscar</div>';
                     resultsContainerPresupuesto.classList.remove('hidden');
                 }
@@ -638,7 +603,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             AppUtils.hideLoading();
-            console.error("Error anexando presupuesto:", e);
             presupuestoSeleccionadoIdFacturacion = null;
             inputPresupuestoFacturacion.value = '';
             if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
@@ -698,10 +662,8 @@ document.addEventListener('DOMContentLoaded', () => {
             syncActiveInvoice();
 
             AppUtils.showToast(`Presupuesto ${numero} anexado con ${data.items.length} item(s).`, 'success');
-
         } catch (e) {
             AppUtils.hideLoading();
-            console.error("Error cargando items del presupuesto:", e);
             AppUtils.showToast('Error al cargar los items del presupuesto', 'error');
         }
     };
@@ -724,7 +686,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 AppUtils.hideLoading();
-                console.error('Error liberando presupuesto:', e);
             }
         }
 
@@ -1064,10 +1025,8 @@ document.addEventListener('DOMContentLoaded', () => {
             inputPagoTransferencia.value = activeInvoice.pago_transferencia || 0;
         }
 
-        // Sincronizar panel del presupuesto anexado
         if (activeInvoice.presupuesto_activo_id && inputPresupuestoFacturacion && seleccionadoContainerPresupuesto) {
             const pid = activeInvoice.presupuesto_activo_id;
-
             presupuestoSeleccionadoIdFacturacion = pid;
 
             if (!inputPresupuestoFacturacion.value) {
@@ -1117,10 +1076,8 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('');
 
         const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-
         const isIvaEnabled = activeInvoice.iva_activo !== false;
         const currentIvaRate = isIvaEnabled ? (IVA_PERCENT / 100) : 0;
-
         const ivaMonto = subtotal * currentIvaRate;
         const total = subtotal + ivaMonto;
 
@@ -1167,7 +1124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (posObservaciones && document.activeElement !== posObservaciones) {
             posObservaciones.value = activeInvoice.observaciones || '';
         }
-        updateObsPreview();
+        if (typeof updateObsPreview === 'function') updateObsPreview();
         lucide.createIcons();
     };
 
@@ -1316,10 +1273,25 @@ document.addEventListener('DOMContentLoaded', () => {
             clientSearchResults.classList.add('hidden');
     });
 
-    loadInvoicesFromServer();
-    loadClients();
+    // ═══════════════════════════════════════════════════════════════
+    // FIX P1-11: Polling de borradores vía PollingManager (30s)
+    // 
+    // Antes: setInterval(loadInvoicesFromServer, 10000) → 6 requests/min
+    // Ahora: registrado en PollingManager → 2 requests/min y pausado
+    //        automáticamente cuando la pestaña no está visible.
+    // 
+    // PollingManager.start() se llama en app.js (mismo DOMContentLoaded
+    // anterior). Ejecutará esta tarea inmediatamente al arrancar.
+    // ═══════════════════════════════════════════════════════════════
+    if (typeof PollingManager !== 'undefined') {
+        PollingManager.register('facturacion-drafts', loadInvoicesFromServer, 30000);
+    } else {
+        // Fallback defensivo: si polling.js no cargó, comportamiento viejo
+        loadInvoicesFromServer();
+        setInterval(loadInvoicesFromServer, 30000);
+    }
 
-    setInterval(loadInvoicesFromServer, 10000);
+    loadClients();
 
     async function verificarOrdenInicial() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -1330,11 +1302,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const resp = await fetch(`${URLROOT}/facturacion/obtenerPorOrden/${ordenId}`);
-
                 if (!resp.ok) return;
 
                 const res = await resp.json();
-
                 if (res.success && res.data) {
                     activeInvoiceId = 'FAC-' + String(res.data.id).padStart(3, '0');
                     await loadInvoicesFromServer();
