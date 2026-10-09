@@ -683,11 +683,17 @@ class ControllerFacturacion extends Controller {
                 throw new Exception('Datos incompletos para la devolución');
             }
 
-            $resultado = $this->billingService->procesarDevolucionSegura([
-                'factura_id' => (int)$input['venta_id'],
-                'detalle_id' => (int)$input['detalle_id'],
-                'destino' => $input['destino'] ?? 'STOCK'
-            ]);
+            // FIX P0-07: Delegar a ModelDevoluciones (fuente única de verdad).
+            // Antes se llamaba a BillingService->procesarDevolucionSegura que
+            // internamente usaba ModelFacturacion::procesarDevolucion (duplicado).
+            // Ahora un solo modelo procesa devoluciones, y el motivo ya no se pierde.
+            $devolucionesModel = $this->model('Devoluciones');
+            $resultado = $devolucionesModel->procesarDevolucion(
+                (int)$input['venta_id'],
+                (int)$input['detalle_id'],
+                $input['destino'] ?? 'STOCK',
+                trim((string)($input['motivo'] ?? ''))
+            );
 
             if ($resultado) {
                 logAction('FACTURACION', 'PROCESAR_DEVOLUCION',

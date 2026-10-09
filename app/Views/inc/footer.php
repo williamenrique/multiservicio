@@ -1,4 +1,4 @@
-            </div>
+</div>
         </main>
     </div>
 
@@ -16,6 +16,13 @@
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
     <!-- Motor de Tablas Dinámicas (Debe cargar antes que los módulos) -->
     <script src="<?php echo URLROOT; ?>/js/DataTableRefactor.js"></script>
+
+    <!-- ─────────────────────────────────────────────────────────────────
+         FIX P0-02: utils.js se carga ANTES de app.js como fuente ÚNICA
+         de AppUtils. app.js ya NO define AppUtils para evitar duplicidad.
+         Orden obligatorio: utils.js → app.js
+         ───────────────────────────────────────────────────────────────── -->
+    <script src="<?php echo URL_JS; ?>utils.js"></script>
     <!-- Carga de script optimizado y unificado -->
     <script src="<?php echo URL_JS; ?>app.js"></script>
 

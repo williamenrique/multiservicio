@@ -1,163 +1,44 @@
 /**
  * APP CORE - UNIFICADO Y LEGIBLE
  * Este archivo centraliza las utilidades, la gestión de sesión y la lógica principal de la UI.
- * Reemplaza a app.js y consolida las funciones de soporte del sistema.
+ * 
+ * v2.2 (2026-10-09) — FIX P0-02:
+ *   • Se eliminó la definición DUPLICADA de `AppUtils` que existía aquí y en utils.js.
+ *     Ahora `AppUtils` vive únicamente en utils.js (fuente única de verdad).
+ *     footer.php carga utils.js ANTES de este archivo, garantizando que AppUtils
+ *     esté disponible cuando app.js lo necesite (runtime, no load-time).
  * 
  * v2.1: Endpoints opcionales (alertasCredito, getDeudoresSummary) ahora fallan
  *       silenciosamente si devuelven 404, en lugar de spamear la consola con
  *       errores de red. Esto permite desplegar el frontend sin los métodos
  *       backend correspondientes sin generar ruido en la consola.
+ * 
+ * ⚠️ DEPENDENCIAS (cargar en este orden desde footer.php):
+ *   1. utils.js          → define window.AppUtils
+ *   2. DataTableRefactor → clase para tablas dinámicas
+ *   3. app.js            → este archivo (usa AppUtils en runtime)
  */
 
 // =============================================================================
-// 1. UTILIDADES DEL NÚCLEO (AppUtils)
-// =============================================================================
-const AppUtils = {
-    /**
-     * Muestra una alerta informativa o de éxito usando SweetAlert2.
-     */
-    showAlert: (title, text, icon = "success") =>
-        Swal.fire({
-            title: title,
-            text: text,
-            icon: icon,
-            background: "#000000",
-            color: "#ffffff",
-            confirmButtonColor: "#39FF14",
-            confirmButtonText: '<span style="color: #000; font-weight: 900; text-transform: uppercase;">Aceptar</span>',
-            customClass: {
-                popup: 'rounded-3xl border border-slate-800 shadow-[0_0_20px_rgba(57,255,20,0.2)]',
-                title: 'text-white'
-            }
-        }),
-
-    /**
-     * Muestra una notificación rápida (Toast) en la parte superior derecha.
-     */
-    showToast: (msg, type = "success") => {
-        if (typeof Toastify === 'function') {
-            Toastify({
-                text: msg,
-                duration: 3000,
-                gravity: "top",
-                position: "right",
-                style: {
-                    background: "#000000",
-                    color: "#ffffff",
-                    borderRadius: "12px",
-                    fontWeight: "900",
-                    fontSize: "13px",
-                    boxShadow: "0 0 20px rgba(57, 255, 20, 0.4)",
-                    border: "1px solid rgba(57, 255, 20, 0.3)",
-                    textTransform: "uppercase"
-                },
-            }).showToast();
-        } else {
-            // Fallback a SweetAlert2
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                showConfirmButton: false,
-                timer: 3000,
-                timerProgressBar: true,
-                icon: type,
-                title: msg,
-                background: "#000000",
-                color: "#ffffff",
-                didOpen: (toast) => {
-                    toast.style.borderRadius = "12px";
-                    toast.style.boxShadow = "0 0 20px rgba(57, 255, 20, 0.4)";
-                    toast.style.border = "1px solid rgba(57, 255, 20, 0.2)";
-                }
-            });
-        }
-    },
-
-    /**
-     * Muestra un cuadro de diálogo de confirmación antes de ejecutar una acción.
-     */
-    confirmAction: (title, text, onConfirm, icon = "warning", confirmText = "Sí, continuar", confirmColor = "#ef4444", cancelText = "Cancelar") =>
-        Swal.fire({
-            title: title,
-            text: text,
-            icon: icon,
-            showCancelButton: !0,
-            background: "#000000",
-            color: "#ffffff",
-            confirmButtonColor: confirmColor || "#ef4444",
-            confirmButtonText: confirmText,
-            cancelButtonText: cancelText,
-            customClass: {
-                popup: 'rounded-3xl border border-slate-800 shadow-[0_0_20px_rgba(57,255,20,0.2)]'
-            }
-        }).then((result) => {
-            result.isConfirmed && onConfirm();
-        }),
-
-    /**
-     * Formatea un número como moneda colombiana (COP).
-     */
-    formatCurrency: (amount) =>
-        new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 2 }).format(amount),
-
-    /**
-     * Abre un visor de imagen a pantalla completa usando SweetAlert2.
-     */
-    viewImage: (url, title) => {
-        Swal.fire({
-            title: title,
-            imageUrl: url,
-            imageAlt: title,
-            showCloseButton: !0,
-            showConfirmButton: !1,
-            background: "#000000",
-            color: "#ffffff",
-            customClass: {
-                popup: 'rounded-3xl border border-slate-800 shadow-2xl'
-            }
-        });
-    },
-
-    /**
-     * Muestra una pantalla de carga bloqueante.
-     */
-    showLoading: (msg = "Cargando...") => {
-        Swal.fire({
-            title: msg,
-            background: "#000000",
-            color: "#ffffff",
-            allowOutsideClick: !1,
-            showConfirmButton: false,
-            didOpen: () => {
-                Swal.showLoading();
-            },
-        });
-        // Failsafe: Si después de 20 segundos sigue cargando, cerrar por seguridad
-        setTimeout(() => { if (Swal.isVisible() && Swal.isLoading()) Swal.close(); }, 20000);
-    },
-
-    hideLoading: () => {
-        if (Swal.isVisible()) {
-            Swal.close();
-        }
-    },
-};
-
-// =============================================================================
-// 2. ESTADO GLOBAL DE LA APP
+// 1. ESTADO GLOBAL DE LA APP
 // =============================================================================
 window.currentLoggedInUser = null;
 
 // =============================================================================
-// 3. INICIALIZACIÓN Y EVENTOS PRINCIPALES
+// 2. INICIALIZACIÓN Y EVENTOS PRINCIPALES
 // =============================================================================
 
 document.addEventListener("DOMContentLoaded", async () => {
+    // Guard defensivo: si utils.js no se cargó, avisar y abortar.
+    if (typeof AppUtils === 'undefined') {
+        console.error('[app.js] CRÍTICO: AppUtils no está definido. Verifica que utils.js se cargue ANTES de app.js en footer.php.');
+        return;
+    }
+
     initClock();
     initSidebar();
     initUserDropdown();
     initGlobalSearch();
-
 
     // Inyectar Estilos de Tooltips Personalizados (Negro y Blanco)
     const style = document.createElement('style');
@@ -260,7 +141,7 @@ window.addEventListener("popstate", () => {
 });
 
 // =============================================================================
-// 4. FUNCIONES DEL NÚCLEO
+// 3. FUNCIONES DEL NÚCLEO
 // =============================================================================
 
 /**
@@ -378,7 +259,7 @@ function initSidebar() {
 }
 
 // =============================================================================
-// 5. NOTIFICACIONES Y GESTIÓN DE ACCESO (ADMIN)
+// 4. NOTIFICACIONES Y GESTIÓN DE ACCESO (ADMIN)
 // =============================================================================
 
 /**
@@ -1054,11 +935,10 @@ window.printInvoice = async (ventaId) => {
 };
 
 // =============================================================================
-// 6. NOTIFICACIONES GLOBALES (AppNotifications)
+// 5. NOTIFICACIONES GLOBALES (AppNotifications)
 // =============================================================================
 const AppNotifications = {
-    /* Verifica deudas vencidas y actualiza el área de notificaciones.
-     */
+    /* Verifica deudas vencidas y actualiza el área de notificaciones. */
     checkSupplierDebts: async () => {
         const response = await fetch(`${URLROOT}/proveedores/listarDeudas`);
         const result = await response.json();
