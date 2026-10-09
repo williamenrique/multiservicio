@@ -6,25 +6,23 @@
 -- --------------------------------------------------------
 -- 
 -- CAMBIOS v2.1.0 (2026-10-08):
---   • Se agregó la columna `estado_gestion` (ENUM) a table_facturas para el
---     semáforo de gestión de cobranza. Valores posibles:
---         NUEVO, GESTIONADO, PROMETIDO, ACUERDO_PAGO, JUDICIAL
---     Default: 'NUEVO'. Se agrega el índice `idx_estado_gestion`.
---     Motivo: el módulo de Cartera por Edades ahora muestra por cada factura
---     un selector con el estado de gestión (llamado, promesa de pago, etc.)
---     que se persiste en esta columna.
+--   • Se agregó la columna `estado_gestion` (ENUM) a table_facturas.
 --
 -- CAMBIOS v2.1.1 (2026-10-09):
 --   • FIX CRÍTICO: Se agregó la columna `usuario_id` a table_abonos_clientes
---     con su índice (`idx_abonos_usuario`) y FK a table_usuarios
---     (`table_abonos_clientes_ibfk_2` con ON DELETE SET NULL).
+--     con su índice (`idx_abonos_usuario`) y FK a table_usuarios.
 --     Motivo: ModelFacturacion y ModelFacturas ya usaban esta columna en
---     JOINs (para mostrar "Registrado por: X" en el detalle de factura y en
---     el PDF del recibo), pero el dump base no la incluía, causando:
+--     JOINs, pero el dump base no la incluía, causando:
 --         SQLSTATE[42S22]: Column not found: 1054 Unknown column 'a.usuario_id'
---     al abrir /facturas/ver/X cuando la factura tenía abonos.
 --
---     Para BD existentes: ejecutar sql/migration_abonos_usuario_id.sql
+-- CAMBIOS v2.1.2 (2026-10-09):
+--   • Se agregaron 5 índices adicionales para consultas frecuentes:
+--       - table_facturas.idx_facturas_status          (WHERE status)
+--       - table_compras.idx_compras_status            (WHERE status)
+--       - table_abonos_clientes.idx_abonos_fecha      (ORDER BY fecha)
+--       - table_devoluciones.idx_devoluciones_fecha   (WHERE fecha)
+--       - table_kardex.idx_kardex_fecha               (ORDER BY fecha DESC)
+--     Para BD existentes: ejecutar sql/migration_indices_faltantes.sql
 -- --------------------------------------------------------
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -81,7 +79,8 @@ CREATE TABLE IF NOT EXISTS `pedidos_clientes` (
 DELETE FROM `pedidos_clientes`;
 
 -- -----------------------------------------------------------------------------
--- CAMBIO v2.1.1: se agregó `usuario_id` + índice + FK a table_abonos_clientes
+-- v2.1.1: se agregó `usuario_id` + idx_abonos_usuario + FK.
+-- v2.1.2: se agregó idx_abonos_fecha (fecha).
 -- -----------------------------------------------------------------------------
 -- Volcando estructura para tabla multiservicio_2.0.table_abonos_clientes
 CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
@@ -94,6 +93,7 @@ CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
   PRIMARY KEY (`id`),
   KEY `factura_id` (`factura_id`),
   KEY `idx_abonos_usuario` (`usuario_id`),
+  KEY `idx_abonos_fecha` (`fecha`),
   CONSTRAINT `table_abonos_clientes_ibfk_1` FOREIGN KEY (`factura_id`) REFERENCES `table_facturas` (`id`) ON DELETE CASCADE,
   CONSTRAINT `table_abonos_clientes_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -179,6 +179,9 @@ DELETE FROM `table_company_settings`;
 INSERT INTO `table_company_settings` (`id`, `name`, `nit`, `iva`, `direccion`, `telefono`, `logo`, `dias_garantia_devolucion`, `dias_garantia_servicio`) VALUES
 	(1, 'TALLER PRO', 'J-00000000-0', 19.00, 'DIRECCIÓN DE LA EMPRESA', '000-0000000', NULL, 5, 15);
 
+-- -----------------------------------------------------------------------------
+-- v2.1.2: se agregó KEY idx_compras_status (status).
+-- -----------------------------------------------------------------------------
 -- Volcando estructura para tabla multiservicio_2.0.table_compras
 CREATE TABLE IF NOT EXISTS `table_compras` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -192,6 +195,7 @@ CREATE TABLE IF NOT EXISTS `table_compras` (
   PRIMARY KEY (`id`),
   KEY `proveedor_id` (`proveedor_id`),
   KEY `usuario_id` (`usuario_id`),
+  KEY `idx_compras_status` (`status`),
   CONSTRAINT `table_compras_ibfk_1` FOREIGN KEY (`proveedor_id`) REFERENCES `table_proveedores` (`id`),
   CONSTRAINT `table_compras_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -232,6 +236,9 @@ INSERT INTO `table_cuentas_pago` (`id`, `nombre`, `tipo`, `saldo_actual`) VALUES
 	(1, 'CAJA GENERAL EFECTIVO', 'EFECTIVO', 0.00),
 	(2, 'CUENTA BANCO', 'VIRTUAL', 0.00);
 
+-- -----------------------------------------------------------------------------
+-- v2.1.2: se agregó KEY idx_devoluciones_fecha (fecha).
+-- -----------------------------------------------------------------------------
 -- Volcando estructura para tabla multiservicio_2.0.table_devoluciones
 CREATE TABLE IF NOT EXISTS `table_devoluciones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -250,6 +257,7 @@ CREATE TABLE IF NOT EXISTS `table_devoluciones` (
   KEY `factura_id` (`factura_id`),
   KEY `producto_id` (`producto_id`),
   KEY `usuario_id` (`usuario_id`),
+  KEY `idx_devoluciones_fecha` (`fecha`),
   CONSTRAINT `table_devoluciones_ibfk_1` FOREIGN KEY (`factura_id`) REFERENCES `table_facturas` (`id`),
   CONSTRAINT `table_devoluciones_ibfk_2` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`),
   CONSTRAINT `table_devoluciones_ibfk_3` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
@@ -306,11 +314,13 @@ CREATE TABLE IF NOT EXISTS `table_emails` (
 -- Volcando datos para la tabla multiservicio_2.0.table_emails: ~0 rows (aproximadamente)
 DELETE FROM `table_emails`;
 
--- Volcando estructura para tabla multiservicio_2.0.table_facturas
+-- -----------------------------------------------------------------------------
 -- CAMBIO v2.0.2: se agregó `presupuesto_activo_id` y su índice.
 -- CAMBIO v2.0.3: se agregó 'PRESUPUESTO' al ENUM de `origen`.
--- CAMBIO v2.1.0: se agregó `estado_gestion` (ENUM) y su índice para el
---                semáforo de gestión de cobranza en Cartera por Edades.
+-- CAMBIO v2.1.0: se agregó `estado_gestion` (ENUM) y su índice.
+-- CAMBIO v2.1.2: se agregó KEY idx_facturas_status (status).
+-- -----------------------------------------------------------------------------
+-- Volcando estructura para tabla multiservicio_2.0.table_facturas
 CREATE TABLE IF NOT EXISTS `table_facturas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `orden_id` int(11) DEFAULT NULL,
@@ -336,6 +346,7 @@ CREATE TABLE IF NOT EXISTS `table_facturas` (
   KEY `cliente_id` (`cliente_id`),
   KEY `usuario_id` (`usuario_id`),
   KEY `idx_estado_gestion` (`estado_gestion`),
+  KEY `idx_facturas_status` (`status`),
   CONSTRAINT `table_facturas_ibfk_1` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`),
   CONSTRAINT `table_facturas_ibfk_2` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`),
   CONSTRAINT `table_facturas_ibfk_3` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
@@ -486,6 +497,9 @@ INSERT INTO `table_inventario` (`id`, `codigo`, `nombre`, `marca`, `descripcion`
 	(10, 'LED-H4', 'BOMBILLO H4 LED 30000 LUMENES', 'HAMMET', 'MEJOR ILUMNACION PARA LAS NOCHES OSCURAS LED DE 30000 LUMENES', 'ELECTRICIDAD', 6, 5, 0.00, 0.00, 25.00, 'uploads/inventario/prod_1791373694_ffcd8568.jpg', NULL, 'ACTIVO', 0, 0.00, NULL, NULL),
 	(11, 'STR-CHEV', 'STATOR DELCO CHEVROLET', 'DELCO', 'ESTATOR DELCO CHEVROLET 600AMP', 'MECANICA', 10, 4, 0.00, 0.00, 80.00, 'uploads/inventario/prod_1791373762_1cbdacb0.jpg', NULL, 'ACTIVO', 0, 0.00, NULL, NULL);
 
+-- -----------------------------------------------------------------------------
+-- v2.1.2: se agregó KEY idx_kardex_fecha (fecha).
+-- -----------------------------------------------------------------------------
 -- Volcando estructura para tabla multiservicio_2.0.table_kardex
 CREATE TABLE IF NOT EXISTS `table_kardex` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -501,6 +515,7 @@ CREATE TABLE IF NOT EXISTS `table_kardex` (
   PRIMARY KEY (`id`),
   KEY `producto_id` (`producto_id`),
   KEY `usuario_id` (`usuario_id`),
+  KEY `idx_kardex_fecha` (`fecha`),
   CONSTRAINT `table_kardex_ibfk_1` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE CASCADE,
   CONSTRAINT `table_kardex_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -711,10 +726,6 @@ DELETE FROM `table_presupuestos_reservas`;
 
 -- =============================================================================
 -- ALTER: FK de table_facturas.presupuesto_activo_id → table_presupuestos
--- =============================================================================
--- Se agrega aquí porque table_presupuestos ya existe en este punto del dump.
--- ON DELETE SET NULL: si se elimina el presupuesto, la factura queda sin
--- vínculo pero NO se elimina (la factura ya está emitida o en proceso).
 -- =============================================================================
 ALTER TABLE `table_facturas`
   ADD CONSTRAINT `table_facturas_ibfk_4`

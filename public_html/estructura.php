@@ -1,7 +1,7 @@
 <?php
 /**
  * VISUALIZADOR DE ESTRUCTURA DE ARCHIVOS
- * BusYaracuy - Muestra todos los archivos y carpetas con iconos
+ * - Muestra todos los archivos y carpetas con iconos
  * Ejecutar desde: http://multiservicio.test/estructura.php
  */
 
@@ -289,7 +289,7 @@ $exportAction = $_GET['action'] ?? '';
 if ($exportAction === 'export_txt') {
     // Generar el contenido del archivo
     $header = "============================================\n";
-    $header .= "ESTRUCTURA DE ARCHIVOS - BusYaracuy\n";
+    $header .= "ESTRUCTURA DE ARCHIVOS -\n";
     $header .= "============================================\n";
     $header .= "Fecha: " . date('Y-m-d H:i:s') . "\n";
     $header .= "Raíz: " . $rootPath . "\n";
@@ -304,7 +304,7 @@ if ($exportAction === 'export_txt') {
     
     // Configurar headers para descarga
     header('Content-Type: text/plain; charset=utf-8');
-    header('Content-Disposition: attachment; filename="estructura_busyaracuy_' . date('Y-m-d_H-i-s') . '.txt"');
+    header('Content-Disposition: attachment; filename="estructura_' . date('Y-m-d_H-i-s') . '.txt"');
     header('Content-Length: ' . strlen($fullContent));
     header('Cache-Control: no-cache, no-store, must-revalidate');
     header('Pragma: no-cache');
@@ -323,7 +323,7 @@ if ($exportAction === 'export_txt') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estructura de Archivos - BusYaracuy</title>
+    <title>Estructura de Archivos -</title>
     <style>
         * {
             margin: 0;
@@ -704,7 +704,7 @@ if ($exportAction === 'export_txt') {
             <div class="header-left">
                 <h1>
                     📂 Estructura de Archivos
-                    <span>BusYaracuy</span>
+                    <span</span>
                 </h1>
                 <p>
                     <strong>Raíz:</strong> <?= htmlspecialchars($rootPath) ?>
@@ -787,7 +787,7 @@ if ($exportAction === 'export_txt') {
         </div>
         
         <div class="footer">
-            <span>BusYaracuy v2.0 - Estructura de Archivos • <?= date('d/m/Y H:i:s') ?></span>
+            <span v2.0 - Estructura de Archivos • <?= date('d/m/Y H:i:s') ?></span>
             <span>📊 <?= $itemCounts['files'] + $itemCounts['dirs'] ?> items</span>
         </div>
     </div>

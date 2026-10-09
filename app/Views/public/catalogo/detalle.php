@@ -5,11 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo s($titulo); ?> - <?php echo SITENAME; ?></title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FIX P3-01: Tailwind compilado localmente -->
+    <link rel="stylesheet" href="<?php echo URLROOT; ?>/css/tailwind.min.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
     const URLROOT = "<?php echo URLROOT; ?>";
+    const csrfToken = '<?php echo $_SESSION['csrf_token'] ?? ''; ?>';
     </script>
     <style>
     body {
@@ -58,7 +60,6 @@
 
 <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
-    <!-- NAVBAR -->
     <nav class="nav-blur border-b border-gray-700/50 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
@@ -88,11 +89,9 @@
         </div>
     </nav>
 
-    <!-- PRODUCT DETAIL -->
     <main class="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <div class="bg-white rounded-2xl shadow-md overflow-hidden">
             <div class="grid md:grid-cols-2 gap-0">
-                <!-- Image -->
                 <div class="bg-gray-100 p-8 flex items-center justify-center min-h-[300px] relative">
                     <?php if ($repuesto->imagen && file_exists(APPROOT . '/../public_html/' . $repuesto->imagen)): ?>
                     <img src="<?php echo URLROOT . '/' . $repuesto->imagen; ?>"
@@ -104,7 +103,6 @@
                     </svg>
                     <?php endif; ?>
                     
-                    <!-- Badge de Oferta en la imagen -->
                     <?php if (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente): ?>
                     <div class="absolute top-4 left-4 z-10">
                         <span class="bg-amber-500 text-white text-sm font-bold px-3 py-1.5 rounded-full flex items-center gap-2 animate-pulse shadow-lg">
@@ -116,7 +114,6 @@
                     </div>
                     <?php endif; ?>
                 </div>
-                <!-- Info -->
                 <div class="p-6 md:p-8 flex flex-col">
                     <?php if ($repuesto->codigo): ?>
                     <span class="text-sm text-gray-400 font-mono">Código: <?php echo s($repuesto->codigo); ?></span>
@@ -133,23 +130,19 @@
                     <p class="text-gray-600 mt-4 leading-relaxed"><?php echo nl2br(s($repuesto->descripcion)); ?></p>
                     <?php endif; ?>
 
-                    <!-- Precio destacado -->
                     <div class="mt-4 mb-2">
                         <?php if (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente): ?>
-                        <!-- Precio con oferta -->
                         <div class="flex flex-col items-start gap-1">
                             <span class="text-gray-400 line-through text-xl">$<?php echo number_format($repuesto->precio, 2); ?></span>
                             <span class="text-3xl font-bold text-amber-600">$<?php echo number_format($repuesto->precio_final, 2); ?></span>
                             <span class="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold uppercase">Oferta <?php echo (int)$repuesto->oferta_porcentaje; ?>% OFF</span>
                         </div>
                         <?php else: ?>
-                        <!-- Precio normal -->
                         <span class="text-3xl font-bold text-emerald-600">$<?php echo number_format($repuesto->precio, 2); ?></span>
                         <span class="text-sm text-gray-400 ml-1">c/u</span>
                         <?php endif; ?>
                     </div>
 
-                    <!-- Stock badge -->
                     <div class="flex items-center gap-3 mb-4">
                         <?php if ($repuesto->stock > 0): ?>
                         <span class="stock-badge bg-emerald-100 text-emerald-700 text-sm px-3 py-1">
@@ -160,7 +153,6 @@
                         <?php endif; ?>
                     </div>
 
-                    <!-- Controles de cantidad y subtotal -->
                     <div class="mt-auto pt-6 border-t border-gray-100">
                         <?php if ($repuesto->stock > 0): ?>
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
@@ -177,7 +169,6 @@
                                         class="px-3 py-2 text-gray-600 hover:bg-gray-100 transition-colors text-lg leading-none">+</button>
                                 </div>
                             </div>
-                            <!-- Subtotal dinámico -->
                             <div class="flex items-center gap-2">
                                 <span class="text-sm text-gray-500">Subtotal:</span>
                                 <span id="subtotalDetalle" data-precio="<?php echo (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente) ? $repuesto->precio_final : $repuesto->precio; ?>" class="text-xl font-bold text-emerald-600">$<?php echo number_format((!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente) ? $repuesto->precio_final : $repuesto->precio, 2); ?></span>
@@ -202,7 +193,6 @@
         </div>
     </main>
 
-    <!-- FOOTER -->
     <footer class="bg-slate-900 text-gray-400 py-8 mt-12">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <p class="text-sm">&copy; <?php echo date('Y'); ?> <?php echo SITENAME; ?>. Todos los derechos reservados.
@@ -213,7 +203,6 @@
     <script>
         const maxStock = <?php echo $repuesto->stock; ?>;
     </script>
-    <!-- FIX P2-04: AppUtils (utils.js) debe cargarse ANTES de detalle.js -->
     <script src="<?php echo URLROOT; ?>/js/utils.js"></script>
     <script src="<?php echo URLROOT; ?>/js/detalle.js"></script>
 </body>

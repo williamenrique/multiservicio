@@ -2,15 +2,19 @@
 /**
  * Controlador encargado de la autenticación de usuarios.
  * Maneja el inicio de sesión, cierre de sesión y control de sesiones activas.
+ * 
+ * v2.1 (2026-10-09) — P3-14:
+ *   • FIX case-sensitive: `index()` ahora usa `$this->view('auth/Login', ...)`
+ *     (con L mayúscula) para coincidir con el archivo real `Views/auth/Login.php`.
+ *     En Windows funcionaba por case-insensitive, pero en Linux fallaba con
+ *     "La vista 'auth/login' no existe".
+ *   • Nota: el resto de vistas del sistema usan minúsculas. Si en el futuro
+ *     se renombra `Login.php` a `login.php`, revertir este cambio.
  */
 class ControllerAuth extends Controller {
 
     private $userModel;
 
-    /**
-     * Constructor: Inicializa el modelo de Usuario.
-     * Según Controller.php, esto carga app/Models/ModelUsuario.php
-     */
     public function __construct() {
         $this->userModel = $this->model('Usuario');
     }
@@ -22,7 +26,7 @@ class ControllerAuth extends Controller {
         if (isset($_SESSION['user_id'])) {
             redirect('dashboard');
         }
-        $this->view('auth/login', ['titulo' => 'Iniciar Sesión']);
+        $this->view('auth/Login', ['titulo' => 'Iniciar Sesión']);
     }
 
     /**
@@ -82,11 +86,11 @@ class ControllerAuth extends Controller {
                     $_SESSION['user_nick'] = $userFound->username;
                     $_SESSION['user_email'] = $userFound->email;
                     $_SESSION['user_nombre'] = $userFound->nombre;
-                    $_SESSION['user_role'] = $userFound->nombre_rol ?? 'Sin Rol'; // Mantenemos formato original para UI
+                    $_SESSION['user_role'] = $userFound->nombre_rol ?? 'Sin Rol';
                     $_SESSION['user_role_id'] = (int)$userFound->role_id;
                     $_SESSION['user_staff_id'] = $userFound->staff_id ?? null;
                     $_SESSION['user_foto'] = $userFound->foto;
-                    $_SESSION['tipo_cliente'] = $tipoCliente; // Guardar tipo en sesión
+                    $_SESSION['tipo_cliente'] = $tipoCliente;
 
                     // Registrar sesión con el tipo detectado (REPLACE por UK usuario_id+tipo)
                     $this->userModel->registrarSesion([
@@ -100,7 +104,7 @@ class ControllerAuth extends Controller {
                     // Auditoría de inicio de sesión
                     logAction('AUTH', 'LOGIN', "El usuario {$userFound->username} ha ingresado al sistema.");
 
-                    // Verificar y enviar notificaciones automáticas (proveedores + resumen mensual)
+                    // Verificar y enviar notificaciones automáticas
                     NotificationChecker::verificarYNotificar();
 
                     return $this->jsonResponse(['success' => true, 'redirect' => URLROOT . '/dashboard']);
@@ -111,7 +115,6 @@ class ControllerAuth extends Controller {
                 return $this->jsonResponse(['success' => false, 'error' => 'Usuario no encontrado o inactivo.'], 404);
             }
         } else {
-            // Si se intenta entrar a /auth/login por GET, lo mandamos al index
             redirect('auth');
         }
     }
@@ -142,34 +145,24 @@ class ControllerAuth extends Controller {
      * Cierra la sesión del usuario y lo redirige a la página de inicio de sesión.
      */
     public function logout() {
-        // Asegurarse de que la sesión esté iniciada antes de destruirla
-        // Aunque public/index.php ya llama a session_start(), es buena práctica
-        // verificarlo si este método pudiera ser llamado de forma aislada.
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
 
-        // Limpiar el registro de sesión de la base de datos al salir
         if (isset($_SESSION['user_id'])) {
-            // Auditoría de cierre de sesión
             logAction('AUTH', 'LOGOUT', "El usuario {$_SESSION['user_nick']} ha cerrado su sesión.");
             $this->userModel->eliminarSesiones($_SESSION['user_id']);
         }
 
-        // Destruir todas las variables de sesión
         $_SESSION = array();
 
-        // Si se desea destruir la cookie de sesión, también es necesario eliminar
-        // la cookie de sesión. Nota: Esto destruirá la sesión, y no solo los datos de la sesión.
         if (ini_get("session.use_cookies")) {
             $params = session_get_cookie_params();
             setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
         }
 
-        // Finalmente, destruir la sesión
         session_destroy();
 
-        // Redirigir al usuario a la página de inicio de sesión
         redirect('auth');
     }
 
@@ -181,8 +174,6 @@ class ControllerAuth extends Controller {
             $input = json_decode(file_get_contents('php://input'), true);
             $identificador = isset($input['identificador']) ? trim($input['identificador']) : '';
 
-            // Buscamos si el usuario existe por Email, Nick o Cédula
-            // Reutilizamos buscarPorIdentificador pero podrías ampliarlo en el modelo si CI no está incluido
             $userFound = $this->userModel->buscarPorIdentificador($identificador);
 
             if ($userFound) {

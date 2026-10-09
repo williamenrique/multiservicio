@@ -181,6 +181,18 @@ class ControllerFacturacion extends Controller {
         }
     }
 
+    /**
+     * Sincroniza un borrador de factura.
+     * 
+     * v2.1 (2026-10-09) — P3-09:
+     *   • Antes de insertar en table_facturas_detalle, se valida que cada
+     *     `producto_id` y `mecanico_id` exista realmente en BD. Si no, se
+     *     manda NULL para evitar que la FK falle silenciosamente (por
+     *     ejemplo, si un producto fue eliminado mientras el POS tenía un
+     *     borrador abierto en otra pestaña).
+     *   • Validación en una sola query agrupada (IN (...)) para no hacer N
+     *     SELECTs por item.
+     */
     public function sincronizarBorrador() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             header('Content-Type: application/json');
@@ -210,15 +222,51 @@ class ControllerFacturacion extends Controller {
                 $ventaId = $this->facturaModel->guardarCabeceraVenta($datos, $status, $totales, $_SESSION['user_id']);
 
                 $db = new Database();
+
+                // ─── P3-09: Pre-cargar IDs válidos para evitar fallos de FK ───
+                $validProductIds = [];
+                $validMecanicoIds = [];
+
+                if (!empty($datos['items'])) {
+                    $productIds = [];
+                    foreach ($datos['items'] as $it) {
+                        $esProducto = (strtoupper($it['tipo'] ?? '') === 'PRODUCTO');
+                        if ($esProducto && !empty($it['id'])) {
+                            $productIds[] = (int)$it['id'];
+                        }
+                    }
+                    if (!empty($productIds)) {
+                        $in = implode(',', array_unique(array_map('intval', $productIds)));
+                        $db->query("SELECT id FROM table_inventario WHERE id IN ($in)");
+                        foreach ($db->resultSet() as $row) {
+                            $validProductIds[(int)$row->id] = true;
+                        }
+                    }
+                }
+
+                if (!empty($datos['mecanico_id'])) {
+                    $db->query("SELECT id FROM table_staff WHERE id = :mid");
+                    $db->bind(':mid', $datos['mecanico_id']);
+                    if ($db->single()) {
+                        $validMecanicoIds[$datos['mecanico_id']] = true;
+                    }
+                }
+
+                // ─── Limpiar detalles previos ───
                 $db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :fid");
                 $db->bind(':fid', $ventaId);
                 $db->execute();
 
+                // ─── Insertar detalles con FK sanitizadas ───
                 if (!empty($datos['items'])) {
                     foreach ($datos['items'] as $item) {
                         $esProducto = (strtoupper($item['tipo'] ?? '') === 'PRODUCTO');
-                        $productoId = ($esProducto && !empty($item['id'])) ? (int)$item['id'] : null;
-                        $mecanicoId = !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null;
+
+                        $productoIdRaw = ($esProducto && !empty($item['id'])) ? (int)$item['id'] : null;
+                        $productoId = ($productoIdRaw !== null && isset($validProductIds[$productoIdRaw])) ? $productoIdRaw : null;
+
+                        $mecanicoIdRaw = !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null;
+                        $mecanicoId = ($mecanicoIdRaw !== null && isset($validMecanicoIds[$mecanicoIdRaw])) ? $mecanicoIdRaw : null;
 
                         $db->query("INSERT INTO table_facturas_detalle 
                                     (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
@@ -295,9 +343,6 @@ class ControllerFacturacion extends Controller {
         exit;
     }
 
-    /**
-     * Registra un abono. Envía email al cliente si tiene email registrado.
-     */
     public function registrarAbono() {
         if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
 
@@ -326,7 +371,6 @@ class ControllerFacturacion extends Controller {
                 logAction('FACTURACION', 'REGISTRAR_ABONO',
                     "Abono de $" . number_format($monto, 2) . " a Factura #{$input['venta_id']} vía $metodo");
 
-                // Mejora 7: Notificar por email al cliente (asíncrono — falla silenciosa)
                 try {
                     $this->enviarNotificacionAbono((int)$input['venta_id'], $monto, $metodo);
                 } catch (\Throwable $e) {
@@ -343,11 +387,6 @@ class ControllerFacturacion extends Controller {
         }
     }
 
-    /**
-     * MEJORA 7 — Envía email al cliente cuando se registra un abono.
-     * Falla silenciosamente si EmailService no está disponible o el cliente
-     * no tiene email registrado.
-     */
     private function enviarNotificacionAbono($facturaId, $monto, $metodo) {
         $db = new Database();
         $db->query("SELECT 
@@ -364,10 +403,9 @@ class ControllerFacturacion extends Controller {
         $factura = $db->single();
 
         if (!$factura || empty($factura->cliente_email)) {
-            return; // Sin email, no se envía
+            return;
         }
 
-        // Hook hacia EmailService (si tiene el método, se usa; si no, falla silencioso)
         if (class_exists('\App\Services\EmailService')) {
             $emailService = new \App\Services\EmailService();
             if (method_exists($emailService, 'notificarAbonoRegistrado')) {
@@ -389,10 +427,6 @@ class ControllerFacturacion extends Controller {
         }
     }
 
-    /**
-     * MEJORA 2 — Imprime el recibo PDF de un abono individual.
-     * GET /facturacion/imprimirReciboAbono/{id}
-     */
     public function imprimirReciboAbono($id = null) {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
         if (!$id) die("ID de abono no proporcionado.");
@@ -414,10 +448,6 @@ class ControllerFacturacion extends Controller {
         exit;
     }
 
-    /**
-     * MEJORA 3 — Devuelve el historial de abonos de una factura.
-     * GET /facturacion/getAbonosFactura/{facturaId}
-     */
     public function getAbonosFactura($facturaId = null) {
         try {
             RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
@@ -432,10 +462,6 @@ class ControllerFacturacion extends Controller {
         }
     }
 
-    /**
-     * MEJORA 8 — Actualiza el estado de gestión de una factura.
-     * POST /facturacion/actualizarEstadoGestion
-     */
     public function actualizarEstadoGestion() {
         if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
         header('Content-Type: application/json');
@@ -458,10 +484,6 @@ class ControllerFacturacion extends Controller {
         }
     }
 
-    /**
-     * MEJORA 12 — Envía un recordatorio de pago al cliente por email.
-     * POST /facturacion/enviarRecordatorio
-     */
     public function enviarRecordatorio() {
         if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
         header('Content-Type: application/json');
@@ -683,10 +705,6 @@ class ControllerFacturacion extends Controller {
                 throw new Exception('Datos incompletos para la devolución');
             }
 
-            // FIX P0-07: Delegar a ModelDevoluciones (fuente única de verdad).
-            // Antes se llamaba a BillingService->procesarDevolucionSegura que
-            // internamente usaba ModelFacturacion::procesarDevolucion (duplicado).
-            // Ahora un solo modelo procesa devoluciones, y el motivo ya no se pierde.
             $devolucionesModel = $this->model('Devoluciones');
             $resultado = $devolucionesModel->procesarDevolucion(
                 (int)$input['venta_id'],

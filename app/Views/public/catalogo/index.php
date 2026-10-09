@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo s($titulo ?? 'Catálogo de Repuestos'); ?></title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FIX P3-01: Tailwind compilado localmente -->
+    <link rel="stylesheet" href="<?php echo URLROOT; ?>/css/tailwind.min.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -70,14 +71,12 @@
     <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
-                <!-- Logo -->
                 <a href="<?php echo URLROOT; ?>/catalogo"
                     class="flex items-center gap-2 text-blue-900 font-bold text-xl">
                     <i data-lucide="car" class="w-7 h-7"></i>
                     <span>AutoRepuestos</span>
                 </a>
 
-                <!-- Acciones -->
                 <div class="flex items-center gap-4">
                     <a href="<?php echo URLROOT; ?>/login"
                         class="text-sm text-gray-500 hover:text-blue-700 transition flex items-center gap-1">
@@ -97,13 +96,11 @@
     <!-- ===== CONTENIDO PRINCIPAL ===== -->
     <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
 
-        <!-- Título -->
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-gray-900">Catalogo de Repuestos</h1>
             <p class="text-gray-500 mt-1">Encuentra los repuestos que necesitas para tu vehículo</p>
         </div>
 
-        <!-- Barra de búsqueda -->
         <form method="GET" action="<?php echo URLROOT; ?>/catalogo" class="mb-6">
             <div class="flex gap-3">
                 <div class="flex-1 relative">
@@ -126,7 +123,6 @@
             </div>
         </form>
 
-        <!-- Filtro de categorías -->
         <?php if (!empty($categorias)): ?>
         <div class="flex flex-wrap gap-2 mb-8">
             <a href="<?php echo URLROOT; ?>/catalogo<?php echo $busqueda ? '?busqueda='.urlencode($busqueda) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
@@ -142,7 +138,6 @@
         </div>
         <?php endif; ?>
 
-        <!-- Botón Flotante de Ofertas -->
         <a href="<?php echo URLROOT; ?>/catalogo<?php echo $busqueda ? '?busqueda='.urlencode($busqueda) : '?'; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?><?php echo $ofertaSeleccionada ? '' : '&oferta=1'; ?>"
             id="btnOfertasFlotante"
             class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3 rounded-full shadow-xl transition-all duration-300 
@@ -176,7 +171,6 @@
         .animate-pulse { animation: pulse-subtle 2s ease-in-out infinite; }
         </style>
 
-        <!-- Resultados -->
         <?php if (!empty($repuestos)): ?>
         <div class="flex items-center justify-between mb-4">
             <p class="text-sm text-gray-500">
@@ -184,11 +178,9 @@
             </p>
         </div>
 
-        <!-- Grid de productos -->
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             <?php foreach ($repuestos as $repuesto): ?>
             <div class="product-card bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
-                <!-- Imagen -->
                 <a href="<?php echo URLROOT; ?>/catalogo/detalle/<?php echo $repuesto->id; ?>"
                     class="block h-48 bg-gray-100 overflow-hidden relative">
                     <?php if (!empty($repuesto->imagen) && file_exists(APPROOT . '/../public_html/' . $repuesto->imagen)): ?>
@@ -200,7 +192,6 @@
                     </div>
                     <?php endif; ?>
                     
-                    <!-- Badge de Oferta en la imagen -->
                     <?php if (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente): ?>
                     <div class="absolute top-3 left-3 z-10">
                         <span class="bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 animate-pulse shadow-lg">
@@ -211,7 +202,6 @@
                     <?php endif; ?>
                 </a>
 
-                <!-- Info -->
                 <div class="p-4 flex flex-col flex-1">
                     <h3 class="mt-1 font-semibold text-gray-900 leading-tight">
                         <a href="<?php echo URLROOT; ?>/catalogo/detalle/<?php echo $repuesto->id; ?>"
@@ -230,14 +220,12 @@
                     <div class="mt-auto pt-3 flex items-center justify-between">
                         <div>
                             <?php if (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente): ?>
-                            <!-- Precio con oferta -->
                             <div class="flex flex-col items-start">
                                 <span class="text-gray-400 line-through text-sm">$<?php echo number_format($repuesto->precio, 2); ?></span>
                                 <span class="text-lg font-bold text-amber-600">$<?php echo number_format($repuesto->precio_final, 2); ?></span>
                                 <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase mt-0.5">Oferta <?php echo (int)$repuesto->oferta_porcentaje; ?>% OFF</span>
                             </div>
                             <?php else: ?>
-                            <!-- Precio normal -->
                             <span class="text-lg font-bold text-gray-900">$<?php echo number_format($repuesto->precio, 2); ?></span>
                             <?php endif; ?>
                             <p class="text-xs <?php echo $repuesto->stock > 0 ? 'text-emerald-600' : 'text-red-500'; ?> font-medium mt-1">
@@ -263,7 +251,6 @@
             <?php endforeach; ?>
         </div>
 
-        <!-- Paginación -->
         <?php if ($totalPaginas > 1): ?>
         <div class="flex justify-center items-center gap-2 mt-10">
             <?php if ($paginaActual > 1): ?>
@@ -290,7 +277,6 @@
         <?php endif; ?>
 
         <?php else: ?>
-        <!-- Sin resultados -->
         <div class="text-center py-20">
             <i data-lucide="package-x" class="w-20 h-20 mx-auto text-gray-300 mb-4"></i>
             <h2 class="text-2xl font-semibold text-gray-600">No se encontraron productos</h2>
@@ -304,7 +290,6 @@
 
     </main>
 
-    <!-- ===== FOOTER PÚBLICO ===== -->
     <footer class="bg-white border-t border-gray-200 mt-12">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -320,7 +305,6 @@
 
     <script>const URLROOT = "<?php echo URLROOT; ?>";</script>
     <script>const csrfToken = '<?php echo $_SESSION['csrf_token'] ?? ''; ?>';</script>
-    <!-- FIX P2-04: AppUtils (utils.js) debe cargarse ANTES de catalogo-publico.js -->
     <script src="<?php echo URLROOT; ?>/js/utils.js"></script>
     <script src="<?php echo URLROOT; ?>/js/catalogo-publico.js"></script>
 </body>

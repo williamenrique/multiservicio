@@ -1,5 +1,5 @@
 -- =============================================================================
--- ESQUEMA DE BASE DE DATOS MULTISERVICIO V2.1.1 "TALLER PRO"
+-- ESQUEMA DE BASE DE DATOS MULTISERVICIO V2.1.2 "TALLER PRO"
 -- =============================================================================
 -- Este script crea TODAS las tablas del sistema en el orden correcto de
 -- dependencias (foreign keys) y termina con los datos mínimos para arrancar:
@@ -15,46 +15,35 @@
 --
 -- CAMBIOS v2.0.1 (2026-10-07):
 --   • Se agregó el estado 'ANEXADO' al ENUM de table_presupuestos.estado.
---     Motivo: al anexar un presupuesto a una OS o Factura, el sistema
---     marcaba estado = 'ANEXADO' pero MySQL lo guardaba como '' (vacío),
---     causando que el presupuesto siguiera apareciendo como disponible.
 --
 -- CAMBIOS v2.0.2 (2026-10-08):
---   • Se agregó la columna `presupuesto_activo_id` a table_facturas para
---     vincular el borrador de factura con el presupuesto que se le anexó.
---     Permite que el POS muestre el panel verde "Presupuesto #X anexado"
---     incluso cuando la factura se creó desde una Orden de Servicio.
---   • La FK `table_facturas_ibfk_4` se crea al final del script (después
---     de table_presupuestos) mediante ALTER TABLE, porque table_facturas
---     se define antes en el orden de dependencias.
+--   • Se agregó la columna `presupuesto_activo_id` a table_facturas.
+--   • FK `table_facturas_ibfk_4` se crea al final del script (ALTER TABLE).
 --
 -- CAMBIOS v2.0.3 (2026-10-08):
---   • Se agregó 'PRESUPUESTO' al ENUM de table_facturas.origen. Motivo: al
---     convertir un presupuesto a venta directamente (botón "Convertir a
---     Venta"), el sistema marca origen = 'PRESUPUESTO', pero como el ENUM
---     no lo incluía, MySQL guardaba '' silenciosamente.
+--   • Se agregó 'PRESUPUESTO' al ENUM de table_facturas.origen.
 --
 -- CAMBIOS v2.1.0 (2026-10-08):
---   • Se agregó la columna `estado_gestion` (ENUM) a table_facturas para el
---     semáforo de gestión de cobranza. Valores posibles:
---         NUEVO, GESTIONADO, PROMETIDO, ACUERDO_PAGO, JUDICIAL
---     Default: 'NUEVO'. Se agrega el índice `idx_estado_gestion` para
---     filtrados rápidos.
---     Motivo: el módulo de Cartera por Edades ahora muestra por cada factura
---     un selector con el estado de gestión (llamado, promesa de pago, etc.)
---     que se persiste en esta columna.
+--   • Se agregó `estado_gestion` (ENUM) a table_facturas + idx_estado_gestion.
 --
 -- CAMBIOS v2.1.1 (2026-10-09):
 --   • FIX CRÍTICO: Se agregó la columna `usuario_id` a table_abonos_clientes
 --     junto con su índice (`idx_abonos_usuario`) y FK a table_usuarios
 --     (`table_abonos_clientes_ibfk_2` con ON DELETE SET NULL).
 --     Motivo: ModelFacturacion y ModelFacturas ya usaban esta columna en
---     JOINs (para mostrar "Registrado por: X" en el detalle de factura y en
---     el PDF del recibo), pero el schema base no la incluía, causando:
+--     JOINs, pero el schema base no la incluía, causando:
 --         SQLSTATE[42S22]: Column not found: 1054 Unknown column 'a.usuario_id'
 --     al abrir /facturas/ver/X cuando la factura tenía abonos.
 --
---     Para BD existentes: ejecutar sql/migration_abonos_usuario_id.sql
+-- CAMBIOS v2.1.2 (2026-10-09):
+--   • Se agregaron 5 índices adicionales para consultas frecuentes que
+--     hacían full table scan en producción:
+--       - table_facturas.idx_facturas_status          (WHERE status)
+--       - table_compras.idx_compras_status            (WHERE status)
+--       - table_abonos_clientes.idx_abonos_fecha      (ORDER BY fecha)
+--       - table_devoluciones.idx_devoluciones_fecha   (WHERE fecha)
+--       - table_kardex.idx_kardex_fecha               (ORDER BY fecha DESC)
+--     Para BD existentes: ejecutar sql/migration_indices_faltantes.sql
 -- =============================================================================
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -197,6 +186,9 @@ CREATE TABLE IF NOT EXISTS `table_inventario` (
   KEY `oferta_activa` (`oferta_activa`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- -----------------------------------------------------------------------------
+-- CAMBIO v2.1.2: se agregó KEY idx_kardex_fecha (fecha)
+-- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_kardex` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `producto_id` int(11) DEFAULT NULL,
@@ -211,6 +203,7 @@ CREATE TABLE IF NOT EXISTS `table_kardex` (
   PRIMARY KEY (`id`),
   KEY `producto_id` (`producto_id`),
   KEY `usuario_id` (`usuario_id`),
+  KEY `idx_kardex_fecha` (`fecha`),
   CONSTRAINT `table_kardex_ibfk_1` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`) ON DELETE CASCADE,
   CONSTRAINT `table_kardex_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -300,23 +293,15 @@ CREATE TABLE IF NOT EXISTS `table_cuentas_pago` (
 -- Propósito: Cabecera de facturas (registro contable de ventas).
 -- 
 -- NOTA SOBRE presupuesto_activo_id:
---   Almacena el ID del presupuesto que fue anexado a esta factura (cuando
---   se procesa una venta desde el POS o se crea una O.S. con presupuesto).
---   Permite mostrar el panel verde "Presupuesto #X anexado" en el POS y
---   saber qué presupuesto marcar como CONVERTIDO al facturar.
+--   Almacena el ID del presupuesto que fue anexado a esta factura.
 -- 
 -- NOTA SOBRE origen:
---   Incluye 'PRESUPUESTO' para facturas creadas desde el botón
---   "Convertir a Venta" en el módulo de presupuestos. Los presupuestos
---   anexados a OS/POS conservan origen 'TALLER' o 'MOSTRADOR'.
+--   Incluye 'PRESUPUESTO' para facturas creadas desde "Convertir a Venta".
 -- 
 -- NOTA SOBRE estado_gestion (v2.1.0):
---   Semáforo de gestión de cobranza. El módulo de "Cartera por Edades"
---   muestra un selector por factura para marcar el avance de la cobranza.
---   Valores: NUEVO, GESTIONADO, PROMETIDO, ACUERDO_PAGO, JUDICIAL.
+--   Semáforo de gestión de cobranza.
 -- 
---   La FK `table_facturas_ibfk_4` se crea DESPUÉS del bloque 11
---   (ALTER TABLE) porque table_presupuestos se define más adelante.
+-- CAMBIO v2.1.2: se agregó KEY idx_facturas_status (status).
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_facturas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -343,6 +328,7 @@ CREATE TABLE IF NOT EXISTS `table_facturas` (
   KEY `cliente_id` (`cliente_id`),
   KEY `usuario_id` (`usuario_id`),
   KEY `idx_estado_gestion` (`estado_gestion`),
+  KEY `idx_facturas_status` (`status`),
   CONSTRAINT `table_facturas_ibfk_1` FOREIGN KEY (`orden_id`) REFERENCES `table_ordenes_servicio` (`id`),
   CONSTRAINT `table_facturas_ibfk_2` FOREIGN KEY (`cliente_id`) REFERENCES `table_clientes` (`id`),
   CONSTRAINT `table_facturas_ibfk_3` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
@@ -372,16 +358,8 @@ CREATE TABLE IF NOT EXISTS `table_facturas_detalle` (
 -- Propósito: Historial de abonos/pagos parciales que los clientes hacen
 --            a sus facturas a crédito.
 --
--- CAMBIO v2.1.1 (2026-10-09):
---   Se agregó la columna `usuario_id` con su índice y FK.
---   Motivo: ModelFacturacion::registrarAbono() la inserta desde el principio,
---   y ModelFacturas::obtenerPorId + ModelFacturacion::obtenerAbonosPorFactura
---   + obtenerReciboAbono la usan en JOINs para mostrar "Registrado por: X".
---   Sin esta columna, /facturas/ver/X fallaba con error 1054 al abrir
---   cualquier factura con abonos.
---
--- ON DELETE SET NULL: los abonos son registros históricos. Si se elimina
--- un usuario, los abonos NO deben desaparecer (aparecerán como "SISTEMA").
+-- CAMBIO v2.1.1: se agregó `usuario_id` + idx_abonos_usuario + FK.
+-- CAMBIO v2.1.2: se agregó idx_abonos_fecha (fecha).
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -393,6 +371,7 @@ CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
   PRIMARY KEY (`id`),
   KEY `factura_id` (`factura_id`),
   KEY `idx_abonos_usuario` (`usuario_id`),
+  KEY `idx_abonos_fecha` (`fecha`),
   CONSTRAINT `table_abonos_clientes_ibfk_1` FOREIGN KEY (`factura_id`) REFERENCES `table_facturas` (`id`) ON DELETE CASCADE,
   CONSTRAINT `table_abonos_clientes_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -401,6 +380,9 @@ CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
 -- BLOQUE 6: COMPRAS Y EGRESOS A PROVEEDORES
 -- =============================================================================
 
+-- -----------------------------------------------------------------------------
+-- CAMBIO v2.1.2: se agregó KEY idx_compras_status (status).
+-- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_compras` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `proveedor_id` varchar(50) DEFAULT NULL,
@@ -413,6 +395,7 @@ CREATE TABLE IF NOT EXISTS `table_compras` (
   PRIMARY KEY (`id`),
   KEY `proveedor_id` (`proveedor_id`),
   KEY `usuario_id` (`usuario_id`),
+  KEY `idx_compras_status` (`status`),
   CONSTRAINT `table_compras_ibfk_1` FOREIGN KEY (`proveedor_id`) REFERENCES `table_proveedores` (`id`),
   CONSTRAINT `table_compras_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -523,6 +506,9 @@ CREATE TABLE IF NOT EXISTS `table_recuperaciones` (
   CONSTRAINT `table_recuperaciones_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- -----------------------------------------------------------------------------
+-- CAMBIO v2.1.2: se agregó KEY idx_devoluciones_fecha (fecha).
+-- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `table_devoluciones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `factura_id` int(11) DEFAULT NULL,
@@ -540,6 +526,7 @@ CREATE TABLE IF NOT EXISTS `table_devoluciones` (
   KEY `factura_id` (`factura_id`),
   KEY `producto_id` (`producto_id`),
   KEY `usuario_id` (`usuario_id`),
+  KEY `idx_devoluciones_fecha` (`fecha`),
   CONSTRAINT `table_devoluciones_ibfk_1` FOREIGN KEY (`factura_id`) REFERENCES `table_facturas` (`id`),
   CONSTRAINT `table_devoluciones_ibfk_2` FOREIGN KEY (`producto_id`) REFERENCES `table_inventario` (`id`),
   CONSTRAINT `table_devoluciones_ibfk_3` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`)
@@ -740,12 +727,6 @@ CREATE TABLE IF NOT EXISTS `table_presupuestos_reservas` (
 -- =============================================================================
 -- ALTER: FK de table_facturas.presupuesto_activo_id
 -- =============================================================================
--- Se ejecuta aquí porque table_presupuestos se creó en el bloque anterior.
--- Vincula cada borrador de factura con el presupuesto que se le anexó.
--- ON DELETE SET NULL: si se borra el presupuesto, la factura queda sin vínculo
--- pero NO se elimina (la factura ya está emitida o en proceso).
--- =============================================================================
-
 ALTER TABLE `table_facturas`
   ADD CONSTRAINT `table_facturas_ibfk_4`
   FOREIGN KEY (`presupuesto_activo_id`) REFERENCES `table_presupuestos` (`id`) ON DELETE SET NULL;
@@ -815,11 +796,4 @@ INSERT INTO `table_cuentas_pago` (`nombre`, `tipo`, `saldo_actual`) VALUES
 -- =============================================================================
 -- FIN DEL SCRIPT
 -- =============================================================================
--- Después de ejecutar este archivo, la base de datos queda lista para
--- iniciar el sistema con el usuario:
---     Usuario:  admin
---     Clave:    admin123
--- Se recomienda cambiar la clave tras el primer inicio de sesión.
--- =============================================================================
-
 SET FOREIGN_KEY_CHECKS = 1;

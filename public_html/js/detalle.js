@@ -3,8 +3,10 @@
  * 
  * v2.0 (2026-10-09) — P2-04:
  *   • Se eliminaron las llamadas inline a Toastify. Ahora se usa
- *     AppUtils.showToast(msg, type, 'light') — variante blanca del catálogo público.
- *   • Requiere que utils.js esté cargado ANTES que detalle.js en la vista.
+ *     AppUtils.showToast(msg, type, 'light').
+ * 
+ * v2.1 (2026-10-09) — P3-10:
+ *   • Header `X-CSRF-TOKEN` añadido al fetch de agregar-carrito.
  * 
  * Dependencias: AppUtils (utils.js), URLROOT global, maxStock global (definido en PHP)
  */
@@ -58,6 +60,10 @@ function agregarCarrito(id) {
 
     fetch(URLROOT + '/catalogo/agregar-carrito', {
         method: 'POST',
+        headers: {
+            // FIX P3-10: header CSRF
+            'X-CSRF-TOKEN': (typeof csrfToken !== 'undefined' ? csrfToken : '')
+        },
         body: formData
     })
         .then(r => r.json())

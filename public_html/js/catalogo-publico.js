@@ -3,10 +3,11 @@
  * 
  * v2.0 (2026-10-09) — P2-04:
  *   • Se eliminaron Toastify y los Swal.fire({toast: true}) inline. Ahora
- *     se usa AppUtils.showToast(msg, type, 'light') — variante blanca del
- *     catálogo público.
- *   • Se mantiene el uso de Swal.fire para alertas modales (errores).
- *   • Requiere que utils.js esté cargado ANTES que catalogo-publico.js.
+ *     se usa AppUtils.showToast(msg, type, 'light').
+ * 
+ * v2.1 (2026-10-09) — P3-10:
+ *   • Header `X-CSRF-TOKEN` añadido al AJAX de agregar-carrito (además del
+ *     `csrf_token` en el body, que ya se enviaba).
  * 
  * Dependencias: jQuery, SweetAlert2, AppUtils (utils.js), Lucide, URLROOT global
  */
@@ -24,6 +25,10 @@ function agregarCarrito(productoId) {
     $.ajax({
         url: URLROOT + '/catalogo/agregar-carrito',
         method: 'POST',
+        headers: {
+            // FIX P3-10: header CSRF
+            'X-CSRF-TOKEN': (typeof csrfToken !== 'undefined' ? csrfToken : '')
+        },
         data: {
             id: productoId,
             cantidad: 1,
@@ -32,10 +37,8 @@ function agregarCarrito(productoId) {
         dataType: 'json',
         success: function (res) {
             if (res.success) {
-                // Actualizar badge inmediatamente con el total devuelto
                 const badge = $('#cart-count-header');
                 badge.text(res.total_items).removeClass('hidden');
-
                 AppUtils.showToast('Producto agregado al carrito', 'success', 'light');
             } else {
                 AppUtils.showToast(res.error || 'No se pudo agregar', 'error', 'light');

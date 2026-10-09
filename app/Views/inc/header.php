@@ -5,10 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($titulo) ? s($titulo) : SITENAME; ?></title>
-    <link rel="shortcut icon" href="<?php echo !empty($company->logo) ? URLROOT . '/' . $company->logo : URL_IMG . 'logo.png'; ?>" type="image/x-icon">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="shortcut icon" href="<?php echo !empty($company->logo ?? null) ? URLROOT . '/' . $company->logo : URL_IMG . 'logo.png'; ?>" type="image/x-icon">
+    <!-- FIX P3-01: Tailwind compilado localmente (en vez del CDN JIT) -->
+    <link rel="stylesheet" href="<?php echo URL_CSS; ?>tailwind.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
+    <!-- FIX P3-02: styles.min.css (4.9 KB) en vez de styles.css (11 KB) -->
+    <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.min.css">
     <script>
         // Definimos la constante global para que todos los JS la usen
         const URLROOT = "<?php echo URLROOT; ?>";
@@ -55,12 +57,12 @@
         <!-- Sidebar -->
         <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-50 w-64 bg-navy-blue border-r border-gray-800 transition-all duration-300 transform -translate-x-full lg:translate-x-0 shadow-2xl lg:shadow-none">
             <div class="px-5 py-6 flex items-center gap-4 border-b border-gray-800/50 min-h-[64px]">
-                <?php if(!empty($company->logo)): ?>
+                <?php if(!empty($company->logo ?? null)): ?>
                     <img src="<?php echo URLROOT . '/' . $company->logo; ?>" class="w-8 h-8 object-contain" alt="Logo">
                 <?php else: ?>
                     <i data-lucide="wrench" class="text-neon-green flex-shrink-0"></i>
                 <?php endif; ?>
-                <span class="text-xl font-bold tracking-wider whitespace-nowrap uppercase text-neon-green"><?php echo s($company->name); ?></span>
+                <span class="text-xl font-bold tracking-wider whitespace-nowrap uppercase text-neon-green"><?php echo s($company->name ?? 'TALLER PRO'); ?></span>
             </div>
             <nav class="mt-6 px-4">
                 <a href="<?php echo URLROOT; ?>/dashboard" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'dashboard') !== false) ? 'active' : ''; ?>" data-section="dashboard">

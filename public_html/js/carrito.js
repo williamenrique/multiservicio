@@ -3,9 +3,13 @@
  * 
  * v2.0 (2026-10-09) — P2-04:
  *   • Se eliminaron las llamadas inline a Toastify. Ahora se usa
- *     AppUtils.showToast(msg, type, 'light') — variante blanca para el
- *     catálogo público.
- *   • Requiere que utils.js esté cargado ANTES que carrito.js en la vista.
+ *     AppUtils.showToast(msg, type, 'light') — variante blanca del catálogo público.
+ * 
+ * v2.1 (2026-10-09) — P3-10:
+ *   • Se añade el header `X-CSRF-TOKEN` a todos los fetch POST, además del
+ *     `csrf_token` en FormData (que ya se enviaba). Esto alinea el catálogo
+ *     público con el resto del sistema (que usa el header) sin romper la
+ *     compatibilidad con el backend actual.
  * 
  * Dependencias: AppUtils (utils.js), URLROOT global, csrfToken global
  */
@@ -41,6 +45,10 @@ function actualizarCantidad(id, cantidad) {
 
     fetch(URLROOT + '/catalogo/actualizar-carrito', {
         method: 'POST',
+        headers: {
+            // FIX P3-10: header CSRF (además del FormData)
+            'X-CSRF-TOKEN': csrfToken
+        },
         body: formData
     })
         .then(r => r.json())
@@ -97,6 +105,10 @@ function eliminarItem(id) {
 
     fetch(URLROOT + '/catalogo/eliminar-carrito', {
         method: 'POST',
+        headers: {
+            // FIX P3-10: header CSRF
+            'X-CSRF-TOKEN': csrfToken
+        },
         body: formData
     })
         .then(r => r.json())
@@ -135,6 +147,10 @@ function limpiarCarrito() {
 
     fetch(URLROOT + '/catalogo/limpiar-carrito', {
         method: 'POST',
+        headers: {
+            // FIX P3-10: header CSRF
+            'X-CSRF-TOKEN': csrfToken
+        },
         body: formData
     })
         .then(r => r.json())
@@ -168,7 +184,6 @@ function mostrarCarritoVacio() {
 
 // Event listeners para los botones +/- y eliminar
 document.addEventListener('DOMContentLoaded', function () {
-    // Botones de cantidad: menos (-)
     document.querySelectorAll('.qty-btn.minus').forEach(btn => {
         btn.addEventListener('click', function () {
             const id = this.dataset.id;
@@ -183,7 +198,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Botones de cantidad: más (+)
     document.querySelectorAll('.qty-btn.plus').forEach(btn => {
         btn.addEventListener('click', function () {
             const id = this.dataset.id;
@@ -204,7 +218,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Inputs de cantidad: cambio manual
     document.querySelectorAll('.qty-input').forEach(input => {
         input.addEventListener('change', function () {
             const id = this.dataset.id;
@@ -227,14 +240,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Inicializar estado de botones al cargar la página
     document.querySelectorAll('.qty-input').forEach(input => {
         const id = input.dataset.id;
         const cantidad = parseInt(input.value) || 1;
         actualizarEstadoBotonesItem(id, cantidad);
     });
 
-    // Botones de eliminar
     document.querySelectorAll('.remove-btn').forEach(btn => {
         btn.addEventListener('click', function () {
             const id = this.dataset.id;

@@ -2,6 +2,16 @@
 /**
  * Modelo de Usuario
  * Gestiona la autenticación, sesiones y recuperación de cuentas.
+ * 
+ * v2.1 (2026-10-09) — P3-05:
+ *   • FIX seguridad: `obtenerSolicitudesPendientes()` ya no devuelve el hash
+ *     real de la contraseña al frontend. Se reemplaza por un placeholder
+ *     `$HASH_OCULTO$` que empieza con `$` para no romper la detección que
+ *     hace `app.js` con `startsWith('$')`.
+ *   • Si el password es texto plano (usuario legacy que aún no hizo login),
+ *     se devuelve tal cual porque el admin necesita verlo para entregárselo.
+ *   • Antes: se exponía el hash bcrypt completo al JavaScript del cliente,
+ *     permitiendo ataques de fuerza bruta offline si se filtraba el HTML.
  */
 class ModelUsuario {
     private $db;
@@ -68,8 +78,6 @@ class ModelUsuario {
 
     /**
      * Elimina las sesiones de un usuario. Si se especifica $tipo, solo elimina esa plataforma.
-     * @param int $usuarioId
-     * @param string|null $tipo 'WEB', 'APP' o null para eliminar todas
      */
     public function eliminarSesiones($usuarioId, $tipo = null) {
         if ($tipo) {
@@ -89,13 +97,33 @@ class ModelUsuario {
         return $this->db->execute();
     }
 
+    /**
+     * Obtiene las solicitudes pendientes para la vista de recuperación (solo admin).
+     * 
+     * FIX P3-05: NUNCA devuelve el hash real. Si el password es un hash,
+     * se reemplaza por '$HASH_OCULTO$' (empieza con $ para no romper el JS).
+     * Si es texto plano (usuario legacy), se devuelve tal cual.
+     */
     public function obtenerSolicitudesPendientes() {
         $this->db->query("SELECT r.*, u.username, s.nombre, s.cedula, u.password, u.id as user_id
                           FROM table_recuperaciones r
                           JOIN table_usuarios u ON r.usuario_id = u.id
                           JOIN table_staff s ON u.staff_id = s.id
                           ORDER BY r.fecha DESC");
-        return $this->db->resultSet();
+        $rows = $this->db->resultSet();
+
+        // FIX P3-05: Sanitizar el campo password antes de devolverlo
+        foreach ($rows as $row) {
+            if (isset($row->password) && is_string($row->password)) {
+                if (strpos($row->password, '$2y$') === 0 || strpos($row->password, '$argon') === 0) {
+                    // Es un hash bcrypt/argon → reemplazar por placeholder
+                    // Empieza con $ para que app.js lo detecte como hash
+                    $row->password = '$HASH_OCULTO$';
+                }
+                // Si es texto plano, se deja tal cual (el admin necesita verlo)
+            }
+        }
+        return $rows;
     }
 
     public function eliminarSolicitud($id) {

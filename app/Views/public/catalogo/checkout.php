@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo s($titulo); ?> - <?php echo SITENAME; ?></title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FIX P3-01: Tailwind compilado localmente -->
+    <link rel="stylesheet" href="<?php echo URLROOT; ?>/css/tailwind.min.css">
     <script>const URLROOT = "<?php echo URLROOT; ?>";</script>
     <style>
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
@@ -135,7 +136,6 @@
         </div>
     </main>
 
-    <!-- FOOTER -->
     <footer class="bg-slate-900 text-gray-400 py-8 mt-12">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <p class="text-sm">&copy; <?php echo date('Y'); ?> <?php echo SITENAME; ?>. Todos los derechos reservados.</p>
@@ -149,7 +149,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnText = document.getElementById('btnText');
     const btnSpinner = document.getElementById('btnSpinner');
     
-    // Habilitar el botón si el formulario es válido
     const inputs = form.querySelectorAll('input[required], textarea[required]');
     
     function checkFormValidity() {
@@ -160,7 +159,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Validar email
         const emailInput = form.querySelector('input[name="correo"]');
         if (emailInput && emailInput.value) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -174,27 +172,20 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.classList.toggle('cursor-not-allowed', !isValid);
     }
     
-    // Verificar al cargar y en cada input
     checkFormValidity();
     inputs.forEach(input => {
         input.addEventListener('input', checkFormValidity);
         input.addEventListener('change', checkFormValidity);
     });
     
-    // Manejar envío del formulario
     form.addEventListener('submit', function(e) {
-        // Validar una vez más antes de enviar
         if (!form.checkValidity()) {
             return;
         }
         
-        // Deshabilitar botón y mostrar spinner
         btn.disabled = true;
         btnText.textContent = 'Procesando...';
         btnSpinner.classList.remove('hidden');
-        
-        // El formulario se envía normalmente (POST)
-        // Si hay error, el servidor redirigirá de vuelta y el botón se restaurará
     });
 });
 </script>
