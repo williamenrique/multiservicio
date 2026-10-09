@@ -1,0 +1,716 @@
+Manual de Proyecto: Implementación de SPA Ligera
+Documento de planificación — Sin código
+Propósito: Guía completa para implementar navegación SPA ligera en el futuro
+Ubicación recomendada: doc/PLAN_SPA_LIGERA.md
+
+📋 ÍNDICE
+Contexto y objetivo
+
+Alcance
+
+Decisiones previas obligatorias
+
+Fase 0 — Auditoría inicial
+
+Fase 1 — Preparación del motor SPA
+
+Fase 2 — Adaptación del backend
+
+Fase 3 — Adaptación del frontend base
+
+Fase 4 — Refactor de módulos
+
+Fase 5 — Testing
+
+Fase 6 — Despliegue
+
+Criterios de éxito y rollback
+
+Recomendaciones finales
+
+1. Contexto y objetivo
+Situación actual del proyecto
+El sistema Taller Pro 2.0 funciona como una aplicación MVC tradicional: cada clic en el sidebar (Dashboard → Facturación → Taller) provoca una recarga completa del navegador. Esto implica:
+
+Descarga completa del HTML del servidor.
+
+Re-parseo de todos los <script> y <link>.
+
+Re-ejecución de todo el JavaScript global.
+
+Reinicio de los timers del sistema de polling.
+
+Repintado completo de la pantalla.
+
+Funciona correctamente, pero cada transición entre módulos tarda entre 600 y 1000 milisegundos en un servidor típico, cuando el contenido realmente solo cambia en una porción pequeña de la página (el área central de contenido).
+
+Objetivo del proyecto
+Transformar la navegación entre módulos del dashboard en una experiencia tipo SPA ligera, donde:
+
+El contenido del módulo se reemplaza sin recargar toda la página.
+
+La URL del navegador se actualiza para mantener bookmarks y compartibilidad.
+
+El botón "Atrás" del navegador funciona correctamente.
+
+Los timers de polling no se reinician.
+
+El usuario percibe transiciones casi instantáneas (200-300 ms).
+
+¿Por qué es "ligera" y no una SPA completa?
+Una SPA completa (con Vue, React, Angular) implicaría reescribir todo el frontend desde cero. La propuesta es mucho menos ambiciosa: mantener la arquitectura MVC y las vistas PHP actuales, y solo interceptar los clics de navegación para reemplazar el contenido central dinámicamente. Es un híbrido entre aplicación tradicional y SPA.
+
+2. Alcance
+Qué se va a modificar
+Navegación del sidebar principal entre todos los módulos del dashboard.
+
+Buscador global del header, cuando sus resultados apuntan a módulos.
+
+Botones "Atrás" y "Adelante" del navegador.
+
+Actualización de la URL en la barra de direcciones.
+
+Qué NO se va a modificar
+Login y logout. Siguen siendo recargas completas por seguridad.
+
+Impresión de PDFs. Abren en nueva pestaña, no cambian el contexto actual.
+
+Catálogo público. Es un sitio separado con otro layout, no comparte el sidebar.
+
+Modales y alertas. Funcionan independientemente del contexto de navegación.
+
+Sistema de polling. Se pausa y reanuda, pero su lógica interna no cambia.
+
+Backend de negocio. Los controladores y modelos siguen funcionando igual.
+
+Base de datos. No hay cambios de esquema ni migraciones.
+
+Módulos incluidos en la navegación SPA
+Se incluyen todos los módulos que comparten el layout del dashboard:
+
+Dashboard
+
+Venta de Repuestos (solo administradores)
+
+Inventario
+
+Facturación (POS)
+
+Facturas
+
+Devoluciones
+
+Garantías
+
+Taller
+
+Proveedores
+
+Gastos
+
+Pedidos de Clientes
+
+Presupuestos
+
+Emails
+
+Reportes Contables (solo administradores)
+
+Clientes
+
+Personal (solo administradores)
+
+Configuración de Empresa (solo administradores)
+
+Total: 17 módulos aproximadamente.
+
+3. Decisiones previas obligatorias
+Antes de empezar el proyecto, hay que tomar una decisión estratégica sobre la tecnología a usar. Existen tres caminos posibles, cada uno con diferentes características:
+
+Opción A — Usar HTMX
+HTMX es una librería pequeña y madura que gestiona automáticamente los cambios de URL, la re-ejecución de scripts y la integración con el historial del navegador. Es la opción que requiere menos código propio y la más fácil de revertir. Adecuada si el equipo no tiene experiencia previa en SPA y se quiere ir sobre seguro.
+
+Opción B — SPA casera con fetch
+Implementar el motor de SPA sin librerías externas, interceptando manualmente los clics, gestionando el historial con pushState, y controlando la re-inicialización de scripts. Es la opción con más control pero también con más trabajo y más probabilidad de bugs sutiles.
+
+Opción C — Usar Turbo
+Turbo (parte de Hotwire) es una librería más pesada que HTMX pero con características más completas. Adecuada si en el futuro se piensa expandir mucho la interactividad de la aplicación.
+
+Recomendación del equipo de arquitectura
+Se recomienda la Opción A (HTMX) por estas razones:
+
+Es la que menos código propio requiere.
+
+Es fácil de revertir: si algo falla, basta con quitar los atributos especiales de los links.
+
+Tiene manejo automático de la mayoría de los casos borde.
+
+Está bien documentada.
+
+No requiere cambios arquitectónicos profundos.
+
+El tamaño de la librería es pequeño (~14 KB), comparable al de Toastify.
+
+El resto de este manual asume la Opción A. Si se opta por B o C, los conceptos son los mismos pero habrá que implementar manualmente lo que HTMX hace por su cuenta.
+
+4. Fase 0 — Auditoría inicial
+Esfuerzo estimado: 1 a 2 horas.
+Cuándo hacerla: Antes de tocar una sola línea de código.
+Prioridad: CRÍTICA. No se puede saltear.
+
+Objetivo
+Identificar todos los puntos de fricción que se romperán al no recargar la página entre módulos. Si se saltea esta fase, el 80% de los problemas aparecerán a mitad del proyecto y obligarán a rehacer trabajo.
+
+Tareas de auditoría
+Tarea 0.1 — Inventariar los archivos JavaScript
+Recorrer la carpeta public_html/js/ y listar todos los archivos. Agruparlos por categoría:
+
+Globales: se cargan en todas las vistas (utils, app, polling, DataTableRefactor).
+
+De módulo: se cargan solo en su vista específica (dashboard, facturación, taller, etc.).
+
+Del catálogo público: se cargan solo en las vistas públicas (carrito, detalle, catálogo).
+
+De autenticación: login.
+
+Entregable: una lista con 15-20 archivos clasificados por categoría.
+
+Tarea 0.2 — Analizar cada archivo JavaScript de módulo
+Para cada archivo de módulo, responder por escrito estas cinco preguntas:
+
+¿Cómo se inicializa? ¿Usa el evento de carga del DOM, o se ejecuta al ser cargado, o espera algún otro evento?
+
+¿Registra listeners globales? Es decir, ¿escucha eventos en el documento completo o en la ventana, en vez de solo en sus elementos? Los listeners globales son los que más problemas causan porque se duplican al navegar.
+
+¿Crea intervalos de tiempo o temporizadores? ¿Registra tareas repetitivas? Hay que saber cuáles limpiar al salir del módulo.
+
+¿Instancia componentes de terceros? Por ejemplo, gráficas de Chart.js, tooltips de Tippy, tablas dinámicas, editores de texto, etc. Cada uno de estos suele requerir una limpieza explícita para no acumular memoria.
+
+¿Depende de código inline en la vista PHP? Es decir, ¿hay un bloque de script dentro del HTML de la vista que el JS del módulo necesita que se ejecute primero? Los scripts inline son un problema conocido en SPA porque las librerías típicas no los re-ejecutan automáticamente.
+
+Entregable: una tabla con una fila por archivo y columnas para cada respuesta.
+
+Tarea 0.3 — Clasificar el riesgo de cada módulo
+Con base en las respuestas anteriores, clasificar cada archivo de módulo en tres niveles:
+
+Riesgo bajo: el archivo solo inicializa tablas y modales simples, sin listeners globales ni timers.
+
+Riesgo medio: el archivo tiene uno de los dos problemas (listener global o timer, pero no ambos).
+
+Riesgo alto: el archivo tiene todos los problemas posibles (listeners globales, timers, componentes de terceros, scripts inline en la vista).
+
+Módulos que probablemente caigan en riesgo alto (según la estructura actual del proyecto):
+
+Facturación (POS): mantiene estado local complejo.
+
+Reportes: múltiples tablas, tabs y modales.
+
+Presupuesto: un modal enorme con lógica inline extensa.
+
+Ventas de mostrador: lógica de carrito local.
+
+Entregable: una lista ordenada por riesgo, de mayor a menor.
+
+Tarea 0.4 — Inventariar scripts inline en las vistas
+Contar cuántos bloques de script inline hay en las vistas PHP. Se pueden contar con una búsqueda de texto en la carpeta de vistas, buscando la etiqueta de script sin la palabra "src".
+
+Entregable: un número total y una lista de las vistas que tienen más de 100 líneas de script inline. Estas vistas son las candidatas prioritarias para refactor posterior.
+
+Tarea 0.5 — Definir el orden de ataque
+Con toda la información anterior, hacer un plan de implementación módulo por módulo, empezando por los de riesgo bajo y terminando por los de riesgo alto. Esta estrategia minimiza el riesgo de dejar el proyecto a medias con módulos críticos rotos.
+
+Entregable: una lista ordenada de módulos por orden de ataque.
+
+Resultado esperado de la Fase 0
+Un documento AUDITORIA_SPA.md con toda la información anterior. Este documento será la referencia durante todas las fases siguientes.
+
+5. Fase 1 — Preparación del motor SPA
+Esfuerzo estimado: 30 minutos.
+Cuándo hacerla: Después de completar la Fase 0.
+Prioridad: Baja complejidad.
+
+Objetivo
+Dejar lista la infraestructura mínima del motor SPA sin tocar todavía ningún módulo funcional.
+
+Tareas
+Tarea 1.1 — Descargar y almacenar la librería
+Descargar la librería elegida (HTMX o la alternativa acordada) y guardarla localmente en el proyecto, no depender de un CDN externo. Guardarla en la carpeta public_html/js/.
+
+Motivo: consistencia con la decisión tomada para Tailwind (compilado local). Además, si el CDN falla, la aplicación no queda inoperable.
+
+Tarea 1.2 — Registrar la librería en el header global
+Añadir la carga de la librería al archivo app/Views/inc/header.php, junto con las demás librerías (Tailwind, SweetAlert2, Chart.js, etc.). Debe cargarse antes del código propio que la utilizará.
+
+Tarea 1.3 — Configurar la integración con CSRF
+La librería debe enviar el token CSRF en cada petición que haga al servidor. Hay que configurar un manejador de eventos global para inyectar el token en las cabeceras de todas las peticiones. Este manejador se registra una sola vez, cuando se carga la librería.
+
+Tarea 1.4 — Añadir cabecera identificadora
+Las peticiones que haga la SPA deben llevar una cabecera especial (por ejemplo, un identificador simple) que le diga al servidor "esta petición viene de la SPA, devuélveme solo el fragmento". Esto se configura en el mismo manejador de la tarea anterior.
+
+Tarea 1.5 — Añadir indicador visual de carga
+Añadir al header un pequeño elemento visual (por ejemplo, una barra superior de progreso) que se muestre automáticamente mientras la librería hace la petición. Da feedback al usuario de que algo está pasando y evita la sensación de que la app se colgó.
+
+Resultado esperado de la Fase 1
+La librería está cargada, configurada para enviar CSRF, y hay un indicador visual listo. Ningún comportamiento ha cambiado todavía — la aplicación sigue funcionando igual que antes.
+
+6. Fase 2 — Adaptación del backend
+Esfuerzo estimado: 1 hora.
+Cuándo hacerla: Después de la Fase 1.
+Prioridad: Media. Requiere cuidado porque toca el flujo de renderizado.
+
+Objetivo
+Enseñar al backend a responder de dos maneras diferentes:
+
+Petición normal: página completa con header, contenido y footer.
+
+Petición SPA: solo el fragmento del contenido, sin header ni footer.
+
+Tareas
+Tarea 2.1 — Modificar la función de renderizado de vistas
+La función que hoy renderiza una vista y le inyecta el layout global debe detectar si la petición trae la cabecera especial que agregamos en la Fase 1. Si la trae:
+
+Envolver la vista en un contenedor con el mismo identificador del área de contenido del dashboard.
+
+Añadir un atributo de dato que indique qué vista se cargó (útil para debugging).
+
+No cargar el header ni el footer global.
+
+Terminar la ejecución antes de llegar al código normal.
+
+Si NO la trae, mantener el comportamiento actual sin cambios.
+
+Tarea 2.2 — Manejar errores dentro de la SPA
+Cuando ocurra un error en una petición SPA (por ejemplo, un 404 o un 500), hay que devolver el error dentro del contenedor de contenido, no como página completa. Esto evita que un error rompa todo el layout del usuario.
+
+Añadir un manejador específico para estos casos, que devuelva un fragmento con el mensaje de error en el mismo estilo visual.
+
+Tarea 2.3 — Verificar la consistencia del contenedor
+El identificador del contenedor que devuelve el backend debe coincidir exactamente con el identificador del área de contenido que ya existe en el layout del dashboard. Si hay discrepancia, el reemplazo de contenido no funcionará.
+
+Resultado esperado de la Fase 2
+El backend ya puede responder con fragmentos cuando se lo pide. Ningún link del sidebar está todavía adaptado, así que el comportamiento visible sigue igual.
+
+7. Fase 3 — Adaptación del frontend base
+Esfuerzo estimado: 2 a 3 horas.
+Cuándo hacerla: Después de la Fase 2.
+Prioridad: Alta. Esta es la fase que "activa" la SPA.
+
+Objetivo
+Convertir los links del sidebar y los del buscador global en links SPA. A partir de esta fase, la navegación entre módulos cambiará su comportamiento.
+
+Tareas
+Tarea 3.1 — Adaptar los links del sidebar
+Recorrer uno por uno los links del sidebar en header.php y añadirles los atributos que la librería necesita para gestionarlos como SPA. Son los mismos cuatro atributos por link:
+
+URL de destino para la petición.
+
+Elemento del DOM a reemplazar (el área de contenido).
+
+Modo de reemplazo (reemplazo completo del elemento, no solo su contenido).
+
+Actualización de la URL del navegador (para que se vea reflejada arriba).
+
+Aplicar esto a los 17 links del sidebar. Se pueden agrupar por secciones (Gestión, Administración) pero cada uno necesita su adaptación individual.
+
+Tarea 3.2 — Adaptar los resultados del buscador global
+El buscador global del header muestra resultados que apuntan a diferentes módulos. Cada resultado debería ser un link SPA también.
+
+Precaución: algunos resultados del buscador global no son links reales, sino llamadas a funciones (por ejemplo, "imprimir factura"). Estos no deben convertirse en links SPA, porque no navegan a un módulo sino que ejecutan una acción. Hay que distinguir entre los dos tipos y solo convertir los que apuntan a URLs de módulos.
+
+Tarea 3.3 — Registrar los eventos de ciclo de vida
+La librería SPA emite eventos antes y después de cada cambio de contenido. Hay que registrar manejadores para:
+
+Antes del cambio: pausar el sistema de polling para evitar peticiones durante la transición.
+
+Después del cambio: re-renderizar los iconos, re-inicializar los tooltips, reanudar el polling, hacer scroll al top de la página, y llamar al inicializador del módulo específico que se acaba de cargar.
+
+Tarea 3.4 — Añadir métodos de pausa al sistema de polling
+El archivo public_html/js/polling.js necesita dos métodos nuevos: uno para pausar todas las tareas programadas, y otro para reanudarlas. El motor de polling debe respetar esta pausa en su ciclo interno.
+
+Motivo: sin esto, al navegar entre módulos se seguirían ejecutando peticiones de fondo del módulo anterior, lo cual es un desperdicio y puede causar efectos secundarios.
+
+Tarea 3.5 — Exponer una función central de re-inicialización
+Crear una función en el header (o en app.js) que reciba el nombre de la vista recién cargada y llame al inicializador correspondiente de esa vista. Esta función será el punto central que conecta el sistema SPA con cada módulo.
+
+Inicialmente estará vacía o con muy pocos casos. Se irá ampliando en la Fase 4, cuando se refactorice cada módulo.
+
+Resultado esperado de la Fase 3
+Los links del sidebar ya navegan sin recargar la página. Pero los módulos todavía no se re-inicializan correctamente al cambiar entre ellos. Es decir, la primera carga funciona bien, pero al ir y volver entre módulos, algunos elementos (tablas, gráficas, modales) fallan o no se ven.
+
+Esto es esperado. La Fase 4 arregla esos problemas, uno por uno.
+
+8. Fase 4 — Refactor de módulos
+Esfuerzo estimado: 4 a 6 horas.
+Cuándo hacerla: Después de la Fase 3.
+Prioridad: La fase más tediosa del proyecto. Se recomienda dividirla en varias sesiones.
+
+Objetivo
+Refactorizar cada archivo JavaScript de módulo para que soporte dos operaciones: inicializarse cuando el módulo se carga, y destruirse cuando el usuario se va a otro módulo. Actualmente los archivos solo soportan la inicialización.
+
+Concepto: patrón init/destroy
+Cada archivo de módulo debe transformarse al patrón de dos funciones:
+
+Función de inicialización: registra listeners, hace el primer fetch, arranca timers. Debe ser idempotente: si se llama dos veces seguidas, la segunda no hace nada.
+
+Función de limpieza: cancela timers, remueve listeners globales, destruye instancias de componentes de terceros. Se llama antes de que el usuario navegue fuera del módulo.
+
+Ambas funciones se exponen globalmente para que la función central de la Fase 3 pueda llamarlas.
+
+Orden de refactor (usar el plan de la Fase 0)
+El orden de ataque que se definió en la Fase 0 se respeta aquí. Empezar por los módulos de riesgo bajo y terminar por los de riesgo alto.
+
+Bloque 1 — Módulos de riesgo bajo (aproximadamente 6 archivos)
+Estos módulos suelen tener una estructura simple:
+
+Una sola tabla dinámica.
+
+Uno o dos modales.
+
+Sin timers ni polling.
+
+Listeners solo en sus propios elementos.
+
+El refactor es directo: envolver el código existente en funciones, guardar referencias a los listeners para poder removerlos después, y no dejar cabos sueltos.
+
+Módulos esperados en este bloque: clientes, gastos, inventario, facturas, historial, personal (con matices).
+
+Bloque 2 — Módulos de riesgo medio (aproximadamente 6 archivos)
+Estos módulos tienen uno de los dos problemas complejos: ya sea polling, o listeners globales, o instancias de terceros que necesitan destrucción explícita.
+
+Módulos esperados en este bloque: dashboard, taller nueva orden, proveedores, empresa, perfil, personal avanzado.
+
+Trabajo típico:
+
+Destruir gráficas antes de crear una nueva.
+
+Guardar referencias a los listeners globales.
+
+Exponer la función de limpieza que llama a las destrucciones.
+
+Bloque 3 — Módulos de riesgo alto (aproximadamente 4 archivos)
+Estos módulos combinan todos los problemas anteriores y además tienen:
+
+Estado local importante que se pierde al salir del módulo.
+
+Scripts inline extensos en la vista PHP.
+
+Dependencias entre el JS del módulo y otras librerías.
+
+Uso intensivo del sistema de polling.
+
+Módulos esperados en este bloque: facturación (POS), reportes, presupuesto, ventas de mostrador.
+
+Trabajo típico:
+
+Refactor completo del archivo (no solo envolver).
+
+Mover scripts inline de la vista a un archivo externo.
+
+Definir qué estado local se preserva al salir y qué se limpia.
+
+Añadir protección contra doble inicialización (contador, flag booleano, o similar).
+
+Destruir todas las instancias de DataTableRefactor, Chart.js, Tippy u otros.
+
+Tarea común a todos los módulos: revisar scripts inline
+Para las vistas que tienen mucho script inline (reportes, garantía, devoluciones, presupuesto, venta), evaluar:
+
+Opción simple: dejar el script inline tal cual, y usar la opción de la librería que permite re-ejecutarlos automáticamente al cambiar de contenido. Algunas librerías (HTMX) los re-ejecutan por defecto, otras no.
+
+Opción correcta: mover el script inline a un archivo externo, refactorizarlo al patrón init/destroy, y registrarlo igual que los otros módulos.
+
+La opción simple funciona pero tiene limitaciones (por ejemplo, doble ejecución si no se maneja bien). La opción correcta es más trabajo pero es la forma robusta.
+
+Manejo del estado local
+Algunos módulos mantienen estado local que no debe persistir entre visitas:
+
+El POS mantiene una lista de facturas abiertas.
+
+El carrito de ventas de mostrador mantiene ítems seleccionados.
+
+Reportes mantiene filtros y tabs activos.
+
+Decidir explícitamente para cada caso:
+
+¿Debe limpiarse al salir del módulo? (por ejemplo, el carrito de mostrador sí, porque no es un carrito persistente).
+
+¿Debe mantenerse? (por ejemplo, los borradores de facturación ya vienen del servidor, no es necesario mantenerlos localmente).
+
+¿Debe guardarse en algún sitio? (por ejemplo, la última tab activa de reportes podría guardarse en memoria de sesión).
+
+Documentar estas decisiones en el archivo de auditoría.
+
+Resultado esperado de la Fase 4
+Todos los módulos incluidos en la SPA funcionan correctamente al:
+
+Cargarse por primera vez.
+
+Navegar hacia otro módulo.
+
+Volver al módulo anterior.
+
+Navegar hacia atrás con el botón del navegador.
+
+Sin errores en consola, sin doble inicialización, sin acumulación de memoria.
+
+9. Fase 5 — Testing
+Esfuerzo estimado: 2 a 3 horas.
+Cuándo hacerla: Después de la Fase 4.
+Prioridad: CRÍTICA. No se puede saltear.
+
+Objetivo
+Verificar que la SPA funciona en el uso normal y también en los casos borde. Sin esta fase, los bugs aparecerán en producción cuando sea más caro arreglarlos.
+
+Pruebas por módulo
+Para cada uno de los 17 módulos, ejecutar la siguiente secuencia y verificar que todo funcione:
+
+Carga inicial: navegar al módulo desde otro módulo.
+
+Uso normal: realizar la acción principal del módulo (crear, editar, listar, filtrar).
+
+Cambio de módulo: navegar a otro y volver al original.
+
+Persistencia del estado esperado: lo que debe mantenerse, se mantiene; lo que debe limpiarse, se limpia.
+
+Recarga manual: presionar F5 y verificar que el módulo sigue funcionando.
+
+Navegación del navegador: probar botón Atrás y Adelante varias veces.
+
+Pruebas de estrés
+Escenarios que rompen implementaciones mal hechas:
+
+Navegar 20 veces entre módulos alternando rápido.
+
+Tener 4 o 5 pestañas abiertas con módulos diferentes.
+
+Dejar una pestaña inactiva 10 minutos y volver. Verificar que el polling se reanudó.
+
+Navegar mientras hay una petición de red pendiente. Verificar que no se cruzan las respuestas.
+
+Navegar con un modal abierto. Verificar que se cierra limpiamente.
+
+Presionar Atrás y Adelante muy rápido (10 veces en 5 segundos).
+
+Copiar la URL de un módulo y pegarla en una nueva pestaña.
+
+Pruebas de regresión
+Verificar que todo lo que funcionaba antes sigue funcionando. Este es el punto más importante: no se puede arreglar la navegación y romper la aplicación. Lista:
+
+Login y logout completos.
+
+CRUD completo de clientes, personal, proveedores, inventario.
+
+Facturación POS de principio a fin.
+
+Taller: crear OS, cambiar estado, asignar mecánico, entregar vehículo.
+
+Presupuestos: crear, activar, aceptar, convertir a venta.
+
+Devoluciones.
+
+Garantías.
+
+Reportes con todas sus tabs.
+
+Emails.
+
+Configuración de empresa.
+
+Catálogo público (index, detalle, carrito, checkout, confirmación).
+
+Búsqueda global.
+
+Todas las notificaciones del header (recuperación, stock bajo, créditos vencidos, pedidos pendientes, taller).
+
+Pruebas de performance y memoria
+Performance: comparar el tiempo de navegación antes y después del cambio. Debería ser notablemente más rápido.
+
+Memoria: abrir el monitor de rendimiento del navegador y navegar entre módulos 20 veces. La memoria no debe crecer indefinidamente. Si crece sin parar, hay un memory leak.
+
+Pruebas de compatibilidad
+Chrome, Firefox, Edge (versiones recientes).
+
+Modo incógnito (sin caché).
+
+Simulación móvil (aunque la app no está pensada para móvil, verificar que no rompe).
+
+Resultado esperado de la Fase 5
+Un documento TESTING_SPA.md con los resultados de todas las pruebas. Si hay bugs, se arreglan en esta misma fase antes de pasar a la siguiente.
+
+10. Fase 6 — Despliegue
+Esfuerzo estimado: 30 minutos.
+Cuándo hacerla: Después de que la Fase 5 haya pasado sin bugs críticos.
+Prioridad: Alta. Se despliega con cuidado y con posibilidad de rollback.
+
+Objetivo
+Poner la nueva versión en producción con el mínimo riesgo posible.
+
+Tareas previas al despliegue
+Tarea 6.1 — Backups
+Antes de subir nada a producción:
+
+Backup completo de la base de datos. Por si algo inesperado pasa.
+
+Backup completo de public_html/. Descargar la carpeta entera al PC.
+
+Tarea 6.2 — Prueba en staging (si existe)
+Si hay un entorno de staging o pruebas, subir ahí primero. Hacer un pase completo de las pruebas de la Fase 5 en staging.
+
+Si no hay staging, saltar a la siguiente tarea con cuidado.
+
+Tarea 6.3 — Preparar la lista de archivos a subir
+Con base en las fases anteriores, hacer una lista completa de archivos modificados. Debe incluir:
+
+La librería SPA nueva.
+
+Los JS de módulo refactorizados.
+
+El header global.
+
+El helper de renderizado.
+
+Cualquier vista PHP que haya sido modificada.
+
+Ordenar la lista por criticidad: primero los globales, después los de módulo.
+
+Tareas de despliegue
+Tarea 6.4 — Subida por FTP
+Subir los archivos en el orden preparado. Verificar cada uno antes de pasar al siguiente.
+
+Recomendación: hacer el despliegue en horario de baja actividad. Idealmente un viernes por la tarde o un fin de semana, para tener tiempo de reaccionar si algo falla.
+
+Tarea 6.5 — Prueba inmediata post-despliegue
+Al terminar la subida, hacer una prueba rápida (5 minutos):
+
+Login.
+
+Dashboard.
+
+Navegar a 3-4 módulos.
+
+Hacer una operación simple en cada uno.
+
+Verificar consola del navegador sin errores.
+
+Si algo falla en estos 5 minutos, evaluar el rollback de inmediato.
+
+Tarea 6.6 — Pase completo de pruebas post-despliegue
+Si la prueba rápida pasa, hacer el pase completo de las pruebas de la Fase 5 en producción. Puede tomar 1 o 2 horas pero es necesario.
+
+Tareas posteriores
+Tarea 6.7 — Documentar el despliegue
+Anotar en el registro del proyecto:
+
+Fecha y hora del despliegue.
+
+Versión desplegada.
+
+Problemas encontrados (si hubo).
+
+Tiempo total de despliegue.
+
+Tarea 6.8 — Monitoreo los primeros días
+Durante los primeros 3 a 5 días después del despliegue, prestar atención a:
+
+Reportes de usuarios sobre comportamiento raro.
+
+Errores en el log del servidor.
+
+Quejas sobre lentitud o bloqueos.
+
+11. Criterios de éxito y rollback
+Criterios de éxito
+Se considera el proyecto exitoso si al finalizar:
+
+Navegar entre módulos se siente significativamente más rápido (idealmente < 400 ms).
+
+No hay recargas visibles de página al cambiar de módulo.
+
+El botón Atrás del navegador funciona correctamente.
+
+Los bookmarks a módulos específicos siguen funcionando.
+
+Los timers de polling siguen activos durante y después de la navegación.
+
+Todas las funcionalidades existentes siguen funcionando sin regresión.
+
+No hay acumulación de memoria al navegar repetidamente.
+
+El usuario percibe la aplicación como más "fluida".
+
+Criterios de aborto
+Se debe considerar abortar el proyecto (hacer rollback) si:
+
+El rendimiento empeora en vez de mejorar.
+
+Aparecen bugs intermitentes difíciles de reproducir y arreglar.
+
+Se descubre que hay memory leaks no resueltos.
+
+Al llegar a la mitad de la Fase 4, más de la mitad de los módulos de riesgo alto siguen rotos.
+
+El equipo pierde más de 3 días en resolver problemas de scripts inline.
+
+Se acumulan más de 5 bugs críticos sin resolver.
+
+Plan de rollback
+El rollback es viable gracias a la naturaleza no invasiva del cambio:
+
+Rollback rápido (5 minutos):
+
+Restaurar desde backup el header global y el helper de renderizado.
+
+Subir por FTP.
+
+Como los links ya no tienen los atributos SPA, la aplicación vuelve a comportarse como antes.
+
+La librería SPA puede quedarse cargada sin hacer nada (o eliminarse del servidor).
+
+Rollback completo (15 minutos):
+
+Restaurar todos los archivos modificados desde los backups.
+
+Subir por FTP.
+
+Eliminar del servidor la librería SPA si ya no se usará.
+
+Nota: el rollback es seguro porque el cambio es aditivo. No se eliminó funcionalidad existente, solo se añadieron capas encima. Al quitar esas capas, todo vuelve a funcionar como antes.
+
+12. Recomendaciones finales
+Sobre la decisión de hacerlo
+Este proyecto no es obligatorio para el funcionamiento del sistema. Es una mejora de experiencia de usuario. Si el sistema actual se siente suficientemente rápido para los usuarios, se puede postergar indefinidamente.
+
+Antes de comprometerse, considerar alternativas más livianas que dan el 80% del beneficio con el 20% del esfuerzo:
+
+Opción "prefetch en hover": cuando el usuario pasa el mouse por un link del sidebar, se hace una petición en background para pre-cargar la siguiente página. La navegación sigue siendo recarga completa, pero instantánea porque el navegador ya tiene la respuesta en caché. Es un cambio de 10 minutos y no rompe nada.
+
+Opción "loading skeleton": en vez de rehacer la navegación, añadir un indicador visual claro mientras se carga el módulo. El usuario percibe menos espera aunque técnicamente tarde lo mismo.
+
+Sobre la ejecución
+Si se decide hacer el proyecto completo:
+
+No improvisar. Seguir las fases en orden. Cada fase tiene un propósito y saltearla genera deuda técnica.
+
+No mezclar con otros cambios. Un despliegue = un cambio. Si al mismo tiempo se hacen otras mejoras, es imposible saber qué causó un bug.
+
+No subestimar la Fase 4. Es la que más tiempo consume y la que más paciencia requiere. Dividirla en varias sesiones.
+
+No saltarse las pruebas. El testing es lo que separa un despliegue exitoso de uno que rompe producción el lunes a las 8 AM.
+
+Empezar por lo simple. Los módulos de riesgo bajo dan confianza y experiencia antes de enfrentar los complejos.
+
+Sobre el futuro
+Si el sistema crece mucho y la SPA ligera se queda corta (por ejemplo, si se necesita reactividad en tiempo real entre usuarios), considerar migrar a un framework SPA completo (Vue, React). Pero esa decisión es a años de distancia, no a meses. La SPA ligera es suficiente para el horizonte actual del proyecto.
+
+📁 Ubicación del documento
+Guardar este archivo como:
+
+text
+doc/PLAN_SPA_LIGERA.md
+Y en el archivo LISTA DE PRIORIDADES 09-10-26.TXT, en el item P2-02, sustituir "Descartada por decisión" por:
+
+text
+⏸️ POSTERGADA — Plan completo en doc/PLAN_SPA_LIGERA.md
+Así queda documentado que no se descartó por incapacidad, sino por decisión estratégica, y con un plan listo para retomar cuando se quiera.
+
+Fin del documento.
