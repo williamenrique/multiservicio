@@ -5,6 +5,19 @@
  * necesariamente con el nombre del controlador.
  * 
  * Formato: 'url-amigable' => 'Controlador@metodo'
+ * 
+ * ─────────────────────────────────────────────────────────────────────────
+ * NOTA HISTÓRICA (2026-10-09):
+ * Se eliminaron los siguientes controladores legacy que apuntaban al
+ * antiguo proyecto `/catalogo_repuestos_mvc/`:
+ *   - ControllerCarrito  → reemplazado por ControllerCatalogo
+ *   - ControllerPedido   → reemplazado por ControllerCatalogo::procesarPedido
+ *   - ControllerRepuesto → reemplazado por ControllerInventario + ControllerCatalogo
+ * 
+ * Los archivos eliminados usaban tablas inexistentes en el esquema 2.0
+ * (repuestos, categorias, pedidos) y la función helper `url()` que ya
+ * no existe. NO reintroducir rutas hacia ellos.
+ * ─────────────────────────────────────────────────────────────────────────
  */
 return [
     // Garantías

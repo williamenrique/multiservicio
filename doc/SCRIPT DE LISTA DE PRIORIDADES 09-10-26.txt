@@ -1,0 +1,58 @@
+PRIORIDAD 0 — CRÍTICO (Hacer primero, sin esto no hay mejora real)
+ID	Tarea	Impacto	Esfuerzo	Archivos
+P0-01	Eliminar código legacy completo (ControllerCarrito, ControllerPedido, ControllerRepuesto, ModelCarrito, ModelPedido, ModelRepuestos, carrito.js, catalogo.js, repuestos/index.php, carrito/index.php). No se usan en el flujo actual y consumen ciclos de análisis de estructura.txt.	🟢 Alto (limpieza)	30 min	10 archivos
+P0-02	Unificar AppUtils. Eliminar utils.js o app.js (uno de los dos). El header del dashboard usa app.js, pero auth/Login.php carga utils.js por separado. Elegir app.js como fuente única y actualizar Login.php.	🟢 Alto	20 min	utils.js, Login.php
+P0-03	Eliminar AppNotifications duplicado. Definido en app.js y sobrescrito por notifications.js (que además llama a AppUtils.loadData inexistente). Dejar solo la versión de app.js y no cargar notifications.js.	🟢 Alto	15 min	notifications.js, app.js
+P0-04	Eliminar Validator.php duplicado. Hay uno en app/Core/Validator.php y otro en app/Helpers/Validator.php. Verificar autoload y dejar solo uno (el de Core).	🟡 Medio	15 min	1 archivo
+P0-05	Eliminar NotificacionService.php (está vacío, 2 bytes). Código muerto.	🟢 Alto	2 min	1 archivo
+P0-06	Eliminar routes.php duplicado. Idéntico en /app/Config/. Verificar cuál carga el Core y borrar el otro.	🟡 Medio	10 min	1 archivo
+P0-07	Consolidar procesarDevolucion. Lógica duplicada en ModelFacturacion::procesarDevolucion y ModelDevoluciones::procesarDevolucion. Dejar solo ModelDevoluciones (más moderno, con kardex) y hacer que BillingService::procesarDevolucionSegura apunte ahí.	🟡 Medio	45 min	3 archivos
+P0-08	Centralizar CSRF. Unificar el envío de X-CSRF-TOKEN. Ahora mismo: login.js (body), carrito.js (FormData), facturacion.js (header), catalogo-publico.js (FormData), inventario.js (ambos), proveedores.js (ambos). Estandarizar header X-CSRF-TOKEN + Content-Type: application/json.	🟢 Alto	2 h	8 archivos JS
+P0-09	Arreglar PdfService::generarDocumento($stream=false). Devuelve binario pero ControllerDevoluciones::pdf() y ControllerGarantia::pdf() arman una URL inexistente. Endpoints rotos. Cambiar a generarBinario() o escribir temp correctamente.	🟢 Alto	30 min	3 archivos
+🟠 PRIORIDAD 1 — ALTO (Cuellos de botella reales)
+ID	Tarea	Impacto	Esfuerzo	Archivos
+P1-01	Reducir polling agresivo en app.js. Actualmente 6 setInterval corriendo (30s, 60s×3, 120s, 300s, 600s) + 3 más en facturacion.js (10s) y dashboard.js (60s). Total: ~9 timers activos por pestaña. Estrategia: un solo timer maestro de 60s que llama un método orquestador que decide qué refrescar según visibilidad de pestaña (document.visibilityState). Ahorro estimado: ~70% de requests.	🟢 Muy Alto	3 h	app.js, facturacion.js, dashboard.js
+P1-02	Consolidar 4 llamadas a /dashboard/getStats. initLowStockNotifications, initProfitabilityCard, initDebtorsCard y initCreditNotifications llaman al MISMO endpoint en distintas frecuencias. Cachear la respuesta por 60s en memoria y compartirla.	🟢 Alto	1 h	app.js
+P1-03	Pausar timers cuando la pestaña no está visible. Añadir document.addEventListener('visibilitychange', ...) para detener todos los setInterval cuando el navegador está en background. Solo reanudar al volver.	🟢 Alto	45 min	app.js, facturacion.js, dashboard.js
+P1-04	Eliminar jQuery del footer.php. Se carga jQuery (300 KB) en todas las vistas del dashboard pero no se usa en ningún JS del core (app.js, clientes.js, facturacion.js, etc.). Solo catalogo.js (legacy) y catalogo-publico.js lo usan, pero estos están fuera del layout.	🟢 Alto	15 min	footer.php
+P1-05	Cargar app.js con defer. Actualmente footer.php lo carga sincrónico al final. Con defer permite paralelizar parsing.	🟡 Medio	5 min	footer.php
+P1-06	Eliminar setTimeout fallback de 20s en AppUtils.showLoading. Cada llamada crea un timer nuevo que nunca se limpia si el loading se cierra antes. Acumula basura. Guardar referencia y limpiar en hideLoading().	🟡 Medio	20 min	app.js, utils.js
+P1-07	Optimizar renderView en helpers.php. Ejecuta una query SELECT * FROM table_company_settings en cada render de vista. Cachear en memoria (variable estática).	🟡 Medio	15 min	helpers.php
+P1-08	Optimizar logAction(). Crea new Database() en cada llamada — en flujos con 10+ acciones por request abre 10 conexiones. Usar instancia compartida o singleton.	🟡 Medio	20 min	helpers.php
+P1-09	ModelPresupuesto::stockDisponibleProducto vs ModelInventario::getSqlReservado — dos fuentes de verdad distintas para reservas. Unificar en una vista SQL o método compartido.	🟡 Medio	1.5 h	2 archivos
+P1-10	Consolidar initNewInvoice + loadInvoicesFromServer. En facturacion.js, hay dos flujos que crean facturas localmente y luego piden al servidor. Redundancia de renders.	🟡 Medio	1 h	facturacion.js
+P1-11	Reducir setInterval(loadInvoicesFromServer, 10000) de 10s a 30s. En la práctica un borrador no se modifica tan rápido desde otra pestaña.	🟡 Medio	5 min	facturacion.js
+P1-12	Mover scripts inline enormes a archivos externos. presupuesto/index.php (~700 líneas), garantia/index.php (~500), devoluciones/index.php (~400), taller/nueva_orden.php (~300), reportes/index.php (~300). Esto bloquea parsing y no se cachea en el navegador.	🟢 Alto	4 h	5 vistas
+🟡 PRIORIDAD 2 — MEDIO (Fluidez y UX)
+ID	Tarea	Impacto	Esfuerzo	Archivos
+P2-01	Reemplazar setTimeout(() => location.reload(), 1500) por actualización local del DOM. Ocurre en garantia, presupuesto/ver, taller/index, reportes. Cada acción fuerza recarga completa (~2s de latencia percibida).	🟢 Alto	2 h	4 vistas
+P2-02	Implementar navegación SPA ligera. El popstate actual hace window.location.reload(). Cambiar a fetch de contenido parcial con <turbo-frame> o similar.	🟡 Medio	1 día	app.js, App.php, vistas
+P2-03	Hook del sidebarOverlay. El <div id="sidebarOverlay"> existe en header.php pero nunca se activa en JS. Añadir listener que lo muestre/oculte.	🟡 Bajo	20 min	header.php, app.js
+P2-04	Toast system unificado. Hay 3 sistemas: Toastify (CDN), SweetAlert2 toast (fallback), y alertas custom inline. Unificar en AppUtils.showToast.	🟡 Bajo	30 min	app.js
+P2-05	DataTableRefactor: agregar caché local. Repetidas búsquedas en la misma tabla refetchean todo. Guardar las últimas N respuestas por query.	🟡 Medio	2 h	DataTableRefactor.js
+P2-06	DataTableRefactor: reemplazar innerHTML += por insertAdjacentHTML. En algunas vistas (inventario.js, facturas.js) hay concatenaciones lentas en tablas grandes.	🟡 Bajo	1 h	DataTableRefactor.js, varios
+P2-07	Lazy load de imágenes en inventario. Las miniaturas actuales cargan siempre (src=). Añadir loading="lazy" y decoding="async".	🟡 Bajo	10 min	inventario.js, vistas catálogo
+P2-08	Sidebar: guardar estado colapsado en localStorage. Actualmente se resetea en cada carga.	🟡 Bajo	20 min	app.js
+P2-09	Unificar modales de cliente. Existen 3 flujos: clientes.js, facturacion.js (btnQuickClient), taller_nueva_orden.js (quickRegisterOS). Cada uno con HTML distinto. Unificar en un componente único.	🟡 Medio	2 h	3 archivos JS
+P2-10	Extraer const MAX_FILE_SIZE y validaciones comunes. En inventario.js, perfil.js, empresa.js hay validaciones duplicadas de subida de archivos.	🟡 Bajo	45 min	3 archivos
+P2-11	RoleGuard::hasAccess compara $userRoleId (int) contra array mixto de strings e ints. Funciona por flexibilidad pero es frágil. Refactor a verificación consistente.	🟡 Bajo	30 min	RoleGuard.php
+P2-12	AuthGuard::handle(): valida session_id() contra BD en cada request. Invalida sesiones concurrentes legítimas. Añadir ventana de gracia (ej: válida por 5 min tras último uso).	🟡 Medio	1 h	AuthGuard.php
+P2-13	NotificationChecker instancia new ModelProveedor() y new ModelDashboard() sin DB compartida. Aceptar $db en constructor.	🟡 Bajo	20 min	NotificationChecker.php
+P2-14	NotificationChecker::verificarResumenMensual: eliminar if ($diaActual < 1) return; (código muerto).	🟡 Bajo	5 min	NotificationChecker.php
+🟢 PRIORIDAD 3 — BAJO (Mejoras y pulido)
+ID	Tarea	Impacto	Esfuerzo	Archivos
+P3-01	CSS crítico inline. Tailwind se carga por CDN desde cero en cada vista (≈300 KB sin compresión). Generar tailwind.config + compilar a CSS local.	🟢 Alto	4 h	header.php, Login.php, build
+P3-02	styles.min.css no se usa. El header carga styles.css (11 KB) pero existe styles.min.css (4.9 KB) sin usar.	🟡 Bajo	5 min	header.php
+P3-03	Quitar // <script> de DataTables legacy comentados en header.php y footer.php — peso visual y confusión.	🟡 Bajo	5 min	header.php, footer.php
+P3-04	Validator::exists($table, $column) interpola directo en SQL. Documentar como "solo para tablas hardcoded". Alternativa: whitelist.	🟡 Bajo	30 min	Validator.php
+P3-05	ModelUsuario::obtenerSolicitudesPendientes devuelve u.password (hash) al frontend. Filtración menor. Sanear si no es hash válido.	🟡 Bajo	20 min	ModelUsuario.php, app.js
+P3-06	ControllerPresupuesto::convertirAVenta apunta a /venta/imprimirFactura/ — verificar que la ruta exista tras limpieza legacy.	🟡 Bajo	15 min	ControllerPresupuesto.php
+P3-07	ModelCatalogo::buscarPorCodigo y buscarPorId son idénticos. Unificar en uno.	🟡 Bajo	10 min	ModelCatalogo.php
+P3-08	ModelPersonal::gestionarUsuario — revisar bind :pass en INSERT vs UPDATE (posible bug).	🟡 Bajo	30 min	ModelPersonal.php
+P3-09	ControllerTaller::sincronizarItemsOrden sanitiza FK a NULL, pero ControllerFacturacion::sincronizarBorrador no. Replicar sanitización.	🟡 Medio	30 min	ControllerFacturacion.php
+P3-10	catalogo-publico.js y detalle.js envían csrf_token en FormData. Alinear con header si se aplica P0-08.	🟡 Bajo	30 min	2 archivos
+P3-11	Añadir índices SQL faltantes. table_facturas.estado_gestion ya tiene idx_estado_gestion. Revisar: table_abonos_clientes.factura_id, table_kardex.producto_id (ya tiene), table_presupuestos.numero (ya UK), table_staff.cedula (ya UK).	🟡 Bajo	30 min	SQL migrations
+P3-12	PdfService: precargar Dompdf\Options una sola vez por instancia, ya está. Añadir chroot y isRemoteEnabled(false) si no se usan imágenes remotas → más rápido.	🟡 Bajo	15 min	PdfService.php
+P3-13	helpers.php::logAction no envuelve en try/catch. Si falla la auditoría, rompe la acción principal.	🟡 Bajo	15 min	helpers.php
+P3-14	index.php (login) vs Login.php — hay doble vista de login. Verificar cuál carga el router.	🟡 Bajo	15 min	auth/
+P3-15	header.php usa $company->logo sin ??. Fallback cuando renderView cae al (object)['name' => 'TALLER PRO'].	🟡 Bajo	10 min	header.php
