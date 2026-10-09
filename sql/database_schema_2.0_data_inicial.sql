@@ -13,6 +13,18 @@
 --     Motivo: el módulo de Cartera por Edades ahora muestra por cada factura
 --     un selector con el estado de gestión (llamado, promesa de pago, etc.)
 --     que se persiste en esta columna.
+--
+-- CAMBIOS v2.1.1 (2026-10-09):
+--   • FIX CRÍTICO: Se agregó la columna `usuario_id` a table_abonos_clientes
+--     con su índice (`idx_abonos_usuario`) y FK a table_usuarios
+--     (`table_abonos_clientes_ibfk_2` con ON DELETE SET NULL).
+--     Motivo: ModelFacturacion y ModelFacturas ya usaban esta columna en
+--     JOINs (para mostrar "Registrado por: X" en el detalle de factura y en
+--     el PDF del recibo), pero el dump base no la incluía, causando:
+--         SQLSTATE[42S22]: Column not found: 1054 Unknown column 'a.usuario_id'
+--     al abrir /facturas/ver/X cuando la factura tenía abonos.
+--
+--     Para BD existentes: ejecutar sql/migration_abonos_usuario_id.sql
 -- --------------------------------------------------------
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -68,16 +80,22 @@ CREATE TABLE IF NOT EXISTS `pedidos_clientes` (
 -- Volcando datos para la tabla multiservicio_2.0.pedidos_clientes: ~0 rows (aproximadamente)
 DELETE FROM `pedidos_clientes`;
 
+-- -----------------------------------------------------------------------------
+-- CAMBIO v2.1.1: se agregó `usuario_id` + índice + FK a table_abonos_clientes
+-- -----------------------------------------------------------------------------
 -- Volcando estructura para tabla multiservicio_2.0.table_abonos_clientes
 CREATE TABLE IF NOT EXISTS `table_abonos_clientes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `factura_id` int(11) DEFAULT NULL,
   `monto` decimal(15,2) NOT NULL,
   `metodo_pago` enum('EFECTIVO','TRANSFERENCIA') NOT NULL,
+  `usuario_id` int(11) DEFAULT NULL COMMENT 'Usuario que registró el abono',
   `fecha` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `factura_id` (`factura_id`),
-  CONSTRAINT `table_abonos_clientes_ibfk_1` FOREIGN KEY (`factura_id`) REFERENCES `table_facturas` (`id`) ON DELETE CASCADE
+  KEY `idx_abonos_usuario` (`usuario_id`),
+  CONSTRAINT `table_abonos_clientes_ibfk_1` FOREIGN KEY (`factura_id`) REFERENCES `table_facturas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `table_abonos_clientes_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `table_usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Volcando datos para la tabla multiservicio_2.0.table_abonos_clientes: ~0 rows (aproximadamente)

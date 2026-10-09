@@ -209,52 +209,54 @@
         </div>
     </div>
 
-    <!-- MEJORA 3: Historial de Abonos -->
-    <?php if (!empty($data['factura']->abonos)): ?>
-    <div class="glass-card rounded-2xl overflow-hidden shadow-xl mb-6">
-        <div class="p-6 border-b border-slate-100">
-            <h3 class="text-lg font-bold text-navy-blue uppercase tracking-wider flex items-center gap-2">
-                <i data-lucide="history" class="w-5 h-5"></i> Historial de Abonos (<?php echo count($data['factura']->abonos); ?>)
-            </h3>
+    <!-- MEJORA 3: Historial de Abonos (contenedor dinámico sin reload) -->
+    <div id="historial-abonos-wrapper">
+        <?php if (!empty($data['factura']->abonos)): ?>
+        <div class="glass-card rounded-2xl overflow-hidden shadow-xl mb-6">
+            <div class="p-6 border-b border-slate-100">
+                <h3 class="text-lg font-bold text-navy-blue uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="history" class="w-5 h-5"></i> Historial de Abonos (<?php echo count($data['factura']->abonos); ?>)
+                </h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                            <th class="px-6 py-4">Fecha</th>
+                            <th class="px-6 py-4">Método</th>
+                            <th class="px-6 py-4">Registrado por</th>
+                            <th class="px-6 py-4 text-right">Monto</th>
+                            <th class="px-6 py-4 text-right">Recibo</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-sm text-slate-600">
+                        <?php foreach ($data['factura']->abonos as $abono): ?>
+                        <tr class="hover:bg-slate-50/50">
+                            <td class="px-6 py-4"><?php echo date('d/m/Y H:i', strtotime($abono->fecha)); ?></td>
+                            <td class="px-6 py-4">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold <?php echo $abono->metodo_pago === 'EFECTIVO' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'; ?>">
+                                    <?php echo $abono->metodo_pago; ?>
+                                </span>
+                            </td>
+                            <td class="px-6 py-4"><?php echo s($abono->usuario_nombre ?? 'SISTEMA'); ?></td>
+                            <td class="px-6 py-4 text-right font-black text-emerald-600">
+                                $<?php echo number_format($abono->monto, 0, ',', '.'); ?>
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <a href="<?php echo URLROOT; ?>/facturacion/imprimirReciboAbono/<?php echo $abono->id; ?>" 
+                                   target="_blank"
+                                   class="inline-flex items-center gap-1 text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition-all">
+                                    <i data-lucide="printer" class="w-4 h-4"></i> PDF
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
-                        <th class="px-6 py-4">Fecha</th>
-                        <th class="px-6 py-4">Método</th>
-                        <th class="px-6 py-4">Registrado por</th>
-                        <th class="px-6 py-4 text-right">Monto</th>
-                        <th class="px-6 py-4 text-right">Recibo</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm text-slate-600">
-                    <?php foreach ($data['factura']->abonos as $abono): ?>
-                    <tr class="hover:bg-slate-50/50">
-                        <td class="px-6 py-4"><?php echo date('d/m/Y H:i', strtotime($abono->fecha)); ?></td>
-                        <td class="px-6 py-4">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold <?php echo $abono->metodo_pago === 'EFECTIVO' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'; ?>">
-                                <?php echo $abono->metodo_pago; ?>
-                            </span>
-                        </td>
-                        <td class="px-6 py-4"><?php echo s($abono->usuario_nombre ?? 'SISTEMA'); ?></td>
-                        <td class="px-6 py-4 text-right font-black text-emerald-600">
-                            $<?php echo number_format($abono->monto, 0, ',', '.'); ?>
-                        </td>
-                        <td class="px-6 py-4 text-right">
-                            <a href="<?php echo URLROOT; ?>/facturacion/imprimirReciboAbono/<?php echo $abono->id; ?>" 
-                               target="_blank"
-                               class="inline-flex items-center gap-1 text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition-all">
-                                <i data-lucide="printer" class="w-4 h-4"></i> PDF
-                            </a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
 
     <!-- Items de la Factura -->
     <div class="glass-card rounded-2xl overflow-hidden shadow-xl">
@@ -312,6 +314,27 @@
 
     function fmtNum(n) {
         return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n || 0);
+    }
+
+    /**
+     * FIX Ronda 5 (P2-01): Refresca el bloque de historial de abonos sin recargar la página.
+     * Hace fetch al mismo URL, parsea con DOMParser y reemplaza el contenido del wrapper.
+     */
+    async function refrescarHistorialAbonos() {
+        try {
+            const url = window.location.pathname + window.location.search;
+            const res = await fetch(url, { cache: 'no-store' });
+            const html = await res.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const nuevo = doc.getElementById('historial-abonos-wrapper');
+            const actual = document.getElementById('historial-abonos-wrapper');
+            if (nuevo && actual) {
+                actual.innerHTML = nuevo.innerHTML;
+                if (window.lucide) lucide.createIcons();
+            }
+        } catch (e) {
+            console.error('Error al refrescar historial de abonos:', e);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -422,8 +445,8 @@
                 if (data.success) {
                     AppUtils.showToast(data.mensaje || 'Pago registrado');
                     refrescarResumen(monto, metodo);
-                    // Recargar la página tras un pequeño delay para ver el historial actualizado
-                    setTimeout(() => window.location.reload(), 1200);
+                    // FIX Ronda 5: refrescar solo el historial de abonos en vez de recargar
+                    await refrescarHistorialAbonos();
                 } else {
                     AppUtils.showToast(data.mensaje || 'Error', 'error');
                     validarMonto();

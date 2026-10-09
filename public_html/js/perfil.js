@@ -1,5 +1,9 @@
 /**
- * Lógica para la gestión del perfil de usuario
+ * Lógica para la gestión del perfil de usuario.
+ * 
+ * v2.0 (2026-10-09) — P2-10:
+ *   • Se reemplazó la función local `setupPreview` por `AppUtils.setupImagePreview`,
+ *     que ahora valida tamaño (2 MB) y tipo MIME antes de previsualizar.
  */
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('formPerfil');
@@ -8,22 +12,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const imgPreview = document.getElementById('imgPreview');
     const imgFrentePreview = document.getElementById('imgFrentePreview');
 
-    // Función genérica de vista previa
-    const setupPreview = (input, preview) => {
-        input.addEventListener('change', function () {
-            const file = this.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = e => preview.src = e.target.result;
-                reader.readAsDataURL(file);
-            }
-        });
-    };
-
-    setupPreview(inputFoto, imgPreview);
-    setupPreview(inputFotoFrente, imgFrentePreview);
+    // Configurar previsualizaciones con validación (P2-10)
+    if (inputFoto && imgPreview) {
+        AppUtils.setupImagePreview(inputFoto, imgPreview);
+    }
+    if (inputFotoFrente && imgFrentePreview) {
+        AppUtils.setupImagePreview(inputFotoFrente, imgFrentePreview);
+    }
 
     // Envío del formulario
+    if (!form) return;
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -46,14 +45,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const result = await response.json();
-        } catch (error) {
-            AppUtils.showAlert('Error', 'No se pudo conectar con el servidor', 'error');
-        } finally {
             AppUtils.hideLoading();
-            if (typeof result !== 'undefined') {
-                if (result.success) AppUtils.showAlert('¡Éxito!', result.mensaje, 'success');
-                else AppUtils.showAlert('Error', result.mensaje, 'error');
+
+            if (result.success) {
+                AppUtils.showAlert('¡Éxito!', result.mensaje, 'success');
+            } else {
+                AppUtils.showAlert('Error', result.mensaje, 'error');
             }
+        } catch (error) {
+            AppUtils.hideLoading();
+            AppUtils.showAlert('Error', 'No se pudo conectar con el servidor', 'error');
         }
     });
 });

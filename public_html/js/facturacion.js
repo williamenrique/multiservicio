@@ -1,20 +1,29 @@
 /**
  * Lógica de Facturación con Gestión de Colas
  * 
- * v2.6 (2026-10-09) — FIX P1-11:
- *   • Eliminado el setInterval(loadInvoicesFromServer, 10000) que corría
- *     permanentemente. Ahora se registra en PollingManager con un intervalo
- *     de 30s (el doble que antes, pero gestionado por el tick maestro y
- *     pausado automáticamente cuando la pestaña no está visible).
+ * v2.7 (2026-10-09) — FIX cliente no persistente:
+ *   • FIX: Al seleccionar un cliente desde el buscador, ahora se fuerza
+ *     un sync inmediato (syncActiveInvoice(true)) en vez de esperar 1s
+ *     al debounce. Antes, si algún render intermedio pisaba el estado,
+ *     el cliente no se persistía.
+ *   • FIX: El registro rápido de cliente también dispara el sync antes
+ *     de hacer renderQueue + renderInvoice (evita race condition).
+ *   • Toast actualizado: "Cliente vinculado y guardado" en vez de solo
+ *     "Cliente vinculado".
  * 
- * v2.5: FIX CSRF (todas las peticiones POST envían X-CSRF-TOKEN).
- * v2.4: Panel del presupuesto anexado se muestra automáticamente.
+ * v2.6 (P1-11): Polling de facturas vía PollingManager (30s).
+ * v2.5: FIX CSRF (X-CSRF-TOKEN en todas las peticiones POST).
  * 
- * DEPENDENCIAS (cargar en este orden desde header.php):
- *   1. polling.js → define window.PollingManager y window.DashboardCache
- *   2. utils.js   → define window.AppUtils
- *   3. app.js     → inicia PollingManager.start()
- *   4. facturacion.js (este archivo, cargado desde la vista)
+ * v2.8 (2026-10-09) — P2-09:
+ *   • El botón "Registro Rápido de Cliente" (#btnQuickClient) ahora delega
+ *     al helper unificado AppUtils.openQuickClientModal(), que también usa
+ *     taller_nueva_orden.js → quickRegisterOS. Se eliminó el Swal.fire
+ *     duplicado y el fetch propio del listener original (~60 líneas).
+ *   • La lógica post-guardado (crear option en select oculto, vincular a
+ *     factura activa, sync inmediato, renderQueue, renderInvoice) se
+ *     conserva intacta dentro del callback onSuccess.
+ * 
+ * DEPENDENCIAS: polling.js, utils.js, DataTableRefactor.js, app.js.
  */
 document.addEventListener('DOMContentLoaded', () => {
     const inputPlaca = document.getElementById('pos-placa');
@@ -156,105 +165,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ───────────────────────────────────────────────────────────────────────
+    // REGISTRO RÁPIDO DE CLIENTE (FIX P2-09: helper unificado)
+    // ───────────────────────────────────────────────────────────────────────
     btnQuickClient.addEventListener('click', async () => {
-        const { value: formValues } = await Swal.fire({
+        await AppUtils.openQuickClientModal({
             title: 'REGISTRO DE CLIENTE',
-            html: `
-                <style>
-                    .swal2-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-                    .swal2-full { grid-column: span 2; }
-                    .swal2-input { padding: 8px 12px !important; font-size: 13px !important; }
-                    .swal2-compact .swal2-title { font-size: 16px !important; padding: 0.5em 0 0.3em !important; }
-                    .swal2-compact .swal2-html-container { margin: 0.5em 0 0 !important; padding: 0 !important; }
-                    .swal2-compact .swal2-actions { padding: 0.5em 0 0 !important; gap: 8px !important; }
-                    .swal2-compact .swal2-confirm, .swal2-compact .swal2-cancel { padding: 8px 16px !important; font-size: 13px !important; }
-                </style>
-                <div class="swal2-grid">
-                    <input id="swal-input1" class="swal2-input swal2-full" placeholder="NIT / CÉDULA *">
-                    <input id="swal-input2" class="swal2-input swal2-full" placeholder="NOMBRE COMPLETO *">
-                    <input id="swal-input3" class="swal2-input" type="tel" placeholder="TELÉFONO">
-                    <input id="swal-input4" class="swal2-input" type="email" placeholder="EMAIL">
-                    <input id="swal-input5" class="swal2-input swal2-full" placeholder="DIRECCIÓN">
-                </div>
-            `,
-            focusConfirm: false,
-            showCancelButton: true,
-            confirmButtonText: 'REGISTRAR',
-            confirmButtonColor: '#10b981',
-            customClass: { popup: 'swal2-compact', htmlContainer: 'swal2-html-compact' },
-            preConfirm: () => {
-                const id = document.getElementById('swal-input1').value.trim();
-                const nombre = document.getElementById('swal-input2').value.trim();
-                if (!id || !nombre) {
-                    Swal.showValidationMessage('Cédula/NIT y Nombre son obligatorios');
-                    return false;
+            confirmText: 'REGISTRAR',
+            onSuccess: async (cliente) => {
+                // 1. Crear/actualizar la opción en el select oculto
+                let option = inputCliente.querySelector(`option[value="${cliente.id}"]`);
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = cliente.id;
+                    option.textContent = cliente.nombre;
+                    inputCliente.appendChild(option);
+                } else {
+                    option.textContent = cliente.nombre;
                 }
-                return [
-                    id, nombre,
-                    document.getElementById('swal-input3').value.trim(),
-                    document.getElementById('swal-input4').value.trim(),
-                    document.getElementById('swal-input5').value.trim()
-                ];
+                inputCliente.value = cliente.id;
+                if (clientSearchInput) clientSearchInput.value = cliente.nombre;
+
+                // 2. Vincular a la factura activa (o crear una nueva)
+                let activeInv = openInvoices.find(i => i.id === activeInvoiceId);
+                if (!activeInv) {
+                    await initNewInvoice(true);
+                    activeInv = openInvoices.find(i => i.id === activeInvoiceId);
+                }
+                if (activeInv) {
+                    activeInv.cliente_id = cliente.id;
+                    activeInv.cliente_nombre = cliente.nombre;
+
+                    // FIX: Sync inmediato antes de cualquier render
+                    await syncActiveInvoice(true);
+                }
+
+                // 3. Render final
+                renderQueue();
+                renderInvoice();
+                AppUtils.showToast('Cliente registrado y vinculado');
             }
         });
-
-        if (formValues && formValues[0] && formValues[1]) {
-            try {
-                AppUtils.showLoading('Registrando cliente...');
-                const res = await postJSON(`${URLROOT}/clientes/guardar`, {
-                    id: formValues[0], nombre: formValues[1], email: formValues[3],
-                    telefono: formValues[2], direccion: formValues[4]
-                });
-                AppUtils.hideLoading();
-
-                if (res.status === 403) {
-                    AppUtils.showAlert('Sesión expirada', 'El token de seguridad no es válido. Recargue la página e intente de nuevo.', 'error');
-                    return;
-                }
-
-                const data = await res.json();
-
-                if (data.success) {
-                    const clienteId = formValues[0].toUpperCase();
-                    const clienteNombre = formValues[1].toUpperCase();
-
-                    let option = inputCliente.querySelector(`option[value="${clienteId}"]`);
-                    if (!option) {
-                        option = document.createElement('option');
-                        option.value = clienteId;
-                        option.textContent = clienteNombre;
-                        inputCliente.appendChild(option);
-                    } else {
-                        option.textContent = clienteNombre;
-                    }
-                    inputCliente.value = clienteId;
-                    if (clientSearchInput) clientSearchInput.value = clienteNombre;
-
-                    const activeInv = openInvoices.find(i => i.id === activeInvoiceId);
-                    if (activeInv) {
-                        activeInv.cliente_id = clienteId;
-                        activeInv.cliente_nombre = clienteNombre;
-                    } else {
-                        await initNewInvoice(true);
-                        const nueva = openInvoices.find(i => i.id === activeInvoiceId);
-                        if (nueva) {
-                            nueva.cliente_id = clienteId;
-                            nueva.cliente_nombre = clienteNombre;
-                        }
-                    }
-
-                    await syncActiveInvoice(true);
-                    renderQueue();
-                    renderInvoice();
-                    AppUtils.showToast('Cliente registrado y vinculado a la factura');
-                } else {
-                    AppUtils.showToast(data.mensaje || 'Error al registrar cliente', 'error');
-                }
-            } catch (e) {
-                AppUtils.hideLoading();
-                AppUtils.showToast('Error de conexión al registrar cliente', 'error');
-            }
-        }
     });
 
     const initNewInvoice = async (forceSave = false) => {
@@ -378,6 +329,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
+    // ───────────────────────────────────────────────────────────────────────
+    // BÚSQUEDA DE CLIENTES (con fix de persistencia)
+    // ───────────────────────────────────────────────────────────────────────
     if (clientSearchInput) {
         clientSearchInput.addEventListener('input', async (e) => {
             const term = e.target.value.trim();
@@ -413,25 +367,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    window.selectClientFromResults = (index) => {
+    /**
+     * FIX: Maneja la selección de un cliente desde el buscador.
+     * 
+     * Cambios respecto a la versión anterior:
+     *   1. Actualiza la factura en memoria ANTES de cualquier render.
+     *   2. Fuerza un sync INMEDIATO (syncActiveInvoice(true)) en vez de
+     *      esperar 1s al debounce.
+     *   3. Renderiza la UI DESPUÉS del sync, para que no haya race conditions.
+     */
+    window.selectClientFromResults = async (index) => {
         const client = lastClientResults[index];
-        if (client) {
-            let option = inputCliente.querySelector(`option[value="${client.id}"]`);
-            if (!option) {
-                option = document.createElement('option');
-                option.value = client.id;
-                option.textContent = client.nombre;
-                inputCliente.appendChild(option);
-            }
+        if (!client) return;
 
-            inputCliente.value = client.id;
-            if (clientSearchInput) clientSearchInput.value = client.nombre;
-            clientSearchResults.classList.add('hidden');
-            const inv = openInvoices.find(i => i.id === activeInvoiceId);
-            if (inv) inv.cliente_nombre = client.nombre;
-            updateActiveData('cliente_id', client.id);
-            AppUtils.showToast('Cliente vinculado');
+        // 1. Crear la opción en el select oculto si no existe
+        let option = inputCliente.querySelector(`option[value="${client.id}"]`);
+        if (!option) {
+            option = document.createElement('option');
+            option.value = client.id;
+            option.textContent = client.nombre;
+            inputCliente.appendChild(option);
         }
+
+        // 2. Actualizar los inputs visuales
+        inputCliente.value = client.id;
+        if (clientSearchInput) clientSearchInput.value = client.nombre;
+        clientSearchResults.classList.add('hidden');
+
+        // 3. Actualizar la factura activa EN MEMORIA (antes de cualquier render)
+        const inv = openInvoices.find(i => i.id === activeInvoiceId);
+        if (inv) {
+            inv.cliente_id = client.id;
+            inv.cliente_nombre = client.nombre;
+
+            // 4. FIX: Sync INMEDIATO (sin esperar al debounce de 1s)
+            await syncActiveInvoice(true);
+        }
+
+        // 5. Renderizar la UI DESPUÉS del sync
+        renderQueue();
+        renderInvoice();
+        AppUtils.showToast('Cliente vinculado y guardado');
     };
 
     /* ==================== BÚSQUEDA DE PRESUPUESTOS PARA ANEXAR ==================== */
@@ -1273,20 +1249,9 @@ document.addEventListener('DOMContentLoaded', () => {
             clientSearchResults.classList.add('hidden');
     });
 
-    // ═══════════════════════════════════════════════════════════════
-    // FIX P1-11: Polling de borradores vía PollingManager (30s)
-    // 
-    // Antes: setInterval(loadInvoicesFromServer, 10000) → 6 requests/min
-    // Ahora: registrado en PollingManager → 2 requests/min y pausado
-    //        automáticamente cuando la pestaña no está visible.
-    // 
-    // PollingManager.start() se llama en app.js (mismo DOMContentLoaded
-    // anterior). Ejecutará esta tarea inmediatamente al arrancar.
-    // ═══════════════════════════════════════════════════════════════
     if (typeof PollingManager !== 'undefined') {
         PollingManager.register('facturacion-drafts', loadInvoicesFromServer, 30000);
     } else {
-        // Fallback defensivo: si polling.js no cargó, comportamiento viejo
         loadInvoicesFromServer();
         setInterval(loadInvoicesFromServer, 30000);
     }

@@ -1,37 +1,24 @@
 /**
  * APP CORE - UNIFICADO Y LEGIBLE
  * 
- * v2.3 (2026-10-09) — FIX bloque Core (P1-01, P1-02, P1-03, P1-11):
- *   • Todos los setInterval() sueltos fueron reemplazados por llamadas a
- *     PollingManager.register(). Ahora hay un único timer maestro global
- *     (definido en polling.js) que:
- *       - Se pausa automáticamente cuando la pestaña no está visible.
- *       - Reduce a la mitad los requests en background.
- *   • Los 3 componentes que consumían /dashboard/getStats por separado
- *     ahora usan DashboardCache.get() → 1 solo fetch compartido.
- *   • Se eliminó la doble lectura de stats en el arranque.
+ * v2.7 (2026-10-09) — FIX "Mecánico removido" al asignar:
+ *   • El valor del mecánico se captura en el evento `change` del select
+ *     (dentro de didOpen), no solo en preConfirm. Así el valor persiste
+ *     aunque el select se resetee al cerrar el modal.
+ *   • Logs de diagnóstico [Taller] para ver exactamente qué se envía.
+ *   • Si el select tiene una opción seleccionada con texto válido pero
+ *     value vacío, se usa el fallback.
  * 
- * v2.2: Se eliminó la definición duplicada de AppUtils (vive en utils.js).
- * v2.1: Endpoints opcionales fallan silenciosamente si devuelven 404.
- * 
- * DEPENDENCIAS (cargar en este orden desde header.php):
- *   1. polling.js        → define window.PollingManager y window.DashboardCache
- *   2. utils.js          → define window.AppUtils
- *   3. DataTableRefactor
- *   4. app.js            → este archivo
+ * v2.6: preConfirm valida orden.id. Envío redundante id + orden_id.
+ * v2.5: Sin location.reload() al asignar mecánico.
+ * v2.4: FIX sidebar (overlay + persistencia).
+ * v2.3: PollingManager + DashboardCache.
+ * v2.2: AppUtils en utils.js (fuente única).
  */
 
-// =============================================================================
-// 1. ESTADO GLOBAL DE LA APP
-// =============================================================================
 window.currentLoggedInUser = null;
 
-// =============================================================================
-// 2. INICIALIZACIÓN Y EVENTOS PRINCIPALES
-// =============================================================================
-
 document.addEventListener("DOMContentLoaded", async () => {
-    // Guard defensivo: si utils.js o polling.js no se cargaron, avisar.
     if (typeof AppUtils === 'undefined') {
         console.error('[app.js] CRÍTICO: AppUtils no está definido. Verifica utils.js.');
         return;
@@ -46,7 +33,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     initUserDropdown();
     initGlobalSearch();
 
-    // Inyectar Estilos de Tooltips Personalizados (Negro y Blanco)
     const style = document.createElement('style');
     style.textContent = `
         .tippy-box[data-theme~='taller-dark'] {
@@ -85,11 +71,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.head.appendChild(style);
 
     await fetchLoggedInUserFromDB();
-
-    // Notificar a otros módulos (como dashboard.js) que el usuario ya está cargado
     document.dispatchEvent(new CustomEvent("userLoaded", { detail: window.currentLoggedInUser }));
 
-    // ─── Registrar tareas en el PollingManager (según rol) ───
     const user = window.currentLoggedInUser;
     const isAdmin = user && (parseInt(user.roleId) === 1 || user.role.toUpperCase() === "ADMINISTRADOR");
     const isMecanico = user && user.role.toUpperCase() === "MECANICO";
@@ -107,16 +90,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         PollingManager.register('pedidos-alerts',  initPedidosAlerts,  60000);
     }
 
-    // Arranca el loop maestro (una sola vez, ejecuta todo inmediatamente + programa intervalos)
     PollingManager.start();
 
     renderTopBarUserInfo();
     window.initGlobalTooltips();
 });
 
-/**
- * Inicializa tooltips de Tippy.js con el tema Taller Dark
- */
 window.initGlobalTooltips = function () {
     if (typeof tippy === 'function') {
         const elements = document.querySelectorAll('[title]:not([data-tippy-content])');
@@ -133,16 +112,9 @@ window.initGlobalTooltips = function () {
     }
 };
 
-/**
- * Escuchar los botones de navegación del navegador (Atrás/Adelante).
- */
 window.addEventListener("popstate", () => {
     window.location.reload();
 });
-
-// =============================================================================
-// 3. FUNCIONES DEL NÚCLEO
-// =============================================================================
 
 function initClock() {
     const clockElement = document.getElementById("digitalClock");
@@ -162,7 +134,6 @@ async function fetchLoggedInUserFromDB() {
             if (result.success) window.currentLoggedInUser = result.user;
         }
     } catch (error) {
-        console.error("Error al obtener sesión del usuario:", error);
         window.currentLoggedInUser = null;
     }
 }
@@ -223,28 +194,80 @@ async function renderTopBarUserInfo() {
 function initSidebar() {
     const btn = document.getElementById("toggleSidebar");
     const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("sidebarOverlay");
 
-    if (btn && sidebar) {
-        btn.addEventListener("click", () => {
-            if (window.innerWidth < 1024) {
-                sidebar.classList.toggle("-translate-x-full");
-            } else {
-                sidebar.classList.toggle("w-64");
-                sidebar.classList.toggle("w-20");
-            }
-        });
+    if (!btn || !sidebar) return;
 
-        document.addEventListener("mousedown", (e) => {
-            if (window.innerWidth < 1024 && !sidebar.contains(e.target) && !btn.contains(e.target)) {
-                sidebar.classList.add("-translate-x-full");
-            }
-        });
+    const SIDEBAR_KEY = 'taller_sidebar_collapsed';
+    const isMobile = () => window.innerWidth < 1024;
+
+    if (!isMobile()) {
+        const wasCollapsed = localStorage.getItem(SIDEBAR_KEY) === '1';
+        if (wasCollapsed) {
+            sidebar.classList.remove('w-64');
+            sidebar.classList.add('w-20');
+        } else {
+            sidebar.classList.remove('w-20');
+            sidebar.classList.add('w-64');
+        }
     }
-}
 
-// =============================================================================
-// 4. NOTIFICACIONES Y GESTIÓN DE ACCESO (ADMIN)
-// =============================================================================
+    const openMobileSidebar = () => {
+        sidebar.classList.remove('-translate-x-full');
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            void overlay.offsetWidth;
+            overlay.classList.remove('opacity-0');
+        }
+    };
+
+    const closeMobileSidebar = () => {
+        sidebar.classList.add('-translate-x-full');
+        if (overlay) {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => overlay.classList.add('hidden'), 300);
+        }
+    };
+
+    btn.addEventListener("click", () => {
+        if (isMobile()) {
+            if (sidebar.classList.contains('-translate-x-full')) {
+                openMobileSidebar();
+            } else {
+                closeMobileSidebar();
+            }
+        } else {
+            const nowCollapsed = !sidebar.classList.contains('w-20');
+            if (nowCollapsed) {
+                sidebar.classList.remove('w-64');
+                sidebar.classList.add('w-20');
+            } else {
+                sidebar.classList.remove('w-20');
+                sidebar.classList.add('w-64');
+            }
+            localStorage.setItem(SIDEBAR_KEY, nowCollapsed ? '1' : '0');
+        }
+    });
+
+    if (overlay) {
+        overlay.addEventListener('click', closeMobileSidebar);
+    }
+
+    document.addEventListener("mousedown", (e) => {
+        if (isMobile()
+            && !sidebar.contains(e.target)
+            && !btn.contains(e.target)
+            && !sidebar.classList.contains('-translate-x-full')) {
+            closeMobileSidebar();
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        if (!isMobile()) {
+            closeMobileSidebar();
+        }
+    });
+}
 
 async function initRecoveryNotifications() {
     const bellContainer = document.getElementById("recovery-bell-container");
@@ -283,9 +306,7 @@ async function initRecoveryNotifications() {
             bellContainer.innerHTML = "";
             bellContainer.classList.add('hidden');
         }
-    } catch (error) {
-        // Silencioso
-    }
+    } catch (error) {}
 }
 
 async function initCreditNotifications() {
@@ -363,9 +384,7 @@ async function initCreditNotifications() {
             const dashContainer = document.getElementById("dashboard-overdue-alert");
             if (dashContainer) dashContainer.innerHTML = "";
         }
-    } catch (error) {
-        // Silencioso
-    }
+    } catch (error) {}
 }
 
 async function initLowStockNotifications() {
@@ -374,7 +393,6 @@ async function initLowStockNotifications() {
     if (!container && !dashContainer) return;
 
     try {
-        // Usa la caché compartida (evita fetch duplicado con profitability/dashboard)
         const result = await DashboardCache.get();
         if (!result) return;
         const lowStock = result.lowStock || [];
@@ -419,7 +437,7 @@ async function initLowStockNotifications() {
             } else dashContainer.innerHTML = "";
         }
         window.lucide && lucide.createIcons();
-    } catch (e) { /* silencioso */ }
+    } catch (e) {}
 }
 
 async function initDebtorsCard() {
@@ -529,7 +547,6 @@ async function initProfitabilityCard() {
     if (!container) return;
 
     try {
-        // Usa caché compartida (evita fetch duplicado con low-stock y dashboard)
         const result = await DashboardCache.get();
         if (!result) return;
 
@@ -617,12 +634,8 @@ async function initProfitabilityCard() {
                     </div>
                 </div>`;
         }
-    } catch (error) { /* silencioso */ }
+    } catch (error) {}
 }
-
-// =============================================================================
-// 5. UTILIDADES GLOBALES (devoluciones, recuperación, búsqueda, PDF)
-// =============================================================================
 
 window.iniciarDevolucion = async (ventaId, fecha) => {
     try {
@@ -865,9 +878,6 @@ window.printInvoice = async (ventaId) => {
     }
 };
 
-// =============================================================================
-// 6. NOTIFICACIONES GLOBALES (AppNotifications)
-// =============================================================================
 const AppNotifications = {
     checkSupplierDebts: async () => {
         const response = await fetch(`${URLROOT}/proveedores/listarDeudas`);
@@ -964,9 +974,7 @@ async function initPedidosAlerts() {
                         </a>`).join('');
             }
         }
-    } catch (e) {
-        // Silencioso
-    }
+    } catch (e) {}
 }
 
 async function initWorkshopAlerts() {
@@ -1049,9 +1057,18 @@ async function initWorkshopAlerts() {
             }
         }
         if (window.lucide) lucide.createIcons();
-    } catch (e) { /* silencioso */ }
+    } catch (e) {}
 }
 
+/**
+ * Modal de gestión de Orden de Servicio en el taller.
+ * 
+ * FIX v2.7 (2026-10-09):
+ *   • El valor del mecánico se captura en el evento `change` del select
+ *     (dentro de didOpen). Así el valor persiste aunque el select se
+ *     resetee por alguna razón.
+ *   • Logs [Taller] para ver exactamente qué se envía.
+ */
 window.verDetalleOrdenTaller = async (id) => {
     try {
         AppUtils.showLoading('Cargando hoja de ruta...');
@@ -1071,6 +1088,17 @@ window.verDetalleOrdenTaller = async (id) => {
         const staff = result.staff || [];
         const servicios = result.servicios || [];
         const isAdmin = (parseInt(window.USER_ROLE_ID || 0) === 1 || (window.USER_ROLE || "").toUpperCase() === 'ADMINISTRADOR');
+
+        console.log('[Taller] Orden cargada:', {
+            id: orden.id,
+            placa: orden.placa,
+            mecanico_actual: orden.mecanico_id,
+            staff_count: staff.length
+        });
+
+        // ─── Variable externa que captura el valor del select ───
+        let mecanicoSeleccionadoId = orden.mecanico_id || '';
+        let mecanicoSeleccionadoNombre = '';
 
         const statusColors = {
             'RECIBIDO': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
@@ -1170,7 +1198,7 @@ window.verDetalleOrdenTaller = async (id) => {
                     <div class="space-y-2">
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Asignar Mecánico Responsable</label>
                         <select id="swal-mecanico-id" class="w-full p-3 bg-black border border-slate-800 rounded-xl text-white font-bold text-sm focus:ring-2 focus:ring-neon-green outline-none transition-all ${!isAdmin ? 'opacity-50 pointer-events-none' : ''}">
-                            <option value="">-- SELECCIONE UN TÉCNICO --</option>
+                            <option value="">-- SIN ASIGNAR --</option>
                             ${staff.map(s => `<option value="${s.id}" ${orden.mecanico_id === s.id ? 'selected' : ''}>${s.nombre} (${s.cargo})</option>`).join('')}
                         </select>
                         ${!isAdmin ? '<p class="text-[9px] text-amber-500 font-bold italic ml-1">* Solo el administrador puede reasignar mecánicos</p>' : ''}
@@ -1198,34 +1226,141 @@ window.verDetalleOrdenTaller = async (id) => {
             },
             didOpen: () => {
                 if (window.lucide) lucide.createIcons();
+
+                // ─── FIX: capturar valor del select en cada change ───
+                const select = document.getElementById('swal-mecanico-id');
+                if (select) {
+                    // Guardar valor inicial
+                    mecanicoSeleccionadoId = select.value || '';
+                    const opt = select.options[select.selectedIndex];
+                    mecanicoSeleccionadoNombre = opt ? opt.text.split('(')[0].trim() : '';
+
+                    console.log('[Taller] Select inicializado:', {
+                        value: mecanicoSeleccionadoId,
+                        text: mecanicoSeleccionadoNombre,
+                        optionCount: select.options.length
+                    });
+
+                    // Capturar cada cambio
+                    select.addEventListener('change', (e) => {
+                        mecanicoSeleccionadoId = e.target.value || '';
+                        const selectedOpt = e.target.options[e.target.selectedIndex];
+                        mecanicoSeleccionadoNombre = selectedOpt ? selectedOpt.text.split('(')[0].trim() : '';
+
+                        console.log('[Taller] Mecánico seleccionado:', {
+                            id: mecanicoSeleccionadoId,
+                            nombre: mecanicoSeleccionadoNombre,
+                            selectedIndex: e.target.selectedIndex
+                        });
+                    });
+                } else {
+                    console.error('[Taller] Select #swal-mecanico-id NO ENCONTRADO en el modal');
+                }
             },
             preConfirm: () => {
-                const mecanicoId = document.getElementById('swal-mecanico-id').value;
-                return { id: orden.id, mecanico_id: mecanicoId };
+                // Leer del select (por si acaso el change no disparó)
+                const select = document.getElementById('swal-mecanico-id');
+                const currentSelectValue = select ? (select.value || '') : '';
+
+                // Usar el más reciente: el capturado por change, o el del select actual
+                const mecanicoIdFinal = currentSelectValue || mecanicoSeleccionadoId || '';
+
+                // Obtener nombre del select actual si no tenemos
+                let mecanicoNombreFinal = mecanicoSeleccionadoNombre;
+                if (!mecanicoNombreFinal && select && select.selectedIndex >= 0) {
+                    const opt = select.options[select.selectedIndex];
+                    if (opt && opt.value === mecanicoIdFinal) {
+                        mecanicoNombreFinal = opt.text.split('(')[0].trim();
+                    }
+                }
+
+                const payload = {
+                    id: orden.id,
+                    orden_id: orden.id,
+                    mecanico_id: mecanicoIdFinal,
+                    mecanico_nombre: mecanicoNombreFinal
+                };
+
+                console.log('[Taller] Payload final a enviar:', payload);
+
+                if (!orden.id) {
+                    Swal.showValidationMessage('Error: no se pudo identificar la orden. Recargue la página.');
+                    return false;
+                }
+
+                return payload;
             }
         });
 
         if (formValues && isAdmin) {
             AppUtils.showLoading('Sincronizando...');
+
+            const bodyToSend = {
+                id: formValues.id,
+                orden_id: formValues.orden_id,
+                mecanico_id: formValues.mecanico_id
+            };
+
+            console.log('[Taller] Enviando POST a /taller/asignarMecanico con:', bodyToSend);
+
             const response = await fetch(`${URLROOT}/taller/asignarMecanico`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': CSRF_TOKEN || ''
                 },
-                body: JSON.stringify(formValues)
+                body: JSON.stringify(bodyToSend)
             });
             const saveResult = await response.json();
             AppUtils.hideLoading();
 
+            console.log('[Taller] Respuesta del servidor:', saveResult);
+
             if (saveResult.success) {
                 AppUtils.showToast(saveResult.mensaje);
-                setTimeout(() => location.reload(), 800);
+
+                // Actualizar la celda del mecánico en la tabla
+                const fila = document.querySelector(`tr[data-orden-id="${formValues.id}"]`);
+                if (fila) {
+                    const celda = fila.querySelector('.celda-mecanico');
+                    if (celda) {
+                        if (formValues.mecanico_id && formValues.mecanico_nombre) {
+                            celda.innerHTML = `
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="user-cog" class="w-4 h-4 text-slate-400"></i>
+                                    <span class="font-bold text-slate-700 uppercase">${formValues.mecanico_nombre}</span>
+                                </div>`;
+                        } else {
+                            celda.innerHTML = `
+                                <span class="flex items-center gap-1.5 text-rose-500 font-black animate-pulse uppercase tracking-widest text-[10px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-100 w-fit">
+                                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Sin Asignar
+                                </span>`;
+                        }
+                        if (window.lucide) lucide.createIcons();
+                    }
+
+                    const selectEstado = fila.querySelector('.status-select');
+                    const estadoActual = selectEstado ? selectEstado.value : '';
+                    if (estadoActual === 'LISTO') {
+                        const btnFacturar = fila.querySelector('.btn-facturar');
+                        const btnNoMec = fila.querySelector('.btn-no-mecanico');
+                        if (formValues.mecanico_id) {
+                            btnFacturar?.classList.remove('hidden');
+                            btnNoMec?.classList.add('hidden');
+                        } else {
+                            btnFacturar?.classList.add('hidden');
+                            btnNoMec?.classList.remove('hidden');
+                        }
+                    }
+                }
+
+                if (typeof initWorkshopAlerts === 'function') initWorkshopAlerts();
             } else {
                 AppUtils.showToast(saveResult.error || 'Error al actualizar', 'error');
             }
         }
     } catch (err) {
+        console.error('[Taller] Error en verDetalleOrdenTaller:', err);
         AppUtils.showToast('Error de comunicación', 'error');
     }
 };

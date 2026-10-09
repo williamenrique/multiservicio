@@ -1,3 +1,4 @@
+lista 
 PRIORIDAD 0 — CRÍTICO (Hacer primero, sin esto no hay mejora real)
 ID	Tarea	Impacto	Esfuerzo	Archivos
 P0-01	Eliminar código legacy completo (ControllerCarrito, ControllerPedido, ControllerRepuesto, ModelCarrito, ModelPedido, ModelRepuestos, carrito.js, catalogo.js, repuestos/index.php, carrito/index.php). No se usan en el flujo actual y consumen ciclos de análisis de estructura.txt.	🟢 Alto (limpieza)	30 min	10 archivos
@@ -27,6 +28,7 @@ P1-09	ModelPresupuesto::stockDisponibleProducto vs ModelInventario::getSqlReserv
 P1-10	Consolidar initNewInvoice + loadInvoicesFromServer. En facturacion.js, hay dos flujos que crean facturas localmente y luego piden al servidor. Redundancia de renders.	🟡 Medio	1 h	facturacion.js
 P1-11	Reducir setInterval(loadInvoicesFromServer, 10000) de 10s a 30s. En la práctica un borrador no se modifica tan rápido desde otra pestaña.	🟡 Medio	5 min	facturacion.js
 P1-12	Mover scripts inline enormes a archivos externos. presupuesto/index.php (~700 líneas), garantia/index.php (~500), devoluciones/index.php (~400), taller/nueva_orden.php (~300), reportes/index.php (~300). Esto bloquea parsing y no se cachea en el navegador.	🟢 Alto	4 h	5 vistas
+
 
 🟡 PRIORIDAD 2 — MEDIO (Fluidez y UX)
 ID	Tarea	Impacto	Esfuerzo	Archivos

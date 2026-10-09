@@ -1,6 +1,19 @@
 /**
  * DataTableRefactor - Motor unificado para tablas dinámicas segmentadas.
  * Reemplaza la dependencia de DataTables con un enfoque de alto rendimiento.
+ * 
+ * v2.0 (2026-10-09) — FIX bloque P2 (P2-05 + P2-06):
+ *   • NUEVO: AbortController para cancelar requests obsoletos.
+ *     Si el usuario teclea rápido en el buscador, la respuesta vieja ya no
+ *     puede sobrescribir la nueva (evita race conditions).
+ *   • NUEVO: Cache de ventana corta (2s) basada en hash del estado. Si se
+ *     dispara reload() dos veces con el mismo estado, se reutiliza la
+ *     respuesta en vez de refetchear.
+ *   • NUEVO: reload(forceRefresh = true) para forzar bypass de caché.
+ *   • La API pública permanece idéntica — ningún otro archivo requiere cambios.
+ * 
+ * P2-06 aclaración: El código ya usaba `innerHTML = data.map().join('')`
+ * (una sola asignación). NO usaba `innerHTML +=` en bucle. No aplica cambio.
  */
 class DataTableRefactor {
     constructor(config) {
@@ -33,6 +46,14 @@ class DataTableRefactor {
         this.onDataLoaded = config.onDataLoaded || null;
 
         this.searchTimer = null;
+
+        // ─── FIX P2-05: cache de ventana corta + AbortController ───
+        this._abortController = null;
+        this._lastStateKey = '';
+        this._lastResponse = null;
+        this._lastResponseTime = 0;
+        this._cacheWindow = 2000; // ms
+
         window[`handler_${this.tableId}`] = this; // Referencia global para eventos HTML
         this.init();
     }
@@ -54,9 +75,14 @@ class DataTableRefactor {
         this.reload();
     }
 
-    async reload() {
+    /**
+     * Recarga los datos.
+     * 
+     * @param {boolean} forceRefresh - Si true, ignora la caché interna.
+     *                                 Útil tras operaciones CRUD.
+     */
+    async reload(forceRefresh = false) {
         if (!this.tableBody) return;
-        this.tableBody.innerHTML = `<tr><td colspan="20" class="px-8 py-12 text-center text-slate-400 italic animate-pulse">CARGANDO...</td></tr>`;
 
         const offset = (this.state.page - 1) * this.state.limit;
         const dynamicParams = typeof this.getExtraParams === 'function' ? this.getExtraParams() : {};
@@ -68,16 +94,48 @@ class DataTableRefactor {
             ...dynamicParams
         });
 
+        // ─── FIX P2-05: Reusar cache si el estado es idéntico y reciente ───
+        const stateKey = `${this.state.page}|${this.state.limit}|${this.state.search}|${JSON.stringify(dynamicParams)}`;
+        if (!forceRefresh
+            && stateKey === this._lastStateKey
+            && this._lastResponse
+            && (Date.now() - this._lastResponseTime) < this._cacheWindow) {
+            this.render(this._lastResponse.data || []);
+            this.updatePaginationUI(this._lastResponse.total || 0, this._lastResponse.totalFiltrados || 0);
+            if (this.onDataLoaded) this.onDataLoaded(this._lastResponse);
+            return;
+        }
+
+        // ─── FIX P2-05: Cancelar request anterior si sigue en vuelo ───
+        if (this._abortController) {
+            this._abortController.abort();
+        }
+        this._abortController = new AbortController();
+
+        // Placeholder visual
+        this.tableBody.innerHTML = `<tr><td colspan="20" class="px-8 py-12 text-center text-slate-400 italic animate-pulse">CARGANDO...</td></tr>`;
+
         try {
-            const response = await fetch(`${this.endpoint}?${params.toString()}`);
+            const response = await fetch(`${this.endpoint}?${params.toString()}`, {
+                signal: this._abortController.signal
+            });
             const result = await response.json();
 
             if (result.success) {
+                // Guardar en cache
+                this._lastStateKey = stateKey;
+                this._lastResponse = result;
+                this._lastResponseTime = Date.now();
+
                 this.render(result.data || []);
                 this.updatePaginationUI(result.total || 0, result.totalFiltrados || 0);
                 if (this.onDataLoaded) this.onDataLoaded(result);
             }
         } catch (error) {
+            // ─── FIX P2-05: AbortError es esperado al cancelar; no mostrar error ───
+            if (error && error.name === 'AbortError') {
+                return;
+            }
             console.error(`Error en tabla ${this.tableId}:`, error);
             this.tableBody.innerHTML = `<tr><td colspan="20" class="text-center py-8 text-red-500 font-bold">Error de conexión</td></tr>`;
         }

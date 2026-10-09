@@ -7,7 +7,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('fileInput');
     const imagePreview = document.getElementById('imagePreview');
 
-    // Asignamos la instancia a window para que el manejador del formulario pueda llamar a .reload()
+    // ─── FIX P2-07: Lazy load de imágenes en la tabla ───
+    // Añadido loading="lazy" + decoding="async" para que el navegador
+    // solo descargue las miniaturas visibles en el viewport.
+    //
+    // ─── FIX P2-10: Validación unificada de subida (AppUtils) ───
+    // El listener de #fileInput ahora valida tipo MIME + tamaño con
+    // AppUtils.setupImagePreview. Elimina duplicación con perfil.js/empresa.js.
+
     window.handler_inventario = new DataTableRefactor({
         tableId: 'inventario',
         tableBodyId: 'tableBody',
@@ -23,19 +30,15 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRow: (item) => {
             const isLow = item.stock <= (item.stock_minimo || 5);
 
-            // LÓGICA DE RENDERIZADO DE IMAGEN
             const cleanPath = item.imagen ? item.imagen.trim() : null;
             const isDataUri = cleanPath && cleanPath.toLowerCase().startsWith('data:');
             const isRemote = cleanPath && cleanPath.toLowerCase().startsWith('http');
             const imgUrl = (isDataUri || isRemote) ? cleanPath : (cleanPath ? `${URLROOT}/${cleanPath}` : null);
 
-            // ─── CÁLCULO DE STOCK ───
-            // stock_disponible = stock_físico − pendientes_factura − reservas_activas
             const stockDisponible = parseFloat(item.stock_disponible ?? item.stock) || 0;
             const stockFisico = parseFloat(item.stock) || 0;
             const reservado = Math.max(0, stockFisico - stockDisponible);
 
-            // Color del disponible según criticidad
             const stockMinimo = parseFloat(item.stock_minimo) || 5;
             let disponibleColorClass;
             if (stockDisponible <= 0) {
@@ -46,12 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 disponibleColorClass = 'text-slate-700 font-bold';
             }
 
-            // Bloque de reserva: SOLO aparece si hay reservas activas
             const bloqueReserva = reservado > 0
                 ? `<span class="text-[10px] text-orange-500 font-black uppercase tracking-tight">+${reservado} reservado</span>`
                 : '';
 
-            // LÓGICA DE OFERTA
             const tieneOferta = item.oferta_activa && item.oferta_porcentaje > 0;
             const ofertaVigente = tieneOferta &&
                 (!item.oferta_fecha_inicio || new Date(item.oferta_fecha_inicio) <= new Date()) &&
@@ -60,12 +61,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? Math.round(item.precio * (1 - item.oferta_porcentaje / 100) * 100) / 100
                 : item.precio;
 
+            // ─── FIX P2-07: imagen con lazy loading ───
             return `
                 <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300 ${ofertaVigente ? 'bg-amber-50/50' : ''}">
                     <td class="px-8 py-5 align-middle">
                         <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 ${imgUrl ? 'cursor-zoom-in hover:opacity-80 transition-all shadow-sm' : ''}" 
                              ${imgUrl ? `onclick="AppUtils.viewImage(this.querySelector('img').src, '${item.nombre.replace(/'/g, "\\'")}')"` : ''}>
-                            ${imgUrl ? `<img src="${imgUrl}" class="w-full h-full object-cover">` : `<i data-lucide="image" class="w-5 h-5 text-slate-400"></i>`}
+                            ${imgUrl ? `<img src="${imgUrl}" loading="lazy" decoding="async" class="w-full h-full object-cover">` : `<i data-lucide="image" class="w-5 h-5 text-slate-400"></i>`}
                         </div>
                     </td>
                     <td class="px-8 py-5 font-mono text-xs font-bold text-slate-500 uppercase tracking-tight align-middle">${item.codigo || '-'}</td>
@@ -137,19 +139,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Previsualización de imagen (Local)
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                imagePreview.innerHTML = `<img src="${event.target.result}" class="w-full h-full object-cover">`;
-            };
-            reader.readAsDataURL(file);
-        }
-    });
+    // ─── FIX P2-10: Previsualización de imagen (Local) validada con AppUtils ───
+    // Antes: leía el archivo sin validar tamaño ni tipo.
+    // Ahora: AppUtils.setupImagePreview valida MIME + tamaño antes de preview.
+    if (fileInput && imagePreview) {
+        AppUtils.setupImagePreview(fileInput, imagePreview);
+    }
 
-    // Previsualización de imagen (URL)
+    // Previsualización de imagen (URL) — sin cambios, pero coherente con el nuevo flujo
     document.getElementById('prodImagen').addEventListener('input', (e) => {
         const url = e.target.value.trim();
         const isRemote = url.toLowerCase().startsWith('http') || url.toLowerCase().startsWith('data:');
@@ -175,14 +172,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData(form);
 
-        // Normalizar textos a MAYÚSCULAS en el FormData
         formData.set('codigo', document.getElementById('prodCodigo').value.trim().toUpperCase());
         formData.set('nombre', document.getElementById('prodNombre').value.trim().toUpperCase());
         formData.set('marca', document.getElementById('prodMarca').value.trim().toUpperCase());
         formData.set('descripcion', document.getElementById('prodDescripcion').value.trim().toUpperCase());
         formData.set('categoria', document.getElementById('prodCategoria').value.trim().toUpperCase());
 
-        // Adjuntar token CSRF
         formData.append('csrf_token', CSRF_TOKEN);
 
         try {
@@ -258,7 +253,6 @@ document.addEventListener('DOMContentLoaded', () => {
             `<div class="px-4 py-2.5 text-sm font-mono text-slate-700 uppercase cursor-pointer hover:bg-neon-green/10 hover:text-neon-green border-b border-slate-100 last:border-b-0 transition-all" data-codigo="${c}">${c}</div>`
         ).join('');
 
-        // Click en un item lo selecciona y cierra el dropdown
         codigoDropdownList.querySelectorAll('[data-codigo]').forEach(el => {
             el.addEventListener('click', () => {
                 codigoInput.value = el.dataset.codigo;
@@ -268,7 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Mostrar dropdown al enfocar el input si hay códigos
     codigoInput.addEventListener('focus', () => {
         if (codigosCache.length > 0) {
             renderCodigosDropdown(codigosCache.filter(c =>
@@ -278,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Filtrar mientras escribe
     codigoInput.addEventListener('input', (e) => {
         const val = e.target.value.toUpperCase();
         if (val.length > 0 && codigosCache.length > 0) {
@@ -291,14 +283,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Cerrar dropdown al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (codigoDropdown && !e.target.closest('#prodCodigo') && !e.target.closest('#codigoDropdown')) {
             codigoDropdown.classList.add('hidden');
         }
     });
 
-    // Convertir a mayúsculas automáticamente mientras escribe
     document.getElementById('prodCodigo').addEventListener('input', (e) => {
         const start = e.target.selectionStart;
         const end = e.target.selectionEnd;
@@ -310,7 +300,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = e.target.value.trim();
         const sugerenciaEl = document.getElementById('codigoSugerencia');
 
-        // Detectar si el usuario está escribiendo un prefijo (ej: "BOMGAS-")
         const match = val.match(/^([A-Za-z0-9]+-)$/);
         if (match) {
             try {
@@ -362,7 +351,6 @@ document.addEventListener('DOMContentLoaded', () => {
             `<div class="px-4 py-2.5 text-sm font-bold text-slate-700 uppercase cursor-pointer hover:bg-neon-green/10 hover:text-neon-green border-b border-slate-100 last:border-b-0 transition-all" data-marca="${m}">${m}</div>`
         ).join('');
 
-        // Click en un item lo selecciona y cierra el dropdown
         marcaDropdownList.querySelectorAll('[data-marca]').forEach(el => {
             el.addEventListener('click', () => {
                 marcaInput.value = el.dataset.marca;
@@ -371,7 +359,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Mostrar dropdown al enfocar el input si hay marcas
     if (marcaInput) {
         marcaInput.addEventListener('focus', () => {
             if (marcasCache.length > 0) {
@@ -382,7 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Filtrar mientras escribe
         marcaInput.addEventListener('input', (e) => {
             const val = e.target.value.toUpperCase();
             if (val.length > 0 && marcasCache.length > 0) {
@@ -395,7 +381,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Convertir a mayúsculas automáticamente mientras escribe
         marcaInput.addEventListener('input', (e) => {
             const start = e.target.selectionStart;
             const end = e.target.selectionEnd;
@@ -404,7 +389,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Cerrar dropdown de marca al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (marcaDropdown && !e.target.closest('#prodMarca') && !e.target.closest('#marcaDropdown')) {
             marcaDropdown.classList.add('hidden');
@@ -431,12 +415,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('prodDescripcion').value = item.descripcion || '';
         document.getElementById('prodCategoria').value = item.categoria;
         document.getElementById('prodStock').value = item.stock;
-        document.getElementById('prodStockMin').value = item.stock_minimo; // Cargar stock mínimo
+        document.getElementById('prodStockMin').value = item.stock_minimo;
         document.getElementById('prodPrecio').value = item.precio;
         document.getElementById('prodDiasGarantia').value = item.dias_garantia || '';
         document.getElementById('prodImagen').value = item.imagen || '';
 
-        // Lógica de previsualización en edición
         if (item.imagen) {
             const cleanPath = item.imagen.trim();
             const isDataUri = cleanPath.toLowerCase().startsWith('data:');
@@ -483,7 +466,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ofertaProdNombre').textContent = '-';
             document.getElementById('ofertaProdStock').textContent = 'Stock: -';
             document.getElementById('ofertaProdPrecio').textContent = 'Precio: -';
-            // Ocultar botón de eliminar oferta al cerrar
             if (btnEliminarOferta) btnEliminarOferta.classList.add('hidden');
             if (window.lucide) lucide.createIcons();
         }
@@ -493,7 +475,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = window.currentData.find(i => i.id == id);
         if (!item) return;
 
-        // Verificar stock > 1
         if (item.stock <= 1) {
             AppUtils.showToast('El producto debe tener stock mayor a 1 unidad para poder ponerlo en oferta', 'error');
             return;
@@ -504,20 +485,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ofertaProdStock').textContent = `Stock: ${item.stock} unidades`;
         document.getElementById('ofertaProdPrecio').textContent = `Precio: ${AppUtils.formatCurrency(item.precio)}`;
 
-        // Si ya tiene oferta activa, cargar los datos
         if (item.oferta_activa && item.oferta_porcentaje > 0) {
             document.getElementById('ofertaPorcentaje').value = item.oferta_porcentaje;
             document.getElementById('ofertaFechaInicio').value = item.oferta_fecha_inicio || '';
             document.getElementById('ofertaFechaFin').value = item.oferta_fecha_fin || '';
             document.getElementById('ofertaModalTitle').textContent = 'Editar Oferta';
-            // Mostrar botón de eliminar oferta
             if (btnEliminarOferta) btnEliminarOferta.classList.remove('hidden');
         } else {
             document.getElementById('ofertaPorcentaje').value = '';
             document.getElementById('ofertaFechaInicio').value = '';
             document.getElementById('ofertaFechaFin').value = '';
             document.getElementById('ofertaModalTitle').textContent = 'Configurar Oferta';
-            // Ocultar botón de eliminar oferta
             if (btnEliminarOferta) btnEliminarOferta.classList.add('hidden');
         }
 
@@ -571,7 +549,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Handler para eliminar oferta
     btnEliminarOferta?.addEventListener('click', async () => {
         const id = document.getElementById('ofertaProdId').value;
         if (!id) return;
@@ -596,7 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Cerrar modal al hacer clic fuera
     ofertaModal?.addEventListener('click', (e) => {
         if (e.target === ofertaModal) {
             toggleOfertaModal(false);

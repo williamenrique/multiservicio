@@ -1,6 +1,12 @@
 /**
  * detalle.js - Funcionalidad de la página de detalle de producto
- * Dependencias: Toastify-js, URLROOT global, maxStock global (definido en PHP)
+ * 
+ * v2.0 (2026-10-09) — P2-04:
+ *   • Se eliminaron las llamadas inline a Toastify. Ahora se usa
+ *     AppUtils.showToast(msg, type, 'light') — variante blanca del catálogo público.
+ *   • Requiere que utils.js esté cargado ANTES que detalle.js en la vista.
+ * 
+ * Dependencias: AppUtils (utils.js), URLROOT global, maxStock global (definido en PHP)
  */
 
 let cantidad = 1;
@@ -10,11 +16,8 @@ const btnMas = document.querySelector('button[onclick="cambiarCantidad(1)"]');
 const inputCantidad = document.getElementById('cantidad');
 
 function actualizarEstadoBotones() {
-    // Deshabilitar botón - si estamos en 1
     if (btnMenos) btnMenos.disabled = (cantidad <= 1);
-    // Deshabilitar botón + si llegamos al stock máximo
     if (btnMas) btnMas.disabled = (cantidad >= maxStock);
-    // Aplicar estilos visuales
     if (btnMenos) btnMenos.style.opacity = cantidad <= 1 ? '0.4' : '1';
     if (btnMas) btnMas.style.opacity = cantidad >= maxStock ? '0.4' : '1';
 }
@@ -22,22 +25,10 @@ function actualizarEstadoBotones() {
 function cambiarCantidad(delta) {
     const nuevaCantidad = cantidad + delta;
 
-    // No bajar de 1
     if (nuevaCantidad < 1) return;
 
-    // No subir más allá del stock disponible
     if (nuevaCantidad > maxStock) {
-        Toastify({
-            text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
-            duration: 2500,
-            gravity: 'bottom',
-            position: 'right',
-            style: {
-                background: '#f59e0b',
-                borderRadius: '12px',
-                padding: '12px 20px'
-            }
-        }).showToast();
+        AppUtils.showToast('Solo hay ' + maxStock + ' unidades disponibles en stock', 'warning', 'light');
         return;
     }
 
@@ -56,19 +47,8 @@ function actualizarSubtotal() {
 }
 
 function agregarCarrito(id) {
-    // Validar que no exceda el stock antes de enviar
     if (cantidad > maxStock) {
-        Toastify({
-            text: '⚠ No hay suficiente stock. Máximo: ' + maxStock + ' unidades.',
-            duration: 3000,
-            gravity: 'bottom',
-            position: 'right',
-            style: {
-                background: '#f59e0b',
-                borderRadius: '12px',
-                padding: '12px 20px'
-            }
-        }).showToast();
+        AppUtils.showToast('No hay suficiente stock. Máximo: ' + maxStock + ' unidades.', 'warning', 'light');
         return;
     }
 
@@ -83,46 +63,18 @@ function agregarCarrito(id) {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                Toastify({
-                    text: '✓ ' + data.mensaje,
-                    duration: 3000,
-                    gravity: 'bottom',
-                    position: 'right',
-                    style: {
-                        background: '#10b981',
-                        borderRadius: '12px',
-                        padding: '12px 20px'
-                    }
-                }).showToast();
+                AppUtils.showToast(data.mensaje || 'Producto agregado', 'success', 'light');
                 const badge = document.getElementById('cartCount');
-                badge.textContent = data.total_items;
-                badge.classList.remove('hidden');
+                if (badge) {
+                    badge.textContent = data.total_items;
+                    badge.classList.remove('hidden');
+                }
             } else {
-                Toastify({
-                    text: '✗ ' + data.mensaje,
-                    duration: 3000,
-                    gravity: 'bottom',
-                    position: 'right',
-                    style: {
-                        background: '#ef4444',
-                        borderRadius: '12px',
-                        padding: '12px 20px'
-                    }
-                }).showToast();
+                AppUtils.showToast(data.mensaje || 'No se pudo agregar', 'error', 'light');
             }
         })
         .catch(() => {
-            Toastify({
-                text: '✗ Error al conectar',
-                duration: 3000,
-                gravity: 'bottom',
-                position: 'right',
-                style: {
-                    background: '#ef4444',
-                    borderRadius: '12px',
-                    padding: '12px 20px'
-                }
-            }).showToast();
+            AppUtils.showToast('Error al conectar', 'error', 'light');
         });
 }
 
@@ -132,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(r => r.json())
         .then(data => {
             const badge = document.getElementById('cartCount');
-            if (data.total_items > 0) {
+            if (data.total_items > 0 && badge) {
                 badge.textContent = data.total_items;
                 badge.classList.remove('hidden');
             }

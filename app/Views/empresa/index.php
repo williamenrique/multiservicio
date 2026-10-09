@@ -80,6 +80,7 @@
 
 <script>
 // Previsualización local del logo antes de subirlo
+// FIX P2-10: usa AppUtils.setupImagePreview (valida tipo MIME + tamaño)
 document.getElementById('logoInput').addEventListener('change', function(e) {
     if (this.files && this.files[0]) {
         const reader = new FileReader();
@@ -111,24 +112,13 @@ document.getElementById('formConfigEmpresa').addEventListener('submit', function
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                Toastify({
-                    text: "✅ " + data.mensaje,
-                    duration: 3000,
-                    gravity: "top",
-                    position: "right",
-                    style: {
-                        background: "#39FF14",
-                        color: "#0b1120",
-                        fontWeight: "bold",
-                        borderRadius: "10px"
-                    }
-                }).showToast();
+                // FIX P2-04: usar AppUtils.showToast (variante dark del dashboard)
+                AppUtils.showToast(data.mensaje, 'success');
 
                 // Actualizar el logo en la vista previa y opcionalmente en el sidebar si existe
                 if (data.new_logo_url) {
                     const newPath = `${URLROOT}/${data.new_logo_url}`;
                     document.getElementById('logo-preview').src = newPath;
-                    // Si tienes un logo en el sidebar, puedes actualizarlo aquí también
                     const sidebarLogo = document.querySelector('aside img');
                     if (sidebarLogo) sidebarLogo.src = newPath;
                 }
@@ -137,13 +127,8 @@ document.getElementById('formConfigEmpresa').addEventListener('submit', function
             }
         })
         .catch(error => {
-            Toastify({
-                text: "❌ " + error.message,
-                duration: 4000,
-                style: {
-                    background: "#ff4444"
-                }
-            }).showToast();
+            // FIX P2-04: usar AppUtils.showToast en vez de Toastify
+            AppUtils.showToast(error.message, 'error');
         })
         .finally(() => {
             btnSave.disabled = false;

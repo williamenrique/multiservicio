@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo s($titulo); ?> - <?php echo SITENAME; ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
     const URLROOT = "<?php echo URLROOT; ?>";
     </script>
@@ -162,7 +163,6 @@
                     <!-- Controles de cantidad y subtotal -->
                     <div class="mt-auto pt-6 border-t border-gray-100">
                         <?php if ($repuesto->stock > 0): ?>
-                        <!-- Cantidad y subtotal en móvil: apilados; en desktop: en fila -->
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                             <div class="flex items-center gap-3">
                                 <span class="text-sm text-gray-500 font-medium">Cantidad:</span>
@@ -183,7 +183,6 @@
                                 <span id="subtotalDetalle" data-precio="<?php echo (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente) ? $repuesto->precio_final : $repuesto->precio; ?>" class="text-xl font-bold text-emerald-600">$<?php echo number_format((!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente) ? $repuesto->precio_final : $repuesto->precio, 2); ?></span>
                             </div>
                         </div>
-                        <!-- Botón agregar -->
                         <button onclick="agregarCarrito(<?php echo $repuesto->id; ?>)"
                             class="btn-primary w-full text-center py-3 text-base font-semibold flex items-center justify-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -211,10 +210,11 @@
         </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script>
         const maxStock = <?php echo $repuesto->stock; ?>;
     </script>
+    <!-- FIX P2-04: AppUtils (utils.js) debe cargarse ANTES de detalle.js -->
+    <script src="<?php echo URLROOT; ?>/js/utils.js"></script>
     <script src="<?php echo URLROOT; ?>/js/detalle.js"></script>
 </body>
 

@@ -21,14 +21,14 @@ class ControllerTaller extends Controller {
 
     public function nuevaOrden() {
         $reportModel = $this->model('Reportes');
-        
+
         $data = [
             'titulo' => 'Nueva Orden de Servicio',
             'staff' => $reportModel->obtenerStaffSimple(),
             'vehiculo' => null,
             'cliente' => null
         ];
-        
+
         $placa = isset($_GET['placa']) ? strtoupper(trim($_GET['placa'])) : '';
         if (!empty($placa)) {
             $vehiculo = $this->vehiculoModel->buscarPorPlaca($placa);
@@ -40,7 +40,7 @@ class ControllerTaller extends Controller {
                 }
             }
         }
-        
+
         $this->view('taller/nueva_orden', $data);
     }
 
@@ -60,7 +60,7 @@ class ControllerTaller extends Controller {
             redirect('facturacion/imprimir/' . $facturaAsociada->id);
         } else {
             $orden = $this->ordenModel->obtenerDetalleOrden($id);
-            
+
             if (!$orden) {
                 die("La orden de servicio #$id no existe.");
             }
@@ -200,9 +200,6 @@ class ControllerTaller extends Controller {
         return $this->jsonResponse(['success' => true, 'results' => $results]);
     }
 
-    /**
-     * Procesa la creación de una nueva Orden de Servicio.
-     */
     public function guardarOrden() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
@@ -212,7 +209,7 @@ class ControllerTaller extends Controller {
             }
 
             $vehiculo = $this->vehiculoModel->buscarPorPlaca($input['placa']);
-            
+
             if (!$vehiculo) {
                 $clienteModel = $this->model('Cliente');
                 if (!$clienteModel->obtenerPorId($input['cliente_id'])) {
@@ -227,7 +224,7 @@ class ControllerTaller extends Controller {
 
             $input['placa'] = strtoupper(trim($input['placa']));
             $ordenId = $this->ordenModel->crear($input);
-            
+
             if ($ordenId) {
                 if (!empty($input['checklist'])) {
                     $this->ordenModel->guardarChecklist($ordenId, $input['checklist']);
@@ -241,11 +238,6 @@ class ControllerTaller extends Controller {
                     $this->sincronizarItemsOrden($ordenId, $input);
                 }
 
-                // ────────────────────────────────────────────────────────────
-                // ANEXAR PRESUPUESTO: cambia estado a ANEXADO y libera reservas.
-                // El borrador de factura PENDIENTE (creado arriba) toma el relevo
-                // del bloqueo de stock_disponible.
-                // ────────────────────────────────────────────────────────────
                 if (!empty($input['presupuesto_activo_id'])) {
                     try {
                         $presupuestoModel = $this->model('Presupuesto');
@@ -258,7 +250,6 @@ class ControllerTaller extends Controller {
 
                 logAction('TALLER', 'CREATE_OS', "Nueva O.S. #$ordenId para placa {$input['placa']}");
 
-                // Enviar email de notificación al cliente
                 try {
                     $ordenCreada = $this->ordenModel->obtenerDetalleOrden($ordenId);
                     if ($ordenCreada && !empty($ordenCreada->cliente_email)) {
@@ -310,31 +301,22 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * Sincroniza los items de la OS con un borrador de factura PENDIENTE.
-     * 
-     * ⚠️ FIX CRÍTICO v2.1:
-     *   Se sanitizan los FK opcionales (mecanico_id, producto_id) para convertir
-     *   strings vacíos a NULL. Esto evita FK violations silenciosas que impedían
-     *   insertar los items y, por ende, que el inventario mostrara la reserva.
-     */
     private function sincronizarItemsOrden($ordenId, $input) {
         try {
             $modelFacturacion = $this->model('Facturacion');
-            
+
             $db = new Database();
             $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status = 'PENDIENTE' LIMIT 1");
             $db->bind(':oid', $ordenId);
             $borradorExistente = $db->single();
             $facturaId = $borradorExistente ? $borradorExistente->id : null;
-            
+
             $subtotal = 0;
             $itemsArr = $input['items'] ?? [];
             foreach ($itemsArr as $item) {
                 $subtotal += ((float)($item['precio'] ?? 0) * (int)($item['cantidad'] ?? 0));
             }
 
-            // ⚠️ SANITIZACIÓN CRÍTICA: Convertir strings vacíos a NULL para FK
             $mecanicoIdSanitizado = !empty($input['mecanico_id']) ? $input['mecanico_id'] : null;
 
             $datosFactura = [
@@ -346,7 +328,6 @@ class ControllerTaller extends Controller {
                 'pago_efectivo' => 0,
                 'pago_transferencia' => 0,
                 'mecanico_id' => $mecanicoIdSanitizado,
-                // ✅ Guardar el vínculo con el presupuesto anexado
                 'presupuesto_activo_id' => !empty($input['presupuesto_activo_id']) ? (int)$input['presupuesto_activo_id'] : null
             ];
 
@@ -374,7 +355,6 @@ class ControllerTaller extends Controller {
             $itemsConError = 0;
 
             foreach ($itemsArr as $item) {
-                // Aceptar items con 'nombre' o 'id' (o ambos)
                 if (empty($item['nombre']) && empty($item['id'])) {
                     continue;
                 }
@@ -382,7 +362,6 @@ class ControllerTaller extends Controller {
                 $esProducto = (strtoupper($item['tipo'] ?? '') === 'PRODUCTO');
                 $descripcion = $item['nombre'] ?? $item['descripcion'] ?? 'Ítem';
 
-                // ⚠️ SANITIZACIÓN: producto_id solo si es producto y tiene id válido
                 $productoIdSanitizado = ($esProducto && !empty($item['id'])) ? (int)$item['id'] : null;
 
                 $db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
@@ -415,15 +394,15 @@ class ControllerTaller extends Controller {
             if (!$orden) {
                 return $this->jsonResponse(['success' => false, 'error' => 'Orden no encontrada'], 404);
             }
-            
+
             $reportModel = $this->model('Reportes');
             $staff = $reportModel->obtenerStaffSimple();
-            
+
             $db = new Database();
             $db->query("SELECT id FROM table_facturas WHERE orden_id = :oid AND status = 'PENDIENTE' LIMIT 1");
             $db->bind(':oid', $id);
             $borrador = $db->single();
-            
+
             $items = [];
             if ($borrador) {
                 $facturaModel = $this->model('Facturacion');
@@ -446,7 +425,7 @@ class ControllerTaller extends Controller {
             $checklist = $this->ordenModel->obtenerChecklist($id);
 
             return $this->jsonResponse([
-                'success' => true, 
+                'success' => true,
                 'data' => $orden,
                 'items' => $items,
                 'servicios' => $servicios,
@@ -486,7 +465,7 @@ class ControllerTaller extends Controller {
     public function cambiarEstado() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
-            
+
             if (empty($input['id']) || empty($input['estado'])) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'Datos incompletos'], 400);
             }
@@ -529,7 +508,7 @@ class ControllerTaller extends Controller {
 
     private function prepararBorradorDesdeOrden($ordenId) {
         $modelFacturacion = $this->model('Facturacion');
-        
+
         $borrador = $modelFacturacion->obtenerBorradorPorOrden($ordenId);
         if ($borrador) return;
 
@@ -549,15 +528,15 @@ class ControllerTaller extends Controller {
     public function entregarOrden() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
-            
+
             if (empty($input['id'])) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de orden requerido'], 400);
             }
 
             $comentario = !empty($input['comentario']) ? $input['comentario'] : 'Vehículo entregado al cliente.';
-            
+
             $this->ordenModel->completarServiciosPendientes($input['id']);
-            
+
             if ($this->ordenModel->actualizarEstado($input['id'], 'ENTREGADO', $comentario)) {
                 try {
                     $ordenado = $this->ordenModel->obtenerDetalleOrden($input['id']);
@@ -636,23 +615,61 @@ class ControllerTaller extends Controller {
         ]);
     }
 
+    /**
+     * Asigna o quita el mecánico responsable de una orden de servicio.
+     * 
+     * FIX v2.1 (2026-10-09):
+     *   • Se permite `mecanico_id` vacío/nulo para poder DESASIGNAR el mecánico.
+     *   • Se acepta tanto `id` como `orden_id` como identificador de la orden
+     *     (fallback defensivo por si el frontend cambia el nombre del campo).
+     *   • Se loguea el payload recibido para debugging.
+     */
     public function asignarMecanico() {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $input = json_decode(file_get_contents('php://input'), true);
-            
-            if (empty($input['id']) || empty($input['mecanico_id'])) {
-                return $this->jsonResponse(['success' => false, 'error' => 'Datos incompletos'], 400);
+        if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
+
+        header('Content-Type: application/json');
+
+        try {
+            $raw = file_get_contents('php://input');
+            $input = json_decode($raw, true) ?: [];
+
+            // Aceptar 'id' o 'orden_id' como identificador de la orden
+            $ordenId = $input['id'] ?? $input['orden_id'] ?? null;
+            $mecanicoId = $input['mecanico_id'] ?? null;
+
+            // Loguear para debugging
+            error_log('[asignarMecanico] Payload recibido: ' . $raw);
+
+            if (empty($ordenId)) {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'ID de orden requerido',
+                    'debug_payload' => $input
+                ], 400);
             }
+
+            // Sanitizar: si viene vacío, asignar NULL (permite desasignar)
+            $mecanicoIdFinal = (!empty($mecanicoId) && $mecanicoId !== '0') ? $mecanicoId : null;
 
             $db = new Database();
             $db->query("UPDATE table_ordenes_servicio SET mecanico_id = :mid WHERE id = :id");
-            $db->bind(':mid', $input['mecanico_id']);
-            $db->bind(':id', $input['id']);
-            
+            $db->bind(':mid', $mecanicoIdFinal);
+            $db->bind(':id', (int)$ordenId);
+
             if ($db->execute()) {
-                return $this->jsonResponse(['success' => true, 'mensaje' => 'Mecánico asignado correctamente']);
+                logAction('TALLER', 'ASIGNAR_MECANICO',
+                    "O.S. #{$ordenId} → " . ($mecanicoIdFinal ?: 'SIN ASIGNAR'));
+
+                return $this->jsonResponse([
+                    'success' => true,
+                    'mensaje' => $mecanicoIdFinal ? 'Mecánico asignado correctamente' : 'Mecánico removido'
+                ]);
             }
+
             return $this->jsonResponse(['success' => false, 'error' => 'Error al actualizar el registro']);
+        } catch (\Throwable $e) {
+            error_log('[asignarMecanico] Excepción: ' . $e->getMessage());
+            return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 
@@ -664,7 +681,7 @@ class ControllerTaller extends Controller {
     public function actualizarEstadoServicio() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
-            
+
             if (empty($input['id']) || empty($input['estado'])) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'Datos incompletos'], 400);
             }
@@ -684,7 +701,7 @@ class ControllerTaller extends Controller {
     public function guardarServicio() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
-            
+
             if (empty($input['orden_id']) || empty($input['descripcion'])) {
                 return $this->jsonResponse(['success' => false, 'error' => 'Datos incompletos'], 400);
             }
@@ -704,7 +721,7 @@ class ControllerTaller extends Controller {
     public function eliminarServicio() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $input = json_decode(file_get_contents('php://input'), true);
-            
+
             if (empty($input['id'])) {
                 return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de servicio requerido'], 400);
             }
@@ -721,7 +738,7 @@ class ControllerTaller extends Controller {
             $search = $_GET['q'] ?? '';
             $presupuestoModel = $this->model('Presupuesto');
             $presupuestos = $presupuestoModel->buscarActivos($search);
-            
+
             return $this->jsonResponse([
                 'success' => true,
                 'data' => $presupuestos

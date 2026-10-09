@@ -14,6 +14,12 @@
  *   • Delegación de eventos para los resultados de presupuestos.
  *   • CSS explícito del dropdown (top-full left-0 right-0).
  *   • Validaciones defensivas en seleccionarPresupuestoActivo.
+ * 
+ * v2.3 (2026-10-09) — P2-09:
+ *   • Se eliminó la función `lanzarRegistroRapido(id)` que duplicaba el modal
+ *     de registro de cliente. Ahora `quickRegisterOS` delega a
+ *     `AppUtils.openQuickClientModal()`, el helper unificado que también usa
+ *     facturacion.js → btnQuickClient.
  */
 
 // ============================================================================
@@ -221,83 +227,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    /**
+     * FIX P2-09: ahora delega al helper unificado.
+     * Antes tenía su propio Swal.fire + fetch duplicado.
+     */
     window.quickRegisterOS = (id) => {
         if (resultsContainer) resultsContainer.classList.add('hidden');
-        lanzarRegistroRapido(id);
-    };
 
-    async function lanzarRegistroRapido(id) {
-        const { value: formValues } = await Swal.fire({
-            title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Nuevo Registro</span><br><span class="text-navy-blue">ID: ${id}</span>`,
-            html: `
-                <div class="text-left space-y-4 pt-4">
-                    <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Nombre Completo</label>
-                        <input id="swal-nombre" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm uppercase font-bold focus:ring-2 focus:ring-blue-500 outline-none" placeholder="EJ: JUAN PEREZ">
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Correo Electrónico</label>
-                            <input id="swal-email" type="email" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="cliente@correo.com">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Teléfono</label>
-                            <input id="swal-telefono" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="04...">
-                        </div>
-                    </div>
-                </div>`,
-            showCancelButton: true,
-            confirmButtonText: 'REGISTRAR Y SELECCIONAR',
-            confirmButtonColor: '#10b981',
-            preConfirm: () => {
-                const nombre = document.getElementById('swal-nombre').value.trim();
-                if (!nombre) {
-                    Swal.showValidationMessage('El nombre es obligatorio');
-                    return false;
-                }
-                return {
-                    nombre: nombre.toUpperCase(),
-                    email: document.getElementById('swal-email').value.trim().toLowerCase(),
-                    telefono: document.getElementById('swal-telefono').value.trim()
-                };
+        AppUtils.openQuickClientModal({
+            presetId: id,
+            title: 'NUEVO REGISTRO',
+            confirmText: 'REGISTRAR Y SELECCIONAR',
+            onSuccess: (cliente) => {
+                newInputId.value = cliente.id;
+                newInputNombre.value = cliente.nombre;
+                newInputNombre.classList.remove('bg-slate-100');
+                newInputNombre.classList.add('bg-green-50');
+                AppUtils.showToast('Cliente registrado con éxito');
+
+                allClients.push({
+                    id: cliente.id,
+                    nombre: cliente.nombre,
+                    email: cliente.email,
+                    telefono: cliente.telefono
+                });
             }
         });
-
-        if (formValues) {
-            try {
-                const saveRes = await fetch(`${URLROOT}/clientes/guardar`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': (typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : '') },
-                    body: JSON.stringify({
-                        id,
-                        nombre: formValues.nombre,
-                        email: formValues.email,
-                        telefono: formValues.telefono,
-                        direccion: ''
-                    })
-                });
-                const result = await saveRes.json();
-                if (result.success) {
-                    newInputId.value = id;
-                    newInputNombre.value = formValues.nombre;
-                    newInputNombre.classList.remove('bg-slate-100');
-                    newInputNombre.classList.add('bg-green-50');
-                    if (window.AppUtils) AppUtils.showToast('Cliente registrado con éxito');
-
-                    allClients.push({
-                        id,
-                        nombre: formValues.nombre,
-                        email: formValues.email,
-                        telefono: formValues.telefono
-                    });
-                } else {
-                    if (window.AppUtils) AppUtils.showToast(result.mensaje || 'Error al guardar', 'error');
-                }
-            } catch (error) {
-                console.error("Error al registrar cliente:", error);
-            }
-        }
-    }
+    };
 });
 
 // ============================================================================

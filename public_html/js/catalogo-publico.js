@@ -1,6 +1,14 @@
 /**
  * catalogo-publico.js - Funcionalidad del catálogo público
- * Dependencias: jQuery, SweetAlert2, Toastify-js, Lucide, URLROOT global
+ * 
+ * v2.0 (2026-10-09) — P2-04:
+ *   • Se eliminaron Toastify y los Swal.fire({toast: true}) inline. Ahora
+ *     se usa AppUtils.showToast(msg, type, 'light') — variante blanca del
+ *     catálogo público.
+ *   • Se mantiene el uso de Swal.fire para alertas modales (errores).
+ *   • Requiere que utils.js esté cargado ANTES que catalogo-publico.js.
+ * 
+ * Dependencias: jQuery, SweetAlert2, AppUtils (utils.js), Lucide, URLROOT global
  */
 
 // Inicializar iconos Lucide
@@ -28,29 +36,13 @@ function agregarCarrito(productoId) {
                 const badge = $('#cart-count-header');
                 badge.text(res.total_items).removeClass('hidden');
 
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Agregado!',
-                    text: 'Producto agregado al carrito',
-                    timer: 1500,
-                    showConfirmButton: false,
-                    toast: true,
-                    position: 'top-end'
-                });
+                AppUtils.showToast('Producto agregado al carrito', 'success', 'light');
             } else {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: res.error || 'No se pudo agregar'
-                });
+                AppUtils.showToast(res.error || 'No se pudo agregar', 'error', 'light');
             }
         },
         error: function () {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Error de conexión'
-            });
+            AppUtils.showToast('Error de conexión', 'error', 'light');
         }
     });
 }
@@ -61,13 +53,7 @@ function irAlCarrito() {
         if (res.total_items > 0) {
             window.location.href = URLROOT + '/catalogo/carrito';
         } else {
-            Toastify({
-                text: 'No hay repuestos seleccionados',
-                duration: 2500,
-                gravity: 'bottom',
-                position: 'right',
-                style: { background: '#f59e0b' }
-            }).showToast();
+            AppUtils.showToast('No hay repuestos seleccionados', 'warning', 'light');
         }
     });
 }

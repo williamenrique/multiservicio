@@ -8,6 +8,14 @@
  *   • Nuevo: actualizarEstadoGestion() — semáforo de cobranza.
  *   • Modificado: obtenerFacturasCreditoPorCliente() ahora incluye
  *     `estado_gestion` y `ultimo_abono` (fecha + monto del último pago).
+ * 
+ * v2.3 (2026-10-09) — FIX CRÍTICO:
+ *   • registrarAbono() ahora inserta usuario_id en table_abonos_clientes.
+ *     Antes lo dejaba NULL aunque la columna se usa en:
+ *       - ModelFacturas::obtenerPorId (JOIN para mostrar "Registrado por")
+ *       - ModelFacturacion::obtenerAbonosPorFactura
+ *       - ModelFacturacion::obtenerReciboAbono
+ *     Requiere migración: sql/migration_abonos_usuario_id.sql
  */
 class ModelFacturacion {
     private $db;
@@ -399,10 +407,14 @@ class ModelFacturacion {
             $monto = (float)$monto;
             $nuevoPendiente = $venta->saldo_pendiente - $monto;
             
-            $this->db->query("INSERT INTO table_abonos_clientes (factura_id, monto, metodo_pago) VALUES (:vid, :monto, :metodo)");
+            // FIX CRÍTICO (v2.3): Incluir usuario_id en el INSERT
+            // Requiere migración previa: sql/migration_abonos_usuario_id.sql
+            $this->db->query("INSERT INTO table_abonos_clientes (factura_id, monto, metodo_pago, usuario_id) 
+                              VALUES (:vid, :monto, :metodo, :uid)");
             $this->db->bind(':vid', $ventaId);
             $this->db->bind(':monto', $monto);
             $this->db->bind(':metodo', mb_strtoupper($metodo, 'UTF-8'));
+            $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
             $this->db->execute();
 
             $abonoId = $this->db->lastInsertId();

@@ -55,11 +55,11 @@
                 <tbody class="divide-y divide-gray-100">
                     <?php if (empty($ordenes)): ?>
                         <tr>
-                            <td colspan="5" class="px-6 py-12 text-center text-gray-400 italic">No hay vehículos en reparación actualmente.</td>
+                            <td colspan="6" class="px-6 py-12 text-center text-gray-400 italic">No hay vehículos en reparación actualmente.</td>
                         </tr>
                     <?php endif; ?>
                     <?php foreach($ordenes as $o): ?>
-                    <tr class="hover:bg-slate-50 transition-colors">
+                    <tr class="hover:bg-slate-50 transition-colors" data-orden-id="<?php echo (int)$o->id; ?>">
                         <td class="px-6 py-4 font-mono font-bold text-navy-blue">#<?php echo $o->id; ?></td>
                         <td class="px-6 py-4">
                             <div class="flex flex-col">
@@ -97,9 +97,9 @@
                                 <span class="text-slate-300 italic text-xs">Sin fecha</span>
                             <?php endif; ?>
                         </td>
-                        <td class="px-6 py-4 text-sm text-slate-600">
+                        <td class="px-6 py-4 text-sm text-slate-600 celda-mecanico">
                             <?php if (empty($o->mecanico_nombre)): ?>
-                                <span class="flex items-center gap-1.5 text-rose-500 font-black animate-pulse uppercase tracking-widest text-[10px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-100">
+                                <span class="flex items-center gap-1.5 text-rose-500 font-black animate-pulse uppercase tracking-widest text-[10px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-100 w-fit">
                                     <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Sin Asignar
                                 </span>
                             <?php else: ?>
@@ -203,10 +203,10 @@ async function cambiarEstado(id, selectEl) {
     const estado = selectEl.value;
     try {
         const response = await fetch(`${URLROOT}/taller/cambiarEstado`, {
-            method: 'POST', // Aseguramos que sea POST
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': CSRF_TOKEN // Añadimos el token CSRF aquí
+                'X-CSRF-TOKEN': CSRF_TOKEN
             },
             body: JSON.stringify({ id, estado })
         });
@@ -235,7 +235,8 @@ async function cambiarEstado(id, selectEl) {
 
             if (estado === 'LISTO') {
                 btnEntrega?.classList.remove('hidden');
-                const hasMecanico = !row.querySelector('.animate-pulse'); // El label "Sin Asignar" tiene animate-pulse
+                const celdaMec = row.querySelector('.celda-mecanico');
+                const hasMecanico = celdaMec && !celdaMec.querySelector('.animate-pulse');
                 if (hasMecanico) {
                     btnFacturar?.classList.remove('hidden');
                     btnNoMec?.classList.add('hidden');
@@ -257,7 +258,9 @@ async function cambiarEstado(id, selectEl) {
 }
 
 /**
- * Procesa la entrega final del vehículo
+ * Procesa la entrega final del vehículo.
+ * 
+ * FIX Ronda 5: Quita la fila del DOM en vez de recargar la página completa.
  */
 async function entregarVehiculo(id) {
     const { value: nota } = await Swal.fire({
@@ -272,28 +275,51 @@ async function entregarVehiculo(id) {
 
     if (nota !== undefined) {
         AppUtils.showLoading('Procesando salida...');
-        const res = await fetch(`${URLROOT}/taller/entregarOrden`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
-            body: JSON.stringify({ id, comentario: nota })
-        });
-        const result = await res.json();
-        AppUtils.hideLoading();
+        try {
+            const res = await fetch(`${URLROOT}/taller/entregarOrden`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ id, comentario: nota })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
 
-        if (result.success) {
-            AppUtils.showToast('Vehículo entregado. Orden finalizada.');
-            setTimeout(() => location.reload(), 1000); // Recarga para limpiar la tabla
+            if (result.success) {
+                AppUtils.showToast('Vehículo entregado. Orden finalizada.');
+
+                // FIX: Quitar la fila del DOM con animación
+                const fila = document.querySelector(`tr[data-orden-id="${id}"]`);
+                if (fila) {
+                    fila.style.transition = 'opacity 0.4s, transform 0.4s';
+                    fila.style.opacity = '0';
+                    fila.style.transform = 'translateX(-30px)';
+                    setTimeout(() => {
+                        fila.remove();
+                        // Actualizar contador
+                        const badge = document.querySelector('.bg-navy-blue.text-white.text-xs.px-2.py-1.rounded-full');
+                        if (badge) {
+                            const currentCount = parseInt(badge.textContent) || 1;
+                            badge.textContent = `${Math.max(0, currentCount - 1)} Activos`;
+                        }
+                        // Refrescar el panel de alertas del header
+                        if (typeof initWorkshopAlerts === 'function') initWorkshopAlerts();
+                    }, 400);
+                }
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al entregar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
         }
     }
 }
 
 async function verDetalle(id) {
-    // Si existe la función en app.min.js la llamamos, si no, usamos el fetch manual
     if (typeof window.abrirModalDetalleOrden === 'function') {
         window.abrirModalDetalleOrden(id);
     } else {
         AppUtils.showToast('Cargando detalles técnicos de la Orden #' + id, 'info');
-        // El script app.min.js debería estar escuchando este evento o tener una función global
     }
 }
 

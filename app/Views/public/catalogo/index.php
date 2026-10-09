@@ -320,6 +320,8 @@
 
     <script>const URLROOT = "<?php echo URLROOT; ?>";</script>
     <script>const csrfToken = '<?php echo $_SESSION['csrf_token'] ?? ''; ?>';</script>
+    <!-- FIX P2-04: AppUtils (utils.js) debe cargarse ANTES de catalogo-publico.js -->
+    <script src="<?php echo URLROOT; ?>/js/utils.js"></script>
     <script src="<?php echo URLROOT; ?>/js/catalogo-publico.js"></script>
 </body>
 
