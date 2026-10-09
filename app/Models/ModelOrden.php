@@ -1,4 +1,20 @@
 <?php
+/**
+ * Modelo de Órdenes de Servicio
+ * 
+ * v2.1 (2026-10-09) — Ronda 13:
+ *   • Nuevo método eliminarOrdenCompleta($id, $motivo)
+ *   • Nuevo método tieneFacturaProcesada($id)
+ *   • Nuevo método actualizarOrden($id, $datos)
+ * 
+ * v2.2 (2026-10-09) — FIX:
+ *   • Corregido eliminarOrdenCompleta(): presupuesto_activo_id se lee
+ *     desde table_facturas, no desde table_ordenes_servicio.
+ * 
+ * v2.3 (2026-10-09) — Mejora UI:
+ *   • obtenerOrdenesActivas() ahora incluye cliente_nombre y
+ *     cliente_telefono mediante JOIN con table_clientes.
+ */
 class ModelOrden {
     private $db;
 
@@ -76,7 +92,6 @@ class ModelOrden {
             $this->db->bind(':ant', mb_strtoupper($anterior, 'UTF-8'));
             $this->db->bind(':nue', mb_strtoupper($nuevoEstado, 'UTF-8'));
             $this->db->bind(':uid', $_SESSION['user_id']);
-            // COMENTARIO EN MAYÚSCULAS
             $this->db->bind(':com', mb_strtoupper($comentario, 'UTF-8'));
             $this->db->execute();
 
@@ -95,12 +110,18 @@ class ModelOrden {
         return $this->db->resultSet();
     }
 
+    /**
+     * v2.3: se agregó JOIN con table_clientes para traer cliente_nombre
+     * y cliente_telefono.
+     */
     public function obtenerOrdenesActivas() {
         $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, s.nombre as mecanico_nombre,
+                          c.nombre as cliente_nombre, c.telefono as cliente_telefono,
                           TIMESTAMPDIFF(MINUTE, NOW(), os.fecha_entrega_estimada) as minutos_restantes,
                           (SELECT status FROM table_facturas WHERE orden_id = os.id AND status != 'ANULADO' ORDER BY id DESC LIMIT 1) as factura_status
                           FROM table_ordenes_servicio os
                           INNER JOIN table_vehiculos v ON os.placa = v.placa
+                          LEFT JOIN table_clientes c ON os.cliente_id = c.id
                           LEFT JOIN table_staff s ON os.mecanico_id = s.id
                           WHERE os.estado NOT IN ('ENTREGADO')
                           ORDER BY os.fecha_ingreso DESC");
@@ -264,5 +285,164 @@ class ModelOrden {
                           ORDER BY fd.id ASC");
         $this->db->bind(':oid', $ordenId);
         return $this->db->resultSet();
+    }
+
+    public function tieneFacturaProcesada($ordenId) {
+        $this->db->query("SELECT COUNT(*) as total 
+                          FROM table_facturas 
+                          WHERE orden_id = :oid 
+                            AND status IN ('COMPLETADO', 'CREDITO')");
+        $this->db->bind(':oid', (int)$ordenId);
+        return (int)$this->db->single()->total > 0;
+    }
+
+    public function eliminarOrdenCompleta($ordenId, $motivo = '') {
+        $ordenId = (int)$ordenId;
+
+        try {
+            $this->db->beginTransaction();
+
+            $this->db->query("SELECT id, estado FROM table_ordenes_servicio WHERE id = :id");
+            $this->db->bind(':id', $ordenId);
+            $orden = $this->db->single();
+
+            if (!$orden) {
+                throw new Exception("La orden #{$ordenId} no existe.");
+            }
+
+            if ($orden->estado === 'ENTREGADO') {
+                throw new Exception("No se puede eliminar una orden ENTREGADA. Use el historial de órdenes cerradas.");
+            }
+
+            if ($this->tieneFacturaProcesada($ordenId)) {
+                throw new Exception("No se puede eliminar: la orden ya tiene una factura emitida (COMPLETADO o CREDITO).");
+            }
+
+            $this->db->query("SELECT id, presupuesto_activo_id 
+                              FROM table_facturas 
+                              WHERE orden_id = :oid AND status = 'PENDIENTE' 
+                              LIMIT 1");
+            $this->db->bind(':oid', $ordenId);
+            $borrador = $this->db->single();
+
+            if ($borrador && !empty($borrador->presupuesto_activo_id)) {
+                try {
+                    $pid = (int)$borrador->presupuesto_activo_id;
+
+                    $this->db->query("SELECT COUNT(*) as total FROM table_presupuestos WHERE id = :pid");
+                    $this->db->bind(':pid', $pid);
+                    if ((int)$this->db->single()->total > 0) {
+                        $this->db->query("UPDATE table_presupuestos_reservas 
+                                          SET estado = 'LIBERADA',
+                                              cantidad_liberada = cantidad_reservada,
+                                              fecha_liberacion = NOW(),
+                                              usuario_liberacion_id = :uid
+                                          WHERE presupuesto_id = :pid AND estado = 'RESERVADA'");
+                        $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
+                        $this->db->bind(':pid', $pid);
+                        $this->db->execute();
+
+                        $this->db->query("UPDATE table_presupuestos 
+                                          SET estado = 'BORRADOR' 
+                                          WHERE id = :pid 
+                                            AND estado IN ('ANEXADO', 'EN_PROCESO', 'ACTIVO', 'ACEPTADO')");
+                        $this->db->bind(':pid', $pid);
+                        $this->db->execute();
+                    }
+                } catch (Throwable $e) {
+                    error_log("eliminarOrdenCompleta: error liberando presupuesto: " . $e->getMessage());
+                }
+            }
+
+            if ($borrador) {
+                $this->db->query("DELETE FROM table_facturas WHERE id = :fid");
+                $this->db->bind(':fid', (int)$borrador->id);
+                $this->db->execute();
+            }
+
+            $this->db->query("DELETE FROM table_ordenes_servicio WHERE id = :id");
+            $this->db->bind(':id', $ordenId);
+            $this->db->execute();
+
+            $this->db->commit();
+
+            $desc = "Orden #{$ordenId} eliminada (estado previo: {$orden->estado}). Motivo: " . ($motivo ?: 'NO ESPECIFICADO');
+            logAction('TALLER', 'DELETE_OS', $desc);
+
+            return true;
+
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("eliminarOrdenCompleta falló: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function actualizarOrden($ordenId, $datos) {
+        $ordenId = (int)$ordenId;
+
+        $this->db->query("SELECT id, estado, fecha_ingreso FROM table_ordenes_servicio WHERE id = :id");
+        $this->db->bind(':id', $ordenId);
+        $orden = $this->db->single();
+
+        if (!$orden) {
+            throw new Exception("La orden #{$ordenId} no existe.");
+        }
+
+        if (in_array($orden->estado, ['ENTREGADO', 'CANCELADO'], true)) {
+            throw new Exception("No se puede editar una orden en estado {$orden->estado}.");
+        }
+
+        $sets = [];
+        $binds = [':id' => $ordenId];
+
+        if (array_key_exists('mecanico_id', $datos)) {
+            $sets[] = "mecanico_id = :mid";
+            $binds[':mid'] = !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null;
+        }
+
+        if (array_key_exists('fecha_entrega_estimada', $datos)) {
+            $fecha = trim((string)$datos['fecha_entrega_estimada']);
+            if ($fecha !== '') {
+                $fecha = str_replace('T', ' ', $fecha);
+                if (strlen($fecha) === 16) {
+                    $fecha .= ':00';
+                }
+                $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $fecha);
+                if (!$dt) {
+                    throw new Exception("Formato de fecha inválido.");
+                }
+                if ($dt->format('Y-m-d H:i:s') < $orden->fecha_ingreso) {
+                    throw new Exception("La fecha de entrega no puede ser anterior a la fecha de ingreso.");
+                }
+                $binds[':fed'] = $dt->format('Y-m-d H:i:s');
+            } else {
+                $binds[':fed'] = null;
+            }
+            $sets[] = "fecha_entrega_estimada = :fed";
+        }
+
+        if (array_key_exists('observaciones', $datos)) {
+            $sets[] = "observaciones = :obs";
+            $binds[':obs'] = mb_strtoupper(trim((string)$datos['observaciones']), 'UTF-8');
+        }
+
+        if (array_key_exists('diagnostico_salida', $datos)) {
+            $sets[] = "ds = :ds_placeholder"; // nunca entra aquí
+            $binds[':ds'] = mb_strtoupper(trim((string)$datos['diagnostico_salida']), 'UTF-8');
+            $sets[count($sets) - 1] = "diagnostico_salida = :ds";
+        }
+
+        if (empty($sets)) {
+            return true;
+        }
+
+        $sql = "UPDATE table_ordenes_servicio SET " . implode(', ', $sets) . " WHERE id = :id";
+        $this->db->query($sql);
+        foreach ($binds as $key => $val) {
+            $this->db->bind($key, $val);
+        }
+
+        return $this->db->execute();
     }
 }

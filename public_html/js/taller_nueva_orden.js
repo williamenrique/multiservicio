@@ -12,14 +12,18 @@
  *   • desanexarPresupuesto(skipConfirm): permite limpiar sin preguntar cuando
  *     se llama programáticamente desde el submit del formulario.
  *   • Delegación de eventos para los resultados de presupuestos.
- *   • CSS explícito del dropdown (top-full left-0 right-0).
- *   • Validaciones defensivas en seleccionarPresupuestoActivo.
  * 
  * v2.3 (2026-10-09) — P2-09:
- *   • Se eliminó la función `lanzarRegistroRapido(id)` que duplicaba el modal
- *     de registro de cliente. Ahora `quickRegisterOS` delega a
- *     `AppUtils.openQuickClientModal()`, el helper unificado que también usa
- *     facturacion.js → btnQuickClient.
+ *   • quickRegisterOS delega a AppUtils.openQuickClientModal().
+ * 
+ * v2.4 (2026-10-09) — FIX búsqueda de clientes:
+ *   • ANTES: cargaba TODOS los clientes al inicio con fetch('/clientes/listar')
+ *     (que por defecto devuelve solo 10) y luego filtraba en el cliente.
+ *     Resultado: solo aparecían coincidencias dentro de los 10 más recientes.
+ *   • AHORA: búsqueda server-side. Cada pulsación (con debounce 300ms) hace
+ *     fetch('/clientes/listar?q=TERM&limit=20') y muestra hasta 20
+ *     coincidencias reales de toda la base de datos.
+ *   • Se eliminó la variable `allClients` (ya no se necesita).
  */
 
 // ============================================================================
@@ -31,7 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsContainer = document.getElementById('cliente_results');
 
     let searchTimeout;
-    let allClients = [];
 
     // LIMPIEZA: Eliminar cualquier listener antiguo que pueda estar interfiriendo
     if (inputId) {
@@ -43,20 +46,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const newInputNombre = document.getElementById('cliente_nombre');
 
     if (newInputId && newInputNombre) {
-        const fetchClients = async () => {
-            try {
-                const res = await fetch(`${URLROOT}/clientes/listar`);
-                const result = await res.json();
-                allClients = result.data || result;
-            } catch (e) {
-                console.error("Error cargando clientes:", e);
-            }
-        };
-        fetchClients();
-
+        /**
+         * FIX v2.4: Búsqueda server-side. Cada pulsación (con debounce)
+         * consulta al servidor con el término ingresado y recibe hasta 20
+         * coincidencias reales (por id, nombre o teléfono).
+         */
         newInputId.addEventListener('input', () => {
             clearTimeout(searchTimeout);
-            const term = newInputId.value.trim().toLowerCase();
+            const term = newInputId.value.trim();
 
             if (term.length < 2) {
                 if (resultsContainer) resultsContainer.classList.add('hidden');
@@ -64,15 +61,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (!Array.isArray(allClients)) return;
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`${URLROOT}/clientes/listar?q=${encodeURIComponent(term)}&limit=20&offset=0`);
+                    if (!res.ok) return;
+                    const result = await res.json();
+                    const clientes = result.data || [];
 
-            searchTimeout = setTimeout(() => {
-                const filtered = allClients.filter(c =>
-                    (c.id && String(c.id).toLowerCase().includes(term)) ||
-                    (c.nombre && String(c.nombre).toLowerCase().includes(term))
-                );
-
-                renderResults(filtered, term);
+                    renderResults(clientes, term.toLowerCase());
+                } catch (e) {
+                    console.error('Error buscando clientes:', e);
+                    if (resultsContainer) {
+                        resultsContainer.innerHTML = '<div class="p-4 text-center text-rose-500 text-xs font-bold">Error al buscar clientes</div>';
+                        resultsContainer.classList.remove('hidden');
+                    }
+                }
             }, 300);
         });
 
@@ -96,26 +99,29 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = '';
         if (clients.length > 0) {
             html = clients.map(c => {
-                const escapedName = c.nombre.replace(/'/g, "\\'");
+                const escapedName = (c.nombre || '').replace(/'/g, "\\'");
+                const telefono = c.telefono ? ` · Tel: ${c.telefono}` : '';
                 return `
                     <div class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0" 
                          onclick="window.selectClientOS('${c.id}', '${escapedName}')">
                         <p class="font-bold text-xs uppercase text-navy-blue">${c.nombre}</p>
-                        <p class="text-[10px] text-slate-400 font-mono">ID: ${c.id}</p>
+                        <p class="text-[10px] text-slate-400 font-mono">ID: ${c.id}${telefono}</p>
                     </div>`;
             }).join('');
         }
 
+        // ¿Hay coincidencia EXACTA con el ID buscado?
         const exactMatch = clients.find(c => String(c.id).toLowerCase() === term);
 
         if (!exactMatch) {
+            const termUpper = term.toUpperCase();
             html += `
                 <div class="p-3 border-t border-slate-100 bg-slate-50/50">
                     <p class="text-[9px] text-slate-400 uppercase font-black mb-2 px-1">Identificación no encontrada</p>
-                    <button type="button" onclick="window.quickRegisterOS('${term}')" 
+                    <button type="button" onclick="window.quickRegisterOS('${termUpper}')" 
                             class="w-full text-left flex items-center gap-2 p-2 rounded-xl hover:bg-white hover:shadow-sm text-[10px] font-black text-blue-600 hover:text-navy-blue uppercase transition-all group">
                         <i data-lucide="user-plus" class="w-3.5 h-3.5 group-hover:scale-110 transition-transform"></i>
-                        <span>+ Registrar ID "${term}" como nuevo</span>
+                        <span>+ Registrar ID "${termUpper}" como nuevo</span>
                     </button>
                 </div>`;
         }
@@ -228,8 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * FIX P2-09: ahora delega al helper unificado.
-     * Antes tenía su propio Swal.fire + fetch duplicado.
+     * FIX P2-09: delega al helper unificado.
+     * FIX v2.4: ya no hace push a allClients (eliminada).
      */
     window.quickRegisterOS = (id) => {
         if (resultsContainer) resultsContainer.classList.add('hidden');
@@ -244,13 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 newInputNombre.classList.remove('bg-slate-100');
                 newInputNombre.classList.add('bg-green-50');
                 AppUtils.showToast('Cliente registrado con éxito');
-
-                allClients.push({
-                    id: cliente.id,
-                    nombre: cliente.nombre,
-                    email: cliente.email,
-                    telefono: cliente.telefono
-                });
             }
         });
     };
@@ -266,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const infoElement = document.getElementById('presupuesto-info');
     const clienteElement = document.getElementById('presupuesto-cliente');
 
-    // Estado del presupuesto seleccionado
     window.presupuestoSeleccionadoId = null;
     window.presupuestoItems = [];
 
@@ -326,10 +324,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * Renderiza la lista de presupuestos disponibles usando data-attributes
-     * (no onclick inline) para evitar bugs de HTML escapado.
-     */
     function renderPresupuestoResults(presupuestos, term) {
         if (!resultsContainer) return;
 
@@ -376,9 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) lucide.createIcons();
     }
 
-    /**
-     * Selecciona un presupuesto y carga sus items completos para la OS.
-     */
     window.seleccionarPresupuestoActivo = async (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
         console.log('[PRESUPUESTO] Seleccionando:', { id, numero, clienteNombre });
 
@@ -387,7 +378,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Si ya había un presupuesto anexado distinto, preguntar si reemplazar
         if (window.presupuestoSeleccionadoId && window.presupuestoSeleccionadoId !== id) {
             const confirm = await Swal.fire({
                 title: '¿Reemplazar presupuesto?',
@@ -530,15 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) lucide.createIcons();
     }
 
-    /**
-     * Desanexa el presupuesto y limpia todo (items, sección, campos).
-     * 
-     * @param {boolean} skipConfirm - Si es true, NO pide confirmación.
-     *                                 Se usa cuando se llama programáticamente
-     *                                 (por ejemplo, después de guardar la OS).
-     */
     window.desanexarPresupuesto = async (skipConfirm = false) => {
-        // Nada anexado: solo limpiar UI defensivamente
         if (!window.presupuestoSeleccionadoId) {
             inputPresupuesto.value = '';
             if (resultsContainer) resultsContainer.classList.add('hidden');
@@ -549,7 +531,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Si no es skip, pedir confirmación
         if (!skipConfirm) {
             const confirm = await Swal.fire({
                 title: '¿Desanexar presupuesto?',
@@ -565,7 +546,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!confirm.isConfirmed) return;
         }
 
-        // Limpiar todo
         window.presupuestoSeleccionadoId = null;
         window.presupuestoItems = [];
         inputPresupuesto.value = '';

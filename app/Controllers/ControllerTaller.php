@@ -747,4 +747,126 @@ class ControllerTaller extends Controller {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
+    /**
+     * RONDA 13 — T-01: Eliminar una orden de servicio y limpiar todo lo asociado.
+     * 
+     * POST /taller/eliminarOrden/{id}
+     * Body JSON: { motivo: string }
+     * 
+     * Solo administradores.
+     */
+    public function eliminarOrden($id = null) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return $this->jsonResponse(['success' => false, 'error' => 'Método no permitido'], 405);
+        }
+
+        RoleGuard::hasAccess(['ADMINISTRADOR']);
+
+        header('Content-Type: application/json');
+
+        try {
+            if (!$id || !is_numeric($id)) {
+                return $this->jsonResponse(['success' => false, 'error' => 'ID de orden inválido'], 400);
+            }
+
+            $raw = file_get_contents('php://input');
+            $input = json_decode($raw, true) ?: [];
+            $motivo = trim((string)($input['motivo'] ?? ''));
+
+            if ($motivo === '') {
+                return $this->jsonResponse(['success' => false, 'error' => 'El motivo es obligatorio'], 400);
+            }
+
+            $this->ordenModel->eliminarOrdenCompleta((int)$id, $motivo);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'mensaje' => "Orden #{$id} eliminada correctamente"
+            ]);
+
+        } catch (Throwable $e) {
+            error_log('[eliminarOrden] Excepción: ' . $e->getMessage());
+            return $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * RONDA 13 — T-02: Actualizar campos editables de la orden de servicio.
+     * 
+     * POST /taller/actualizarOrden
+     * Body JSON: {
+     *     id: int,
+     *     mecanico_id?: string,
+     *     fecha_entrega_estimada?: string (Y-m-d\TH:i o Y-m-d H:i:s),
+     *     observaciones?: string,
+     *     diagnostico_salida?: string
+     * }
+     * 
+     * Reemplaza funcionalmente a `asignarMecanico()`. El endpoint viejo se
+     * mantiene por compatibilidad, pero el modal ahora usa este.
+     */
+    public function actualizarOrden() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return $this->jsonResponse(['success' => false, 'error' => 'Método no permitido'], 405);
+        }
+
+        RoleGuard::hasAccess(['ADMINISTRADOR']);
+
+        header('Content-Type: application/json');
+
+        try {
+            $raw = file_get_contents('php://input');
+            $input = json_decode($raw, true) ?: [];
+
+            $ordenId = $input['id'] ?? $input['orden_id'] ?? null;
+            if (empty($ordenId)) {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'ID de orden requerido'
+                ], 400);
+            }
+
+            // Extraer solo los campos que llegan (permitir updates parciales)
+            $datos = [];
+            if (array_key_exists('mecanico_id', $input)) {
+                $mid = $input['mecanico_id'];
+                $datos['mecanico_id'] = (!empty($mid) && $mid !== '0') ? $mid : null;
+            }
+            if (array_key_exists('fecha_entrega_estimada', $input)) {
+                $datos['fecha_entrega_estimada'] = $input['fecha_entrega_estimada'];
+            }
+            if (array_key_exists('observaciones', $input)) {
+                $datos['observaciones'] = $input['observaciones'];
+            }
+            if (array_key_exists('diagnostico_salida', $input)) {
+                $datos['diagnostico_salida'] = $input['diagnostico_salida'];
+            }
+
+            if (empty($datos)) {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'No hay campos para actualizar'
+                ], 400);
+            }
+
+            $this->ordenModel->actualizarOrden((int)$ordenId, $datos);
+
+            logAction('TALLER', 'UPDATE_OS', "O.S. #{$ordenId} actualizada: " . implode(', ', array_keys($datos)));
+
+            return $this->jsonResponse([
+                'success' => true,
+                'mensaje' => 'Orden actualizada correctamente'
+            ]);
+
+        } catch (Throwable $e) {
+            error_log('[actualizarOrden] Excepción: ' . $e->getMessage());
+            return $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 400);
+        }
+    }
 }
