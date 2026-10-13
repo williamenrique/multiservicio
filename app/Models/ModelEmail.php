@@ -2,6 +2,22 @@
 /**
  * Modelo de Emails
  * Gestiona el envío, historial y plantillas de emails del sistema.
+ * 
+ * v3.3 (2026-10-13):
+ *   • FIX "Enviado por": `listar()` y `obtenerPorId()` ahora hacen JOIN
+ *     con `table_staff` para devolver el NOMBRE COMPLETO del empleado
+ *     (`staff_nombre`) en lugar del `username`.
+ *     El frontend usa `staff_nombre || usuario_nombre || 'Sistema'`.
+ *   • Se mantiene `usuario_nombre` (username) como fallback por
+ *     retrocompatibilidad.
+ * 
+ * v3.2 (2026-10-13):
+ *   • Nuevo método `getLastInsertId()`.
+ *   • Nuevo método `actualizarAdjuntos($id, $adjuntos)`.
+ * 
+ * v3.1 (2026-10-13):
+ *   • FIX: `guardarPlantilla()` usa `!empty()` para `variables_disponibles`.
+ *   • `listar()` busca también en `cuerpo_html`.
  */
 class ModelEmail {
     private $db;
@@ -10,6 +26,11 @@ class ModelEmail {
         $this->db = $db ?: new Database();
     }
 
+    /**
+     * Lista emails con paginación y filtros.
+     * 
+     * v3.3: JOIN con table_staff para traer el nombre real del empleado.
+     */
     public function listar($limit = 20, $offset = 0, $filters = []) {
         $where = "WHERE 1=1";
         $params = [];
@@ -31,7 +52,7 @@ class ModelEmail {
             $params[':hasta'] = $filters['hasta'];
         }
         if (!empty($filters['search'])) {
-            $where .= " AND (e.destinatario_email LIKE :search OR e.destinatario_nombre LIKE :search OR e.asunto LIKE :search)";
+            $where .= " AND (e.destinatario_email LIKE :search OR e.destinatario_nombre LIKE :search OR e.asunto LIKE :search OR e.cuerpo_html LIKE :search)";
             $params[':search'] = "%{$filters['search']}%";
         }
 
@@ -39,9 +60,14 @@ class ModelEmail {
         foreach ($params as $k => $v) $this->db->bind($k, $v);
         $total = (int)$this->db->single()->total;
 
-        $this->db->query("SELECT e.*, u.username as usuario_nombre 
+        // v3.3: JOIN con table_staff para el nombre completo del empleado
+        $this->db->query("SELECT e.*, 
+                                 u.username    as usuario_nombre,
+                                 s.nombre      as staff_nombre,
+                                 s.cargo       as staff_cargo
                           FROM table_emails e
                           LEFT JOIN table_usuarios u ON e.usuario_id = u.id
+                          LEFT JOIN table_staff    s ON u.staff_id   = s.id
                           $where
                           ORDER BY e.fecha_creacion DESC
                           LIMIT :limit OFFSET :offset");
@@ -52,10 +78,18 @@ class ModelEmail {
         return ['data' => $this->db->resultSet(), 'total' => $total];
     }
 
+    /**
+     * Obtiene un email por ID con datos del emisor.
+     * 
+     * v3.3: JOIN con table_staff para el nombre completo.
+     */
     public function obtenerPorId($id) {
         $this->db->query("SELECT e.*, 
-                                u.username as usuario_nombre, 
-                                s.email    as usuario_email
+                                 u.username    as usuario_nombre, 
+                                 u.staff_id    as usuario_staff_id,
+                                 s.email       as usuario_email,
+                                 s.nombre      as staff_nombre,
+                                 s.cargo       as staff_cargo
                         FROM table_emails e
                         LEFT JOIN table_usuarios u ON e.usuario_id = u.id
                         LEFT JOIN table_staff    s ON u.staff_id   = s.id
@@ -73,13 +107,12 @@ class ModelEmail {
                            :adjuntos, :ref_tipo, :ref_id, :estado, :error, :usuario_id, :fecha_envio)");
         
         $this->db->bind(':tipo', mb_strtoupper($data['tipo'] ?? 'OTRO', 'UTF-8'));
-        // CORREO EN MINÚSCULAS
         $this->db->bind(':dest_email', mb_strtolower($data['destinatario_email'], 'UTF-8'));
         $this->db->bind(':dest_nombre', mb_strtoupper($data['destinatario_nombre'] ?? '', 'UTF-8'));
         $this->db->bind(':asunto', mb_strtoupper($data['asunto'], 'UTF-8'));
         $this->db->bind(':cuerpo_html', $data['cuerpo_html']);
         $this->db->bind(':cuerpo_texto', $data['cuerpo_texto'] ?? null);
-        $this->db->bind(':adjuntos', $data['adjuntos'] ? json_encode($data['adjuntos']) : null);
+        $this->db->bind(':adjuntos', !empty($data['adjuntos']) ? json_encode($data['adjuntos']) : null);
         $this->db->bind(':ref_tipo', mb_strtoupper($data['referencia_tipo'] ?? 'NINGUNO', 'UTF-8'));
         $this->db->bind(':ref_id', $data['referencia_id'] ?? null);
         $this->db->bind(':estado', mb_strtoupper($data['estado'] ?? 'PENDIENTE', 'UTF-8'));
@@ -87,6 +120,26 @@ class ModelEmail {
         $this->db->bind(':usuario_id', $data['usuario_id'] ?? null);
         $this->db->bind(':fecha_envio', $data['fecha_envio'] ?? date('Y-m-d H:i:s'));
         
+        return $this->db->execute();
+    }
+
+    /**
+     * Retorna el ID del último INSERT (de la tabla table_emails).
+     * v3.2: usado por EmailService para construir el nombre de los adjuntos.
+     */
+    public function getLastInsertId(): int {
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Actualiza el campo `adjuntos` de un email.
+     * v3.2: usado por EmailService después de mover los adjuntos a su
+     * ubicación definitiva.
+     */
+    public function actualizarAdjuntos(int $id, array $adjuntos): bool {
+        $this->db->query("UPDATE table_emails SET adjuntos = :adj WHERE id = :id");
+        $this->db->bind(':adj', !empty($adjuntos) ? json_encode($adjuntos) : null);
+        $this->db->bind(':id', $id);
         return $this->db->execute();
     }
 
@@ -138,8 +191,16 @@ class ModelEmail {
         $this->db->bind(':tipo', mb_strtoupper($data['tipo'] ?? 'OTRO', 'UTF-8'));
         $this->db->bind(':asunto', mb_strtoupper($data['asunto'], 'UTF-8'));
         $this->db->bind(':cuerpo_html', $data['cuerpo_html']);
-        $this->db->bind(':vars', $data['variables_disponibles'] ? json_encode($data['variables_disponibles']) : null);
-        $this->db->bind(':activo', $data['activo'] ?? 1);
+
+        $varsJson = null;
+        if (!empty($data['variables_disponibles'])) {
+            $varsJson = is_array($data['variables_disponibles'])
+                ? json_encode($data['variables_disponibles'])
+                : (string)$data['variables_disponibles'];
+        }
+        $this->db->bind(':vars', $varsJson);
+
+        $this->db->bind(':activo', isset($data['activo']) ? (int)$data['activo'] : 1);
         
         return $this->db->execute();
     }

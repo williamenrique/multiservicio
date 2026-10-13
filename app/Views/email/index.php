@@ -15,25 +15,55 @@
         </div>
     </div>
 
-    <!-- Stats Cards -->
+    <!-- Stats Cards — v3.3: clicables como filtros rápidos -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="glass-card p-4 rounded-2xl border-l-4 border-blue-500 shadow-sm">
+
+        <!-- Total Enviados (todos) -->
+        <button type="button" data-stat-card="todos"
+                class="stat-card glass-card p-4 rounded-2xl border-l-4 border-blue-500 shadow-sm text-left transition-all hover:shadow-md hover:scale-[1.02] active"
+                style="--stat-color: #3b82f6;">
             <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total Enviados</p>
             <h2 id="stat-total" class="text-xl font-black text-blue-600"><?php echo $data['stats']->total ?? 0; ?></h2>
-        </div>
-        <div class="glass-card p-4 rounded-2xl border-l-4 border-emerald-500 shadow-sm">
+            <p class="stat-hint text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Click para ver todos</p>
+        </button>
+
+        <!-- Entregados -->
+        <button type="button" data-stat-card="ENVIADO"
+                class="stat-card glass-card p-4 rounded-2xl border-l-4 border-emerald-500 shadow-sm text-left transition-all hover:shadow-md hover:scale-[1.02]"
+                style="--stat-color: #10b981;">
             <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Entregados</p>
             <h2 id="stat-enviados" class="text-xl font-black text-emerald-600"><?php echo $data['stats']->enviados ?? 0; ?></h2>
-        </div>
-        <div class="glass-card p-4 rounded-2xl border-l-4 border-red-500 shadow-sm">
+            <p class="stat-hint text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Click para filtrar</p>
+        </button>
+
+        <!-- Fallidos -->
+        <button type="button" data-stat-card="FALLIDO"
+                class="stat-card glass-card p-4 rounded-2xl border-l-4 border-red-500 shadow-sm text-left transition-all hover:shadow-md hover:scale-[1.02]"
+                style="--stat-color: #ef4444;">
             <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Fallidos</p>
             <h2 id="stat-fallidos" class="text-xl font-black text-red-600"><?php echo $data['stats']->fallidos ?? 0; ?></h2>
-        </div>
-        <div class="glass-card p-4 rounded-2xl border-l-4 border-amber-500 shadow-sm">
+            <p class="stat-hint text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Click para filtrar</p>
+        </button>
+
+        <!-- Pendientes -->
+        <button type="button" data-stat-card="PENDIENTE"
+                class="stat-card glass-card p-4 rounded-2xl border-l-4 border-amber-500 shadow-sm text-left transition-all hover:shadow-md hover:scale-[1.02]"
+                style="--stat-color: #f59e0b;">
             <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Pendientes</p>
             <h2 id="stat-pendientes" class="text-xl font-black text-amber-600"><?php echo $data['stats']->pendientes ?? 0; ?></h2>
-        </div>
+            <p class="stat-hint text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Click para filtrar</p>
+        </button>
     </div>
+
+    <style>
+    .stat-card.active {
+        background-color: color-mix(in srgb, var(--stat-color) 8%, white);
+        box-shadow: 0 0 0 2px var(--stat-color), 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .stat-card.active .stat-hint::before {
+        content: '✓ ';
+    }
+    </style>
 
     <!-- Filtros -->
     <div class="glass-card p-4 rounded-2xl shadow-sm border border-slate-100">
@@ -75,7 +105,7 @@
                 <label class="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Buscar</label>
                 <div class="relative">
                     <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                    <input type="text" name="search" id="filter-search" placeholder="Buscar por email, nombre, asunto..."
+                    <input type="text" name="search" id="filter-search" placeholder="Email, nombre, asunto o contenido..."
                         class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-neon-green">
                 </div>
             </div>
@@ -126,9 +156,17 @@
     </div>
 </div>
 
-<!-- Modal Compose Email -->
+<!-- ═══════════════════════════════════════════════════════════════
+     MODAL COMPOSE EMAIL (v3.2)
+     • Prellenado con HTML por defecto al abrir.
+     • Botón "Restaurar por defecto".
+     • Aviso al cerrar con cambios sin enviar.
+     • Adjuntos múltiples con lista visual.
+     • Autocompletado de clientes por término.
+     • CC / BCC.
+     ═══════════════════════════════════════════════════════════════ -->
 <div id="composeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden overflow-y-auto">
-    <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
+    <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[95vh] flex flex-col">
         <div class="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
             <h2 id="composeModalTitle" class="text-lg sm:text-xl font-bold text-navy-blue uppercase tracking-wider">Nuevo Email</h2>
             <button id="btnCloseComposeModal" class="text-gray-500 hover:text-navy-blue"><i data-lucide="x" class="w-6 h-6"></i></button>
@@ -139,7 +177,7 @@
                 <div class="sm:col-span-2">
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Plantilla <span class="text-emerald-600">(opcional)</span></label>
                     <select name="plantilla_id" id="compose-plantilla" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all">
-                        <option value="">-- Seleccionar plantilla --</option>
+                        <option value="">-- Formato por defecto --</option>
                         <?php foreach ($plantillas as $p): ?>
                             <option value="<?php echo $p->id; ?>" data-tipo="<?php echo $p->tipo; ?>"><?php echo s($p->nombre); ?> (<?php echo s($p->tipo); ?>)</option>
                         <?php endforeach; ?>
@@ -171,11 +209,29 @@
             <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Para (Email) *</label>
                 <div class="relative">
-                    <input type="email" name="destinatario_email" id="compose-email" required placeholder="cliente@ejemplo.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all">
-                    <div id="email-suggestions" class="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 hidden max-h-40 overflow-y-auto"></div>
+                    <input type="email" name="destinatario_email" id="compose-email" required placeholder="cliente@ejemplo.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all" autocomplete="off">
+                    <div id="email-suggestions" class="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 hidden max-h-60 overflow-y-auto"></div>
+                </div>
+                <div id="email-selected-chip" class="hidden mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i>
+                    <span id="email-selected-text" class="text-xs font-bold text-emerald-700"></span>
+                    <button type="button" onclick="limpiarClienteSeleccionado()" class="ml-1 text-emerald-600 hover:text-emerald-800">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
                 </div>
                 <input type="hidden" name="destinatario_nombre" id="compose-email-nombre">
                 <input type="hidden" name="referencia_id" id="compose-ref-id">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">CC <span class="text-slate-400 normal-case font-normal">(opcional, separar con ;)</span></label>
+                    <input type="text" name="cc" id="compose-cc" placeholder="copia@ejemplo.com; otro@ejemplo.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">BCC <span class="text-slate-400 normal-case font-normal">(opcional, separar con ;)</span></label>
+                    <input type="text" name="bcc" id="compose-bcc" placeholder="oculto@ejemplo.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all">
+                </div>
             </div>
 
             <div>
@@ -184,13 +240,29 @@
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Cuerpo (HTML) *</label>
-                <textarea name="cuerpo_html" id="compose-cuerpo" rows="10" required placeholder="Contenido del email en HTML..." class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all font-mono text-sm resize-none"></textarea>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-xs font-bold text-gray-500 uppercase ml-1">Cuerpo (HTML) *</label>
+                    <div class="flex items-center gap-3">
+                        <button type="button" onclick="restaurarCuerpoDefault()" class="text-[10px] font-black text-slate-500 hover:text-slate-800 uppercase flex items-center gap-1.5 transition-colors">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Restaurar por defecto
+                        </button>
+                        <button type="button" onclick="abrirVistaPrevia()" class="text-[10px] font-black text-blue-600 hover:text-blue-800 uppercase flex items-center gap-1.5 transition-colors">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i> Vista Previa
+                        </button>
+                    </div>
+                </div>
+                <textarea name="cuerpo_html" id="compose-cuerpo" rows="12" required placeholder="Contenido del email en HTML..." class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all font-mono text-sm resize-none"><?php echo htmlspecialchars($data['cuerpo_default'] ?? ''); ?></textarea>
+                <p class="text-[10px] text-slate-400 mt-1">Variables soportadas: <code class="bg-slate-100 px-1 rounded">{{empresa_nombre}}</code>, <code class="bg-slate-100 px-1 rounded">{{empresa_nit}}</code>, <code class="bg-slate-100 px-1 rounded">{{empresa_direccion}}</code>, <code class="bg-slate-100 px-1 rounded">{{empresa_telefono}}</code>, <code class="bg-slate-100 px-1 rounded">{{empresa_email}}</code></p>
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Adjuntos</label>
-                <input type="file" name="adjuntos[]" id="compose-adjuntos" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Adjuntos <span class="text-slate-400 normal-case font-normal">(máx. 10 MB c/u)</span></label>
+                <input type="file" name="adjuntos[]" id="compose-adjuntos" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="hidden">
+                <label for="compose-adjuntos" class="cursor-pointer flex items-center justify-center gap-2 w-full bg-slate-50 hover:bg-slate-100 border-2 border-dashed border-slate-300 hover:border-neon-green rounded-xl py-4 px-4 text-slate-600 transition-all">
+                    <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+                    <span class="text-sm font-bold">Haz clic para seleccionar archivos</span>
+                </label>
+                <ul id="lista-adjuntos" class="mt-3 space-y-2"></ul>
             </div>
 
             <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -205,14 +277,42 @@
     </div>
 </div>
 
-<!-- ============================================================= -->
-<!-- PANEL LATERAL DE DETALLE                                       -->
-<!-- ============================================================= -->
+<!-- ═══════════════════════════════════════════════════════════════
+     MODAL REENVIAR A OTRO CORREO
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="reenviarModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] hidden">
+    <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
+        <div class="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <h2 class="text-base font-black text-navy-blue uppercase tracking-wider">Reenviar Email</h2>
+            <button onclick="cerrarModalReenviar()" class="text-gray-500 hover:text-navy-blue"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <form id="formReenviar" class="p-5 space-y-4">
+            <input type="hidden" id="reenviar-id">
+            <div class="bg-slate-50 rounded-xl p-3 text-xs">
+                <p class="font-black text-slate-400 uppercase text-[10px] mb-1">Email original</p>
+                <p id="reenviar-info" class="font-bold text-slate-700"></p>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">Nuevo destinatario *</label>
+                <input type="email" id="reenviar-email" required placeholder="nuevo@ejemplo.com" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all">
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button type="button" onclick="cerrarModalReenviar()" class="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-black text-xs uppercase hover:bg-slate-50 transition">Cancelar</button>
+                <button type="submit" class="bg-amber-500 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase hover:bg-amber-600 transition shadow-lg shadow-amber-500/20 flex items-center gap-2">
+                    <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Reenviar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PANEL LATERAL DE DETALLE
+     ═══════════════════════════════════════════════════════════════ -->
 <div id="detalleEmailOverlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 hidden transition-opacity" onclick="cerrarPanelDetalle()"></div>
 
 <aside id="detalleEmailPanel" class="fixed top-0 right-0 h-full w-full max-w-3xl bg-white shadow-2xl z-50 transform translate-x-full transition-transform duration-300 flex flex-col">
 
-    <!-- Header -->
     <div class="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
         <div class="flex items-center gap-3">
             <div id="detalle-icono" class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-xl">✉️</div>
@@ -226,10 +326,7 @@
         </button>
     </div>
 
-    <!-- Contenido scrolleable -->
     <div class="flex-1 overflow-y-auto">
-
-        <!-- Metadatos -->
         <div class="p-5 border-b border-slate-100">
             <div class="grid grid-cols-2 gap-3 text-xs">
                 <div class="bg-slate-50 p-3 rounded-lg">
@@ -271,7 +368,13 @@
             </div>
         </div>
 
-        <!-- Contenido del email (vista limpia) -->
+        <!-- Adjuntos -->
+        <div id="detalle-adjuntos-section" class="p-5 border-b border-slate-100 hidden">
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Archivos Adjuntos</p>
+            <div id="detalle-adjuntos-lista" class="space-y-2"></div>
+        </div>
+
+        <!-- Contenido -->
         <div class="p-5">
             <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">Contenido</p>
             <div class="border border-slate-200 rounded-xl bg-white p-5">
@@ -280,7 +383,6 @@
         </div>
     </div>
 
-    <!-- Footer -->
     <div class="p-5 border-t border-slate-100 bg-slate-50 flex justify-between items-center gap-3 shrink-0">
         <div id="detalle-adjuntos-wrap" class="text-[11px] text-slate-500"></div>
         <div class="flex gap-2">
@@ -289,7 +391,7 @@
                 <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                 <span id="detalle-btn-sistema-label">Ver en el sistema</span>
             </a>
-            <button id="detalle-btn-reenviar" onclick="reenviarEmailDesdeDetalle()" class="hidden bg-amber-500 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase hover:bg-amber-600 transition shadow-lg shadow-amber-500/20 flex items-center gap-2">
+            <button id="detalle-btn-reenviar" onclick="abrirModalReenviarDesdeDetalle()" class="hidden bg-amber-500 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase hover:bg-amber-600 transition shadow-lg shadow-amber-500/20 flex items-center gap-2">
                 <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Reenviar
             </button>
             <button onclick="cerrarPanelDetalle()" class="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-black text-xs uppercase hover:bg-slate-100 transition">
@@ -299,9 +401,6 @@
     </div>
 </aside>
 
-<!-- ============================================================= -->
-<!-- ESTILOS PARA EL CONTENIDO LIMPIO DEL EMAIL                    -->
-<!-- ============================================================= -->
 <style>
 #detalle-contenido-limpio { color: #334155; font-size: 14px; line-height: 1.6; }
 #detalle-contenido-limpio h2 {
@@ -390,488 +489,916 @@
     font-size: 11px;
     letter-spacing: 0.03em;
 }
+
+/* Lista de adjuntos */
+.adjunto-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 12px;
+}
+.adjunto-item .adjunto-nombre {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #334155;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    margin-right: 8px;
+}
+.adjunto-item .adjunto-size {
+    color: #94a3b8;
+    font-weight: 500;
+    font-size: 11px;
+    margin-right: 8px;
+    white-space: nowrap;
+}
+.adjunto-item .adjunto-remove {
+    flex-shrink: 0;
+    padding: 4px;
+    color: #94a3b8;
+    border-radius: 6px;
+    transition: all 0.15s;
+    cursor: pointer;
+}
+.adjunto-item .adjunto-remove:hover {
+    color: #ef4444;
+    background: #fef2f2;
+}
 </style>
-
 <script>
-let emailsPage = 1;
-let emailsLimit = 20;
-let emailsTotalPages = 1;
-let emailDetalleActual = null;
+    /* v3.2: HTML por defecto inyectado desde el servidor */
+    const CUERPO_DEFAULT = <?php echo json_encode($data['cuerpo_default'] ?? ''); ?>;
 
-/* ==================== HELPERS ==================== */
-function getIconoTipo(tipo) {
-    const iconos = {
-        'ORDEN_SERVICIO':  '🔧',
-        'FACTURA':         '🧾',
-        'PEDIDO_CATALOGO': '📦',
-        'PRESUPUESTO':     '📄',
-        'ALERTA_PROVEEDOR':'⚠️',
-        'RESUMEN_MENSUAL': '📊',
-        'NOTIFICACION':    '🔔',
-        'RECUPERACION':    '🔑',
-        'GARANTIA':        '🛡️',
-        'OTRO':            '✉️'
-    };
-    return iconos[tipo] || '✉️';
-}
+    let emailsPage = 1;
+    let emailsLimit = 20;
+    let emailsTotalPages = 1;
+    let emailDetalleActual = null;
+    let adjuntosPendientes = [];
+    let emailSearchDebounce = null;
+    let composeDirty = false;
 
-function getColorTipo(tipo) {
-    const colores = {
-        'ORDEN_SERVICIO':  'bg-blue-100 text-blue-700',
-        'FACTURA':         'bg-emerald-100 text-emerald-700',
-        'PEDIDO_CATALOGO': 'bg-purple-100 text-purple-700',
-        'PRESUPUESTO':     'bg-cyan-100 text-cyan-700',
-        'ALERTA_PROVEEDOR':'bg-amber-100 text-amber-700',
-        'RESUMEN_MENSUAL': 'bg-indigo-100 text-indigo-700',
-        'NOTIFICACION':    'bg-yellow-100 text-yellow-700',
-        'RECUPERACION':    'bg-pink-100 text-pink-700',
-        'GARANTIA':        'bg-teal-100 text-teal-700',
-        'OTRO':            'bg-slate-100 text-slate-600'
-    };
-    return colores[tipo] || 'bg-slate-100 text-slate-600';
-}
+    // v3.3: estado del filtro por tarjetas. null = "todos"
+    let statFilterActivo = null;
 
-function getAccionSistema(tipo, id) {
-    if (!tipo || tipo === 'NINGUNO' || !id) return null;
-    const acciones = {
-        'ORDEN':           { url: `${URLROOT}/taller/historial/ORDEN/${id}`,  label: 'Ver Orden de Servicio', icon: 'wrench' },
-        'FACTURA':         { url: `${URLROOT}/facturas/ver/${id}`,            label: 'Ver Factura',            icon: 'receipt' },
-        'PRESUPUESTO':     { url: `${URLROOT}/presupuesto/ver/${id}`,         label: 'Ver Presupuesto',        icon: 'file-text' },
-        'CLIENTE':         { url: `${URLROOT}/clientes`,                       label: 'Ver Cliente',            icon: 'user' },
-        'PEDIDO_CATALOGO': { url: `${URLROOT}/catalogo/ver-pedido/${id}`,     label: 'Ver Pedido',             icon: 'package' },
-        'PROVEEDOR':       { url: `${URLROOT}/proveedores`,                    label: 'Ver Proveedor',          icon: 'truck' },
-        'GARANTIA':        { url: `${URLROOT}/garantia`,                       label: 'Ver Garantía',           icon: 'shield' }
-    };
-    return acciones[tipo] || null;
-}
-
-function buildLinkReferencia(tipo, id) {
-    if (!tipo || tipo === 'NINGUNO' || !id) {
-        return '<span class="text-slate-300 text-xs">—</span>';
+    /* ==================== HELPERS ==================== */
+    function getIconoTipo(tipo) {
+        const iconos = {
+            'ORDEN_SERVICIO':  '🔧',
+            'FACTURA':         '🧾',
+            'PEDIDO_CATALOGO': '📦',
+            'PRESUPUESTO':     '📄',
+            'ALERTA_PROVEEDOR':'⚠️',
+            'RESUMEN_MENSUAL': '📊',
+            'NOTIFICACION':    '🔔',
+            'RECUPERACION':    '🔑',
+            'GARANTIA':        '🛡️',
+            'OTRO':            '✉️'
+        };
+        return iconos[tipo] || '✉️';
     }
-    const accion = getAccionSistema(tipo, id);
-    if (!accion) return `<span class="text-xs text-slate-500">${tipo} #${id}</span>`;
-    return `<a href="${accion.url}" class="text-blue-600 hover:text-blue-800 hover:underline font-bold text-xs">${tipo} #${id}</a>`;
-}
 
-function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
+    function getColorTipo(tipo) {
+        const colores = {
+            'ORDEN_SERVICIO':  'bg-blue-100 text-blue-700',
+            'FACTURA':         'bg-emerald-100 text-emerald-700',
+            'PEDIDO_CATALOGO': 'bg-purple-100 text-purple-700',
+            'PRESUPUESTO':     'bg-cyan-100 text-cyan-700',
+            'ALERTA_PROVEEDOR':'bg-amber-100 text-amber-700',
+            'RESUMEN_MENSUAL': 'bg-indigo-100 text-indigo-700',
+            'NOTIFICACION':    'bg-yellow-100 text-yellow-700',
+            'RECUPERACION':    'bg-pink-100 text-pink-700',
+            'GARANTIA':        'bg-teal-100 text-teal-700',
+            'OTRO':            'bg-slate-100 text-slate-600'
+        };
+        return colores[tipo] || 'bg-slate-100 text-slate-600';
+    }
 
-function extraerContenidoEmail(htmlCompleto) {
-    if (!htmlCompleto) return '<p class="text-slate-400 text-sm italic py-4">(Sin contenido)</p>';
-    try {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlCompleto, 'text/html');
-        const body = doc.querySelector('.email-body') || doc.body;
+    function getAccionSistema(tipo, id) {
+        if (!tipo || tipo === 'NINGUNO' || !id) return null;
+        const acciones = {
+            'ORDEN':           { url: `${URLROOT}/taller/historial/ORDEN/${id}`,  label: 'Ver Orden de Servicio', icon: 'wrench' },
+            'FACTURA':         { url: `${URLROOT}/facturas/ver/${id}`,            label: 'Ver Factura',            icon: 'receipt' },
+            'PRESUPUESTO':     { url: `${URLROOT}/presupuesto/ver/${id}`,         label: 'Ver Presupuesto',        icon: 'file-text' },
+            'CLIENTE':         { url: `${URLROOT}/clientes`,                       label: 'Ver Cliente',            icon: 'user' },
+            'PEDIDO_CATALOGO': { url: `${URLROOT}/catalogo/ver-pedido/${id}`,     label: 'Ver Pedido',             icon: 'package' },
+            'PROVEEDOR':       { url: `${URLROOT}/proveedores`,                    label: 'Ver Proveedor',          icon: 'truck' },
+            'GARANTIA':        { url: `${URLROOT}/garantia`,                       label: 'Ver Garantía',           icon: 'shield' }
+        };
+        return acciones[tipo] || null;
+    }
 
-        body.querySelectorAll('a.btn, a.button').forEach(a => a.remove());
+    function buildLinkReferencia(tipo, id) {
+        if (!tipo || tipo === 'NINGUNO' || !id) {
+            return '<span class="text-slate-300 text-xs">—</span>';
+        }
+        const accion = getAccionSistema(tipo, id);
+        if (!accion) return `<span class="text-xs text-slate-500">${tipo} #${id}</span>`;
+        return `<a href="${accion.url}" class="text-blue-600 hover:text-blue-800 hover:underline font-bold text-xs">${tipo} #${id}</a>`;
+    }
 
-        body.querySelectorAll('p').forEach(p => {
-            const texto = p.textContent.replace(/\s|\u00a0/g, '');
-            if (texto === '' && !p.querySelector('img, table, hr')) {
-                p.remove();
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function extraerContenidoEmail(htmlCompleto) {
+        if (!htmlCompleto) return '<p class="text-slate-400 text-sm italic py-4">(Sin contenido)</p>';
+        try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlCompleto, 'text/html');
+            const body = doc.querySelector('.email-body') || doc.body;
+
+            body.querySelectorAll('a.btn, a.button').forEach(a => a.remove());
+
+            body.querySelectorAll('p').forEach(p => {
+                const texto = p.textContent.replace(/\s|\u00a0/g, '');
+                if (texto === '' && !p.querySelector('img, table, hr')) {
+                    p.remove();
+                }
+            });
+
+            return body.innerHTML;
+        } catch (e) {
+            console.error('Error parseando HTML del email:', e);
+            return '<p class="text-red-400 text-sm italic py-4">Error al parsear el contenido</p>';
+        }
+    }
+
+    /* ==================== FILTRO POR TARJETAS (v3.3) ==================== */
+
+    /**
+     * Aplica un filtro de estado (o lo limpia) desde una tarjeta de stats.
+     * 
+     * @param {string|null} estado - 'ENVIADO' | 'FALLIDO' | 'PENDIENTE' | null
+     */
+    function aplicarFiltroStat(estado) {
+        statFilterActivo = estado;
+
+        // Sincronizar el dropdown manual
+        const dropdown = document.getElementById('filter-estado');
+        if (dropdown) dropdown.value = estado || '';
+
+        // Actualizar el estilo visual de las tarjetas
+        document.querySelectorAll('.stat-card').forEach(card => {
+            const cardEstado = card.dataset.statCard;
+            const isThis = (cardEstado === 'todos' && estado === null) ||
+                        (cardEstado === estado);
+            card.classList.toggle('active', isThis);
+        });
+
+        // Recargar tabla
+        cargarEmails(1);
+    }
+
+    /** Inicializa los listeners de las tarjetas de stats. */
+    function initStatCards() {
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const cardEstado = card.dataset.statCard;
+                const nuevoEstado = (cardEstado === 'todos') ? null : cardEstado;
+
+                // Si hace clic en la tarjeta ya activa y no es "todos", desactivar
+                if (statFilterActivo === nuevoEstado && nuevoEstado !== null) {
+                    aplicarFiltroStat(null);
+                } else {
+                    aplicarFiltroStat(nuevoEstado);
+                }
+            });
+        });
+
+        // Marcar "Total Enviados" como activa al inicio
+        aplicarFiltroStat(null);
+        // Pero no recargar la tabla de nuevo, ya se carga abajo. Solo aplicar el estilo.
+        document.querySelectorAll('.stat-card').forEach(card => {
+            const cardEstado = card.dataset.statCard;
+            card.classList.toggle('active', cardEstado === 'todos');
+        });
+    }
+
+    /* ==================== CARGA DE EMAILS ==================== */
+    async function cargarEmails(page = 1) {
+        emailsPage = page;
+        const tbody = document.getElementById('emails-body');
+        
+        const filters = {
+            limit: emailsLimit,
+            page: emailsPage,
+            tipo: document.getElementById('filter-tipo').value || null,
+            estado: document.getElementById('filter-estado').value || null,
+            desde: document.getElementById('filter-desde').value || null,
+            hasta: document.getElementById('filter-hasta').value || null,
+            search: document.getElementById('filter-search')?.value?.trim() || null
+        };
+
+        try {
+            const res = await fetch(`${URLROOT}/email/listar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify(filters)
+            });
+            const result = await res.json();
+
+            if (!result.success || result.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-16 text-center text-slate-400 uppercase text-xs font-bold tracking-widest">No hay emails registrados</td></tr>';
+                document.getElementById('emails-pagination').classList.add('hidden');
+                return;
             }
-        });
 
-        return body.innerHTML;
-    } catch (e) {
-        console.error('Error parseando HTML del email:', e);
-        return '<p class="text-red-400 text-sm italic py-4">Error al parsear el contenido</p>';
-    }
-}
-
-/* ==================== CARGA DE EMAILS ==================== */
-async function cargarEmails(page = 1) {
-    emailsPage = page;
-    const tbody = document.getElementById('emails-body');
-    
-    const filters = {
-        limit: emailsLimit,
-        page: emailsPage,
-        tipo: document.getElementById('filter-tipo').value || null,
-        estado: document.getElementById('filter-estado').value || null,
-        desde: document.getElementById('filter-desde').value || null,
-        hasta: document.getElementById('filter-hasta').value || null,
-        search: document.getElementById('filter-search')?.value?.trim() || null
-    };
-
-    try {
-        const res = await fetch(`${URLROOT}/email/listar`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
-            body: JSON.stringify(filters)
-        });
-        const result = await res.json();
-
-        if (!result.success || result.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-16 text-center text-slate-400 uppercase text-xs font-bold tracking-widest">No hay emails registrados</td></tr>';
+            tbody.innerHTML = result.data.map(e => {
+                const estadoBadge = e.estado === 'ENVIADO' 
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">Enviado</span>'
+                    : e.estado === 'FALLIDO'
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700">Fallido</span>'
+                    : '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700">Pendiente</span>';
+                
+                const icono = getIconoTipo(e.tipo);
+                const colorTipo = getColorTipo(e.tipo);
+                const tipoBadge = `<span class="px-2 py-1 rounded-full text-[10px] font-black ${colorTipo} whitespace-nowrap">${icono} ${escapeHtml(e.tipo || 'OTRO')}</span>`;
+                const linkRef = buildLinkReferencia(e.referencia_tipo, e.referencia_id);
+                
+                return `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4 text-xs font-bold text-navy-blue whitespace-nowrap">${new Date(e.fecha_creacion).toLocaleString()}</td>
+                        <td class="px-6 py-4">${tipoBadge}</td>
+                        <td class="px-6 py-4">${linkRef}</td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-col">
+                                <span class="text-xs font-black text-slate-700">${escapeHtml(e.destinatario_nombre || e.destinatario_email)}</span>
+                                <span class="text-[10px] text-slate-400">${escapeHtml(e.destinatario_email)}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-xs text-slate-600 truncate max-w-xs" title="${escapeHtml(e.asunto)}">${escapeHtml(e.asunto)}</td>
+                        <td class="px-6 py-4">${estadoBadge}</td>
+                        <td class="px-6 py-4 text-xs text-slate-500">${escapeHtml(e.staff_nombre || e.usuario_nombre || 'Sistema')}</td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex gap-1 justify-end">
+                                <button onclick="verEmail(${e.id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver detalle">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="abrirModalReenviar(${e.id}, '${escapeHtml(e.destinatario_email)}', '${escapeHtml(e.asunto)}')" class="p-2 bg-amber-100 hover:bg-amber-500 hover:text-black text-amber-600 rounded-lg transition-all" title="Reenviar a otro correo">
+                                    <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join('');
+            
+            emailsTotalPages = result.total_paginas || 1;
+            const total = result.total || 0;
+            const start = (emailsPage - 1) * emailsLimit + 1;
+            const end = Math.min(emailsPage * emailsLimit, total);
+            
+            document.getElementById('emails-info').textContent = `Mostrando ${start} a ${end} de ${total} emails - Página ${emailsPage} de ${emailsTotalPages}`;
+            renderEmailsPagination(emailsPage, emailsTotalPages);
+            document.getElementById('emails-pagination').classList.remove('hidden');
+            
+            if (window.lucide) lucide.createIcons();
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-16 text-center text-red-400 uppercase text-xs font-bold tracking-widest">Error al cargar los datos</td></tr>';
             document.getElementById('emails-pagination').classList.add('hidden');
+        }
+    }
+
+    function renderEmailsPagination(page, totalPages) {
+        const ctrl = document.getElementById('emails-pagination-controls');
+        if (totalPages <= 1) { ctrl.innerHTML = ''; return; }
+        let html = '';
+        html += `<button onclick="cargarEmails(${Math.max(1, page - 1)})" class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100 ${page === 1 ? 'opacity-40 cursor-not-allowed' : ''}" ${page === 1 ? 'disabled' : ''}><i data-lucide="chevron-left" class="w-3 h-3"></i></button>`;
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= page - 1 && i <= page + 1)) {
+                html += `<button onclick="cargarEmails(${i})" class="px-3 py-1.5 rounded-lg text-xs font-bold border ${i === page ? 'bg-navy-blue text-white border-navy-blue' : 'border-slate-200 hover:bg-slate-100'}">${i}</button>`;
+            } else if (i === page - 2 || i === page + 2) {
+                html += `<span class="px-2 text-slate-400">...</span>`;
+            }
+        }
+        html += `<button onclick="cargarEmails(${Math.min(totalPages, page + 1)})" class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100 ${page === totalPages ? 'opacity-40 cursor-not-allowed' : ''}" ${page === totalPages ? 'disabled' : ''}><i data-lucide="chevron-right" class="w-3 h-3"></i></button>`;
+        ctrl.innerHTML = html;
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function limpiarFiltrosEmail() {
+        document.getElementById('filter-tipo').value = '';
+        document.getElementById('filter-estado').value = '';
+        document.getElementById('filter-desde').value = '';
+        document.getElementById('filter-hasta').value = '';
+        const searchField = document.getElementById('filter-search');
+        if (searchField) searchField.value = '';
+
+        // v3.3: resetear la tarjeta activa a "todos"
+        statFilterActivo = null;
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.classList.toggle('active', card.dataset.statCard === 'todos');
+        });
+
+        cargarEmails(1);
+    }
+
+    /* ==================== MODAL COMPOSE ==================== */
+    function abrirModalCompose() {
+        document.getElementById('composeModal').classList.remove('hidden');
+        document.getElementById('formComposeEmail').reset();
+
+        const cuerpo = document.getElementById('compose-cuerpo');
+        if (cuerpo) cuerpo.value = CUERPO_DEFAULT;
+
+        composeDirty = false;
+
+        document.getElementById('composeModalTitle').textContent = 'Nuevo Email';
+        adjuntosPendientes = [];
+        renderAdjuntosLista();
+        limpiarClienteSeleccionado();
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function cerrarModalCompose(forzar = false) {
+        if (!forzar && composeDirty) {
+            Swal.fire({
+                title: '¿Descartar el email?',
+                text: 'Tienes cambios sin enviar. ¿Seguro que quieres cerrar?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, descartar',
+                cancelButtonText: 'Seguir editando',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b'
+            }).then((r) => {
+                if (r.isConfirmed) {
+                    cerrarModalCompose(true);
+                }
+            });
+            return;
+        }
+        document.getElementById('composeModal').classList.add('hidden');
+        adjuntosPendientes = [];
+        renderAdjuntosLista();
+        composeDirty = false;
+    }
+
+    function restaurarCuerpoDefault() {
+        const cuerpo = document.getElementById('compose-cuerpo');
+        if (!cuerpo) return;
+
+        if (cuerpo.value.trim() === CUERPO_DEFAULT.trim()) {
+            AppUtils.showToast('El cuerpo ya tiene el formato por defecto', 'info');
             return;
         }
 
-        tbody.innerHTML = result.data.map(e => {
+        Swal.fire({
+            title: '¿Restaurar formato por defecto?',
+            text: 'El contenido actual del cuerpo se reemplazará por el formato por defecto.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, restaurar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#3b82f6',
+            cancelButtonColor: '#64748b'
+        }).then((r) => {
+            if (r.isConfirmed) {
+                cuerpo.value = CUERPO_DEFAULT;
+                document.getElementById('compose-plantilla').value = '';
+                composeDirty = false;
+            }
+        });
+    }
+
+    document.getElementById('formComposeEmail')?.addEventListener('input', function(e) {
+        if (e.target && e.target.id === 'compose-plantilla') return;
+        composeDirty = true;
+    });
+
+    /* ==================== AUTOCOMPLETADO DE CLIENTES ==================== */
+    document.getElementById('compose-email')?.addEventListener('input', function(e) {
+        clearTimeout(emailSearchDebounce);
+        const term = this.value.trim();
+        const suggestions = document.getElementById('email-suggestions');
+
+        if (term.length < 2) {
+            suggestions.classList.add('hidden');
+            suggestions.innerHTML = '';
+            return;
+        }
+
+        suggestions.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs"><i data-lucide="loader" class="w-4 h-4 animate-spin inline-block mr-1"></i> Buscando...</div>';
+        suggestions.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+
+        emailSearchDebounce = setTimeout(async () => {
+            try {
+                const res = await fetch(`${URLROOT}/email/getClientes?q=${encodeURIComponent(term)}`);
+                const data = await res.json();
+
+                if (!data.success || !Array.isArray(data.data) || data.data.length === 0) {
+                    suggestions.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">Sin coincidencias. Use "+ Nuevo Cliente" si no existe.</div>';
+                    return;
+                }
+
+                window.__clientesEmailBuffer = data.data;
+
+                suggestions.innerHTML = data.data.map((c, idx) => {
+                    const sinEmail = !c.email;
+                    return `
+                    <div class="px-4 py-3 ${sinEmail ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 cursor-pointer'} border-b border-slate-100 last:border-0 transition-colors" 
+                        data-cliente-idx="${idx}">
+                        <div class="flex justify-between items-start">
+                            <div class="min-w-0 flex-1">
+                                <div class="font-bold text-sm text-slate-700 truncate">${escapeHtml(c.nombre || '')}</div>
+                                <div class="text-xs ${sinEmail ? 'text-rose-500 font-bold' : 'text-slate-500'}">
+                                    ${sinEmail ? '⚠ Sin email registrado' : escapeHtml(c.email)}
+                                    · ${escapeHtml(c.id || '')}
+                                </div>
+                                ${c.telefono ? `<div class="text-[10px] text-slate-400">Tel: ${escapeHtml(c.telefono)}</div>` : ''}
+                            </div>
+                            ${!sinEmail ? `<i data-lucide="at-sign" class="w-4 h-4 text-slate-300 mt-1 ml-2 flex-shrink-0"></i>` : ''}
+                        </div>
+                    </div>`;
+                }).join('');
+
+                suggestions.querySelectorAll('[data-cliente-idx]').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const idx = parseInt(el.dataset.clienteIdx);
+                        seleccionarClienteEmailPorIndice(idx);
+                    });
+                });
+
+                if (window.lucide) lucide.createIcons();
+            } catch (err) {
+                console.error(err);
+                suggestions.innerHTML = '<div class="p-4 text-center text-rose-500 text-xs">Error al buscar</div>';
+            }
+        }, 250);
+    });
+
+    function seleccionarClienteEmailPorIndice(idx) {
+        const clientes = window.__clientesEmailBuffer || [];
+        const c = clientes[idx];
+        if (!c) return;
+
+        if (!c.email) {
+            AppUtils.showToast('Este cliente no tiene email registrado', 'warning');
+            return;
+        }
+
+        document.getElementById('compose-email').value = c.email;
+        document.getElementById('compose-email-nombre').value = c.nombre || '';
+        document.getElementById('compose-ref-id').value = c.id || '';
+
+        document.getElementById('email-selected-chip').classList.remove('hidden');
+        document.getElementById('email-selected-text').textContent = `${c.nombre || ''} <${c.email}>`;
+
+        document.getElementById('email-suggestions').classList.add('hidden');
+        composeDirty = true;
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function limpiarClienteSeleccionado() {
+        document.getElementById('email-selected-chip').classList.add('hidden');
+        document.getElementById('email-selected-text').textContent = '';
+        document.getElementById('compose-email-nombre').value = '';
+        document.getElementById('compose-ref-id').value = '';
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#compose-email') && !e.target.closest('#email-suggestions')) {
+            const s = document.getElementById('email-suggestions');
+            if (s) s.classList.add('hidden');
+        }
+    });
+
+    document.getElementById('compose-plantilla')?.addEventListener('change', async function() {
+        const plantillaId = this.value;
+
+        if (!plantillaId) {
+            const cuerpo = document.getElementById('compose-cuerpo');
+            if (cuerpo && cuerpo.value !== CUERPO_DEFAULT) {
+                Swal.fire({
+                    title: '¿Volver al formato por defecto?',
+                    text: 'El cuerpo actual será reemplazado por el formato por defecto.',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, volver',
+                    cancelButtonText: 'Mantener actual',
+                    confirmButtonColor: '#3b82f6',
+                    cancelButtonColor: '#64748b'
+                }).then((r) => {
+                    if (r.isConfirmed) {
+                        cuerpo.value = CUERPO_DEFAULT;
+                        composeDirty = false;
+                    }
+                });
+            }
+            return;
+        }
+
+        try {
+            const res = await fetch(`${URLROOT}/email/obtenerPlantilla/${plantillaId}`);
+            const data = await res.json();
+            if (data.success && data.plantilla) {
+                document.getElementById('compose-asunto').value = data.plantilla.asunto;
+                document.getElementById('compose-cuerpo').value = data.plantilla.cuerpo_html;
+                document.getElementById('compose-tipo').value = data.plantilla.tipo;
+                composeDirty = true;
+            }
+        } catch (e) {
+            console.error(e);
+            AppUtils.showToast('Error al cargar la plantilla', 'error');
+        }
+    });
+
+    /* ==================== ADJUNTOS MÚLTIPLES ==================== */
+    document.getElementById('compose-adjuntos')?.addEventListener('change', function(e) {
+        const files = Array.from(e.target.files || []);
+        const MAX_SIZE = 10 * 1024 * 1024;
+        const ALLOWED = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
+        files.forEach(f => {
+            if (f.size > MAX_SIZE) {
+                AppUtils.showToast(`"${f.name}" excede el límite de 10 MB`, 'error');
+                return;
+            }
+            const ext = f.name.split('.').pop().toLowerCase();
+            if (!ALLOWED.includes(f.type) && !['pdf','jpg','jpeg','png','doc','docx'].includes(ext)) {
+                AppUtils.showToast(`"${f.name}" no es un tipo permitido`, 'error');
+                return;
+            }
+            if (adjuntosPendientes.some(a => a.name === f.name && a.size === f.size)) return;
+            adjuntosPendientes.push(f);
+        });
+
+        e.target.value = '';
+        renderAdjuntosLista();
+        if (adjuntosPendientes.length > 0) composeDirty = true;
+    });
+
+    function renderAdjuntosLista() {
+        const lista = document.getElementById('lista-adjuntos');
+        if (!lista) return;
+
+        if (adjuntosPendientes.length === 0) {
+            lista.innerHTML = '';
+            return;
+        }
+
+        lista.innerHTML = adjuntosPendientes.map((f, idx) => `
+            <li class="adjunto-item">
+                <span class="adjunto-nombre">
+                    <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+                    ${escapeHtml(f.name)}
+                </span>
+                <span class="adjunto-size">${formatBytes(f.size)}</span>
+                <button type="button" onclick="eliminarAdjunto(${idx})" class="adjunto-remove" title="Eliminar">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+            </li>
+        `).join('');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function eliminarAdjunto(idx) {
+        adjuntosPendientes.splice(idx, 1);
+        renderAdjuntosLista();
+    }
+
+    /* ==================== VISTA PREVIA ==================== */
+    async function abrirVistaPrevia() {
+        const cuerpo = document.getElementById('compose-cuerpo').value.trim();
+        const asunto = document.getElementById('compose-asunto').value.trim();
+
+        if (!cuerpo) {
+            AppUtils.showToast('El cuerpo del email está vacío', 'warning');
+            return;
+        }
+
+        try {
+            AppUtils.showLoading('Generando vista previa...');
+            const res = await fetch(`${URLROOT}/email/preview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ cuerpo_html: cuerpo, asunto: asunto })
+            });
+            const data = await res.json();
+            AppUtils.hideLoading();
+
+            if (!data.success) {
+                AppUtils.showToast(data.mensaje || 'Error al generar vista previa', 'error');
+                return;
+            }
+
+            Swal.fire({
+                title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Vista Previa</span><br><span class="text-navy-blue text-base">${escapeHtml(asunto || 'Sin asunto')}</span>`,
+                html: `
+                    <div class="text-left">
+                        <p class="text-[10px] font-black text-slate-400 uppercase mb-2">Como lo verá el cliente:</p>
+                        <iframe
+                            sandbox=""
+                            style="width:100%; height:500px; border:1px solid #e2e8f0; border-radius:12px; background:#ffffff;"
+                            srcdoc="${escapeHtml(data.html_preview || '').replace(/"/g, '&quot;')}"
+                        ></iframe>
+                    </div>`,
+                width: '750px',
+                showCancelButton: true,
+                confirmButtonText: 'Cerrar',
+                confirmButtonColor: '#64748b'
+            });
+
+        } catch (e) {
+            AppUtils.hideLoading();
+            console.error(e);
+            AppUtils.showToast('Error al generar la vista previa', 'error');
+        }
+    }
+
+    /* ==================== ENVÍO ==================== */
+    document.getElementById('formComposeEmail')?.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const btn = this.querySelector('button[type="submit"]');
+        const originalText = btn.innerHTML;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Enviando...';
+        if (window.lucide) lucide.createIcons();
+        
+        try {
+            const formData = new FormData(this);
+            formData.delete('adjuntos[]');
+            adjuntosPendientes.forEach(f => formData.append('adjuntos[]', f));
+
+            const res = await fetch(`${URLROOT}/email/enviar`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: formData
+            });
+            const result = await res.json();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje || 'Email enviado correctamente', 'success');
+                if (result.warnings && result.warnings.length > 0) {
+                    result.warnings.forEach(w => AppUtils.showToast(w, 'warning'));
+                }
+                cerrarModalCompose(true);
+                cargarEmails(1);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al enviar', 'error');
+                if (result.warnings && result.warnings.length > 0) {
+                    result.warnings.forEach(w => AppUtils.showToast(w, 'warning'));
+                }
+            }
+        } catch (e) {
+            AppUtils.showToast('Error de conexión', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            if (window.lucide) lucide.createIcons();
+        }
+    });
+
+    /* ==================== PANEL DE DETALLE ==================== */
+    async function verEmail(id) {
+        try {
+            const res = await fetch(`${URLROOT}/email/obtener/${id}`);
+            const data = await res.json();
+            
+            if (!data.success || !data.email) {
+                AppUtils.showToast('No se pudo cargar el email', 'error');
+                return;
+            }
+            
+            const e = data.email;
+            emailDetalleActual = e;
+
+            const icono = getIconoTipo(e.tipo);
+            document.getElementById('detalle-icono').textContent = icono;
+            document.getElementById('detalle-titulo').textContent = `Email #${e.id}`;
+            document.getElementById('detalle-subtitulo').textContent = e.asunto || '(sin asunto)';
+
+            document.getElementById('detalle-tipo').textContent = `${icono} ${e.tipo || 'OTRO'}`;
+            
             const estadoBadge = e.estado === 'ENVIADO' 
                 ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">Enviado</span>'
                 : e.estado === 'FALLIDO'
                 ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700">Fallido</span>'
                 : '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700">Pendiente</span>';
-            
-            const icono = getIconoTipo(e.tipo);
-            const colorTipo = getColorTipo(e.tipo);
-            const tipoBadge = `<span class="px-2 py-1 rounded-full text-[10px] font-black ${colorTipo} whitespace-nowrap">${icono} ${escapeHtml(e.tipo || 'OTRO')}</span>`;
-            const linkRef = buildLinkReferencia(e.referencia_tipo, e.referencia_id);
-            
-            return `
-                <tr class="hover:bg-slate-50 transition-colors">
-                    <td class="px-6 py-4 text-xs font-bold text-navy-blue whitespace-nowrap">${new Date(e.fecha_creacion).toLocaleString()}</td>
-                    <td class="px-6 py-4">${tipoBadge}</td>
-                    <td class="px-6 py-4">${linkRef}</td>
-                    <td class="px-6 py-4">
-                        <div class="flex flex-col">
-                            <span class="text-xs font-black text-slate-700">${escapeHtml(e.destinatario_nombre || e.destinatario_email)}</span>
-                            <span class="text-[10px] text-slate-400">${escapeHtml(e.destinatario_email)}</span>
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 text-xs text-slate-600 truncate max-w-xs" title="${escapeHtml(e.asunto)}">${escapeHtml(e.asunto)}</td>
-                    <td class="px-6 py-4">${estadoBadge}</td>
-                    <td class="px-6 py-4 text-xs text-slate-500">${escapeHtml(e.usuario_nombre || 'Sistema')}</td>
-                    <td class="px-6 py-4 text-right">
-                        <div class="flex gap-1 justify-end">
-                            <button onclick="verEmail(${e.id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver detalle">
-                                <i data-lucide="eye" class="w-4 h-4"></i>
-                            </button>
-                            ${e.estado === 'FALLIDO' ? `<button onclick="reenviarEmail(${e.id})" class="p-2 bg-amber-100 hover:bg-amber-500 hover:text-black text-amber-600 rounded-lg transition-all" title="Reenviar">
-                                <i data-lucide="rotate-cw" class="w-4 h-4"></i>
-                            </button>` : ''}
-                        </div>
-                    </td>
-                </tr>`;
-        }).join('');
-        
-        emailsTotalPages = result.total_paginas || 1;
-        const total = result.total || 0;
-        const start = (emailsPage - 1) * emailsLimit + 1;
-        const end = Math.min(emailsPage * emailsLimit, total);
-        
-        document.getElementById('emails-info').textContent = `Mostrando ${start} a ${end} de ${total} emails - Página ${emailsPage} de ${emailsTotalPages}`;
-        renderEmailsPagination(emailsPage, emailsTotalPages);
-        document.getElementById('emails-pagination').classList.remove('hidden');
-        
-        if (window.lucide) lucide.createIcons();
-    } catch (e) {
-        console.error(e);
-        tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-16 text-center text-red-400 uppercase text-xs font-bold tracking-widest">Error al cargar los datos</td></tr>';
-        document.getElementById('emails-pagination').classList.add('hidden');
-    }
-}
+            document.getElementById('detalle-estado').innerHTML = estadoBadge;
 
-function renderEmailsPagination(page, totalPages) {
-    const ctrl = document.getElementById('emails-pagination-controls');
-    if (totalPages <= 1) { ctrl.innerHTML = ''; return; }
-    let html = '';
-    html += `<button onclick="cargarEmails(${Math.max(1, page - 1)})" class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100 ${page === 1 ? 'opacity-40 cursor-not-allowed' : ''}" ${page === 1 ? 'disabled' : ''}><i data-lucide="chevron-left" class="w-3 h-3"></i></button>`;
-    for (let i = 1; i <= totalPages; i++) {
-        if (i === 1 || i === totalPages || (i >= page - 1 && i <= page + 1)) {
-            html += `<button onclick="cargarEmails(${i})" class="px-3 py-1.5 rounded-lg text-xs font-bold border ${i === page ? 'bg-navy-blue text-white border-navy-blue' : 'border-slate-200 hover:bg-slate-100'}">${i}</button>`;
-        } else if (i === page - 2 || i === page + 2) {
-            html += `<span class="px-2 text-slate-400">...</span>`;
+            document.getElementById('detalle-fecha-creacion').textContent = new Date(e.fecha_creacion).toLocaleString();
+            document.getElementById('detalle-fecha-envio').textContent = e.fecha_envio ? new Date(e.fecha_envio).toLocaleString() : '—';
+            document.getElementById('detalle-usuario').textContent = e.staff_nombre || e.usuario_nombre || 'Sistema';
+            document.getElementById('detalle-referencia').innerHTML = buildLinkReferencia(e.referencia_tipo, e.referencia_id);
+            document.getElementById('detalle-destinatario').innerHTML = 
+                `${escapeHtml(e.destinatario_nombre || e.destinatario_email)} &lt;${escapeHtml(e.destinatario_email)}&gt;`;
+            document.getElementById('detalle-asunto').textContent = e.asunto || '—';
+
+            const errorBox = document.getElementById('detalle-error-box');
+            if (e.error_mensaje) {
+                errorBox.classList.remove('hidden');
+                document.getElementById('detalle-error').textContent = e.error_mensaje;
+            } else {
+                errorBox.classList.add('hidden');
+            }
+
+            let adjuntos = [];
+            try {
+                const parsed = e.adjuntos ? JSON.parse(e.adjuntos) : [];
+                if (Array.isArray(parsed)) {
+                    adjuntos = parsed;
+                }
+            } catch (_) {}
+
+            renderAdjuntosDetalle(adjuntos);
+
+            document.getElementById('detalle-adjuntos-wrap').innerHTML = adjuntos.length 
+                ? `📎 ${adjuntos.length} adjunto(s)` 
+                : '';
+
+            document.getElementById('detalle-contenido-limpio').innerHTML = extraerContenidoEmail(e.cuerpo_html);
+
+            const btnSistema = document.getElementById('detalle-btn-sistema');
+            const accion = getAccionSistema(e.referencia_tipo, e.referencia_id);
+            if (accion) {
+                btnSistema.href = accion.url;
+                document.getElementById('detalle-btn-sistema-label').textContent = accion.label;
+                btnSistema.classList.remove('hidden');
+            } else {
+                btnSistema.classList.add('hidden');
+            }
+
+            document.getElementById('detalle-btn-reenviar').classList.remove('hidden');
+
+            document.getElementById('detalleEmailOverlay').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('detalleEmailPanel').classList.remove('translate-x-full');
+            }, 10);
+            document.body.style.overflow = 'hidden';
+            if (window.lucide) lucide.createIcons();
+
+        } catch (err) {
+            console.error(err);
+            AppUtils.showToast('Error de conexión', 'error');
         }
     }
-    html += `<button onclick="cargarEmails(${Math.min(totalPages, page + 1)})" class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100 ${page === totalPages ? 'opacity-40 cursor-not-allowed' : ''}" ${page === totalPages ? 'disabled' : ''}><i data-lucide="chevron-right" class="w-3 h-3"></i></button>`;
-    ctrl.innerHTML = html;
-    if (window.lucide) lucide.createIcons();
-}
 
-function limpiarFiltrosEmail() {
-    document.getElementById('filter-tipo').value = '';
-    document.getElementById('filter-estado').value = '';
-    document.getElementById('filter-desde').value = '';
-    document.getElementById('filter-hasta').value = '';
-    const searchField = document.getElementById('filter-search');
-    if (searchField) searchField.value = '';
-    cargarEmails(1);
-}
+    function renderAdjuntosDetalle(adjuntos) {
+        const section = document.getElementById('detalle-adjuntos-section');
+        const lista = document.getElementById('detalle-adjuntos-lista');
 
-/* ==================== MODAL COMPOSE ==================== */
-function abrirModalCompose() {
-    document.getElementById('composeModal').classList.remove('hidden');
-    document.getElementById('formComposeEmail').reset();
-    document.getElementById('composeModalTitle').textContent = 'Nuevo Email';
-    lucide.createIcons();
-    cargarSugerenciasEmails();
-}
+        if (!section || !lista) return;
 
-function cerrarModalCompose() {
-    document.getElementById('composeModal').classList.add('hidden');
-}
-
-async function cargarSugerenciasEmails() {
-    try {
-        const res = await fetch(`${URLROOT}/email/getClientes`);
-        const data = await res.json();
-        if (data.success) {
-            window.clientesEmails = data.data;
-        }
-    } catch (e) {
-        console.error(e);
-    }
-}
-
-function mostrarSugerenciasEmail(input) {
-    const suggestions = document.getElementById('email-suggestions');
-    const value = input.value.toLowerCase();
-    
-    if (!value || !window.clientesEmails) {
-        suggestions.classList.add('hidden');
-        return;
-    }
-    
-    const matches = window.clientesEmails.filter(c => 
-        (c.email && c.email.toLowerCase().includes(value)) ||
-        (c.nombre && c.nombre.toLowerCase().includes(value)) ||
-        (c.id && c.id.toLowerCase().includes(value))
-    ).slice(0, 10);
-    
-    if (matches.length === 0) {
-        suggestions.classList.add('hidden');
-        return;
-    }
-    
-    suggestions.innerHTML = matches.map(c => {
-        const nombreEscapado = (c.nombre || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        const direccionEscapada = (c.direccion || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        const emailEscapado = (c.email || '').replace(/'/g, "\\'");
-        return `
-        <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0" 
-             onclick="seleccionarClienteEmail('${emailEscapado}', '${nombreEscapado}', '${c.id}', '${direccionEscapada}')">
-            <div class="font-medium text-slate-700">${escapeHtml(c.nombre)}</div>
-            <div class="text-xs text-slate-500">${escapeHtml(c.email)} · ${escapeHtml(c.id)}</div>
-            ${c.direccion ? `<div class="text-[10px] text-slate-400">${escapeHtml(c.direccion)}</div>` : ''}
-        </div>
-    `;
-    }).join('');
-    suggestions.classList.remove('hidden');
-}
-
-function seleccionarClienteEmail(email, nombre, id, direccion = '') {
-    document.getElementById('compose-email').value = email;
-    document.getElementById('compose-email-nombre').value = nombre;
-    document.getElementById('compose-ref-id').value = id;
-    const direccionField = document.getElementById('compose-direccion') || document.getElementById('cliente_direccion');
-    if (direccionField && direccion) {
-        direccionField.value = direccion;
-    }
-    document.getElementById('email-suggestions').classList.add('hidden');
-}
-
-document.getElementById('compose-email')?.addEventListener('input', function() {
-    mostrarSugerenciasEmail(this);
-});
-
-document.getElementById('compose-email')?.addEventListener('focus', function() {
-    mostrarSugerenciasEmail(this);
-});
-
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('#compose-email') && !e.target.closest('#email-suggestions')) {
-        document.getElementById('email-suggestions').classList.add('hidden');
-    }
-});
-
-document.getElementById('compose-plantilla')?.addEventListener('change', async function() {
-    const plantillaId = this.value;
-    if (!plantillaId) return;
-    
-    try {
-        const res = await fetch(`${URLROOT}/email/obtenerPlantilla/${plantillaId}`);
-        const data = await res.json();
-        if (data.success && data.plantilla) {
-            document.getElementById('compose-asunto').value = data.plantilla.asunto;
-            document.getElementById('compose-cuerpo').value = data.plantilla.cuerpo_html;
-            document.getElementById('compose-tipo').value = data.plantilla.tipo;
-        }
-    } catch (e) {
-        console.error(e);
-    }
-});
-
-document.getElementById('formComposeEmail')?.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    const btn = this.querySelector('button[type="submit"]');
-    const originalText = btn.innerHTML;
-    
-    btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Enviando...';
-    if (window.lucide) lucide.createIcons();
-    
-    try {
-        const res = await fetch(`${URLROOT}/email/enviar`, {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
-            body: formData
-        });
-        const result = await res.json();
-        
-        if (result.success) {
-            AppUtils.showToast(result.mensaje || 'Email enviado correctamente', 'success');
-            cerrarModalCompose();
-            cargarEmails(1);
-        } else {
-            AppUtils.showToast(result.mensaje || 'Error al enviar', 'error');
-        }
-    } catch (e) {
-        AppUtils.showToast('Error de conexión', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        if (window.lucide) lucide.createIcons();
-    }
-});
-
-/* ==================== PANEL DE DETALLE ==================== */
-async function verEmail(id) {
-    try {
-        // AppUtils.showLoading('Cargando email...');
-        const res = await fetch(`${URLROOT}/email/obtener/${id}`);
-        const data = await res.json();
-        // AppUtils.hideLoading();
-        
-        if (!data.success || !data.email) {
-            AppUtils.showToast('No se pudo cargar el email', 'error');
+        if (!adjuntos || adjuntos.length === 0) {
+            section.classList.add('hidden');
+            lista.innerHTML = '';
             return;
         }
-        
-        const e = data.email;
-        emailDetalleActual = e;
 
-        const icono = getIconoTipo(e.tipo);
-        document.getElementById('detalle-icono').textContent = icono;
-        document.getElementById('detalle-titulo').textContent = `Email #${e.id}`;
-        document.getElementById('detalle-subtitulo').textContent = e.asunto || '(sin asunto)';
+        section.classList.remove('hidden');
 
-        document.getElementById('detalle-tipo').textContent = `${icono} ${e.tipo || 'OTRO'}`;
-        
-        const estadoBadge = e.estado === 'ENVIADO' 
-            ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">Enviado</span>'
-            : e.estado === 'FALLIDO'
-            ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700">Fallido</span>'
-            : '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700">Pendiente</span>';
-        document.getElementById('detalle-estado').innerHTML = estadoBadge;
+        lista.innerHTML = adjuntos.map((a, idx) => {
+            let path = '';
+            let name = '';
+            let size = 0;
 
-        document.getElementById('detalle-fecha-creacion').textContent = new Date(e.fecha_creacion).toLocaleString();
-        document.getElementById('detalle-fecha-envio').textContent = e.fecha_envio ? new Date(e.fecha_envio).toLocaleString() : '—';
-        document.getElementById('detalle-usuario').textContent = e.usuario_nombre || 'Sistema';
-        document.getElementById('detalle-referencia').innerHTML = buildLinkReferencia(e.referencia_tipo, e.referencia_id);
-        document.getElementById('detalle-destinatario').innerHTML = 
-            `${escapeHtml(e.destinatario_nombre || e.destinatario_email)} &lt;${escapeHtml(e.destinatario_email)}&gt;`;
-        document.getElementById('detalle-asunto').textContent = e.asunto || '—';
+            if (typeof a === 'string') {
+                path = a;
+                name = path.split('/').pop();
+            } else if (a && typeof a === 'object') {
+                if (a.path) {
+                    path = a.path;
+                    name = a.name || path.split('/').pop();
+                    size = parseInt(a.size) || 0;
+                } else if (a.content) {
+                    return `
+                        <div class="flex items-center justify-between p-3 bg-amber-50 border border-amber-100 rounded-lg">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 flex-shrink-0"></i>
+                                <span class="text-xs font-bold text-amber-800 truncate">${escapeHtml(a.name || 'adjunto')}</span>
+                            </div>
+                            <span class="text-[10px] font-black text-amber-600 uppercase whitespace-nowrap ml-2">Formato antiguo — no recuperable</span>
+                        </div>`;
+                }
+            }
 
-        const errorBox = document.getElementById('detalle-error-box');
-        if (e.error_mensaje) {
-            errorBox.classList.remove('hidden');
-            document.getElementById('detalle-error').textContent = e.error_mensaje;
-        } else {
-            errorBox.classList.add('hidden');
-        }
+            if (!path) return '';
 
-        let adjuntos = [];
-        try { adjuntos = e.adjuntos ? JSON.parse(e.adjuntos) : []; } catch(_) {}
-        document.getElementById('detalle-adjuntos-wrap').innerHTML = adjuntos.length 
-            ? `📎 ${adjuntos.length} adjunto(s)` 
-            : '';
+            const esRelativa = !path.startsWith('/') && !path.match(/^[A-Z]:/);
+            const url = esRelativa ? `${URLROOT}/${path.replace(/^\/+/, '')}` : path;
+            const sizeTxt = size > 0 ? ` (${formatBytes(size)})` : '';
 
-        document.getElementById('detalle-contenido-limpio').innerHTML = extraerContenidoEmail(e.cuerpo_html);
+            return `
+                <a href="${escapeHtml(url)}" target="_blank" rel="noopener"
+                class="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-blue-300 rounded-lg transition-all group">
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <i data-lucide="paperclip" class="w-4 h-4 text-slate-500 group-hover:text-blue-600 flex-shrink-0"></i>
+                        <span class="text-xs font-bold text-slate-700 group-hover:text-blue-700 truncate">${escapeHtml(name)}</span>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <span class="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">${sizeTxt}</span>
+                        <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600"></i>
+                    </div>
+                </a>
+            `;
+        }).join('');
 
-        const btnSistema = document.getElementById('detalle-btn-sistema');
-        const accion = getAccionSistema(e.referencia_tipo, e.referencia_id);
-        if (accion) {
-            btnSistema.href = accion.url;
-            document.getElementById('detalle-btn-sistema-label').textContent = accion.label;
-            btnSistema.classList.remove('hidden');
-        } else {
-            btnSistema.classList.add('hidden');
-        }
-
-        const btnReenviar = document.getElementById('detalle-btn-reenviar');
-        if (e.estado === 'FALLIDO') {
-            btnReenviar.classList.remove('hidden');
-        } else {
-            btnReenviar.classList.add('hidden');
-        }
-
-        document.getElementById('detalleEmailOverlay').classList.remove('hidden');
-        setTimeout(() => {
-            document.getElementById('detalleEmailPanel').classList.remove('translate-x-full');
-        }, 10);
-        document.body.style.overflow = 'hidden';
         if (window.lucide) lucide.createIcons();
-
-    } catch (err) {
-        console.error(err);
-        AppUtils.hideLoading();
-        AppUtils.showToast('Error de conexión', 'error');
     }
-}
 
-function cerrarPanelDetalle() {
-    document.getElementById('detalleEmailPanel').classList.add('translate-x-full');
-    setTimeout(() => {
-        document.getElementById('detalleEmailOverlay').classList.add('hidden');
-    }, 300);
-    document.body.style.overflow = '';
-    emailDetalleActual = null;
-}
-
-function reenviarEmailDesdeDetalle() {
-    if (emailDetalleActual) {
-        reenviarEmail(emailDetalleActual.id);
+    function cerrarPanelDetalle() {
+        document.getElementById('detalleEmailPanel').classList.add('translate-x-full');
+        setTimeout(() => {
+            document.getElementById('detalleEmailOverlay').classList.add('hidden');
+        }, 300);
+        document.body.style.overflow = '';
+        emailDetalleActual = null;
     }
-}
 
-async function reenviarEmail(id) {
-    try {
-        AppUtils.showLoading('Reenviando...');
-        const res = await fetch(`${URLROOT}/email/reenviar/${id}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
-        });
-        const result = await res.json();
-        AppUtils.hideLoading();
-        
-        if (result.success) {
-            AppUtils.showToast('Email reenviado', 'success');
-            cerrarPanelDetalle();
-            cargarEmails(emailsPage);
-        } else {
-            AppUtils.showToast(result.mensaje || 'Error al reenviar', 'error');
-        }
-    } catch (e) {
-        AppUtils.hideLoading();
-        AppUtils.showToast('Error de conexión', 'error');
+    /* ==================== MODAL REENVIAR A OTRO CORREO ==================== */
+    function abrirModalReenviar(id, destinatarioActual = '', asuntoActual = '') {
+        document.getElementById('reenviar-id').value = id;
+        document.getElementById('reenviar-info').textContent = `${destinatarioActual} — "${asuntoActual}"`;
+        document.getElementById('reenviar-email').value = destinatarioActual;
+        document.getElementById('reenviarModal').classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
     }
-}
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        const panel = document.getElementById('detalleEmailPanel');
-        if (!panel.classList.contains('translate-x-full')) {
-            cerrarPanelDetalle();
+    function cerrarModalReenviar() {
+        document.getElementById('reenviarModal').classList.add('hidden');
+        document.getElementById('formReenviar').reset();
+    }
+
+    function abrirModalReenviarDesdeDetalle() {
+        if (emailDetalleActual) {
+            abrirModalReenviar(emailDetalleActual.id, emailDetalleActual.destinatario_email, emailDetalleActual.asunto);
         }
     }
-});
 
-/* ==================== INIT ==================== */
-document.addEventListener('DOMContentLoaded', () => {
-    cargarEmails(1);
-    lucide.createIcons();
-});
+    document.getElementById('formReenviar')?.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const id = document.getElementById('reenviar-id').value;
+        const nuevoEmail = document.getElementById('reenviar-email').value.trim();
+
+        if (!nuevoEmail) return;
+
+        try {
+            AppUtils.showLoading('Reenviando...');
+            const res = await fetch(`${URLROOT}/email/reenviar/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ nuevo_email: nuevoEmail })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast('Email reenviado correctamente', 'success');
+                cerrarModalReenviar();
+                cerrarPanelDetalle();
+                cargarEmails(emailsPage);
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al reenviar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const panel = document.getElementById('detalleEmailPanel');
+            if (!panel.classList.contains('translate-x-full')) {
+                cerrarPanelDetalle();
+            }
+            const reenviarModal = document.getElementById('reenviarModal');
+            if (!reenviarModal.classList.contains('hidden')) {
+                cerrarModalReenviar();
+            }
+        }
+    });
+
+    /* ==================== INIT ==================== */
+    document.addEventListener('DOMContentLoaded', () => {
+        initStatCards();
+        cargarEmails(1);
+        if (window.lucide) lucide.createIcons();
+    });
 </script>

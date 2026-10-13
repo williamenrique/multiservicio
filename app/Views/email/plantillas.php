@@ -5,12 +5,16 @@
             <h1 class="text-3xl font-extrabold text-navy-blue tracking-tight">Plantillas de Email</h1>
             <p class="text-gray-400 mt-1">Gestiona las plantillas predefinidas para envío rápido de emails</p>
         </div>
-        <button onclick="abrirModalPlantilla()" class="bg-neon-green text-navy-blue px-5 py-3 rounded-xl font-black flex items-center gap-2 transition-all hover:brightness-110 shadow-lg shadow-neon-green/20">
-            <i data-lucide="plus-circle" class="w-5 h-5"></i> Nueva Plantilla
-        </button>
+        <div class="flex gap-3">
+            <a href="<?php echo URLROOT; ?>/email" class="bg-white border border-slate-200 text-slate-700 px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-slate-50 text-sm font-semibold shadow-sm">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver a Emails
+            </a>
+            <button onclick="abrirModalPlantilla()" class="bg-neon-green text-navy-blue px-5 py-3 rounded-xl font-black flex items-center gap-2 transition-all hover:brightness-110 shadow-lg shadow-neon-green/20">
+                <i data-lucide="plus-circle" class="w-5 h-5"></i> Nueva Plantilla
+            </button>
+        </div>
     </div>
 
-    <!-- Tabla de Plantillas -->
     <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-100">
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
@@ -73,7 +77,12 @@
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Cuerpo HTML *</label>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-xs font-bold text-gray-500 uppercase ml-1">Cuerpo HTML *</label>
+                    <button type="button" onclick="vistaPreviaPlantilla()" class="text-[10px] font-black text-blue-600 hover:text-blue-800 uppercase flex items-center gap-1.5 transition-colors">
+                        <i data-lucide="eye" class="w-3.5 h-3.5"></i> Vista Previa
+                    </button>
+                </div>
                 <textarea name="cuerpo_html" id="plantilla-cuerpo" rows="12" required placeholder="Cuerpo del email en HTML con variables {{variable}}" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all font-mono text-sm resize-none"></textarea>
                 <div class="mt-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
                     <p class="text-[10px] font-black text-blue-700 uppercase tracking-wider mb-2">Variables disponibles:</p>
@@ -178,7 +187,7 @@ function abrirModalPlantilla(plantilla = null) {
     document.getElementById('plantilla-id').value = '';
     document.getElementById('plantillaModalTitle').textContent = 'Nueva Plantilla';
     modal.classList.remove('hidden');
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
     
     if (plantilla) {
         document.getElementById('plantillaModalTitle').textContent = 'Editar Plantilla';
@@ -195,11 +204,62 @@ function cerrarModalPlantilla() {
     document.getElementById('plantillaModal').classList.add('hidden');
 }
 
+/* ==================== VISTA PREVIA DE PLANTILLA ==================== */
+async function vistaPreviaPlantilla() {
+    const cuerpo = document.getElementById('plantilla-cuerpo').value.trim();
+    const asunto = document.getElementById('plantilla-asunto').value.trim();
+
+    if (!cuerpo) {
+        AppUtils.showToast('El cuerpo del email está vacío', 'warning');
+        return;
+    }
+
+    try {
+        AppUtils.showLoading('Generando vista previa...');
+        const res = await fetch(`${URLROOT}/email/preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            body: JSON.stringify({ cuerpo_html: cuerpo, asunto: asunto })
+        });
+        const data = await res.json();
+        AppUtils.hideLoading();
+
+        if (!data.success) {
+            AppUtils.showToast(data.mensaje || 'Error al generar vista previa', 'error');
+            return;
+        }
+
+        Swal.fire({
+            title: `<span class="text-[10px] uppercase text-slate-400 font-black tracking-widest">Vista Previa</span><br><span class="text-navy-blue text-base">${asunto || 'Sin asunto'}</span>`,
+            html: `
+                <div class="text-left">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-2">Vista del email:</p>
+                    <iframe sandbox="" style="width:100%; height:500px; border:1px solid #e2e8f0; border-radius:12px; background:#ffffff;"
+                        srcdoc="${escapeHtmlPreview(data.html_preview || '')}"></iframe>
+                </div>`,
+            width: '750px',
+            showCancelButton: true,
+            confirmButtonText: 'Cerrar',
+            confirmButtonColor: '#64748b'
+        });
+    } catch (e) {
+        AppUtils.hideLoading();
+        AppUtils.showToast('Error al generar la vista previa', 'error');
+    }
+}
+
+function escapeHtmlPreview(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
 /* ==================== GUARDAR PLANTILLA ==================== */
 document.getElementById('formPlantilla')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     
-    const formData = new FormData(this);
     const btn = this.querySelector('button[type="submit"]');
     const originalText = btn.innerHTML;
     
@@ -208,10 +268,20 @@ document.getElementById('formPlantilla')?.addEventListener('submit', async funct
     if (window.lucide) lucide.createIcons();
     
     try {
+        // FIX v3.0: El controlador espera JSON. Antes se enviaba FormData y fallaba.
+        const payload = {
+            id: document.getElementById('plantilla-id').value || null,
+            nombre: document.getElementById('plantilla-nombre').value.trim(),
+            tipo: document.getElementById('plantilla-tipo').value,
+            asunto: document.getElementById('plantilla-asunto').value.trim(),
+            cuerpo_html: document.getElementById('plantilla-cuerpo').value,
+            activo: document.getElementById('plantilla-activo').checked ? 1 : 0
+        };
+
         const res = await fetch(`${URLROOT}/email/guardarPlantilla`, {
             method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
-            body: formData
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            body: JSON.stringify(payload)
         });
         const result = await res.json();
         
@@ -278,6 +348,6 @@ async function eliminarPlantilla(id) {
 /* ==================== INIT ==================== */
 document.addEventListener('DOMContentLoaded', () => {
     cargarPlantillas();
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
 });
 </script>
