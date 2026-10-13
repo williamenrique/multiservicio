@@ -1,3 +1,5 @@
+<!-- multiservicio 3.0 -->
+
 <div class="container mx-auto p-6">
     <div class="mb-6">
         <a href="<?php echo URLROOT; ?>/catalogo/pedidos-pendientes" class="text-slate-500 hover:text-navy-blue transition-colors flex items-center gap-2 text-sm font-semibold">

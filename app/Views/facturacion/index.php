@@ -1,3 +1,4 @@
+<!-- multiservicio 3.0 -->
 <section id="sec-facturacion" class="content-section">
     <!-- Barra de Facturas en Espera (Cola) -->
     <div class="mb-6 overflow-x-auto pb-2">
