@@ -413,3 +413,5 @@ La hoja de ruta propuesta (6 sprints) permite evolucionar el sistema hacia un **
 ---
 
 **Documento generado automáticamente tras análisis de código estático y revisión de documentación del proyecto.**
+
+EMAIL ENVIANDOSE DESDE NTERFAZ
