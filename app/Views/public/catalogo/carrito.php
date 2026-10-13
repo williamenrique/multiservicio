@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo s($titulo); ?> - <?php echo SITENAME; ?></title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <!-- FIX P3-01: Tailwind compilado localmente -->
+    <link rel="stylesheet" href="<?php echo URLROOT; ?>/css/tailwind.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>const URLROOT = "<?php echo URLROOT; ?>";</script>
     <style>
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
@@ -135,8 +137,8 @@
         </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script>const csrfToken = '<?php echo $_SESSION['csrf_token'] ?? ''; ?>';</script>
+    <script src="<?php echo URLROOT; ?>/js/utils.js"></script>
     <script src="<?php echo URLROOT; ?>/js/carrito.js"></script>
 </body>
 </html>

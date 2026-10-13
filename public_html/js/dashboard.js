@@ -1,5 +1,20 @@
 /**
  * Lógica del Dashboard en Tiempo Real
+ * 
+ * v2.2 (2026-10-09) — FIX bloque Core (P1-01, P1-02, P1-03):
+ *   • updateDashboard() ahora usa DashboardCache.get() en vez de hacer
+ *     fetch directo a /dashboard/getStats. Esto comparte la respuesta
+ *     con initLowStockNotifications y initProfitabilityCard de app.js,
+ *     reduciendo 3 fetches duplicados a 1 solo.
+ *   • El setInterval(updateDashboard, 60000) fue reemplazado por
+ *     PollingManager.register('dashboard-refresh', ...). Ahora se pausa
+ *     automáticamente cuando la pestaña no está visible.
+ * 
+ * DEPENDENCIAS:
+ *   1. polling.js (window.PollingManager + window.DashboardCache)
+ *   2. utils.js   (window.AppUtils)
+ *   3. app.js     (inicia PollingManager)
+ *   4. dashboard.js (este archivo, cargado desde la vista)
  */
 document.addEventListener('DOMContentLoaded', () => {
     // GUARD: Si no estamos en la sección de dashboard, no ejecutar nada.
@@ -32,22 +47,24 @@ document.addEventListener('DOMContentLoaded', () => {
      * Permite retomar un borrador desde el dashboard
      */
     window.continuarVenta = (id_db) => {
-        // Pasamos el ID por URL para no depender de LocalStorage
         window.location.href = `${URLROOT}/facturacion?id=${id_db}`;
     };
 
     /**
-     * Carga las estadísticas desde el servidor
+     * Carga las estadísticas desde el servidor y refresca toda la UI.
+     * 
+     * Usa DashboardCache para compartir la respuesta con las tarjetas de
+     * low-stock y profitability que consume app.js.
      */
-    window.updateDashboard = async () => {
+    window.updateDashboard = async (forceRefresh = false) => {
         try {
-            const response = await fetch(`${URLROOT}/dashboard/getStats`);
-            if (!response.ok) throw new Error('Error al obtener datos');
+            // FIX P1-02: caché compartida (25s TTL) para no duplicar fetch
+            const data = await DashboardCache.get(forceRefresh);
+            if (!data) return;
 
-            const data = await response.json();
             renderDashboard(data);
 
-            // Cargar productos en oferta
+            // Productos en oferta usan endpoint distinto → sí hace fetch propio
             loadProductsOnOffer();
         } catch (error) {
             console.error('Error actualizando Dashboard:', error);
@@ -56,12 +73,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Verifica si el usuario actual tiene permisos de administrador.
-     * Según tu definición: Rol 1 es Admin, Rol 2 es Mecánico.
      */
     const isAdmin = () => {
         const user = window.currentLoggedInUser || null;
         if (!user) return false;
-        // Verificación robusta por ID (prioritario) o por nombre
         return parseInt(user.roleId) === 1 || user.role.toUpperCase() === 'ADMINISTRADOR';
     };
 
@@ -85,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         financialElements.forEach(el => {
             if (el) {
-                // IMPORTANTE: Ahora si es admin, quitamos 'hidden'. Si no, lo ponemos.
                 if (isUserAdmin) {
                     el.classList.remove('hidden');
                 } else {
@@ -404,7 +418,6 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('');
         }
 
-        // Reinicializar iconos de Lucide para los elementos inyectados
         if (window.lucide) lucide.createIcons();
     };
 
@@ -425,10 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const products = data.products || [];
 
-            // Actualizar contador
-            if (countEl) {
-                countEl.textContent = products.length;
-            }
+            if (countEl) countEl.textContent = products.length;
 
             if (products.length === 0) {
                 container.innerHTML = `
@@ -450,11 +460,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 return `
                     <div class="p-3 hover:bg-slate-50/50 transition-colors flex items-center gap-3">
-                        <!-- Imagen -->
                         <div class="w-12 h-12 flex-shrink-0 rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center">
                             ${tieneImagen ? `<img src="${imagen}" alt="${p.nombre}" class="w-full h-full object-cover">` : `<i data-lucide="package" class="w-5 h-5 text-slate-300"></i>`}
                         </div>
-                        <!-- Info -->
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-semibold text-slate-800 truncate">${p.nombre}</p>
                             <p class="text-xs text-slate-400 truncate">${p.categoria} ${p.marca ? '• ' + p.marca : ''}</p>
@@ -464,7 +472,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">${porcentaje}% OFF</span>
                             </div>
                         </div>
-                        <!-- Stock -->
                         <div class="text-right flex-shrink-0">
                             <span class="text-xs ${p.stock > 0 ? 'text-emerald-600' : 'text-rose-600'} font-bold">
                                 ${p.stock > 0 ? p.stock + ' disp.' : 'Agotado'}
@@ -495,7 +502,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = canvas.parentElement;
         let noDataMsg = document.getElementById('chart-no-data');
 
-        // Verificar si hay algún dato significativo en el periodo
         const hasData = history.some(d => d.income > 0 || d.expenses > 0);
 
         if (!hasData) {
@@ -577,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.exportInventoryToExcel = async () => {
         const res = await fetch(`${URLROOT}/inventario/listar`);
         const data = await res.json();
-        let csv = "\uFEFFID;Nombre;Categoria;Stock;Precio\n"; // BOM para acentos en Excel
+        let csv = "\uFEFFID;Nombre;Categoria;Stock;Precio\n";
         data.forEach(i => {
             csv += `${i.id};${i.nombre};${i.categoria};${i.stock};${i.precio}\n`;
         });
@@ -589,12 +595,25 @@ document.addEventListener('DOMContentLoaded', () => {
         AppUtils.showToast('Inventario exportado');
     };
 
-    // Inicializar y configurar refresco automático cada 60 segundos
-    updateDashboard();
-    setInterval(updateDashboard, 60000);
+    // ═══════════════════════════════════════════════════════════════
+    // FIX P1-01: Polling del dashboard vía PollingManager (60s)
+    // 
+    // Antes: setInterval(updateDashboard, 60000) + updateDashboard()
+    //        inmediato al cargar.
+    // Ahora: registrado en PollingManager → se ejecuta al arrancar
+    //        (equivalente al call inicial) y se reprograma cada 60s.
+    //        Se pausa automáticamente cuando la pestaña no está visible.
+    // ═══════════════════════════════════════════════════════════════
+    if (typeof PollingManager !== 'undefined') {
+        PollingManager.register('dashboard-refresh', updateDashboard, 60000);
+    } else {
+        // Fallback defensivo
+        updateDashboard();
+        setInterval(updateDashboard, 60000);
+    }
 
     // Re-renderizar si la información del usuario llega después de la carga inicial (Race condition)
     document.addEventListener('userLoaded', () => {
-        updateDashboard();
+        updateDashboard(true); // force refresh al loguear
     });
 });

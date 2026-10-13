@@ -1,0 +1,289 @@
+============================================
+ESTRUCTURA DE ARCHIVOS -
+============================================
+Fecha: 2026-10-09 22:09:46
+Raíz: C:\xampp\htdocs\multiservicio
+Total Items: 278
+Directorios: 52
+Archivos: 226
+Tamaño Total: 53.9 KB
+============================================
+
+📁 app
+  📁 Config
+    📄 config.php (4.5 KB)
+    📄 routes.php (5.7 KB)
+  📁 Controllers
+    📄 ControllerAudit.php (1.7 KB)
+    📄 ControllerAuth.php (9.6 KB)
+    📄 ControllerCaja.php (491 B)
+    📄 ControllerCatalogo.php (30.7 KB)
+    📄 ControllerClientes.php (6.2 KB)
+    📄 ControllerConsultas.php (6.7 KB)
+    📄 ControllerDashboard.php (2.8 KB)
+    📄 ControllerDevoluciones.php (8.8 KB)
+    📄 ControllerEmail.php (16.8 KB)
+    📄 ControllerEmpresa.php (3.1 KB)
+    📄 ControllerErrores.php (401 B)
+    📄 ControllerFacturacion.php (32.6 KB)
+    📄 ControllerFacturas.php (2.9 KB)
+    📄 ControllerGarantia.php (8.2 KB)
+    📄 ControllerGastos.php (1.8 KB)
+    📄 ControllerHistorial.php (1.8 KB)
+    📄 ControllerInventario.php (18.5 KB)
+    📄 ControllerPerfil.php (4.3 KB)
+    📄 ControllerPersonal.php (9.2 KB)
+    📄 ControllerPresupuesto.php (30.9 KB)
+    📄 ControllerProveedores.php (7.2 KB)
+    📄 ControllerRecuperar.php (457 B)
+    📄 ControllerReportes.php (12 KB)
+    📄 Controllers.zip (3.4 KB)
+    📄 ControllerSearch.php (5 KB)
+    📄 ControllerTaller.php (33 KB)
+    📄 ControllerVenta.php (3.7 KB)
+  📁 Core
+    📄 App.php (3.4 KB)
+    📄 AppException.php (388 B)
+    📄 Controller.php (4.9 KB)
+    📄 Database.php (4.6 KB)
+    📄 Model.php (456 B)
+    📄 StockException.php (113 B)
+    📄 Validator.php (7.5 KB)
+  📁 Helpers
+    📄 helpers.php (6.3 KB)
+    📄 NotificationChecker.php (6.4 KB)
+    📄 Validator.zip (932 B)
+  📁 Middleware
+    📄 AuthGuard.php (6.6 KB)
+    📄 RoleGuard.php (4 KB)
+  📁 Models
+    📄 ModelAudit.php (3.3 KB)
+    📄 ModelCaja.php (819 B)
+    📄 ModelCatalogo.php (16.4 KB)
+    📄 ModelCliente.php (4.9 KB)
+    📄 ModelDashboard.php (13.6 KB)
+    📄 ModelDevoluciones.php (16.7 KB)
+    📄 ModelEmail.php (7.9 KB)
+    📄 ModelEmpresa.php (2.5 KB)
+    📄 ModelFacturacion.php (39.3 KB)
+    📄 ModelFacturas.php (9 KB)
+    📄 ModelGarantia.php (35.9 KB)
+    📄 ModelGasto.php (3.6 KB)
+    📄 ModelHistorial.php (4.4 KB)
+    📄 ModelInventario.php (20.4 KB)
+    📄 ModelOrden.php (12.6 KB)
+    📄 ModelPerfil.php (2.1 KB)
+    📄 ModelPersonal.php (9.6 KB)
+    📄 ModelPresupuesto.php (48.3 KB)
+    📄 ModelProveedor.php (19.2 KB)
+    📄 ModelReportes.php (27.1 KB)
+    📄 Models.zip (2.9 KB)
+    📄 ModelUsuario.php (5.7 KB)
+    📄 ModelVehiculo.php (2.8 KB)
+  📁 Scripts
+    📄 notificar_proveedores.php (4.7 KB)
+    📄 test_whatsapp.php (3.1 KB)
+  📁 Services
+    📄 BillingService.php (6 KB)
+    📄 CalculadoraFinaciera.php (2 B)
+    📄 CompraService.php (2.2 KB)
+    📄 EmailService.php (24.2 KB)
+    📄 NotificacionService.zip (194 B)
+    📄 PdfService.php (4.9 KB)
+    📄 WhatsAppService.php (9.1 KB)
+  📁 Views
+    📁 audit
+      📄 index.php (12.6 KB)
+    📁 auth
+      📄 Login.php (5 KB)
+    📁 catalogo
+      📄 pedidos_pendientes.php (8.7 KB)
+      📄 pedidos_procesados.php (6.1 KB)
+      📄 ver_pedido.php (14 KB)
+    📁 cliente
+      📄 index.php (10.6 KB)
+    📁 dashboard
+      📄 index.php (20.2 KB)
+    📁 devoluciones
+      📄 index.php (40 KB)
+    📁 email
+      📁 previews
+        📄 admin_preview.html (6.1 KB)
+        📄 cliente_preview.html (6 KB)
+      📄 abono_registrado.php (10.8 KB)
+      📄 compose.php (11.7 KB)
+      📄 factura_directa.php (6.9 KB)
+      📄 index.php (44.8 KB)
+      📄 layout.php (4.6 KB)
+      📄 orden_servicio_cambio_estado.php (4.2 KB)
+      📄 orden_servicio_creada.php (4 KB)
+      📄 orden_servicio_lista.php (3.9 KB)
+      📄 pedido_catalogo_admin.php (3 KB)
+      📄 pedido_catalogo_cliente.php (2.6 KB)
+      📄 pedido_procesado_cliente.php (3.5 KB)
+      📄 plantillas.php (14.8 KB)
+      📄 proveedor_vencimiento.php (4.2 KB)
+      📄 recordatorio_pago.php (12.1 KB)
+      📄 resumen_mensual.php (6.1 KB)
+    📁 empresa
+      📄 index.php (7.5 KB)
+    📁 errores
+      📄 404.php (921 B)
+    📁 facturacion
+      📄 index.php (19.9 KB)
+    📁 facturas
+      📄 index.php (6.4 KB)
+      📄 ver.php (27.3 KB)
+    📁 garantia
+      📄 index.php (54.6 KB)
+    📁 gastos
+      📄 index.php (5 KB)
+    📁 inc
+      📄 footer.php (51 B)
+      📄 header.php (18.3 KB)
+    📁 inventario
+      📄 index.php (17.8 KB)
+      📄 kardex.php (10.9 KB)
+    📁 pdf
+      📁 inc
+        📄 footer.php (388 B)
+        📄 header.php (3.2 KB)
+      📁 templates
+        📄 cartera.php (1.8 KB)
+        📄 devolucion.php (14.9 KB)
+        📄 factura.php (10.4 KB)
+        📄 garantia.php (13.8 KB)
+        📄 kardex_individual.php (6.3 KB)
+        📄 kardex_reporte.php (5.9 KB)
+        📄 orden.php (15.8 KB)
+        📄 presupuesto.php (16.1 KB)
+        📄 recibo_abono.php (7.7 KB)
+        📄 recibo_pago.php (8.8 KB)
+        📄 reporte_auditoria.php (6.2 KB)
+        📄 reporte_cartera_proveedores.php (3.9 KB)
+        📄 reporte_gastos.php (6.3 KB)
+        📄 reporte_mostrador.php (2.4 KB)
+        📄 reporte_proveedor_individual.php (6 KB)
+    📁 perfil
+      📄 index.php (7.8 KB)
+    📁 personal
+      📄 index.php (10 KB)
+    📁 presupuesto
+      📄 index.php (81.7 KB)
+      📄 ver.php (45.7 KB)
+    📁 proveedor
+      📄 index.php (21.5 KB)
+    📁 public
+      📁 catalogo
+        📄 carrito.php (10 KB)
+        📄 checkout.php (11.2 KB)
+        📄 confirmacion.php (12.3 KB)
+        📄 detalle.php (11.5 KB)
+        📄 index.php (16.4 KB)
+      📄 vehicle_history_qr.php (16.4 KB)
+    📁 recuperar
+      📄 index.php (853 B)
+    📁 reportes
+      📄 index.php (31.9 KB)
+    📁 taller
+      📄 cerradas.php (17.4 KB)
+      📄 historial.php (17.8 KB)
+      📄 index.php (18.4 KB)
+      📄 nueva_orden.php (34.7 KB)
+    📁 venta
+      📄 index.php (50.7 KB)
+    📄 Views.zip (3.3 KB)
+📁 doc
+  📄 descripcion_interfaces_funcionalidad.txt (19.8 KB)
+  📄 descripcion_interfaz.txt (26.2 KB)
+  📄 Esquema 2.0.docx (20.1 KB)
+  📄 ESTRUCTURA_MULTISERVICIO_2.1.txt (9.4 KB)
+  📄 Manual de Proyecto Implementación de SPA Ligera.txt (30.3 KB)
+📁 public_html
+  📁 css
+    📄 styles.css (11.3 KB)
+    📄 styles.min.css (4.9 KB)
+    📄 styles_catalogo.css (14.8 KB)
+    📄 tailwind.min.css (64.6 KB)
+  📁 img
+    📄 default.png (941 B)
+    📄 logo.png (353.6 KB)
+  📁 js
+    📄 app.js (75.8 KB)
+    📄 carrito.js (9.8 KB)
+    📄 catalogo-publico.js (2.3 KB)
+    📄 catalogo.rar (2.9 KB)
+    📄 clientes.js (11.1 KB)
+    📄 dashboard.js (34.1 KB)
+    📄 DataTableRefactor.js (7.8 KB)
+    📄 detalle.js (3.3 KB)
+    📄 empresa.js (1.7 KB)
+    📄 facturacion.js (57.9 KB)
+    📄 facturas.js (14.7 KB)
+    📄 gastos.js (7.2 KB)
+    📄 historial.js (12 KB)
+    📄 inventario.js (28 KB)
+    📄 js.zip (17.5 KB)
+    📄 login.js (5.7 KB)
+    📄 notifications.zip (1.4 KB)
+    📄 perfil.js (2.1 KB)
+    📄 personal.js (12.4 KB)
+    📄 polling.js (4.4 KB)
+    📄 proveedores.js (34.3 KB)
+    📄 recuperar.js (0 B)
+    📄 reportes.js (114.4 KB)
+    📄 taller_nueva_orden.js (26.2 KB)
+    📄 utils.js (14.3 KB)
+  📁 sound
+    📄 coin.mp3 (22.1 KB)
+    📄 cute.mp3 (25 KB)
+    📄 email.mp3 (22.6 KB)
+  📁 uploads
+    📁 inventario
+      📄 prod_1789734104_b82b9ad9.jpg (9.8 KB)
+      📄 prod_1789734185_61441362.jpg (6.6 KB)
+      📄 prod_1789734839_d4a408b0.jpg (6.6 KB)
+      📄 prod_1789735273_12553781.jpg (7.9 KB)
+      📄 prod_1789735339_c01f48dd.jpg (6.2 KB)
+      📄 prod_1789735386_d26f0ddf.jpg (5.2 KB)
+      📄 prod_1789735436_1fadf5e4.jpg (6.2 KB)
+      📄 prod_1789736118_96ec3e04.jpg (9 KB)
+      📄 prod_1789736154_91d7167b.jpg (6.4 KB)
+      📄 prod_1789736200_27333940.jpg (7.9 KB)
+      📄 prod_1789736232_200417f5.jpg (5.2 KB)
+      📄 prod_1789736334_94f8c211.jpg (6.2 KB)
+      📄 prod_1789736563_7b066e77.jpg (11.2 KB)
+      📄 prod_1789736778_ba5ab275.jpg (6.9 KB)
+      📄 prod_1789736851_eadde47e.jpg (10.9 KB)
+      📄 prod_1789737223_c1b0eb4f.jpg (10 KB)
+      📄 prod_1791372836_814cd4f1.jpg (6.2 KB)
+      📄 prod_1791372889_189803d5.jpg (7.9 KB)
+      📄 prod_1791372937_321430c6.jpg (5.2 KB)
+      📄 prod_1791372988_f86084d1.jpg (6.2 KB)
+      📄 prod_1791373490_a176aef3.jpg (6.4 KB)
+      📄 prod_1791373563_ded9e5dc.jpg (6.2 KB)
+      📄 prod_1791373599_98da5d9f.jpg (7.9 KB)
+      📄 prod_1791373643_135abf18.jpg (5.2 KB)
+      📄 prod_1791373694_ffcd8568.jpg (7.3 KB)
+      📄 prod_1791373762_1cbdacb0.jpg (9.8 KB)
+      📄 prod_1791570450_cdff2aef.png (420.7 KB)
+    📁 logo
+      📄 logo_empresa_1791571107.jpg (6.2 KB)
+    📁 tmp_pdf
+  📄 accion.php (32.4 KB)
+  📄 estructura.php (31 KB)
+  📄 index.php (6 KB)
+  📄 mantenimient.html (7.4 KB)
+  📄 ver.html (9.4 KB)
+📁 sql
+  📁 antiguo
+    📄 migration_codigo_marca_unique.sql (829 B)
+    📄 migration_emails_fix_enums.sql (1.8 KB)
+    📄 migration_emails_presupuestos.sql (11.4 KB)
+  📄 database_schema_2.1.sql (38.4 KB)
+  📄 database_schema_2.1_data_inicial.sql (47.9 KB)
+📁 tailwind-build
+  📄 input.css (539 B)
+  📄 tailwind.config.js (586 B)
+📄 EVALUACION_SISTEMA.md (26.4 KB)
+📄 MANUAL_INSTALACION.txt (27.5 KB)

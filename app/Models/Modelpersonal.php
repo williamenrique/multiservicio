@@ -2,23 +2,25 @@
 /**
  * Modelo de Personal
  * Gestiona los datos de los empleados en la base de datos.
+ * 
+ * v2.1 (2026-10-09) — P3-08:
+ *   • `gestionarUsuario()` refactorizado para arreglar el manejo del bind :pass:
+ *       - En UPDATE: password solo se incluye en el SET si viene con valor.
+ *       - En INSERT: password es obligatorio; si no viene, se retorna false
+ *         y se loguea el intento fallido en vez de crear un usuario inválido.
+ *       - Antes: en UPDATE se bindeaba :pass ANTES del query (que no lo
+ *         incluía); en INSERT se bindeaba :pass ANTES del query también
+ *         (mismo bug). El rebind posterior de :sid/:un/:rid podía pisar :pass.
  */
 class ModelPersonal {
     private $db;
 
-    /**
-     * Constructor del modelo
-     * @param Database|null $db Instancia de base de datos compartida
-     */
     public function __construct($db = null) {
         $this->db = $db ?: new Database();
     }
 
     /**
      * Lista el personal con filtros y paginación
-     * @param int|null $limit Límite de registros
-     * @param int|null $offset Desplazamiento
-     * @param string|null $search Término de búsqueda
      */
     public function listar($limit = null, $offset = null, $search = null) {
         $sql = "SELECT s.*, u.username, u.role_id, r.nombre_rol as system_role 
@@ -69,8 +71,6 @@ class ModelPersonal {
 
     /**
      * Obtiene el último correlativo numérico de los IDs según el prefijo (ej: MEC-, STAFF-)
-     * @param string $prefix Prefijo a buscar
-     * @return int El número mayor encontrado
      */
     public function obtenerUltimoCorrelativo($prefix = 'STAFF-') {
         $this->db->query("SELECT id FROM table_staff 
@@ -121,28 +121,56 @@ class ModelPersonal {
         return $this->db->execute();
     }
 
+    /**
+     * Vincula o actualiza la cuenta de usuario de un miembro del staff.
+     * 
+     * FIX P3-08:
+     *   • UPDATE: si `$userData['password']` viene vacío, NO se toca la columna password.
+     *   • INSERT: si `$userData['password']` viene vacío, se retorna false y se loguea
+     *     el intento. No se crea un usuario con password vacío.
+     *   • Los binds se hacen en el orden correcto (después del query).
+     */
     public function gestionarUsuario($staffId, $userData) {
+        $staffIdUpper = mb_strtoupper($staffId, 'UTF-8');
+        $usernameUpper = mb_strtoupper($userData['username'] ?? '', 'UTF-8');
+        $roleId = (int)($userData['role_id'] ?? 0);
+        $password = !empty($userData['password']) ? $userData['password'] : null;
+
+        // Verificar si ya existe un usuario vinculado a este staff
         $this->db->query("SELECT id FROM table_usuarios WHERE staff_id = :sid");
-        $this->db->bind(':sid', $staffId);
+        $this->db->bind(':sid', $staffIdUpper);
         $existe = $this->db->single();
 
         if ($existe) {
-            $sql = "UPDATE table_usuarios SET username = :un, role_id = :rid";
-            if (!empty($userData['password'])) $sql .= ", password = :pass";
-            $sql .= " WHERE staff_id = :sid";
-            
-            $this->db->query($sql);
-            if (!empty($userData['password'])) $this->db->bind(':pass', $userData['password']);
+            // ─── UPDATE ───
+            if ($password !== null) {
+                $this->db->query("UPDATE table_usuarios 
+                                  SET username = :un, role_id = :rid, password = :pass 
+                                  WHERE staff_id = :sid");
+                $this->db->bind(':pass', $password);
+            } else {
+                $this->db->query("UPDATE table_usuarios 
+                                  SET username = :un, role_id = :rid 
+                                  WHERE staff_id = :sid");
+            }
+            $this->db->bind(':sid', $staffIdUpper);
+            $this->db->bind(':un', $usernameUpper);
+            $this->db->bind(':rid', $roleId);
+            return $this->db->execute();
         } else {
+            // ─── INSERT ───
+            if ($password === null) {
+                error_log("ModelPersonal::gestionarUsuario: intento de crear usuario sin password para staff {$staffIdUpper}");
+                return false;
+            }
             $this->db->query("INSERT INTO table_usuarios (staff_id, username, password, role_id) 
                               VALUES (:sid, :un, :pass, :rid)");
-            $this->db->bind(':pass', $userData['password']);
+            $this->db->bind(':sid', $staffIdUpper);
+            $this->db->bind(':un', $usernameUpper);
+            $this->db->bind(':pass', $password);
+            $this->db->bind(':rid', $roleId);
+            return $this->db->execute();
         }
-        
-        $this->db->bind(':sid', mb_strtoupper($staffId, 'UTF-8'));
-        $this->db->bind(':un', mb_strtoupper($userData['username'], 'UTF-8'));
-        $this->db->bind(':rid', $userData['role_id']);
-        return $this->db->execute();
     }
 
     public function eliminarUsuario($staffId) {
@@ -158,12 +186,6 @@ class ModelPersonal {
         return $this->db->execute();
     }
 
-    /**
-     * Verifica si una cédula ya existe (excluyendo un ID opcional)
-     * @param string $cedula
-     * @param string|null $id ID actual del personal para omitir en la búsqueda
-     * @return bool True si ya existe, False si está disponible
-     */
     public function verificarCedulaUnica($cedula, $id = null) {
         $sql = "SELECT COUNT(*) as total FROM table_staff WHERE cedula = :cedula";
         if ($id) {
@@ -177,12 +199,6 @@ class ModelPersonal {
         return (int)$this->db->single()->total > 0;
     }
 
-    /**
-     * Verifica si un nombre de usuario ya está en uso (excluyendo un staffId opcional)
-     * @param string $username
-     * @param string|null $staffId ID del personal vinculado para omitir en la búsqueda
-     * @return bool True si ya existe, False si está disponible
-     */
     public function verificarUsernameUnico($username, $staffId = null) {
         $sql = "SELECT COUNT(*) as total FROM table_usuarios WHERE username = :un";
         if ($staffId) {
@@ -196,9 +212,6 @@ class ModelPersonal {
         return (int)$this->db->single()->total > 0;
     }
 
-    /**
-     * Verifica si un email ya existe (excluyendo un ID opcional)
-     */
     public function verificarEmailUnico($email, $id = null) {
         $sql = "SELECT COUNT(*) as total FROM table_staff WHERE email = :email";
         if ($id) {

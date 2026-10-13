@@ -7,6 +7,12 @@
  *  - Resumen mensual de actividad (admin, al cambiar de mes)
  *
  * Se llama desde ControllerAuth::login() después de autenticar.
+ * 
+ * v2.1 (2026-10-09):
+ *   • FIX P2-14: Eliminado bloque de código muerto en verificarResumenMensual
+ *     (`if ($diaActual < 1) return;` nunca se cumplía porque date('d') va de 01 a 31).
+ *   • FIX P2-13: Los modelos se instancian inyectando la conexión compartida
+ *     para evitar abrir múltiples conexiones PDO en el mismo request.
  */
 
 class NotificationChecker
@@ -40,7 +46,9 @@ class NotificationChecker
         }
 
         try {
-            $proveedorModel = new ModelProveedor();
+            // FIX P2-13: compartir la conexión PDO entre los modelos
+            $db = new Database();
+            $proveedorModel = new ModelProveedor($db);
             $proveedores = $proveedorModel->listarDeudas();
 
             if (empty($proveedores)) {
@@ -71,7 +79,7 @@ class NotificationChecker
                 $emailService->notificarProveedoresVencimiento($alertas, $diasLimite);
             }
         } catch (Exception $e) {
-            error_log("RequirementChecker: Error en verificación de proveedores: " . $e->getMessage());
+            error_log("NotificationChecker: Error en verificación de proveedores: " . $e->getMessage());
         }
 
         $_SESSION['ultima_verificacion_proveedores'] = $hoy;
@@ -90,16 +98,11 @@ class NotificationChecker
             return;
         }
 
-        // Solo enviamos si ya pasó el primer día del mes (estamos en un mes nuevo)
-        // y hay un mes anterior que resumir
-        $diaActual = (int)date('d');
-        if ($diaActual < 1) {
-            return; // nunca ocurre, pero por seguridad
-        }
-
         try {
-            $dashboardModel = new ModelDashboard();
-            $facturacionModel = new ModelFacturacion();
+            // FIX P2-13: compartir la conexión PDO entre los modelos
+            $db = new Database();
+            $dashboardModel = new ModelDashboard($db);
+            $facturacionModel = new ModelFacturacion($db);
 
             // Calcular rango del mes anterior
             $primerDiaMesAnterior = date('Y-m-01', strtotime('first day of last month'));
@@ -142,7 +145,7 @@ class NotificationChecker
                 $topProductos, $inventario, $nombreMes, $anioAnterior
             );
         } catch (Exception $e) {
-            error_log("RequirementChecker: Error en resumen mensual: " . $e->getMessage());
+            error_log("NotificationChecker: Error en resumen mensual: " . $e->getMessage());
         }
 
         $_SESSION['ultimo_resumen_enviado'] = $marcaActual;

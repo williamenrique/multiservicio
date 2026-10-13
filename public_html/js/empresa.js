@@ -1,46 +1,45 @@
+/**
+ * Lógica para la configuración de la empresa.
+ * 
+ * v2.0 (2026-10-09) — P2-10:
+ *   • Se reemplazó el listener inline del logo por `AppUtils.setupImagePreview`,
+ *     que ahora valida tamaño (2 MB) y tipo MIME antes de previsualizar.
+ */
 document.addEventListener('DOMContentLoaded', () => {
     const companyForm = document.getElementById('companyForm');
     const logoInput = document.getElementById('logoInput');
     const logoPreview = document.getElementById('logoPreview');
 
-    // Lógica de vista previa de imagen
+    // Previsualización del logo con validación (P2-10)
     if (logoInput && logoPreview) {
-        logoInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    logoPreview.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+        AppUtils.setupImagePreview(logoInput, logoPreview);
     }
 
-    if (companyForm) {
-        companyForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            // Usamos FormData directamente para soportar la subida del archivo (logo)
-            const formData = new FormData(companyForm);
+    // Envío del formulario
+    if (!companyForm) return;
 
-            try {
-                const response = await fetch(`${URLROOT}/empresa/guardar`, {
-                    method: 'POST',
-                    // Importante: No establecer Content-Type manualmente al usar FormData con archivos
-                    body: formData
-                });
-                const result = await response.json();
-                if (result.success) {
-                    AppUtils.showToast(result.mensaje, 'success');
-                    setTimeout(() => window.location.reload(), 1500); // Recargar para actualizar header y pestaña
-                } else {
-                    AppUtils.showToast(result.mensaje, 'error');
-                }
-            } catch (error) {
-                console.error("Error al guardar la configuración de la empresa:", error);
-                AppUtils.showToast('Error de conexión al guardar la configuración.', 'error');
+    companyForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // Usamos FormData directamente para soportar la subida del archivo (logo)
+        const formData = new FormData(companyForm);
+
+        try {
+            const response = await fetch(`${URLROOT}/empresa/guardar`, {
+                method: 'POST',
+                // Importante: No establecer Content-Type manualmente al usar FormData con archivos
+                body: formData
+            });
+            const result = await response.json();
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                setTimeout(() => window.location.reload(), 1500); // Recargar para actualizar header y pestaña
+            } else {
+                AppUtils.showToast(result.mensaje, 'error');
             }
-        });
-    }
+        } catch (error) {
+            console.error("Error al guardar la configuración de la empresa:", error);
+            AppUtils.showToast('Error de conexión al guardar la configuración.', 'error');
+        }
+    });
 });

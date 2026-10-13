@@ -4,6 +4,12 @@
  * Gestiona la sección dedicada de devoluciones de repuestos.
  * Permite: listar facturas con repuestos, ver items, procesar devolución
  * (validando garantía configurable) y consultar el historial.
+ * 
+ * v2.1 (2026-10-09):
+ *   • FIX P0-09: pdf() ahora devuelve la URL al endpoint imprimir/{id}
+ *     (que streamea el PDF) en vez de concatenar el binario a URLROOT.
+ *   • FIX P0-09: imprimir() eliminó el bloque de temp_pdfs (ruta
+ *     incorrecta y código muerto — PdfService nunca escribe en disco).
  */
 class ControllerDevoluciones extends Controller {
     private $devolucionesModel;
@@ -152,7 +158,12 @@ class ControllerDevoluciones extends Controller {
     }
 
     /**
-     * AJAX: Genera el PDF de una devolución y devuelve la URL temporal.
+     * AJAX: Devuelve la URL para imprimir el PDF de una devolución.
+     * 
+     * FIX P0-09: Antes llamaba a generarDocumento(..., false) esperando
+     * un path de archivo, pero el método devuelve binario. Ahora devuelve
+     * la URL al endpoint /devoluciones/imprimir/{id} que streamea el PDF
+     * directamente (mismo patrón que ControllerFacturacion::generarPdfAjax).
      */
     public function pdf($id = null) {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
@@ -166,45 +177,29 @@ class ControllerDevoluciones extends Controller {
             return $this->jsonResponse(['success' => false, 'mensaje' => 'DEVOLUCIÓN NO ENCONTRADA'], 404);
         }
 
-        try {
-            $pdfService = new PdfService();
-            $doc_name = 'DEV-' . str_pad($devolucion->id, 4, '0', STR_PAD_LEFT);
-            $filename = $doc_name . '_' . time() . '.pdf';
-            $filePath = $pdfService->generarDocumento('devolucion', [
-                'devolucion' => $devolucion,
-            ], $filename, false);
-
-            return $this->jsonResponse(['success' => true, 'pdf_url' => URLROOT . '/' . $filePath]);
-        } catch (Exception $e) {
-            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
-        }
+        return $this->jsonResponse([
+            'success' => true,
+            'pdf_url' => URLROOT . '/devoluciones/imprimir/' . $devolucionId
+        ]);
     }
 
     /**
-     * Sirve el PDF de la devolución directamente en el navegador (URL: /devoluciones/imprimir/ID).
+     * Sirve el PDF de la devolución directamente en el navegador.
+     * URL: /devoluciones/imprimir/{id}
+     * 
+     * FIX P0-09: Se eliminó el bloque temp_pdfs (ruta incorrecta y código
+     * muerto — PdfService nunca escribe archivos en disco).
      */
     public function imprimir($id = null) {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
         if (!$id) {
-            throw new AppException("ID de devolución o archivo no proporcionado.", 400);
+            throw new AppException("ID de devolución no proporcionado.", 400);
         }
 
-        // 1. Si el parámetro es un nombre de archivo (.pdf), servimos el archivo temporal
-        if (strpos($id, '.pdf') !== false) {
-            $filePath = APPROOT . '/../public/temp_pdfs/' . $id;
-            if (file_exists($filePath)) {
-                header('Content-Type: application/pdf');
-                header('Content-Disposition: inline; filename="' . $id . '"');
-                readfile($filePath);
-                exit;
-            }
-        }
-
-        // 2. Si es ID numérico, generamos el PDF en tiempo real
         $devolucionId = (int)$id;
         $devolucion = $this->devolucionesModel->obtenerDevolucion($devolucionId);
         if (!$devolucion) {
-            throw new AppException("La devolución #$devolucionId no existe o el documento solicitado no se encontró.", 404);
+            throw new AppException("La devolución #$devolucionId no existe.", 404);
         }
 
         $pdfService = new PdfService();

@@ -1,22 +1,29 @@
 /**
  * Lógica de Facturación con Gestión de Colas
  * 
- * v2.5 (2026-10-09):
- *   • FIX CSRF: Todas las peticiones POST ahora envían 'X-CSRF-TOKEN'.
- *     El registro rápido de cliente (btnQuickClient) fallaba con 403
- *     "Token CSRF no válido o sesión expirada" porque no incluía el header.
- *   • FIX: Se eliminó doble llamada updateActiveData('cliente_id', ...).
- *   • FIX: Al registrar cliente desde el POS, ahora se vincula correctamente
- *     al select oculto, al input de búsqueda, a la factura activa y se
- *     sincroniza con el servidor.
- *   • initNewInvoice también envía CSRF al llamar sincronizarBorrador.
+ * v2.7 (2026-10-09) — FIX cliente no persistente:
+ *   • FIX: Al seleccionar un cliente desde el buscador, ahora se fuerza
+ *     un sync inmediato (syncActiveInvoice(true)) en vez de esperar 1s
+ *     al debounce. Antes, si algún render intermedio pisaba el estado,
+ *     el cliente no se persistía.
+ *   • FIX: El registro rápido de cliente también dispara el sync antes
+ *     de hacer renderQueue + renderInvoice (evita race condition).
+ *   • Toast actualizado: "Cliente vinculado y guardado" en vez de solo
+ *     "Cliente vinculado".
  * 
- * v2.4 (2026-10-08):
- *   • El panel del presupuesto anexado ahora se muestra automáticamente
- *     cuando la factura activa tiene presupuesto_activo_id.
- *   • Se cargan los detalles completos del presupuesto desde
- *     /presupuesto/obtener/{id} para poblar el panel verde.
- *   • Flag de "ya cargado" para no refetchear en cada re-render.
+ * v2.6 (P1-11): Polling de facturas vía PollingManager (30s).
+ * v2.5: FIX CSRF (X-CSRF-TOKEN en todas las peticiones POST).
+ * 
+ * v2.8 (2026-10-09) — P2-09:
+ *   • El botón "Registro Rápido de Cliente" (#btnQuickClient) ahora delega
+ *     al helper unificado AppUtils.openQuickClientModal(), que también usa
+ *     taller_nueva_orden.js → quickRegisterOS. Se eliminó el Swal.fire
+ *     duplicado y el fetch propio del listener original (~60 líneas).
+ *   • La lógica post-guardado (crear option en select oculto, vincular a
+ *     factura activa, sync inmediato, renderQueue, renderInvoice) se
+ *     conserva intacta dentro del callback onSuccess.
+ * 
+ * DEPENDENCIAS: polling.js, utils.js, DataTableRefactor.js, app.js.
  */
 document.addEventListener('DOMContentLoaded', () => {
     const inputPlaca = document.getElementById('pos-placa');
@@ -44,8 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const displaySaldoPendiente = document.getElementById('pos-saldo-pendiente');
 
     const IVA_PERCENT = (typeof IVA_RATE !== 'undefined') ? (IVA_RATE * 100) : 0;
-
-    // Token CSRF seguro (con fallback a cadena vacía para entornos sin sesión)
     const CSRF = (typeof CSRF_TOKEN !== 'undefined' && CSRF_TOKEN) ? CSRF_TOKEN : '';
 
     let syncTimeout = null;
@@ -55,7 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastSearchResults = [];
     let lastClientResults = [];
 
-    // Set de presupuestos cuyos detalles ya se cargaron desde el backend.
     const presupuestosDetallesCache = new Set();
 
     document.addEventListener('userLoaded', () => {
@@ -63,9 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
-    // ───────────────────────────────────────────────────────────────────────
-    // HELPERS DE RED (inyectan CSRF automáticamente)
-    // ───────────────────────────────────────────────────────────────────────
     const postJSON = async (url, body) => {
         return fetch(url, {
             method: 'POST',
@@ -165,122 +166,46 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ───────────────────────────────────────────────────────────────────────
-    // REGISTRO RÁPIDO DE CLIENTE (CORREGIDO: incluye CSRF y vincula a la factura)
+    // REGISTRO RÁPIDO DE CLIENTE (FIX P2-09: helper unificado)
     // ───────────────────────────────────────────────────────────────────────
     btnQuickClient.addEventListener('click', async () => {
-        const { value: formValues } = await Swal.fire({
+        await AppUtils.openQuickClientModal({
             title: 'REGISTRO DE CLIENTE',
-            html: `
-                <style>
-                    .swal2-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-                    .swal2-full { grid-column: span 2; }
-                    .swal2-input { padding: 8px 12px !important; font-size: 13px !important; }
-                    .swal2-compact .swal2-title { font-size: 16px !important; padding: 0.5em 0 0.3em !important; }
-                    .swal2-compact .swal2-html-container { margin: 0.5em 0 0 !important; padding: 0 !important; }
-                    .swal2-compact .swal2-actions { padding: 0.5em 0 0 !important; gap: 8px !important; }
-                    .swal2-compact .swal2-confirm, .swal2-compact .swal2-cancel { padding: 8px 16px !important; font-size: 13px !important; }
-                </style>
-                <div class="swal2-grid">
-                    <input id="swal-input1" class="swal2-input swal2-full" placeholder="NIT / CÉDULA *">
-                    <input id="swal-input2" class="swal2-input swal2-full" placeholder="NOMBRE COMPLETO *">
-                    <input id="swal-input3" class="swal2-input" type="tel" placeholder="TELÉFONO">
-                    <input id="swal-input4" class="swal2-input" type="email" placeholder="EMAIL">
-                    <input id="swal-input5" class="swal2-input swal2-full" placeholder="DIRECCIÓN">
-                </div>
-            `,
-            focusConfirm: false,
-            showCancelButton: true,
-            confirmButtonText: 'REGISTRAR',
-            confirmButtonColor: '#10b981',
-            customClass: {
-                popup: 'swal2-compact',
-                htmlContainer: 'swal2-html-compact'
-            },
-            preConfirm: () => {
-                const id = document.getElementById('swal-input1').value.trim();
-                const nombre = document.getElementById('swal-input2').value.trim();
-                if (!id || !nombre) {
-                    Swal.showValidationMessage('Cédula/NIT y Nombre son obligatorios');
-                    return false;
+            confirmText: 'REGISTRAR',
+            onSuccess: async (cliente) => {
+                // 1. Crear/actualizar la opción en el select oculto
+                let option = inputCliente.querySelector(`option[value="${cliente.id}"]`);
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = cliente.id;
+                    option.textContent = cliente.nombre;
+                    inputCliente.appendChild(option);
+                } else {
+                    option.textContent = cliente.nombre;
                 }
-                return [
-                    id,
-                    nombre,
-                    document.getElementById('swal-input3').value.trim(),
-                    document.getElementById('swal-input4').value.trim(),
-                    document.getElementById('swal-input5').value.trim()
-                ];
+                inputCliente.value = cliente.id;
+                if (clientSearchInput) clientSearchInput.value = cliente.nombre;
+
+                // 2. Vincular a la factura activa (o crear una nueva)
+                let activeInv = openInvoices.find(i => i.id === activeInvoiceId);
+                if (!activeInv) {
+                    await initNewInvoice(true);
+                    activeInv = openInvoices.find(i => i.id === activeInvoiceId);
+                }
+                if (activeInv) {
+                    activeInv.cliente_id = cliente.id;
+                    activeInv.cliente_nombre = cliente.nombre;
+
+                    // FIX: Sync inmediato antes de cualquier render
+                    await syncActiveInvoice(true);
+                }
+
+                // 3. Render final
+                renderQueue();
+                renderInvoice();
+                AppUtils.showToast('Cliente registrado y vinculado');
             }
         });
-
-        if (formValues && formValues[0] && formValues[1]) {
-            try {
-                AppUtils.showLoading('Registrando cliente...');
-                const res = await postJSON(`${URLROOT}/clientes/guardar`, {
-                    id: formValues[0],
-                    nombre: formValues[1],
-                    email: formValues[3],
-                    telefono: formValues[2],
-                    direccion: formValues[4]
-                });
-                AppUtils.hideLoading();
-
-                if (res.status === 403) {
-                    AppUtils.showAlert('Sesión expirada', 'El token de seguridad no es válido. Recargue la página e intente de nuevo.', 'error');
-                    return;
-                }
-
-                const data = await res.json();
-
-                if (data.success) {
-                    const clienteId = formValues[0].toUpperCase();
-                    const clienteNombre = formValues[1].toUpperCase();
-
-                    // 1) Agregar/actualizar opción en el <select> oculto
-                    let option = inputCliente.querySelector(`option[value="${clienteId}"]`);
-                    if (!option) {
-                        option = document.createElement('option');
-                        option.value = clienteId;
-                        option.textContent = clienteNombre;
-                        inputCliente.appendChild(option);
-                    } else {
-                        option.textContent = clienteNombre;
-                    }
-                    inputCliente.value = clienteId;
-
-                    // 2) Reflejar en el input de búsqueda visual
-                    if (clientSearchInput) clientSearchInput.value = clienteNombre;
-
-                    // 3) Vincular a la factura activa
-                    const activeInv = openInvoices.find(i => i.id === activeInvoiceId);
-                    if (activeInv) {
-                        activeInv.cliente_id = clienteId;
-                        activeInv.cliente_nombre = clienteNombre;
-                    } else {
-                        // Si no hay factura activa, crear una nueva primero
-                        await initNewInvoice(true);
-                        const nueva = openInvoices.find(i => i.id === activeInvoiceId);
-                        if (nueva) {
-                            nueva.cliente_id = clienteId;
-                            nueva.cliente_nombre = clienteNombre;
-                        }
-                    }
-
-                    // 4) Sincronizar con el servidor y re-renderizar
-                    await syncActiveInvoice(true);
-                    renderQueue();
-                    renderInvoice();
-
-                    AppUtils.showToast('Cliente registrado y vinculado a la factura');
-                } else {
-                    AppUtils.showToast(data.mensaje || 'Error al registrar cliente', 'error');
-                }
-            } catch (e) {
-                AppUtils.hideLoading();
-                console.error("Error registrando cliente:", e);
-                AppUtils.showToast('Error de conexión al registrar cliente', 'error');
-            }
-        }
     });
 
     const initNewInvoice = async (forceSave = false) => {
@@ -306,7 +231,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const userName = currentLoggedInUser ? currentLoggedInUser.staffName : '---';
         const isMechanic = currentLoggedInUser && (parseInt(currentLoggedInUser.roleId) === 2 || currentLoggedInUser.role.toUpperCase() === 'MECANICO');
         const staffId = currentLoggedInUser ? (currentLoggedInUser.staffId || currentLoggedInUser.staff_id) : '';
-
         const ordenIdFromDom = displayFacturaId.dataset.ordenId || null;
 
         const invData = {
@@ -360,7 +284,6 @@ document.addEventListener('DOMContentLoaded', () => {
     inputPlaca.addEventListener('input', (e) => {
         const val = e.target.value.toUpperCase();
         updateActiveData('placa', val);
-
         if (val.trim() !== '') {
             updateActiveData('tipo_procedencia', 'TALLER');
         } else {
@@ -385,7 +308,6 @@ document.addEventListener('DOMContentLoaded', () => {
         posObservaciones.addEventListener('input', (e) => {
             updateActiveData('observaciones', e.target.value.toUpperCase());
         });
-
         posObservaciones.addEventListener('blur', () => {
             syncActiveInvoice();
         });
@@ -407,6 +329,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
+    // ───────────────────────────────────────────────────────────────────────
+    // BÚSQUEDA DE CLIENTES (con fix de persistencia)
+    // ───────────────────────────────────────────────────────────────────────
     if (clientSearchInput) {
         clientSearchInput.addEventListener('input', async (e) => {
             const term = e.target.value.trim();
@@ -424,8 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lastClientResults = data.data || [];
 
             if (lastClientResults.length > 0) {
-                clientSearchResults.innerHTML = lastClientResults.map((c, i) => {
-                    return `
+                clientSearchResults.innerHTML = lastClientResults.map((c, i) => `
                     <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center group transition-colors" 
                          onclick="selectClientFromResults('${i}')">
                         <div>
@@ -433,8 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <p class="text-[10px] text-slate-400 font-mono italic font-bold">CC/NIT: ${c.id}</p>
                         </div>
                         <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 group-hover:text-neon-green"></i>
-                    </div>`;
-                }).join('');
+                    </div>`).join('');
                 clientSearchResults.classList.remove('hidden');
                 if (window.lucide) lucide.createIcons();
             } else {
@@ -444,25 +367,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    window.selectClientFromResults = (index) => {
+    /**
+     * FIX: Maneja la selección de un cliente desde el buscador.
+     * 
+     * Cambios respecto a la versión anterior:
+     *   1. Actualiza la factura en memoria ANTES de cualquier render.
+     *   2. Fuerza un sync INMEDIATO (syncActiveInvoice(true)) en vez de
+     *      esperar 1s al debounce.
+     *   3. Renderiza la UI DESPUÉS del sync, para que no haya race conditions.
+     */
+    window.selectClientFromResults = async (index) => {
         const client = lastClientResults[index];
-        if (client) {
-            let option = inputCliente.querySelector(`option[value="${client.id}"]`);
-            if (!option) {
-                option = document.createElement('option');
-                option.value = client.id;
-                option.textContent = client.nombre;
-                inputCliente.appendChild(option);
-            }
+        if (!client) return;
 
-            inputCliente.value = client.id;
-            if (clientSearchInput) clientSearchInput.value = client.nombre;
-            clientSearchResults.classList.add('hidden');
-            const inv = openInvoices.find(i => i.id === activeInvoiceId);
-            if (inv) inv.cliente_nombre = client.nombre;
-            updateActiveData('cliente_id', client.id);
-            AppUtils.showToast('Cliente vinculado');
+        // 1. Crear la opción en el select oculto si no existe
+        let option = inputCliente.querySelector(`option[value="${client.id}"]`);
+        if (!option) {
+            option = document.createElement('option');
+            option.value = client.id;
+            option.textContent = client.nombre;
+            inputCliente.appendChild(option);
         }
+
+        // 2. Actualizar los inputs visuales
+        inputCliente.value = client.id;
+        if (clientSearchInput) clientSearchInput.value = client.nombre;
+        clientSearchResults.classList.add('hidden');
+
+        // 3. Actualizar la factura activa EN MEMORIA (antes de cualquier render)
+        const inv = openInvoices.find(i => i.id === activeInvoiceId);
+        if (inv) {
+            inv.cliente_id = client.id;
+            inv.cliente_nombre = client.nombre;
+
+            // 4. FIX: Sync INMEDIATO (sin esperar al debounce de 1s)
+            await syncActiveInvoice(true);
+        }
+
+        // 5. Renderizar la UI DESPUÉS del sync
+        renderQueue();
+        renderInvoice();
+        AppUtils.showToast('Cliente vinculado y guardado');
     };
 
     /* ==================== BÚSQUEDA DE PRESUPUESTOS PARA ANEXAR ==================== */
@@ -480,10 +425,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             presupuestosDetallesCache.add(String(presupuestoId));
-
             const res = await fetch(`${URLROOT}/presupuesto/obtener/${presupuestoId}`);
             if (!res.ok) return;
-
             const data = await res.json();
             if (!data.success || !data.data) return;
 
@@ -502,7 +445,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (window.lucide) lucide.createIcons();
         } catch (e) {
-            console.warn('No se pudieron cargar los detalles del presupuesto #' + presupuestoId, e);
             presupuestosDetallesCache.delete(String(presupuestoId));
         }
     }
@@ -529,7 +471,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         resultsContainerPresupuesto.classList.remove('hidden');
                     }
                 } catch (e) {
-                    console.error("Error buscando presupuestos:", e);
                     resultsContainerPresupuesto.innerHTML = '<div class="p-4 text-center text-red-400 text-xs italic">Error al buscar</div>';
                     resultsContainerPresupuesto.classList.remove('hidden');
                 }
@@ -638,7 +579,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             AppUtils.hideLoading();
-            console.error("Error anexando presupuesto:", e);
             presupuestoSeleccionadoIdFacturacion = null;
             inputPresupuestoFacturacion.value = '';
             if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
@@ -698,10 +638,8 @@ document.addEventListener('DOMContentLoaded', () => {
             syncActiveInvoice();
 
             AppUtils.showToast(`Presupuesto ${numero} anexado con ${data.items.length} item(s).`, 'success');
-
         } catch (e) {
             AppUtils.hideLoading();
-            console.error("Error cargando items del presupuesto:", e);
             AppUtils.showToast('Error al cargar los items del presupuesto', 'error');
         }
     };
@@ -724,7 +662,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 AppUtils.hideLoading();
-                console.error('Error liberando presupuesto:', e);
             }
         }
 
@@ -1064,10 +1001,8 @@ document.addEventListener('DOMContentLoaded', () => {
             inputPagoTransferencia.value = activeInvoice.pago_transferencia || 0;
         }
 
-        // Sincronizar panel del presupuesto anexado
         if (activeInvoice.presupuesto_activo_id && inputPresupuestoFacturacion && seleccionadoContainerPresupuesto) {
             const pid = activeInvoice.presupuesto_activo_id;
-
             presupuestoSeleccionadoIdFacturacion = pid;
 
             if (!inputPresupuestoFacturacion.value) {
@@ -1117,10 +1052,8 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('');
 
         const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-
         const isIvaEnabled = activeInvoice.iva_activo !== false;
         const currentIvaRate = isIvaEnabled ? (IVA_PERCENT / 100) : 0;
-
         const ivaMonto = subtotal * currentIvaRate;
         const total = subtotal + ivaMonto;
 
@@ -1167,7 +1100,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (posObservaciones && document.activeElement !== posObservaciones) {
             posObservaciones.value = activeInvoice.observaciones || '';
         }
-        updateObsPreview();
+        if (typeof updateObsPreview === 'function') updateObsPreview();
         lucide.createIcons();
     };
 
@@ -1316,10 +1249,14 @@ document.addEventListener('DOMContentLoaded', () => {
             clientSearchResults.classList.add('hidden');
     });
 
-    loadInvoicesFromServer();
-    loadClients();
+    if (typeof PollingManager !== 'undefined') {
+        PollingManager.register('facturacion-drafts', loadInvoicesFromServer, 30000);
+    } else {
+        loadInvoicesFromServer();
+        setInterval(loadInvoicesFromServer, 30000);
+    }
 
-    setInterval(loadInvoicesFromServer, 10000);
+    loadClients();
 
     async function verificarOrdenInicial() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -1330,11 +1267,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const resp = await fetch(`${URLROOT}/facturacion/obtenerPorOrden/${ordenId}`);
-
                 if (!resp.ok) return;
 
                 const res = await resp.json();
-
                 if (res.success && res.data) {
                     activeInvoiceId = 'FAC-' + String(res.data.id).padStart(3, '0');
                     await loadInvoicesFromServer();

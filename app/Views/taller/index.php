@@ -46,6 +46,7 @@
                     <tr class="bg-slate-100 text-slate-600 text-[11px] uppercase tracking-widest">
                         <th class="px-6 py-4 font-bold">Orden #</th>
                         <th class="px-6 py-4 font-bold">Vehículo</th>
+                        <th class="px-6 py-4 font-bold">Cliente</th>
                         <th class="px-6 py-4 font-bold">Estado</th>
                         <th class="px-6 py-4 font-bold text-center">Entrega Estimada</th>
                         <th class="px-6 py-4 font-bold">Mecánico</th>
@@ -55,17 +56,29 @@
                 <tbody class="divide-y divide-gray-100">
                     <?php if (empty($ordenes)): ?>
                         <tr>
-                            <td colspan="5" class="px-6 py-12 text-center text-gray-400 italic">No hay vehículos en reparación actualmente.</td>
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-400 italic">No hay vehículos en reparación actualmente.</td>
                         </tr>
                     <?php endif; ?>
                     <?php foreach($ordenes as $o): ?>
-                    <tr class="hover:bg-slate-50 transition-colors">
+                    <tr class="hover:bg-slate-50 transition-colors" data-orden-id="<?php echo (int)$o->id; ?>">
                         <td class="px-6 py-4 font-mono font-bold text-navy-blue">#<?php echo $o->id; ?></td>
                         <td class="px-6 py-4">
                             <div class="flex flex-col">
                                 <span class="font-bold text-slate-800"><?php echo $o->placa; ?></span>
                                 <span class="text-xs text-slate-500"><?php echo "$o->marca $o->modelo"; ?></span>
                             </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <?php if(!empty($o->cliente_nombre)): ?>
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-slate-700 uppercase text-xs tracking-tight"><?php echo $o->cliente_nombre; ?></span>
+                                    <?php if(!empty($o->cliente_telefono)): ?>
+                                        <span class="text-[10px] text-slate-400 font-mono"><?php echo $o->cliente_telefono; ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php else: ?>
+                                <span class="text-slate-300 italic text-xs">Sin cliente</span>
+                            <?php endif; ?>
                         </td>
                         <td class="px-6 py-4">
                             <select onchange="cambiarEstado(<?php echo $o->id; ?>, this)" 
@@ -97,9 +110,9 @@
                                 <span class="text-slate-300 italic text-xs">Sin fecha</span>
                             <?php endif; ?>
                         </td>
-                        <td class="px-6 py-4 text-sm text-slate-600">
+                        <td class="px-6 py-4 text-sm text-slate-600 celda-mecanico">
                             <?php if (empty($o->mecanico_nombre)): ?>
-                                <span class="flex items-center gap-1.5 text-rose-500 font-black animate-pulse uppercase tracking-widest text-[10px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-100">
+                                <span class="flex items-center gap-1.5 text-rose-500 font-black animate-pulse uppercase tracking-widest text-[10px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-100 w-fit">
                                     <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Sin Asignar
                                 </span>
                             <?php else: ?>
@@ -111,7 +124,6 @@
                         </td>
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end gap-1">
-                                <!-- Botones de Acción Dinámicos (Reactivos al estado LISTO) -->
                                 <button onclick="entregarVehiculo(<?php echo $o->id; ?>)" 
                                         class="btn-entrega text-emerald-500 hover:bg-emerald-50 p-2 rounded-lg transition-all <?php echo ($o->estado !== 'LISTO' || $o->factura_status === 'PENDIENTE') ? 'hidden' : ''; ?>" 
                                         title="Confirmar Entrega Técnica">
@@ -138,6 +150,14 @@
                                    class="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all" title="Imprimir Orden de Servicio">
                                     <i data-lucide="printer" class="w-5 h-5"></i>
                                 </a>
+
+                                <?php if($_SESSION['user_role'] === 'ADMINISTRADOR'): ?>
+                                <button onclick="eliminarOrden(<?php echo $o->id; ?>)" 
+                                        class="text-rose-500 hover:bg-rose-50 p-2 rounded-lg transition-all" 
+                                        title="Eliminar Orden">
+                                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                                </button>
+                                <?php endif; ?>
                             </div>
                         </td>
                     </tr>
@@ -189,24 +209,20 @@ inputBusqueda.addEventListener('input', () => {
     }, 400);
 });
 
-// Cerrar resultados al click fuera
 document.addEventListener('click', (e) => {
     if (!resultadosContainer.contains(e.target) && e.target !== inputBusqueda) {
         resultadosContainer.classList.add('hidden');
     }
 });
 
-/**
- * Actualiza el estado de la orden en la base de datos
- */
 async function cambiarEstado(id, selectEl) {
     const estado = selectEl.value;
     try {
         const response = await fetch(`${URLROOT}/taller/cambiarEstado`, {
-            method: 'POST', // Aseguramos que sea POST
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': CSRF_TOKEN // Añadimos el token CSRF aquí
+                'X-CSRF-TOKEN': CSRF_TOKEN
             },
             body: JSON.stringify({ id, estado })
         });
@@ -215,7 +231,6 @@ async function cambiarEstado(id, selectEl) {
         if (result.success) {
             AppUtils.showToast(result.mensaje, 'success');
             
-            // Actualizar colores dinámicamente
             selectEl.classList.remove('text-slate-500', 'text-indigo-600', 'text-amber-600', 'text-blue-600', 'text-emerald-600', 'border-slate-200', 'border-indigo-200', 'border-amber-200', 'border-blue-200', 'border-emerald-400');
             
             const colors = {
@@ -227,7 +242,6 @@ async function cambiarEstado(id, selectEl) {
             
             if (colors[estado]) selectEl.classList.add(...colors[estado]);
 
-            // Actualizar visibilidad de botones de acción en tiempo real
             const row = selectEl.closest('tr');
             const btnEntrega = row.querySelector('.btn-entrega');
             const btnFacturar = row.querySelector('.btn-facturar');
@@ -235,7 +249,8 @@ async function cambiarEstado(id, selectEl) {
 
             if (estado === 'LISTO') {
                 btnEntrega?.classList.remove('hidden');
-                const hasMecanico = !row.querySelector('.animate-pulse'); // El label "Sin Asignar" tiene animate-pulse
+                const celdaMec = row.querySelector('.celda-mecanico');
+                const hasMecanico = celdaMec && !celdaMec.querySelector('.animate-pulse');
                 if (hasMecanico) {
                     btnFacturar?.classList.remove('hidden');
                     btnNoMec?.classList.add('hidden');
@@ -256,9 +271,6 @@ async function cambiarEstado(id, selectEl) {
     }
 }
 
-/**
- * Procesa la entrega final del vehículo
- */
 async function entregarVehiculo(id) {
     const { value: nota } = await Swal.fire({
         title: 'ENTREGA DE VEHÍCULO',
@@ -272,28 +284,130 @@ async function entregarVehiculo(id) {
 
     if (nota !== undefined) {
         AppUtils.showLoading('Procesando salida...');
-        const res = await fetch(`${URLROOT}/taller/entregarOrden`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
-            body: JSON.stringify({ id, comentario: nota })
-        });
-        const result = await res.json();
-        AppUtils.hideLoading();
+        try {
+            const res = await fetch(`${URLROOT}/taller/entregarOrden`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ id, comentario: nota })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
 
-        if (result.success) {
-            AppUtils.showToast('Vehículo entregado. Orden finalizada.');
-            setTimeout(() => location.reload(), 1000); // Recarga para limpiar la tabla
+            if (result.success) {
+                AppUtils.showToast('Vehículo entregado. Orden finalizada.');
+
+                const fila = document.querySelector(`tr[data-orden-id="${id}"]`);
+                if (fila) {
+                    fila.style.transition = 'opacity 0.4s, transform 0.4s';
+                    fila.style.opacity = '0';
+                    fila.style.transform = 'translateX(-30px)';
+                    setTimeout(() => {
+                        fila.remove();
+                        const badge = document.querySelector('.bg-navy-blue.text-white.text-xs.px-2.py-1.rounded-full');
+                        if (badge) {
+                            const currentCount = parseInt(badge.textContent) || 1;
+                            badge.textContent = `${Math.max(0, currentCount - 1)} Activos`;
+                        }
+                        if (typeof initWorkshopAlerts === 'function') initWorkshopAlerts();
+                    }, 400);
+                }
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al entregar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function eliminarOrden(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'ELIMINAR ORDEN',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div class="p-3 bg-rose-50 border border-rose-100 rounded-xl">
+                    <p class="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1">⚠ Acción irreversible</p>
+                    <p class="text-xs text-rose-700 font-bold">Se eliminará la orden #${id} y todo lo asociado (checklist, servicios, borrador de factura, reservas de presupuesto). Esta acción NO se puede deshacer.</p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Motivo de la eliminación *</label>
+                    <select id="swal-motivo-select" class="swal2-input w-full m-0 text-sm">
+                        <option value="">-- Seleccionar motivo --</option>
+                        <option value="CLIENTE SE RETIRÓ">Cliente se retiró</option>
+                        <option value="ERROR EN LA CREACIÓN">Error en la creación</option>
+                        <option value="ORDEN DUPLICADA">Orden duplicada</option>
+                        <option value="SOLICITUD DEL CLIENTE">Solicitud del cliente</option>
+                        <option value="OTRO">Otro (especificar abajo)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Detalle adicional</label>
+                    <textarea id="swal-motivo-detalle" rows="2" class="swal2-input w-full m-0 text-sm uppercase" placeholder="Opcional..." oninput="this.value = this.value.toUpperCase();"></textarea>
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'SÍ, ELIMINAR',
+        confirmButtonColor: '#e11d48',
+        cancelButtonText: 'CANCELAR',
+        cancelButtonColor: '#64748b',
+        preConfirm: () => {
+            const selectVal = document.getElementById('swal-motivo-select').value;
+            const detalle = document.getElementById('swal-motivo-detalle').value.trim().toUpperCase();
+            if (!selectVal) {
+                Swal.showValidationMessage('Debes seleccionar un motivo');
+                return false;
+            }
+            const motivoFinal = detalle ? `${selectVal} — ${detalle}` : selectVal;
+            return { motivo: motivoFinal };
+        }
+    });
+
+    if (formValues) {
+        AppUtils.showLoading('Eliminando orden...');
+        try {
+            const res = await fetch(`${URLROOT}/taller/eliminarOrden/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify(formValues)
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+
+            if (result.success) {
+                AppUtils.showToast(result.mensaje || 'Orden eliminada');
+
+                const fila = document.querySelector(`tr[data-orden-id="${id}"]`);
+                if (fila) {
+                    fila.style.transition = 'opacity 0.4s, transform 0.4s';
+                    fila.style.opacity = '0';
+                    fila.style.transform = 'translateX(-30px)';
+                    setTimeout(() => {
+                        fila.remove();
+                        const badge = document.querySelector('.bg-navy-blue.text-white.text-xs.px-2.py-1.rounded-full');
+                        if (badge) {
+                            const currentCount = parseInt(badge.textContent) || 1;
+                            badge.textContent = `${Math.max(0, currentCount - 1)} Activos`;
+                        }
+                        if (typeof initWorkshopAlerts === 'function') initWorkshopAlerts();
+                    }, 400);
+                }
+            } else {
+                AppUtils.showAlert('No se pudo eliminar', result.error || 'Error desconocido', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            console.error('Error eliminando orden:', e);
+            AppUtils.showAlert('Error de conexión', 'No se pudo conectar con el servidor.', 'error');
         }
     }
 }
 
 async function verDetalle(id) {
-    // Si existe la función en app.min.js la llamamos, si no, usamos el fetch manual
     if (typeof window.abrirModalDetalleOrden === 'function') {
         window.abrirModalDetalleOrden(id);
     } else {
         AppUtils.showToast('Cargando detalles técnicos de la Orden #' + id, 'info');
-        // El script app.min.js debería estar escuchando este evento o tener una función global
     }
 }
 

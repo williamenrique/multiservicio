@@ -30,8 +30,8 @@
         </div>
     </div>
 
-    <!-- Header del Presupuesto -->
-    <div class="bg-gradient-to-r from-navy-blue to-slate-800 text-white rounded-3xl p-6 sm:p-8 shadow-xl" style="background: linear-gradient(to right, #1e3a5f, #1e293b);">
+    <!-- Header del Presupuesto (bloque dinámico: badge de estado + total) -->
+    <div id="presupuesto-header-bloque" class="bg-gradient-to-r from-navy-blue to-slate-800 text-white rounded-3xl p-6 sm:p-8 shadow-xl" style="background: linear-gradient(to right, #1e3a5f, #1e293b);">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <div class="flex items-center gap-3 mb-2">
@@ -166,8 +166,8 @@
             </div>
             <?php endif; ?>
 
-            <!-- Info del Presupuesto -->
-            <div class="glass-card rounded-2xl p-6 shadow-xl border border-slate-100">
+            <!-- Info del Presupuesto (bloque dinámico: estado, vencimiento) -->
+            <div id="presupuesto-info-bloque" class="glass-card rounded-2xl p-6 shadow-xl border border-slate-100">
                 <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <i data-lucide="info" class="w-4 h-4 text-neon-green"></i> Detalles del Presupuesto
                 </h3>
@@ -322,8 +322,8 @@
                 </div>
             </div>
 
-            <!-- Acciones -->
-            <div class="flex flex-wrap gap-3 justify-end">
+            <!-- Acciones (bloque dinámico: botones condicionales por estado) -->
+            <div id="presupuesto-acciones-bloque" class="flex flex-wrap gap-3 justify-end">
                 <?php if ($presupuesto->estado === 'BORRADOR'): ?>
                 <button onclick="editarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-slate-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-slate-700 font-semibold shadow-sm">
                     <i data-lucide="edit-3" class="w-5 h-5"></i> Editar
@@ -378,6 +378,38 @@
 </div>
 
 <script>
+/* ==================== FIX RONDA 5 (P2-01): refresco sin location.reload() ====================
+ * En vez de recargar toda la página, se hace fetch al mismo URL, se parsea con
+ * DOMParser y se reemplazan SOLO los 3 bloques dinámicos:
+ *   - #presupuesto-header-bloque    (badge de estado + total + vencido)
+ *   - #presupuesto-info-bloque      (detalle lateral: estado, vencimiento)
+ *   - #presupuesto-acciones-bloque  (botones condicionales por estado)
+ * Los scripts inline no se re-ejecutan (DOMParser no ejecuta), pero las funciones
+ * ya están definidas globalmente, así que los onclick siguen funcionando.
+ */
+const PRESUPUESTO_ID = <?php echo (int)$presupuesto->id; ?>;
+
+async function refrescarPresupuestoActual() {
+    try {
+        const url = window.location.pathname + window.location.search;
+        const res = await fetch(url, { cache: 'no-store' });
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+
+        ['presupuesto-header-bloque', 'presupuesto-info-bloque', 'presupuesto-acciones-bloque'].forEach(id => {
+            const actual = document.getElementById(id);
+            const nuevo = doc.getElementById(id);
+            if (actual && nuevo) {
+                actual.replaceWith(nuevo);
+            }
+        });
+
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        console.error('Error al refrescar presupuesto:', e);
+    }
+}
+
 /* ==================== ACCIONES ==================== */
 function editarPresupuesto(id) {
     window.location.href = `${URLROOT}/presupuesto/editar/${id}`;
@@ -414,7 +446,7 @@ async function enviarPresupuestoEmail(id) {
     if (formValues) {
         AppUtils.showLoading('Enviando...');
         try {
-            const res = await fetch(`${URLROOT}/presupuesto/enviarEmail/${<?php echo $presupuesto->id; ?>}`, {
+            const res = await fetch(`${URLROOT}/presupuesto/enviarEmail/${PRESUPUESTO_ID}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
                 body: JSON.stringify({
@@ -427,7 +459,7 @@ async function enviarPresupuestoEmail(id) {
             
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
-                setTimeout(() => location.reload(), 1500);
+                await refrescarPresupuestoActual();
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al enviar', 'error');
             }
@@ -471,7 +503,7 @@ async function activarPresupuesto(id) {
     if (result.isConfirmed) {
         AppUtils.showLoading('Activando presupuesto y reservando stock...');
         try {
-            const res = await fetch(`${URLROOT}/presupuesto/activar/${id}`, {
+            const res = await fetch(`${URLROOT}/presupuesto/activar/${PRESUPUESTO_ID}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
             });
@@ -480,7 +512,7 @@ async function activarPresupuesto(id) {
             
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
-                setTimeout(() => location.reload(), 1500);
+                await refrescarPresupuestoActual();
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al activar', 'error');
             }
@@ -523,7 +555,7 @@ async function iniciarProcesoPresupuesto(id) {
     if (formValues) {
         AppUtils.showLoading('Iniciando proceso...');
         try {
-            const res = await fetch(`${URLROOT}/presupuesto/iniciarProceso/${<?php echo $presupuesto->id; ?>}`, {
+            const res = await fetch(`${URLROOT}/presupuesto/iniciarProceso/${PRESUPUESTO_ID}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
                 body: JSON.stringify(formValues)
@@ -533,7 +565,7 @@ async function iniciarProcesoPresupuesto(id) {
             
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
-                setTimeout(() => location.reload(), 1500);
+                await refrescarPresupuestoActual();
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al iniciar proceso', 'error');
             }
@@ -576,7 +608,7 @@ async function liberarInventarioPresupuesto(id) {
     if (formValues) {
         AppUtils.showLoading('Liberando inventario...');
         try {
-            const res = await fetch(`${URLROOT}/presupuesto/liberarInventario/${<?php echo $presupuesto->id; ?>}`, {
+            const res = await fetch(`${URLROOT}/presupuesto/liberarInventario/${PRESUPUESTO_ID}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
                 body: JSON.stringify({ motivo: formValues.motivo })
@@ -586,7 +618,7 @@ async function liberarInventarioPresupuesto(id) {
             
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
-                setTimeout(() => location.reload(), 1500);
+                await refrescarPresupuestoActual();
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al liberar', 'error');
             }
@@ -633,7 +665,7 @@ async function guardarYEnviarPresupuesto(id) {
         AppUtils.showLoading('Guardando y enviando...');
         try {
             // Primero cambiar estado a ENVIADO
-            const resEstado = await fetch(`${URLROOT}/presupuesto/cambiarEstado/${<?php echo $presupuesto->id; ?>}`, {
+            const resEstado = await fetch(`${URLROOT}/presupuesto/cambiarEstado/${PRESUPUESTO_ID}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
                 body: JSON.stringify({ estado: 'ENVIADO' })
@@ -643,7 +675,7 @@ async function guardarYEnviarPresupuesto(id) {
             if (!resultEstado.success) throw new Error(resultEstado.mensaje);
             
             // Luego enviar email
-            const resEmail = await fetch(`${URLROOT}/presupuesto/enviarEmail/${<?php echo $presupuesto->id; ?>}`, {
+            const resEmail = await fetch(`${URLROOT}/presupuesto/enviarEmail/${PRESUPUESTO_ID}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
                 body: JSON.stringify({
@@ -656,7 +688,7 @@ async function guardarYEnviarPresupuesto(id) {
             
             if (resultEmail.success) {
                 AppUtils.showToast('Presupuesto guardado y enviado', 'success');
-                setTimeout(() => location.reload(), 1500);
+                await refrescarPresupuestoActual();
             } else {
                 AppUtils.showToast(resultEmail.mensaje || 'Error al enviar', 'error');
             }
@@ -687,7 +719,7 @@ async function aceptarPresupuesto(id) {
     if (result.isConfirmed) {
         AppUtils.showLoading('Aceptando presupuesto y reservando stock...');
         try {
-            const res = await fetch(`${URLROOT}/presupuesto/aceptar/${id}`, {
+            const res = await fetch(`${URLROOT}/presupuesto/aceptar/${PRESUPUESTO_ID}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
             });
@@ -696,7 +728,7 @@ async function aceptarPresupuesto(id) {
             
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
-                setTimeout(() => location.reload(), 1500);
+                await refrescarPresupuestoActual();
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al aceptar', 'error');
             }
@@ -708,6 +740,7 @@ async function aceptarPresupuesto(id) {
 }
 
 async function convertirPresupuestoAVenta(id) {
+    const total = <?php echo (float)($presupuesto->total ?? 0); ?>;
     const { value: formValues } = await Swal.fire({
         title: 'Convertir a Venta',
         html: `
@@ -729,15 +762,12 @@ async function convertirPresupuestoAVenta(id) {
         confirmButtonText: 'CONVERTIR A VENTA',
         confirmButtonColor: '#7c3aed',
         didOpen: () => {
-            // Obtener el total del presupuesto desde la vista
-            const total = <?php echo $presupuesto->total ?? 0; ?>;
             document.getElementById('venta-total-display').textContent = '$' + total.toLocaleString('es-CO', {minimumFractionDigits: 2});
             document.getElementById('venta-efectivo').value = total.toFixed(2);
             
             const updateSaldo = () => {
                 const efectivo = parseFloat(document.getElementById('venta-efectivo').value) || 0;
                 const transferencia = parseFloat(document.getElementById('venta-transferencia').value) || 0;
-                const total = <?php echo $presupuesto->total ?? 0; ?>;
                 const saldo = Math.max(0, total - (efectivo + transferencia));
                 document.getElementById('venta-saldo-display').textContent = '$' + saldo.toLocaleString('es-CO', {minimumFractionDigits: 2});
             };
@@ -749,7 +779,6 @@ async function convertirPresupuestoAVenta(id) {
         preConfirm: () => {
             const efectivo = parseFloat(document.getElementById('venta-efectivo').value) || 0;
             const transferencia = parseFloat(document.getElementById('venta-transferencia').value) || 0;
-            const total = <?php echo $presupuesto->total ?? 0; ?>;
             
             if (efectivo + transferencia > total) {
                 Swal.showValidationMessage('El pago total no puede exceder el monto del presupuesto');
@@ -766,7 +795,7 @@ async function convertirPresupuestoAVenta(id) {
     if (formValues) {
         AppUtils.showLoading('Convirtiendo presupuesto a venta...');
         try {
-            const res = await fetch(`${URLROOT}/presupuesto/convertirAVenta/${id}`, {
+            const res = await fetch(`${URLROOT}/presupuesto/convertirAVenta/${PRESUPUESTO_ID}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
                 body: JSON.stringify({ datos_pago: formValues })
@@ -776,11 +805,11 @@ async function convertirPresupuestoAVenta(id) {
             
             if (result.success) {
                 AppUtils.showToast(result.mensaje, 'success');
+                // FIX Ronda 5: abrir el PDF en nueva pestaña en vez de reemplazar la vista actual
                 if (result.redirect) {
-                    setTimeout(() => window.location.href = result.redirect, 1500);
-                } else {
-                    setTimeout(() => location.reload(), 1500);
+                    setTimeout(() => window.open(result.redirect, '_blank'), 800);
                 }
+                await refrescarPresupuestoActual();
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al convertir a venta', 'error');
             }

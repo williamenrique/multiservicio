@@ -1,165 +1,38 @@
 /**
  * APP CORE - UNIFICADO Y LEGIBLE
- * Este archivo centraliza las utilidades, la gestión de sesión y la lógica principal de la UI.
- * Reemplaza a app.js y consolida las funciones de soporte del sistema.
  * 
- * v2.1: Endpoints opcionales (alertasCredito, getDeudoresSummary) ahora fallan
- *       silenciosamente si devuelven 404, en lugar de spamear la consola con
- *       errores de red. Esto permite desplegar el frontend sin los métodos
- *       backend correspondientes sin generar ruido en la consola.
+ * v2.7 (2026-10-09) — FIX "Mecánico removido" al asignar:
+ *   • El valor del mecánico se captura en el evento `change` del select
+ *     (dentro de didOpen), no solo en preConfirm. Así el valor persiste
+ *     aunque el select se resetee al cerrar el modal.
+ *   • Logs de diagnóstico [Taller] para ver exactamente qué se envía.
+ *   • Si el select tiene una opción seleccionada con texto válido pero
+ *     value vacío, se usa el fallback.
+ * 
+ * v2.6: preConfirm valida orden.id. Envío redundante id + orden_id.
+ * v2.5: Sin location.reload() al asignar mecánico.
+ * v2.4: FIX sidebar (overlay + persistencia).
+ * v2.3: PollingManager + DashboardCache.
+ * v2.2: AppUtils en utils.js (fuente única).
  */
 
-// =============================================================================
-// 1. UTILIDADES DEL NÚCLEO (AppUtils)
-// =============================================================================
-const AppUtils = {
-    /**
-     * Muestra una alerta informativa o de éxito usando SweetAlert2.
-     */
-    showAlert: (title, text, icon = "success") =>
-        Swal.fire({
-            title: title,
-            text: text,
-            icon: icon,
-            background: "#000000",
-            color: "#ffffff",
-            confirmButtonColor: "#39FF14",
-            confirmButtonText: '<span style="color: #000; font-weight: 900; text-transform: uppercase;">Aceptar</span>',
-            customClass: {
-                popup: 'rounded-3xl border border-slate-800 shadow-[0_0_20px_rgba(57,255,20,0.2)]',
-                title: 'text-white'
-            }
-        }),
-
-    /**
-     * Muestra una notificación rápida (Toast) en la parte superior derecha.
-     */
-    showToast: (msg, type = "success") => {
-        if (typeof Toastify === 'function') {
-            Toastify({
-                text: msg,
-                duration: 3000,
-                gravity: "top",
-                position: "right",
-                style: {
-                    background: "#000000",
-                    color: "#ffffff",
-                    borderRadius: "12px",
-                    fontWeight: "900",
-                    fontSize: "13px",
-                    boxShadow: "0 0 20px rgba(57, 255, 20, 0.4)",
-                    border: "1px solid rgba(57, 255, 20, 0.3)",
-                    textTransform: "uppercase"
-                },
-            }).showToast();
-        } else {
-            // Fallback a SweetAlert2
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                showConfirmButton: false,
-                timer: 3000,
-                timerProgressBar: true,
-                icon: type,
-                title: msg,
-                background: "#000000",
-                color: "#ffffff",
-                didOpen: (toast) => {
-                    toast.style.borderRadius = "12px";
-                    toast.style.boxShadow = "0 0 20px rgba(57, 255, 20, 0.4)";
-                    toast.style.border = "1px solid rgba(57, 255, 20, 0.2)";
-                }
-            });
-        }
-    },
-
-    /**
-     * Muestra un cuadro de diálogo de confirmación antes de ejecutar una acción.
-     */
-    confirmAction: (title, text, onConfirm, icon = "warning", confirmText = "Sí, continuar", confirmColor = "#ef4444", cancelText = "Cancelar") =>
-        Swal.fire({
-            title: title,
-            text: text,
-            icon: icon,
-            showCancelButton: !0,
-            background: "#000000",
-            color: "#ffffff",
-            confirmButtonColor: confirmColor || "#ef4444",
-            confirmButtonText: confirmText,
-            cancelButtonText: cancelText,
-            customClass: {
-                popup: 'rounded-3xl border border-slate-800 shadow-[0_0_20px_rgba(57,255,20,0.2)]'
-            }
-        }).then((result) => {
-            result.isConfirmed && onConfirm();
-        }),
-
-    /**
-     * Formatea un número como moneda colombiana (COP).
-     */
-    formatCurrency: (amount) =>
-        new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 2 }).format(amount),
-
-    /**
-     * Abre un visor de imagen a pantalla completa usando SweetAlert2.
-     */
-    viewImage: (url, title) => {
-        Swal.fire({
-            title: title,
-            imageUrl: url,
-            imageAlt: title,
-            showCloseButton: !0,
-            showConfirmButton: !1,
-            background: "#000000",
-            color: "#ffffff",
-            customClass: {
-                popup: 'rounded-3xl border border-slate-800 shadow-2xl'
-            }
-        });
-    },
-
-    /**
-     * Muestra una pantalla de carga bloqueante.
-     */
-    showLoading: (msg = "Cargando...") => {
-        Swal.fire({
-            title: msg,
-            background: "#000000",
-            color: "#ffffff",
-            allowOutsideClick: !1,
-            showConfirmButton: false,
-            didOpen: () => {
-                Swal.showLoading();
-            },
-        });
-        // Failsafe: Si después de 20 segundos sigue cargando, cerrar por seguridad
-        setTimeout(() => { if (Swal.isVisible() && Swal.isLoading()) Swal.close(); }, 20000);
-    },
-
-    hideLoading: () => {
-        if (Swal.isVisible()) {
-            Swal.close();
-        }
-    },
-};
-
-// =============================================================================
-// 2. ESTADO GLOBAL DE LA APP
-// =============================================================================
 window.currentLoggedInUser = null;
 
-// =============================================================================
-// 3. INICIALIZACIÓN Y EVENTOS PRINCIPALES
-// =============================================================================
-
 document.addEventListener("DOMContentLoaded", async () => {
+    if (typeof AppUtils === 'undefined') {
+        console.error('[app.js] CRÍTICO: AppUtils no está definido. Verifica utils.js.');
+        return;
+    }
+    if (typeof PollingManager === 'undefined') {
+        console.error('[app.js] CRÍTICO: PollingManager no está definido. Verifica polling.js.');
+        return;
+    }
+
     initClock();
     initSidebar();
     initUserDropdown();
     initGlobalSearch();
 
-
-    // Inyectar Estilos de Tooltips Personalizados (Negro y Blanco)
     const style = document.createElement('style');
     style.textContent = `
         .tippy-box[data-theme~='taller-dark'] {
@@ -198,46 +71,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.head.appendChild(style);
 
     await fetchLoggedInUserFromDB();
-
-    // Notificar a otros módulos (como dashboard.js) que el usuario ya está cargado
     document.dispatchEvent(new CustomEvent("userLoaded", { detail: window.currentLoggedInUser }));
 
-    // Inicializar funciones exclusivas de administrador
     const user = window.currentLoggedInUser;
-    if (user && (parseInt(user.roleId) === 1 || user.role.toUpperCase() === "ADMINISTRADOR")) {
-        initRecoveryNotifications();
-        setInterval(initRecoveryNotifications, 30000); // Polling cada 30 segundos
-        initWorkshopAlerts();
-        setInterval(initWorkshopAlerts, 60000); // Chequeo de taller cada minuto
-        initPedidosAlerts();
-        setInterval(initPedidosAlerts, 60000); // Chequeo de pedidos cada minuto
-        initCreditNotifications();
-        setInterval(initCreditNotifications, 60000); // Chequeo de cartera cada minuto
-        initDebtorsCard();
-        setInterval(initDebtorsCard, 300000); // Polling cada 5 minutos para la tarjeta de deudores
-        initLowStockNotifications();
-        setInterval(initLowStockNotifications, 120000); // Chequeo de stock cada 2 minutos
-        initProfitabilityCard();
-        setInterval(initProfitabilityCard, 600000); // Polling cada 10 minutos
+    const isAdmin = user && (parseInt(user.roleId) === 1 || user.role.toUpperCase() === "ADMINISTRADOR");
+    const isMecanico = user && user.role.toUpperCase() === "MECANICO";
+
+    if (isAdmin) {
+        PollingManager.register('recovery-notifications', initRecoveryNotifications, 30000);
+        PollingManager.register('workshop-alerts',        initWorkshopAlerts,        60000);
+        PollingManager.register('pedidos-alerts',         initPedidosAlerts,         60000);
+        PollingManager.register('credit-notifications',   initCreditNotifications,   60000);
+        PollingManager.register('debtors-card',           initDebtorsCard,          300000);
+        PollingManager.register('low-stock-notifications',initLowStockNotifications, 120000);
+        PollingManager.register('profitability-card',     initProfitabilityCard,    600000);
+    } else if (isMecanico) {
+        PollingManager.register('workshop-alerts', initWorkshopAlerts, 60000);
+        PollingManager.register('pedidos-alerts',  initPedidosAlerts,  60000);
     }
 
-    if (user && user.role.toUpperCase() === "MECANICO") {
-        initWorkshopAlerts();
-        setInterval(initWorkshopAlerts, 60000); // Chequeo de taller cada minuto
-        initPedidosAlerts();
-        setInterval(initPedidosAlerts, 60000); // Chequeo de pedidos cada minuto
-    }
+    PollingManager.start();
 
-    renderTopBarUserInfo(); // Actualiza nombre y rol en la UI
-    window.initGlobalTooltips(); // Inicialización inicial
+    renderTopBarUserInfo();
+    window.initGlobalTooltips();
 });
 
-/**
- * Inicializa tooltips de Tippy.js con el tema Taller Dark
- */
 window.initGlobalTooltips = function () {
     if (typeof tippy === 'function') {
-        // Seleccionamos todos los elementos con atributo title que no hayan sido inicializados
         const elements = document.querySelectorAll('[title]:not([data-tippy-content])');
         if (elements.length > 0) {
             tippy(elements, {
@@ -252,20 +112,10 @@ window.initGlobalTooltips = function () {
     }
 };
 
-/**
- * Escuchar los botones de navegación del navegador (Atrás/Adelante).
- */
 window.addEventListener("popstate", () => {
     window.location.reload();
 });
 
-// =============================================================================
-// 4. FUNCIONES DEL NÚCLEO
-// =============================================================================
-
-/**
- * Inicializa el reloj digital de la barra superior.
- */
 function initClock() {
     const clockElement = document.getElementById("digitalClock");
     if (clockElement) {
@@ -276,9 +126,6 @@ function initClock() {
     }
 }
 
-/**
- * Obtiene la información del usuario autenticado desde el servidor.
- */
 async function fetchLoggedInUserFromDB() {
     try {
         const response = await fetch(`${URLROOT}/auth/getLoggedInUser`);
@@ -287,14 +134,10 @@ async function fetchLoggedInUserFromDB() {
             if (result.success) window.currentLoggedInUser = result.user;
         }
     } catch (error) {
-        console.error("Error al obtener sesión del usuario:", error);
         window.currentLoggedInUser = null;
     }
 }
 
-/**
- * Inicializa el menú desplegable del usuario y el manejador de logout.
- */
 function initUserDropdown() {
     const trigger = document.getElementById("userDropdownTrigger");
     const menu = document.getElementById("userDropdownMenu");
@@ -313,7 +156,6 @@ function initUserDropdown() {
             }
         });
 
-        // Manejo de Logout con confirmación delegada
         document.addEventListener("click", (e) => {
             const logoutBtn = e.target.closest(".logout");
             if (logoutBtn) {
@@ -332,9 +174,6 @@ function initUserDropdown() {
     }
 }
 
-/**
- * Renderiza la información del usuario en la barra superior.
- */
 async function renderTopBarUserInfo() {
     const topbarUsername = document.getElementById("topbar-username");
     const topbarUserrole = document.getElementById("topbar-userrole");
@@ -352,87 +191,124 @@ async function renderTopBarUserInfo() {
     }
 }
 
-/**
- * Controla el comportamiento de apertura/cierre del Sidebar.
- */
 function initSidebar() {
     const btn = document.getElementById("toggleSidebar");
     const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("sidebarOverlay");
 
-    if (btn && sidebar) {
-        btn.addEventListener("click", () => {
-            if (window.innerWidth < 1024) {
-                sidebar.classList.toggle("-translate-x-full");
-            } else {
-                sidebar.classList.toggle("w-64");
-                sidebar.classList.toggle("w-20");
-            }
-        });
+    if (!btn || !sidebar) return;
 
-        document.addEventListener("mousedown", (e) => {
-            if (window.innerWidth < 1024 && !sidebar.contains(e.target) && !btn.contains(e.target)) {
-                sidebar.classList.add("-translate-x-full");
-            }
-        });
+    const SIDEBAR_KEY = 'taller_sidebar_collapsed';
+    const isMobile = () => window.innerWidth < 1024;
+
+    if (!isMobile()) {
+        const wasCollapsed = localStorage.getItem(SIDEBAR_KEY) === '1';
+        if (wasCollapsed) {
+            sidebar.classList.remove('w-64');
+            sidebar.classList.add('w-20');
+        } else {
+            sidebar.classList.remove('w-20');
+            sidebar.classList.add('w-64');
+        }
     }
+
+    const openMobileSidebar = () => {
+        sidebar.classList.remove('-translate-x-full');
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            void overlay.offsetWidth;
+            overlay.classList.remove('opacity-0');
+        }
+    };
+
+    const closeMobileSidebar = () => {
+        sidebar.classList.add('-translate-x-full');
+        if (overlay) {
+            overlay.classList.add('opacity-0');
+            setTimeout(() => overlay.classList.add('hidden'), 300);
+        }
+    };
+
+    btn.addEventListener("click", () => {
+        if (isMobile()) {
+            if (sidebar.classList.contains('-translate-x-full')) {
+                openMobileSidebar();
+            } else {
+                closeMobileSidebar();
+            }
+        } else {
+            const nowCollapsed = !sidebar.classList.contains('w-20');
+            if (nowCollapsed) {
+                sidebar.classList.remove('w-64');
+                sidebar.classList.add('w-20');
+            } else {
+                sidebar.classList.remove('w-20');
+                sidebar.classList.add('w-64');
+            }
+            localStorage.setItem(SIDEBAR_KEY, nowCollapsed ? '1' : '0');
+        }
+    });
+
+    if (overlay) {
+        overlay.addEventListener('click', closeMobileSidebar);
+    }
+
+    document.addEventListener("mousedown", (e) => {
+        if (isMobile()
+            && !sidebar.contains(e.target)
+            && !btn.contains(e.target)
+            && !sidebar.classList.contains('-translate-x-full')) {
+            closeMobileSidebar();
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        if (!isMobile()) {
+            closeMobileSidebar();
+        }
+    });
 }
 
-// =============================================================================
-// 5. NOTIFICACIONES Y GESTIÓN DE ACCESO (ADMIN)
-// =============================================================================
-
-/**
- * Gestiona las notificaciones de la campana para el administrador.
- */
 async function initRecoveryNotifications() {
     const bellContainer = document.getElementById("recovery-bell-container");
-    if (bellContainer)
-        try {
-            const response = await fetch(`${URLROOT}/auth/getSolicitudes`);
-            if (!response.ok) return;
-            const contentType = response.headers.get("content-type");
-            if (!contentType || !contentType.includes("application/json")) return;
+    if (!bellContainer) return;
+    try {
+        const response = await fetch(`${URLROOT}/auth/getSolicitudes`);
+        if (!response.ok) return;
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) return;
 
-            const result = await response.json();
-            if (result.success && result.data.length > 0) {
-                bellContainer.classList.remove('hidden');
-                bellContainer.innerHTML = `
-                <div class="relative group">
-                    <button onclick="window.location.href='${URLROOT}/recuperar'" class="p-2 bg-amber-500/10 text-amber-500 rounded-lg alert-shake border border-amber-500/20">
-                        <i data-lucide="bell-ring" class="w-5 h-5"></i>
-                        <span class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black px-1.5 rounded-full border-2 border-white">${result.data.length}</span>
-                    </button>
-                    <div class="hidden group-hover:block absolute top-full right-0 w-64 pt-2 z-50">
-                        <div class="bg-black shadow-2xl rounded-xl p-3 border border-slate-700">
-                            <p class="text-[10px] font-bold text-white uppercase mb-2">Solicitudes Pendientes</p>
-                            <div class="space-y-2">
-                                ${result.data.slice(0, 3).map(s => `
-                                    <div class="text-xs border-b border-slate-700 pb-1">
-                                        <p class="font-bold text-white uppercase">${s.username}</p>
-                                        <p class="text-white text-[10px] opacity-80">${s.tipo} - ${new Date(s.fecha).toLocaleTimeString()}</p>
-                                    </div>`).join("")}
-                            </div>
-                            <a href="${URLROOT}/recuperar" class="block text-center text-[10px] font-bold text-blue-600 mt-2 uppercase hover:underline">Ver todas</a>
+        const result = await response.json();
+        if (result.success && result.data.length > 0) {
+            bellContainer.classList.remove('hidden');
+            bellContainer.innerHTML = `
+            <div class="relative group">
+                <button onclick="window.location.href='${URLROOT}/recuperar'" class="p-2 bg-amber-500/10 text-amber-500 rounded-lg alert-shake border border-amber-500/20">
+                    <i data-lucide="bell-ring" class="w-5 h-5"></i>
+                    <span class="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black px-1.5 rounded-full border-2 border-white">${result.data.length}</span>
+                </button>
+                <div class="hidden group-hover:block absolute top-full right-0 w-64 pt-2 z-50">
+                    <div class="bg-black shadow-2xl rounded-xl p-3 border border-slate-700">
+                        <p class="text-[10px] font-bold text-white uppercase mb-2">Solicitudes Pendientes</p>
+                        <div class="space-y-2">
+                            ${result.data.slice(0, 3).map(s => `
+                                <div class="text-xs border-b border-slate-700 pb-1">
+                                    <p class="font-bold text-white uppercase">${s.username}</p>
+                                    <p class="text-white text-[10px] opacity-80">${s.tipo} - ${new Date(s.fecha).toLocaleTimeString()}</p>
+                                </div>`).join("")}
                         </div>
+                        <a href="${URLROOT}/recuperar" class="block text-center text-[10px] font-bold text-blue-600 mt-2 uppercase hover:underline">Ver todas</a>
                     </div>
-                </div>`;
-                window.lucide && lucide.createIcons();
-            } else {
-                bellContainer.innerHTML = "";
-                bellContainer.classList.add('hidden');
-            }
-        } catch (error) {
-            console.error("Error en notificaciones:", error);
+                </div>
+            </div>`;
+            window.lucide && lucide.createIcons();
+        } else {
+            bellContainer.innerHTML = "";
+            bellContainer.classList.add('hidden');
         }
+    } catch (error) {}
 }
 
-/**
- * Gestiona las notificaciones de créditos vencidos (+15 días).
- * 
- * Si el endpoint `/facturacion/alertasCredito` devuelve 404 (método no
- * implementado en el controlador), simplemente se omite silenciosamente
- * sin generar errores en consola.
- */
 async function initCreditNotifications() {
     const container = document.getElementById("credit-notifications-container");
     if (!container) return;
@@ -441,7 +317,6 @@ async function initCreditNotifications() {
             headers: { 'Accept': 'application/json' }
         });
 
-        // Endpoint no implementado → skip silencioso
         if (response.status === 404) {
             container.classList.add('hidden');
             const dashContainer = document.getElementById("dashboard-overdue-alert");
@@ -453,7 +328,6 @@ async function initCreditNotifications() {
 
         const contentType = response.headers.get("content-type");
         if (!contentType || !contentType.includes("application/json")) {
-            // No es JSON → probablemente HTML de error 404/500
             container.classList.add('hidden');
             return;
         }
@@ -488,7 +362,6 @@ async function initCreditNotifications() {
                 </div>
             </div>`;
 
-            // Inyectar alerta visual en el dashboard si existe el contenedor
             const dashContainer = document.getElementById("dashboard-overdue-alert");
             if (dashContainer) {
                 dashContainer.innerHTML = `
@@ -511,26 +384,17 @@ async function initCreditNotifications() {
             const dashContainer = document.getElementById("dashboard-overdue-alert");
             if (dashContainer) dashContainer.innerHTML = "";
         }
-    } catch (error) {
-        console.error("Error en notificaciones de crédito:", error);
-    }
+    } catch (error) {}
 }
 
-/**
- * Gestiona las alertas de stock mínimo (Header y Dashboard).
- */
 async function initLowStockNotifications() {
     const container = document.getElementById("low-stock-notifications-container");
     const dashContainer = document.getElementById("dashboard-stock-alert");
     if (!container && !dashContainer) return;
 
     try {
-        const response = await fetch(`${URLROOT}/dashboard/getStats`);
-        if (!response.ok) return;
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) return;
-
-        const result = await response.json();
+        const result = await DashboardCache.get();
+        if (!result) return;
         const lowStock = result.lowStock || [];
 
         if (container && window.currentLoggedInUser && (parseInt(window.currentLoggedInUser.roleId) === 1 || window.currentLoggedInUser.role.toUpperCase() === "ADMINISTRADOR")) {
@@ -573,15 +437,9 @@ async function initLowStockNotifications() {
             } else dashContainer.innerHTML = "";
         }
         window.lucide && lucide.createIcons();
-    } catch (e) { console.error(e); }
+    } catch (e) {}
 }
 
-/**
- * Gestiona la tarjeta de resumen de deudores para el dashboard.
- * 
- * Si el endpoint `/facturacion/getDeudoresSummary` devuelve 404, se omite
- * silenciosamente sin spamear la consola.
- */
 async function initDebtorsCard() {
     const container = document.getElementById("dashboard-debtors-card-container");
     if (!container) return;
@@ -591,7 +449,6 @@ async function initDebtorsCard() {
             headers: { 'Accept': 'application/json' }
         });
 
-        // Endpoint no implementado → skip silencioso
         if (response.status === 404) return;
         if (!response.ok) return;
 
@@ -654,7 +511,7 @@ async function initDebtorsCard() {
                 </div>
             `;
             window.lucide && lucide.createIcons();
-        } else { // No hay deudas pendientes
+        } else {
             container.innerHTML = `
                 <div class="glass-card rounded-2xl border border-green-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-500 h-full flex flex-col">
                     <div class="bg-green-50/50 px-6 py-4 border-b border-green-100 flex justify-between items-center">
@@ -681,25 +538,17 @@ async function initDebtorsCard() {
             window.lucide && lucide.createIcons();
         }
     } catch (error) {
-        console.error("Error al cargar la tarjeta de deudores:", error);
         container.innerHTML = `<div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center text-gray-500">Error al cargar datos de deudores.</div>`;
     }
 }
 
-/**
- * Gestiona la tarjeta de utilidad bruta (Rentabilidad) en el dashboard.
- */
 async function initProfitabilityCard() {
     const container = document.getElementById("dashboard-profitability-container");
     if (!container) return;
 
     try {
-        const response = await fetch(`${URLROOT}/dashboard/getStats`);
-        if (!response.ok) return;
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) return;
-
-        const result = await response.json();
+        const result = await DashboardCache.get();
+        if (!result) return;
 
         if (result.profitability) {
             const p = result.profitability;
@@ -761,7 +610,7 @@ async function initProfitabilityCard() {
                 </div>
             `;
             if (window.lucide) lucide.createIcons();
-        } else { // No hay datos de rentabilidad
+        } else {
             container.innerHTML = `
                 <div class="glass-card rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-2 duration-500 h-full flex flex-col">
                     <div class="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
@@ -785,12 +634,9 @@ async function initProfitabilityCard() {
                     </div>
                 </div>`;
         }
-    } catch (error) { console.error("Error en tarjeta rentabilidad:", error); }
+    } catch (error) {}
 }
 
-/**
- * Abre el flujo de devolución para una factura (Solo repuestos, garantía configurable en servidor)
- */
 window.iniciarDevolucion = async (ventaId, fecha) => {
     try {
         const res = await fetch(`${URLROOT}/facturacion/getItemsDevolucion/${ventaId}`);
@@ -850,6 +696,7 @@ window.iniciarDevolucion = async (ventaId, fecha) => {
 
             if (result.success) {
                 AppUtils.showToast(result.mensaje);
+                DashboardCache.invalidate();
                 if (typeof updateDashboard === 'function') updateDashboard();
                 if (typeof cargarReporte === 'function') cargarReporte();
                 if (typeof cargarReporteDetallado === 'function') cargarReporteDetallado();
@@ -859,14 +706,10 @@ window.iniciarDevolucion = async (ventaId, fecha) => {
             }
         }
     } catch (e) {
-        AppUtils.hideLoading(); // Asegurar que el cargador se oculte en caso de error
-        console.error(e);
+        AppUtils.hideLoading();
     }
 };
 
-/**
- * Carga la tabla de solicitudes de recuperación (Administrador).
- */
 window.cargarTablaRecuperacion = async function () {
     const container = document.getElementById("recovery-list-container");
     if (!container) return;
@@ -906,9 +749,6 @@ window.cargarTablaRecuperacion = async function () {
     window.lucide && lucide.createIcons();
 };
 
-/**
- * Alterna la visibilidad de las contraseñas en la tabla de recuperación.
- */
 window.togglePassVisibility = function (id) {
     const input = document.getElementById(`pass-${id}`);
     const icon = document.getElementById(`icon-${id}`);
@@ -918,9 +758,6 @@ window.togglePassVisibility = function (id) {
     window.lucide && lucide.createIcons();
 };
 
-/**
- * Permite al administrador asignar una nueva clave a través de un prompt seguro.
- */
 window.resetearClaveSolicitud = async function (userId, solicitudId) {
     const { value: newPassword } = await Swal.fire({
         title: 'Asignar Nueva Clave',
@@ -951,21 +788,16 @@ window.resetearClaveSolicitud = async function (userId, solicitudId) {
 
             if (result.success) {
                 await AppUtils.showAlert("¡Hecho!", `La clave ha sido cambiada a: ${newPassword}. Entrégala al usuario.`, "success");
-                // Una vez cambiada, marcamos la solicitud como comprobada automáticamente
                 confirmarSolicitud(solicitudId);
             } else {
                 AppUtils.showAlert("Error", result.error || "No se pudo cambiar la clave", "error");
             }
         } catch (e) {
-            AppUtils.hideLoading(); // Asegurar que el cargador se oculte en caso de error
-            console.error(e);
+            AppUtils.hideLoading();
         }
     }
 };
 
-/**
- * Procesa la eliminación de una solicitud confirmada.
- */
 window.confirmarSolicitud = async function (id) {
     const response = await fetch(`${URLROOT}/auth/eliminarSolicitud/${id}`, {
         method: "POST",
@@ -978,9 +810,6 @@ window.confirmarSolicitud = async function (id) {
     }
 };
 
-/**
- * Inicializa la búsqueda global en el header con debounce.
- */
 function initGlobalSearch() {
     const input = document.getElementById('globalSearchInput');
     const results = document.getElementById('globalSearchResults');
@@ -1027,15 +856,11 @@ function initGlobalSearch() {
             } catch (err) {
                 results.innerHTML = '<div class="p-4 text-xs text-rose-500 text-center font-bold italic uppercase tracking-tighter">Error en el buscador global</div>';
                 results.classList.remove('hidden');
-                console.error("Global search error:", err);
             }
         }, 400);
     });
 }
 
-/**
- * Genera una factura de forma asíncrona y la abre en una nueva pestaña.
- */
 window.printInvoice = async (ventaId) => {
     try {
         AppUtils.showLoading('Generando Documento...');
@@ -1053,12 +878,7 @@ window.printInvoice = async (ventaId) => {
     }
 };
 
-// =============================================================================
-// 6. NOTIFICACIONES GLOBALES (AppNotifications)
-// =============================================================================
 const AppNotifications = {
-    /* Verifica deudas vencidas y actualiza el área de notificaciones.
-     */
     checkSupplierDebts: async () => {
         const response = await fetch(`${URLROOT}/proveedores/listarDeudas`);
         const result = await response.json();
@@ -1097,9 +917,6 @@ const AppNotifications = {
     },
 };
 
-/**
- * Gestiona las notificaciones de pedidos pendientes del catálogo público.
- */
 async function initPedidosAlerts() {
     const containerBell = document.getElementById('pedidos-bell-container');
     const badge = document.getElementById('pedidos-notif-badge');
@@ -1131,7 +948,6 @@ async function initPedidosAlerts() {
                 }
             }
 
-            // Actualizar badge en sidebar
             if (sidebarBadge) {
                 if (result.total > 0) {
                     sidebarBadge.textContent = result.total;
@@ -1158,14 +974,9 @@ async function initPedidosAlerts() {
                         </a>`).join('');
             }
         }
-    } catch (e) {
-        // Silencioso
-    }
+    } catch (e) {}
 }
 
-/**
- * Gestiona las notificaciones de entregas próximas o atrasadas en el taller.
- */
 async function initWorkshopAlerts() {
     const btnLlave = document.getElementById('btn-notificaciones-taller');
     const containerBell = document.getElementById('workshop-bell-container');
@@ -1183,7 +994,6 @@ async function initWorkshopAlerts() {
         if (result.success) {
             const data = result.data || [];
 
-            // 1. Mostrar contenedor y actualizar Badge
             if (containerBell) {
                 if (result.total > 0) {
                     containerBell.classList.remove('hidden');
@@ -1203,7 +1013,6 @@ async function initWorkshopAlerts() {
                 }
             }
 
-            // 2. Llenar lista desplegable del Header
             if (lista) {
                 lista.innerHTML = data.length === 0
                     ? '<div class="p-8 text-center text-slate-600 italic text-xs">No hay alertas activas</div>'
@@ -1224,7 +1033,6 @@ async function initWorkshopAlerts() {
                     }).join('');
             }
 
-            // 3. Renderizado en el Index de Taller (Píldoras críticas)
             if (containerIndex) {
                 containerIndex.classList.remove('hidden');
                 containerIndex.innerHTML = `
@@ -1249,12 +1057,17 @@ async function initWorkshopAlerts() {
             }
         }
         if (window.lucide) lucide.createIcons();
-    } catch (e) { console.error("Error workshop alerts:", e); }
+    } catch (e) {}
 }
 
 /**
- * Abre el modal de gestión para una orden de servicio en el taller.
- * Permite ver detalles, asignar mecánico (solo Admin) y gestionar servicios/revisiones.
+ * Modal de gestión de Orden de Servicio en el taller.
+ * 
+ * FIX v2.7 (2026-10-09):
+ *   • El valor del mecánico se captura en el evento `change` del select
+ *     (dentro de didOpen). Así el valor persiste aunque el select se
+ *     resetee por alguna razón.
+ *   • Logs [Taller] para ver exactamente qué se envía.
  */
 window.verDetalleOrdenTaller = async (id) => {
     try {
@@ -1274,10 +1087,19 @@ window.verDetalleOrdenTaller = async (id) => {
         const orden = result.data;
         const staff = result.staff || [];
         const servicios = result.servicios || [];
-        // Usar variables globales del header para mayor rapidez y fiabilidad
         const isAdmin = (parseInt(window.USER_ROLE_ID || 0) === 1 || (window.USER_ROLE || "").toUpperCase() === 'ADMINISTRADOR');
 
-        // Mapeo de colores para el badge de estado en el detalle
+        console.log('[Taller] Orden cargada:', {
+            id: orden.id,
+            placa: orden.placa,
+            mecanico_actual: orden.mecanico_id,
+            staff_count: staff.length
+        });
+
+        // ─── Variable externa que captura el valor del select ───
+        let mecanicoSeleccionadoId = orden.mecanico_id || '';
+        let mecanicoSeleccionadoNombre = '';
+
         const statusColors = {
             'RECIBIDO': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
             'DIAGNOSTICANDO': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
@@ -1287,7 +1109,6 @@ window.verDetalleOrdenTaller = async (id) => {
         };
         const statusClass = statusColors[orden.estado] || 'bg-slate-500/10 text-slate-400 border-slate-500/20';
 
-        // Mapeo de colores para estados de servicios
         const servicioStatusColors = {
             'PENDIENTE': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
             'EN_PROCESO': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -1295,7 +1116,6 @@ window.verDetalleOrdenTaller = async (id) => {
             'CANCELADO': 'bg-rose-500/10 text-rose-400 border-rose-500/20'
         };
 
-        // Generar HTML de la tabla de servicios
         const serviciosHtml = servicios.length > 0 ? `
             <div class="space-y-2">
                 <div class="flex justify-between items-center">
@@ -1378,7 +1198,7 @@ window.verDetalleOrdenTaller = async (id) => {
                     <div class="space-y-2">
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Asignar Mecánico Responsable</label>
                         <select id="swal-mecanico-id" class="w-full p-3 bg-black border border-slate-800 rounded-xl text-white font-bold text-sm focus:ring-2 focus:ring-neon-green outline-none transition-all ${!isAdmin ? 'opacity-50 pointer-events-none' : ''}">
-                            <option value="">-- SELECCIONE UN TÉCNICO --</option>
+                            <option value="">-- SIN ASIGNAR --</option>
                             ${staff.map(s => `<option value="${s.id}" ${orden.mecanico_id === s.id ? 'selected' : ''}>${s.nombre} (${s.cargo})</option>`).join('')}
                         </select>
                         ${!isAdmin ? '<p class="text-[9px] text-amber-500 font-bold italic ml-1">* Solo el administrador puede reasignar mecánicos</p>' : ''}
@@ -1406,40 +1226,145 @@ window.verDetalleOrdenTaller = async (id) => {
             },
             didOpen: () => {
                 if (window.lucide) lucide.createIcons();
+
+                // ─── FIX: capturar valor del select en cada change ───
+                const select = document.getElementById('swal-mecanico-id');
+                if (select) {
+                    // Guardar valor inicial
+                    mecanicoSeleccionadoId = select.value || '';
+                    const opt = select.options[select.selectedIndex];
+                    mecanicoSeleccionadoNombre = opt ? opt.text.split('(')[0].trim() : '';
+
+                    console.log('[Taller] Select inicializado:', {
+                        value: mecanicoSeleccionadoId,
+                        text: mecanicoSeleccionadoNombre,
+                        optionCount: select.options.length
+                    });
+
+                    // Capturar cada cambio
+                    select.addEventListener('change', (e) => {
+                        mecanicoSeleccionadoId = e.target.value || '';
+                        const selectedOpt = e.target.options[e.target.selectedIndex];
+                        mecanicoSeleccionadoNombre = selectedOpt ? selectedOpt.text.split('(')[0].trim() : '';
+
+                        console.log('[Taller] Mecánico seleccionado:', {
+                            id: mecanicoSeleccionadoId,
+                            nombre: mecanicoSeleccionadoNombre,
+                            selectedIndex: e.target.selectedIndex
+                        });
+                    });
+                } else {
+                    console.error('[Taller] Select #swal-mecanico-id NO ENCONTRADO en el modal');
+                }
             },
             preConfirm: () => {
-                const mecanicoId = document.getElementById('swal-mecanico-id').value;
-                return { id: orden.id, mecanico_id: mecanicoId };
+                // Leer del select (por si acaso el change no disparó)
+                const select = document.getElementById('swal-mecanico-id');
+                const currentSelectValue = select ? (select.value || '') : '';
+
+                // Usar el más reciente: el capturado por change, o el del select actual
+                const mecanicoIdFinal = currentSelectValue || mecanicoSeleccionadoId || '';
+
+                // Obtener nombre del select actual si no tenemos
+                let mecanicoNombreFinal = mecanicoSeleccionadoNombre;
+                if (!mecanicoNombreFinal && select && select.selectedIndex >= 0) {
+                    const opt = select.options[select.selectedIndex];
+                    if (opt && opt.value === mecanicoIdFinal) {
+                        mecanicoNombreFinal = opt.text.split('(')[0].trim();
+                    }
+                }
+
+                const payload = {
+                    id: orden.id,
+                    orden_id: orden.id,
+                    mecanico_id: mecanicoIdFinal,
+                    mecanico_nombre: mecanicoNombreFinal
+                };
+
+                console.log('[Taller] Payload final a enviar:', payload);
+
+                if (!orden.id) {
+                    Swal.showValidationMessage('Error: no se pudo identificar la orden. Recargue la página.');
+                    return false;
+                }
+
+                return payload;
             }
         });
 
         if (formValues && isAdmin) {
             AppUtils.showLoading('Sincronizando...');
+
+            const bodyToSend = {
+                id: formValues.id,
+                orden_id: formValues.orden_id,
+                mecanico_id: formValues.mecanico_id
+            };
+
+            console.log('[Taller] Enviando POST a /taller/asignarMecanico con:', bodyToSend);
+
             const response = await fetch(`${URLROOT}/taller/asignarMecanico`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': CSRF_TOKEN || ''
                 },
-                body: JSON.stringify(formValues)
+                body: JSON.stringify(bodyToSend)
             });
             const saveResult = await response.json();
             AppUtils.hideLoading();
 
+            console.log('[Taller] Respuesta del servidor:', saveResult);
+
             if (saveResult.success) {
                 AppUtils.showToast(saveResult.mensaje);
-                setTimeout(() => location.reload(), 800);
+
+                // Actualizar la celda del mecánico en la tabla
+                const fila = document.querySelector(`tr[data-orden-id="${formValues.id}"]`);
+                if (fila) {
+                    const celda = fila.querySelector('.celda-mecanico');
+                    if (celda) {
+                        if (formValues.mecanico_id && formValues.mecanico_nombre) {
+                            celda.innerHTML = `
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="user-cog" class="w-4 h-4 text-slate-400"></i>
+                                    <span class="font-bold text-slate-700 uppercase">${formValues.mecanico_nombre}</span>
+                                </div>`;
+                        } else {
+                            celda.innerHTML = `
+                                <span class="flex items-center gap-1.5 text-rose-500 font-black animate-pulse uppercase tracking-widest text-[10px] bg-rose-50 px-2 py-1 rounded-lg border border-rose-100 w-fit">
+                                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Sin Asignar
+                                </span>`;
+                        }
+                        if (window.lucide) lucide.createIcons();
+                    }
+
+                    const selectEstado = fila.querySelector('.status-select');
+                    const estadoActual = selectEstado ? selectEstado.value : '';
+                    if (estadoActual === 'LISTO') {
+                        const btnFacturar = fila.querySelector('.btn-facturar');
+                        const btnNoMec = fila.querySelector('.btn-no-mecanico');
+                        if (formValues.mecanico_id) {
+                            btnFacturar?.classList.remove('hidden');
+                            btnNoMec?.classList.add('hidden');
+                        } else {
+                            btnFacturar?.classList.add('hidden');
+                            btnNoMec?.classList.remove('hidden');
+                        }
+                    }
+                }
+
+                if (typeof initWorkshopAlerts === 'function') initWorkshopAlerts();
             } else {
                 AppUtils.showToast(saveResult.error || 'Error al actualizar', 'error');
             }
         }
     } catch (err) {
-        console.error("Workshop detail error:", err);
+        console.error('[Taller] Error en verDetalleOrdenTaller:', err);
         AppUtils.showToast('Error de comunicación', 'error');
     }
 };
 
-// Funciones globales para gestión de servicios en el modal
 window.agregarServicioModal = async (ordenId) => {
     const { value: formValues } = await Swal.fire({
         title: 'Agregar Servicio / Revisión',
@@ -1491,7 +1416,6 @@ window.agregarServicioModal = async (ordenId) => {
 
             if (result.success) {
                 AppUtils.showToast('Servicio agregado correctamente');
-                // Recargar el modal
                 window.verDetalleOrdenTaller(ordenId);
             } else {
                 AppUtils.showToast(result.error || 'Error al agregar servicio', 'error');
@@ -1516,7 +1440,6 @@ window.actualizarEstadoServicioModal = async (servicioId, estado) => {
         const result = await response.json();
 
         if (result.success) {
-            // Actualizar color del select
             const select = document.querySelector(`tr[data-servicio-id="${servicioId}"] .servicio-estado-select`);
             if (select) {
                 const servicioStatusColors = {
@@ -1530,7 +1453,6 @@ window.actualizarEstadoServicioModal = async (servicioId, estado) => {
             AppUtils.showToast('Estado actualizado');
         } else {
             AppUtils.showToast(result.mensaje || 'Error al actualizar', 'error');
-            // Revertir el select al valor anterior (recargar modal)
             window.verDetalleOrdenTaller(document.querySelector('#swal-mecanico-id')?.dataset?.ordenId || 0);
         }
     } catch (err) {
@@ -1571,11 +1493,6 @@ window.eliminarServicioModal = async (servicioId) => {
 
             if (result.success) {
                 AppUtils.showToast('Servicio eliminado');
-                // Recargar el modal - necesitamos obtener el ordenId del DOM
-                const mecanicoSelect = document.getElementById('swal-mecanico-id');
-                // Buscar el ordenId en el contexto actual
-                // Como no tenemos acceso directo, recargamos la página o buscamos otra forma
-                // Por simplicidad, mostramos mensaje y el usuario puede volver a abrir
                 AppUtils.showToast('Vuelva a abrir el detalle para ver los cambios', 'info');
             } else {
                 AppUtils.showToast(result.mensaje || 'Error al eliminar', 'error');
@@ -1587,7 +1504,4 @@ window.eliminarServicioModal = async (servicioId) => {
     }
 };
 
-/**
- * Alias global para disparar el detalle desde cualquier tabla (Ej: taller/index.php)
- */
 window.abrirModalDetalleOrden = window.verDetalleOrdenTaller;

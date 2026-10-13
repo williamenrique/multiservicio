@@ -3,6 +3,11 @@
  * Modelo de Catálogo Público
  * Gestiona las operaciones de consulta de repuestos y pedidos públicos.
  * NO requiere autenticación.
+ * 
+ * v2.2 (2026-10-09) — P3-07:
+ *   • `buscarPorCodigo($id)` ahora delega a `buscarPorId($id)`, que a su vez
+ *     delega a `obtenerRepuesto($id)`. Antes tenía su propia query idéntica
+ *     a `obtenerRepuesto`, duplicando ~15 líneas de SQL.
  */
 class ModelCatalogo {
     private $db;
@@ -127,28 +132,15 @@ class ModelCatalogo {
         return $this->db->single();
     }
 
+    /**
+     * Alias histórico de `buscarPorId()`. Se mantiene por retrocompatibilidad
+     * porque hay código externo que puede invocarlo.
+     * 
+     * FIX P3-07: antes tenía su propia query idéntica a `obtenerRepuesto`.
+     * Ahora delega para no duplicar SQL.
+     */
     public function buscarPorCodigo($id) {
-        $this->db->query("SELECT i.*,
-                CASE 
-                    WHEN i.oferta_activa = 1 
-                         AND i.oferta_porcentaje > 0 
-                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
-                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
-                    THEN ROUND(i.precio * (1 - i.oferta_porcentaje / 100), 2)
-                    ELSE i.precio
-                END as precio_final,
-                CASE 
-                    WHEN i.oferta_activa = 1 
-                         AND i.oferta_porcentaje > 0 
-                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
-                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
-                    THEN 1
-                    ELSE 0
-                END as en_oferta_vigente
-                FROM table_inventario i
-                WHERE i.id = :id AND i.estado = 'ACTIVO'");
-        $this->db->bind(':id', $id);
-        return $this->db->single();
+        return $this->buscarPorId($id);
     }
 
     public function buscarPorId($id) {

@@ -1,8 +1,4 @@
 <!DOCTYPE html>
-<!-- 
-  Vista Principal de Login 
-  Utiliza Tailwind CSS y Lucide Icons.
--->
 <html lang="es">
 
 <head>
@@ -10,7 +6,8 @@
     <link rel="shortcut icon" href="<?php echo URL_IMG; ?>logo.png" type="image/x-icon">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo s($data['titulo']); ?> | Taller Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FIX P3-01: Tailwind compilado localmente -->
+    <link rel="stylesheet" href="<?php echo URL_CSS; ?>tailwind.min.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
@@ -84,7 +81,6 @@
                     Ingresar al Sistema
                 </button>
             </form>
-            <!-- Agregar esto en app/Views/auth/login.php -->
             <div class="mt-4 text-center">
                 <a href="#" id="btnForgotPassword"
                     class="text-xs font-bold text-slate-400 hover:text-neon-green transition-colors uppercase tracking-widest">
@@ -101,7 +97,6 @@
     lucide.createIcons();
     const loginInput = document.getElementById('usuario');
 
-    // 1. Forzar el foco inmediatamente al cargar la página
     window.addEventListener('DOMContentLoaded', () => {
         loginInput.focus();
     });

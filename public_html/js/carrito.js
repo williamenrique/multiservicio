@@ -1,6 +1,17 @@
 /**
- * carrito.js - Funcionalidad del carrito de compras
- * Dependencias: Toastify-js, URLROOT global, csrfToken global
+ * carrito.js - Funcionalidad del carrito de compras (catálogo público)
+ * 
+ * v2.0 (2026-10-09) — P2-04:
+ *   • Se eliminaron las llamadas inline a Toastify. Ahora se usa
+ *     AppUtils.showToast(msg, type, 'light') — variante blanca del catálogo público.
+ * 
+ * v2.1 (2026-10-09) — P3-10:
+ *   • Se añade el header `X-CSRF-TOKEN` a todos los fetch POST, además del
+ *     `csrf_token` en FormData (que ya se enviaba). Esto alinea el catálogo
+ *     público con el resto del sistema (que usa el header) sin romper la
+ *     compatibilidad con el backend actual.
+ * 
+ * Dependencias: AppUtils (utils.js), URLROOT global, csrfToken global
  */
 
 function actualizarCantidad(id, cantidad) {
@@ -14,18 +25,7 @@ function actualizarCantidad(id, cantidad) {
     const maxStock = stockEl ? parseInt(stockEl.dataset.stock) : 999;
 
     if (cantidad > maxStock) {
-        Toastify({
-            text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
-            duration: 2500,
-            gravity: 'bottom',
-            position: 'right',
-            style: {
-                background: '#f59e0b',
-                borderRadius: '12px',
-                padding: '12px 20px'
-            }
-        }).showToast();
-        // Revertir el input al stock máximo y actualizar estado de botones
+        AppUtils.showToast('Solo hay ' + maxStock + ' unidades disponibles en stock', 'warning', 'light');
         const inputEl = document.querySelector('.qty-input[data-id="' + id + '"]');
         if (inputEl) inputEl.value = maxStock;
         actualizarEstadoBotonesItem(id, maxStock);
@@ -36,7 +36,6 @@ function actualizarCantidad(id, cantidad) {
     const cantEl = document.getElementById('cant-' + id);
     if (cantEl) cantEl.textContent = cantidad;
 
-    // Actualizar estado de botones según la nueva cantidad
     actualizarEstadoBotonesItem(id, cantidad);
 
     const formData = new FormData();
@@ -46,45 +45,34 @@ function actualizarCantidad(id, cantidad) {
 
     fetch(URLROOT + '/catalogo/actualizar-carrito', {
         method: 'POST',
+        headers: {
+            // FIX P3-10: header CSRF (además del FormData)
+            'X-CSRF-TOKEN': csrfToken
+        },
         body: formData
     })
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                // Actualizar subtotal del item
                 const subtotalEl = document.getElementById('subtotal-' + id);
                 if (subtotalEl && data.subtotal_item) {
                     subtotalEl.textContent = '$' + parseFloat(data.subtotal_item).toFixed(2);
                 }
 
-                // Actualizar totales del carrito
                 if (data.subtotal) document.getElementById('subtotalText').textContent = '$' + parseFloat(data.subtotal).toFixed(2);
                 if (data.iva) document.getElementById('ivaText').textContent = '$' + parseFloat(data.iva).toFixed(2);
                 if (data.total) document.getElementById('totalText').textContent = '$' + parseFloat(data.total).toFixed(2);
 
-                // Actualizar badge del carrito en navbar si existe
                 const badge = document.getElementById('cart-count');
                 if (badge && data.total_items !== undefined) badge.textContent = data.total_items;
             } else {
-                // Revertir el optimistic update si falló
                 if (cantEl) cantEl.textContent = cantidad - 1;
                 if (data.mensaje) {
-                    Toastify({
-                        text: '✗ ' + data.mensaje,
-                        duration: 3000,
-                        gravity: 'bottom',
-                        position: 'right',
-                        style: {
-                            background: '#ef4444',
-                            borderRadius: '12px',
-                            padding: '12px 20px'
-                        }
-                    }).showToast();
+                    AppUtils.showToast(data.mensaje, 'error', 'light');
                 }
             }
         })
         .catch(() => {
-            // Revertir el optimistic update si hay error de red
             if (cantEl) cantEl.textContent = cantidad - 1;
         });
 }
@@ -117,12 +105,15 @@ function eliminarItem(id) {
 
     fetch(URLROOT + '/catalogo/eliminar-carrito', {
         method: 'POST',
+        headers: {
+            // FIX P3-10: header CSRF
+            'X-CSRF-TOKEN': csrfToken
+        },
         body: formData
     })
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                // Eliminar la fila del item con animación
                 const row = document.getElementById('item-' + id);
                 if (row) {
                     row.style.transition = 'opacity 0.3s, transform 0.3s';
@@ -131,21 +122,18 @@ function eliminarItem(id) {
                     setTimeout(() => row.remove(), 300);
                 }
 
-                // Actualizar totales
                 if (data.subtotal) document.getElementById('subtotalText').textContent = '$' + parseFloat(data.subtotal).toFixed(2);
                 if (data.iva) document.getElementById('ivaText').textContent = '$' + parseFloat(data.iva).toFixed(2);
                 if (data.total) document.getElementById('totalText').textContent = '$' + parseFloat(data.total).toFixed(2);
 
-                // Actualizar badge
                 const badge = document.getElementById('cart-count');
                 if (badge && data.total_items !== undefined) badge.textContent = data.total_items;
 
-                // Si el carrito quedó vacío, mostrar estado vacío dinámicamente
                 if (data.total_items === 0) {
                     mostrarCarritoVacio();
                 }
 
-                Toastify({ text: 'Producto eliminado', duration: 1500, gravity: 'bottom', position: 'right', style: { background: '#ef4444' } }).showToast();
+                AppUtils.showToast('Producto eliminado', 'success', 'light');
             }
         })
         .catch(() => { });
@@ -159,6 +147,10 @@ function limpiarCarrito() {
 
     fetch(URLROOT + '/catalogo/limpiar-carrito', {
         method: 'POST',
+        headers: {
+            // FIX P3-10: header CSRF
+            'X-CSRF-TOKEN': csrfToken
+        },
         body: formData
     })
         .then(r => r.json())
@@ -167,7 +159,7 @@ function limpiarCarrito() {
                 mostrarCarritoVacio();
                 const badge = document.getElementById('cart-count');
                 if (badge) badge.textContent = '0';
-                Toastify({ text: 'Carrito vaciado', duration: 1500, gravity: 'bottom', position: 'right', style: { background: '#ef4444' } }).showToast();
+                AppUtils.showToast('Carrito vaciado', 'success', 'light');
             }
         })
         .catch(() => { });
@@ -177,7 +169,6 @@ function mostrarCarritoVacio() {
     const container = document.querySelector('.max-w-4xl.mx-auto');
     if (!container) return;
 
-    // Reemplazar todo el contenido del contenedor con el estado vacío
     container.innerHTML = `
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Carrito de Compras</h1>
         <div class="text-center py-20">
@@ -193,7 +184,6 @@ function mostrarCarritoVacio() {
 
 // Event listeners para los botones +/- y eliminar
 document.addEventListener('DOMContentLoaded', function () {
-    // Botones de cantidad: menos (-)
     document.querySelectorAll('.qty-btn.minus').forEach(btn => {
         btn.addEventListener('click', function () {
             const id = this.dataset.id;
@@ -208,7 +198,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Botones de cantidad: más (+)
     document.querySelectorAll('.qty-btn.plus').forEach(btn => {
         btn.addEventListener('click', function () {
             const id = this.dataset.id;
@@ -219,19 +208,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const maxStock = stockEl ? parseInt(stockEl.dataset.stock) : 999;
             const nuevaCantidad = parseInt(input.value) + 1;
 
-            // No permitir exceder el stock
             if (nuevaCantidad > maxStock) {
-                Toastify({
-                    text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
-                    duration: 2500,
-                    gravity: 'bottom',
-                    position: 'right',
-                    style: {
-                        background: '#f59e0b',
-                        borderRadius: '12px',
-                        padding: '12px 20px'
-                    }
-                }).showToast();
+                AppUtils.showToast('Solo hay ' + maxStock + ' unidades disponibles en stock', 'warning', 'light');
                 return;
             }
 
@@ -240,7 +218,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Inputs de cantidad: cambio manual
     document.querySelectorAll('.qty-input').forEach(input => {
         input.addEventListener('change', function () {
             const id = this.dataset.id;
@@ -253,35 +230,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 this.value = 1;
             }
 
-            // Limitar al stock máximo
             if (cantidad > maxStock) {
                 cantidad = maxStock;
                 this.value = maxStock;
-                Toastify({
-                    text: '⚠ Solo hay ' + maxStock + ' unidades disponibles en stock',
-                    duration: 2500,
-                    gravity: 'bottom',
-                    position: 'right',
-                    style: {
-                        background: '#f59e0b',
-                        borderRadius: '12px',
-                        padding: '12px 20px'
-                    }
-                }).showToast();
+                AppUtils.showToast('Solo hay ' + maxStock + ' unidades disponibles en stock', 'warning', 'light');
             }
 
             actualizarCantidad(id, cantidad);
         });
     });
 
-    // Inicializar estado de botones al cargar la página
     document.querySelectorAll('.qty-input').forEach(input => {
         const id = input.dataset.id;
         const cantidad = parseInt(input.value) || 1;
         actualizarEstadoBotonesItem(id, cantidad);
     });
 
-    // Botones de eliminar
     document.querySelectorAll('.remove-btn').forEach(btn => {
         btn.addEventListener('click', function () {
             const id = this.dataset.id;

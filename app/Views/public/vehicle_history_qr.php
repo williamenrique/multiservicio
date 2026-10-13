@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo s($titulo); ?> | Taller Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FIX P3-01: Tailwind compilado localmente -->
+    <link rel="stylesheet" href="<?php echo URLROOT; ?>/css/tailwind.min.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="<?php echo URL_CSS; ?>styles.css">
     <style>
@@ -152,7 +153,6 @@
 
                             <!-- Servicios y Repuestos -->
                             <?php if(!empty($h->items_facturados)): 
-                                // Calcular total de la orden
                                 $totalOrden = 0;
                                 foreach($h->items_facturados as $item) {
                                     $totalOrden += $item->precio_unitario * $item->cantidad;
@@ -256,7 +256,6 @@
             document.getElementById(id).classList.toggle('hidden');
         }
 
-        // Cerrar modal al hacer click fuera
         document.addEventListener('click', (e) => {
             const modal = document.getElementById('qrModal');
             if (modal && !modal.contains(e.target) && e.target.closest('[onclick*="toggleModal"]') === null) {
