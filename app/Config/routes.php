@@ -1,23 +1,10 @@
 <?php
 /**
  * MAPEO DE RUTAS EXPLÍCITAS
- * Aquí puedes definir nombres de URL personalizados que no coincidan 
- * necesariamente con el nombre del controlador.
  * 
- * Formato: 'url-amigable' => 'Controlador@metodo'
- * 
- * ─────────────────────────────────────────────────────────────────────────
- * NOTA HISTÓRICA (2026-10-09):
- * Se eliminaron los siguientes controladores legacy que apuntaban al
- * antiguo proyecto `/catalogo_repuestos_mvc/`:
- *   - ControllerCarrito  → reemplazado por ControllerCatalogo
- *   - ControllerPedido   → reemplazado por ControllerCatalogo::procesarPedido
- *   - ControllerRepuesto → reemplazado por ControllerInventario + ControllerCatalogo
- * 
- * Los archivos eliminados usaban tablas inexistentes en el esquema 2.0
- * (repuestos, categorias, pedidos) y la función helper `url()` que ya
- * no existe. NO reintroducir rutas hacia ellos.
- * ─────────────────────────────────────────────────────────────────────────
+ * v3.1 (2026-10-13):
+ *   • Se agregó 'email/preview' => 'Email@preview' para la vista previa
+ *     del email antes de enviarlo.
  */
 return [
     // Garantías
@@ -37,14 +24,14 @@ return [
     // Emails
     'email'                     => 'Email@index',
     'email/listar'              => 'Email@listar',
-    'email/compose'             => 'Email@compose',
     'email/enviar'              => 'Email@enviar',
     'email/enviar-plantilla'    => 'Email@enviarConPlantilla',
+    'email/preview'             => 'Email@preview',           // v3.1: vista previa
     'email/getClientes'         => 'Email@getClientes',
     'email/obtener'             => 'Email@obtener',
     'email/reenviar'            => 'Email@reenviar',
-    'email/plantillas'          => 'Email@plantillas',           // Vista HTML
-    'email/plantillas/listar'   => 'Email@listarPlantillas',     // ← FIX: JSON
+    'email/plantillas'          => 'Email@plantillas',
+    'email/plantillas/listar'   => 'Email@listarPlantillas',
     'email/plantillas/guardar'  => 'Email@guardarPlantilla',
     'email/plantillas/eliminar' => 'Email@eliminarPlantilla',
     'email/plantillas/obtener'  => 'Email@obtenerPlantilla',

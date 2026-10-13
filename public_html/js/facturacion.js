@@ -344,7 +344,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const res = await fetch(`${URLROOT}/clientes/listar?q=${term}&limit=5&offset=0`);
+            //const res = await fetch(`${URLROOT}/clientes/listar?q=${term}&limit=5&offset=0`);
+            const res = await fetch(`${URLROOT}/clientes/listar?q=${term}&limit=20&offset=0`);
             const data = await res.json();
             lastClientResults = data.data || [];
 

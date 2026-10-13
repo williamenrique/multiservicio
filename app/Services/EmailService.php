@@ -8,29 +8,31 @@ use PHPMailer\PHPMailer\Exception;
 /**
  * EmailService — Servicio centralizado de envío de correos electrónicos
  * 
- * Todas las notificaciones del sistema pasan por aquí.
- * Usa PHPMailer con SMTP y plantillas HTML desde Views/email/
+ * v3.0.0 (2026-10-13) — ADJUNTOS PERSISTENTES:
+ *   • Ahora los adjuntos se copian a una ubicación PERMANENTE en
+ *     `public_html/uploads/emails_attachments/{YYYY}/{MM}/` con un nombre
+ *     que incluye el `email_id` de la BD para trazabilidad.
+ *   • El campo `table_emails.adjuntos` guarda rutas RELATIVAS al root del
+ *     proyecto, no rutas absolutas del servidor.
+ *   • Se borra el archivo temporal de `uploads/emails/` después de copiarlo
+ *     a su destino final.
+ *   • El panel de detalle del módulo Email muestra los adjuntos como links
+ *     clicables que abren en pestaña nueva.
  * 
- * IMPORTANTE: Este servicio registra AUTOMÁTICAMENTE cada envío en
+ * NOTA: Este servicio sigue registrando AUTOMÁTICAMENTE cada envío en
  * la tabla `table_emails` (ver método `logEnvio`). Los controladores
  * NO deben llamar a ModelEmail->registrar() después de invocar
  * cualquiera de los métodos públicos de este servicio.
- * 
- * Adjuntos soportados en `enviarEmailGenerico()`:
- *   - ['content' => $binario, 'name' => 'archivo.pdf']  → en memoria (recomendado)
- *   - ['path' => '/ruta/absoluta/archivo.pdf', 'name' => 'archivo.pdf']  → archivo físico
- *   - '/ruta/absoluta/archivo.pdf'  → archivo físico (solo ruta)
- * 
- * v2.1.0 (2026-10-08):
- *   • Nuevo método notificarAbonoRegistrado() — envía email al cliente
- *     cuando se registra un abono a su factura.
- *   • Nuevo método enviarRecordatorioPago() — envía un recordatorio de
- *     pago a clientes con saldo pendiente en facturas a crédito.
  */
 class EmailService
 {
     private PHPMailer $mailer;
     private ?object $empresa = null;
+
+    /**
+     * Carpeta relativa donde se persisten los adjuntos definitivos.
+     */
+    private const ADJUNTOS_DIR = 'uploads/emails_attachments';
 
     public function __construct()
     {
@@ -38,9 +40,6 @@ class EmailService
         $this->configurarSMTP();
     }
 
-    /**
-     * Configura los parámetros SMTP desde las constantes globales
-     */
     private function configurarSMTP(): void {
         $this->mailer->isSMTP();
         $this->mailer->Host       = MAIL_HOST;
@@ -53,9 +52,6 @@ class EmailService
         $this->mailer->setFrom(MAIL_FROM_ADDRESS, MAIL_FROM_NAME);
     }
 
-    /**
-     * Carga los datos de la empresa (cache en memoria)
-     */
     private function getEmpresa(): object {
         if ($this->empresa === null) {
             $modelEmpresa = new \ModelEmpresa();
@@ -64,13 +60,9 @@ class EmailService
         return $this->empresa;
     }
 
-    /**
-     * Renderiza una vista de email con los datos proporcionados
-     */
     public function renderizar(string $vista, array $data = []): string {
         $empresa = $this->getEmpresa();
         
-        // Normalizar items: convertir objetos stdClass a arrays
         if (isset($data['items']) && is_array($data['items'])) {
             $data['items'] = array_map(function($item) {
                 return (array) $item;
@@ -87,9 +79,6 @@ class EmailService
         return ob_get_clean();
     }
 
-    /**
-     * Envía un correo electrónico (método de bajo nivel)
-     */
     private function enviar(string $destinatario, string $nombreDestinatario, string $asunto, string $htmlBody): bool {
         try {
             $this->mailer->clearAddresses();
@@ -99,7 +88,6 @@ class EmailService
             $this->mailer->isHTML(true);
             $this->mailer->Subject = $asunto;
             $this->mailer->Body    = $htmlBody;
-            // Versión texto plano (strip_tags básico)
             $this->mailer->AltBody = strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $htmlBody));
             $this->mailer->send();
             return true;
@@ -109,22 +97,25 @@ class EmailService
         }
     }
 
-    // ============================================================
-    // LOGGING CENTRALIZADO — todos los métodos públicos llaman aquí
-    // ============================================================
+    /* ============================================================
+     * LOGGING CENTRALIZADO — todos los métodos públicos llaman aquí
+     * ============================================================ */
 
     /**
-     * Registra el envío en la tabla `table_emails`.
+     * Registra el envío en `table_emails` y persiste los adjuntos en la
+     * carpeta definitiva `uploads/emails_attachments/{YYYY}/{MM}/`.
      * 
-     * @param array  $meta   Metadatos: tipo, to, to_name, subject, body_html,
-     *                       body_text, attachments, referencia_tipo, referencia_id
-     * @param bool   $success
-     * @param string|null $error
+     * v3.0: nuevo flujo:
+     *   1. INSERT inicial sin adjuntos definitivos (para obtener email_id).
+     *   2. Copiar/mover adjuntos a su destino final.
+     *   3. UPDATE con las rutas relativas definitivas.
      */
     private function logEnvio(array $meta, bool $success, ?string $error = null): void
     {
         try {
             $emailModel = new \ModelEmail();
+
+            // 1. Registrar primero SIN adjuntos definitivos (para tener email_id)
             $emailModel->registrar([
                 'tipo'                => $meta['tipo'] ?? 'OTRO',
                 'destinatario_email'  => $meta['to'] ?? '',
@@ -132,7 +123,7 @@ class EmailService
                 'asunto'              => $meta['subject'] ?? '',
                 'cuerpo_html'         => $meta['body_html'] ?? '',
                 'cuerpo_texto'        => $meta['body_text'] ?? null,
-                'adjuntos'            => $meta['attachments'] ?? [],
+                'adjuntos'            => null,
                 'referencia_tipo'     => $meta['referencia_tipo'] ?? 'NINGUNO',
                 'referencia_id'       => $meta['referencia_id'] ?? null,
                 'estado'              => $success ? 'ENVIADO' : 'FALLIDO',
@@ -140,19 +131,140 @@ class EmailService
                 'usuario_id'          => $_SESSION['user_id'] ?? null,
                 'fecha_envio'         => $success ? date('Y-m-d H:i:s') : null,
             ]);
+
+            $emailId = (int)$emailModel->getLastInsertId();
+
+            // 2. Persistir adjuntos (solo si hay y si el email se registró)
+            $adjuntosOriginales = $meta['attachments'] ?? [];
+            $adjuntosFinales = [];
+
+            if ($emailId > 0 && !empty($adjuntosOriginales) && is_array($adjuntosOriginales)) {
+                $adjuntosFinales = $this->moverAdjuntosADestinoFinal($adjuntosOriginales, $emailId);
+
+                // 3. UPDATE con las rutas definitivas
+                if (!empty($adjuntosFinales)) {
+                    $emailModel->actualizarAdjuntos($emailId, $adjuntosFinales);
+                }
+            }
         } catch (\Throwable $e) {
-            // Nunca interrumpir el flujo principal por un fallo en el log
             error_log('EmailService::logEnvio falló: ' . $e->getMessage());
         }
     }
 
-    // ============================================================
-    // MÉTODOS PÚBLICOS — Uno por cada tipo de notificación
-    // ============================================================
+    /**
+     * Copia cada adjunto a su ubicación definitiva y devuelve el array
+     * con la información que se guardará en `table_emails.adjuntos`.
+     * 
+     * Acepta 3 formatos de adjunto:
+     *   - ['content' => string_binario, 'name' => 'x.pdf'] → escribe a disco
+     *   - ['path' => '/ruta/absoluta/x.pdf', 'name' => 'x.pdf'] → copia
+     *   - '/ruta/absoluta/x.pdf' (string) → copia
+     * 
+     * Después de copiar un archivo temporal que esté en `uploads/emails/`,
+     * lo elimina (ya no se necesita).
+     * 
+     * @param array $adjuntosOriginales
+     * @param int   $emailId
+     * @return array Array de {path_relativa, name, size}
+     */
+    private function moverAdjuntosADestinoFinal(array $adjuntosOriginales, int $emailId): array
+    {
+        $resultado = [];
+        $baseDir = dirname(APPROOT) . '/public_html/' . self::ADJUNTOS_DIR;
+
+        // Asegurar que las carpetas existan (por año/mes)
+        $year = date('Y');
+        $month = date('m');
+        $subDir = $baseDir . '/' . $year . '/' . $month;
+        if (!is_dir($subDir)) {
+            @mkdir($subDir, 0755, true);
+        }
+        if (!is_dir($subDir)) {
+            error_log("EmailService: no se pudo crear el directorio de adjuntos: {$subDir}");
+            return [];
+        }
+
+        foreach ($adjuntosOriginales as $idx => $adjunto) {
+            try {
+                $resultado[] = $this->procesarAdjuntoIndividual($adjunto, $emailId, $idx, $subDir, $year, $month);
+            } catch (\Throwable $e) {
+                error_log("EmailService: fallo procesando adjunto #{$idx}: " . $e->getMessage());
+            }
+        }
+
+        return array_values(array_filter($resultado));
+    }
 
     /**
-     * Envía notificación de pedido de catálogo al CLIENTE
+     * Procesa un adjunto individual. Devuelve el array resultante o null.
      */
+    private function procesarAdjuntoIndividual($adjunto, int $emailId, int $idx, string $subDir, string $year, string $month): ?array
+    {
+        $nombreOriginal = 'adjunto_' . ($idx + 1);
+        $binario = null;
+        $pathOriginal = null;
+
+        // Detectar formato
+        if (is_array($adjunto)) {
+            if (isset($adjunto['content']) && $adjunto['content'] !== '') {
+                $binario = $adjunto['content'];
+                $nombreOriginal = $adjunto['name'] ?? ('adjunto_' . ($idx + 1) . '.bin');
+            } elseif (isset($adjunto['path']) && $adjunto['path'] !== '') {
+                $pathOriginal = $adjunto['path'];
+                $nombreOriginal = $adjunto['name'] ?? basename($pathOriginal);
+            } else {
+                return null;
+            }
+        } elseif (is_string($adjunto) && $adjunto !== '') {
+            $pathOriginal = $adjunto;
+            $nombreOriginal = basename($adjunto);
+        } else {
+            return null;
+        }
+
+        // Sanitizar nombre para el archivo final
+        $nombreSeguro = preg_replace('/[^a-zA-Z0-9._-]/', '_', $nombreOriginal);
+        $nombreFinal = 'email_' . $emailId . '_' . time() . '_' . $idx . '_' . $nombreSeguro;
+        $destinoAbsoluto = $subDir . '/' . $nombreFinal;
+        $destinoRelativo = self::ADJUNTOS_DIR . '/' . $year . '/' . $month . '/' . $nombreFinal;
+
+        // 1. Escribir/copiar el archivo
+        if ($binario !== null) {
+            // Binario en memoria
+            if (file_put_contents($destinoAbsoluto, $binario) === false) {
+                return null;
+            }
+            $size = strlen($binario);
+        } elseif ($pathOriginal !== null) {
+            // Archivo físico
+            if (!file_exists($pathOriginal)) {
+                error_log("EmailService: adjunto no existe en disco: {$pathOriginal}");
+                return null;
+            }
+            if (!@copy($pathOriginal, $destinoAbsoluto)) {
+                return null;
+            }
+            $size = @filesize($destinoAbsoluto) ?: 0;
+
+            // Borrar el original si era un temporal en uploads/emails/
+            if (strpos($pathOriginal, 'uploads/emails/') !== false && !str_contains($pathOriginal, 'emails_attachments')) {
+                @unlink($pathOriginal);
+            }
+        } else {
+            return null;
+        }
+
+        return [
+            'path' => $destinoRelativo,
+            'name' => $nombreOriginal,
+            'size' => (int)$size,
+        ];
+    }
+
+    /* ============================================================
+     * MÉTODOS PÚBLICOS — Uno por cada tipo de notificación
+     * ============================================================ */
+
     public function notificarPedidoCatalogoCliente(array $datos): bool {
         $asunto = 'Tu pedido #' . $datos['id_formateado'] . ' ha sido recibido — ' . SITENAME;
         $html = $this->renderizar('pedido_catalogo_cliente', $datos);
@@ -171,9 +283,6 @@ class EmailService
         return $ok;
     }
 
-    /**
-     * Envía notificación de pedido de catálogo al administrador
-     */
     public function notificarPedidoCatalogoAdmin(array $datos): bool {
         $asunto = 'Nuevo pedido de catálogo #' . $datos['venta_formateado'] . ' — ' . $datos['cliente_nombre'];
         $html = $this->renderizar('pedido_catalogo_admin', $datos);
@@ -192,9 +301,6 @@ class EmailService
         return $ok;
     }
 
-    /**
-     * Envía ambas notificaciones de pedido de catálogo (cliente + admin)
-     */
     public function notificarPedidoCatalogo(array $datos): array {
         return [
             'cliente' => $this->notificarPedidoCatalogoCliente($datos),
@@ -202,9 +308,6 @@ class EmailService
         ];
     }
 
-    /**
-     * Envía notificación al cliente de que su pedido fue PROCESADO por el staff
-     */
     public function notificarPedidoProcesadoCliente(array $datos): bool {
         $asunto = 'Tu pedido #' . $datos['id_formateado'] . ' ha sido procesado — ' . SITENAME;
         $html = $this->renderizar('pedido_procesado_cliente', $datos);
@@ -223,13 +326,6 @@ class EmailService
         return $ok;
     }
 
-    // ============================================================
-    // NOTIFICACIONES DE ÓRDENES DE SERVICIO
-    // ============================================================
-
-    /**
-     * Notifica al cliente que su orden de servicio fue creada.
-     */
     public function notificarOrdenServicioCreada(array $datos): bool
     {
         $asunto = 'Orden de Servicio #' . $datos['id_formateado'] . ' creada — ' . SITENAME;
@@ -249,9 +345,6 @@ class EmailService
         return $ok;
     }
 
-    /**
-     * Notifica al cliente que el estado de su orden de servicio cambió.
-     */
     public function notificarOrdenServicioCambioEstado(array $datos): bool
     {
         $asunto = 'Orden de Servicio #' . $datos['id_formateado'] . ' — ' . $datos['estado_nuevo'] . ' — ' . SITENAME;
@@ -271,9 +364,6 @@ class EmailService
         return $ok;
     }
 
-    /**
-     * Notifica al cliente que su vehículo está listo para recoger.
-     */
     public function notificarOrdenServicioLista(array $datos): bool
     {
         $asunto = '¡Tu vehículo está listo! Orden de Servicio #' . $datos['id_formateado'] . ' — ' . SITENAME;
@@ -293,13 +383,6 @@ class EmailService
         return $ok;
     }
 
-    // ============================================================
-    // NOTIFICACIONES DE FACTURACIÓN DIRECTA (MOSTRADOR)
-    // ============================================================
-
-    /**
-     * Notifica al cliente los detalles de una factura directa (mostrador).
-     */
     public function notificarFacturaDirecta(array $datos): bool
     {
         $asunto = 'Factura #' . ($datos['id_formateado'] ?? 'FAC-' . str_pad((string)($datos['venta_id'] ?? ''), 3, '0', STR_PAD_LEFT)) . ' — ' . SITENAME;
@@ -319,14 +402,6 @@ class EmailService
         return $ok;
     }
 
-    // ============================================================
-    // NOTIFICACIONES DE VENCIMIENTO DE PROVEEDORES
-    // ============================================================
-
-    /**
-     * Envía alerta al administrador con los proveedores cuyas facturas
-     * están próximas a vencer o ya vencidas.
-     */
     public function notificarProveedoresVencimiento(array $proveedores, int $diasLimite = 7): bool
     {
         if (empty($proveedores)) {
@@ -353,13 +428,6 @@ class EmailService
         return $ok;
     }
 
-    // ============================================================
-    // NOTIFICACIÓN DE RESUMEN MENSUAL
-    // ============================================================
-
-    /**
-     * Envía al administrador un resumen detallado de la actividad del mes anterior.
-     */
     public function notificarResumenMensual(
         object $ventas,
         object $gastos,
@@ -398,30 +466,6 @@ class EmailService
         return $ok;
     }
 
-    // ============================================================
-    // v2.1.0 — NOTIFICACIONES DE ABONOS Y RECORDATORIOS DE PAGO
-    // ============================================================
-
-    /**
-     * Notifica al cliente que se registró un abono a su factura.
-     * 
-     * Se dispara automáticamente desde ControllerFacturacion::registrarAbono()
-     * (hook opcional: si el cliente no tiene email, se ignora silenciosamente).
-     * 
-     * @param array $datos Estructura esperada:
-     *   - cliente_nombre      (string)
-     *   - cliente_email       (string)
-     *   - factura_id          (int)
-     *   - id_formateado       (string)  Ej: 'FAC-013'
-     *   - placa               (string)
-     *   - modelo_vehiculo     (string)
-     *   - monto_abono         (float)   Monto abonado en esta transacción
-     *   - metodo_pago         (string)  EFECTIVO|TRANSFERENCIA
-     *   - total               (float)   Total original de la factura
-     *   - pago_efectivo       (float)   Acumulado de efectivo
-     *   - pago_transferencia  (float)   Acumulado de transferencia
-     *   - saldo_pendiente     (float)   Saldo restante después del abono
-     */
     public function notificarAbonoRegistrado(array $datos): bool
     {
         $asunto = '💰 Abono registrado a Factura #' . ($datos['id_formateado'] ?? $datos['factura_id']) . ' — ' . SITENAME;
@@ -441,23 +485,6 @@ class EmailService
         return $ok;
     }
 
-    /**
-     * Envía un recordatorio de pago al cliente por una factura con saldo pendiente.
-     * 
-     * Se dispara manualmente desde el botón "Recordatorio" en el módulo de Facturas.
-     * 
-     * @param array $datos Estructura esperada:
-     *   - cliente_nombre      (string)
-     *   - cliente_email       (string)
-     *   - factura_id          (int)
-     *   - id_formateado       (string)  Ej: 'FAC-013'
-     *   - placa               (string)
-     *   - modelo_vehiculo     (string)
-     *   - total               (float)   Total original de la factura
-     *   - saldo_pendiente     (float)   Saldo actual
-     *   - dias_atraso         (int)     Días desde la emisión
-     *   - fecha_emision       (string)  Fecha original (Y-m-d H:i:s)
-     */
     public function enviarRecordatorioPago(array $datos): bool
     {
         $asunto = '📢 Recordatorio de Pago — Factura #' . ($datos['id_formateado'] ?? $datos['factura_id']) . ' — ' . SITENAME;
@@ -477,61 +504,57 @@ class EmailService
         return $ok;
     }
 
-    /**
-     * Envía un email genérico con los datos proporcionados.
-     * Usado para emails compuestos manualmente desde la interfaz de Email
-     * y para adjuntar PDFs generados en memoria (ej: presupuestos).
-     * 
-     * Acepta metadatos opcionales:
-     *   - tipo             (string)  Ej: 'FACTURA', 'PRESUPUESTO', 'OTRO'
-     *   - referencia_tipo  (string)  Ej: 'FACTURA', 'ORDEN', 'NINGUNO'
-     *   - referencia_id    (int)     ID del documento referenciado
-     * 
-     * Adjuntos soportados en `attachments`:
-     *   - ['content' => $binario, 'name' => 'archivo.pdf']  → en memoria
-     *   - ['path' => '/ruta/absoluta/archivo.pdf', 'name' => 'archivo.pdf']  → archivo físico
-     *   - '/ruta/absoluta/archivo.pdf'  → archivo físico (solo ruta)
-     */
     public function enviarEmailGenerico(array $datos): array {
         try {
             $this->mailer->clearAddresses();
             $this->mailer->clearCCs();
             $this->mailer->clearBCCs();
             $this->mailer->addAddress($datos['to'], $datos['to_name'] ?? '');
+
+            // v3.0: CC y BCC (separados por ;)
+            if (!empty($datos['cc'])) {
+                foreach (preg_split('/[;,]+/', $datos['cc']) as $cc) {
+                    $cc = trim($cc);
+                    if ($cc !== '' && filter_var($cc, FILTER_VALIDATE_EMAIL)) {
+                        $this->mailer->addCC($cc);
+                    }
+                }
+            }
+            if (!empty($datos['bcc'])) {
+                foreach (preg_split('/[;,]+/', $datos['bcc']) as $bcc) {
+                    $bcc = trim($bcc);
+                    if ($bcc !== '' && filter_var($bcc, FILTER_VALIDATE_EMAIL)) {
+                        $this->mailer->addBCC($bcc);
+                    }
+                }
+            }
+
             $this->mailer->isHTML(true);
             $this->mailer->Subject = $datos['subject'];
             $this->mailer->Body    = $datos['body_html'];
-            
-            // Versión texto plano
             $this->mailer->AltBody = $datos['body_text'] ?? strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $datos['body_html']));
             
-            // Adjuntos (soporta binario en memoria y archivo físico)
             if (!empty($datos['attachments'])) {
                 foreach ($datos['attachments'] as $attachment) {
                     if (is_array($attachment) && isset($attachment['content'])) {
-                        // ── Contenido binario en memoria (sin archivo físico) ──
                         $this->mailer->addStringAttachment(
                             $attachment['content'],
                             $attachment['name'] ?? 'documento.pdf'
                         );
                     } elseif (is_array($attachment) && isset($attachment['path'])) {
-                        // ── Adjunto desde archivo físico ──
                         $this->mailer->addAttachment($attachment['path'], $attachment['name'] ?? '');
                     } elseif (is_string($attachment)) {
-                        // ── Ruta simple a archivo físico ──
                         $this->mailer->addAttachment($attachment);
                     }
                 }
             }
             
-            // Configurar remitente si se proporciona
             if (!empty($datos['from_email'])) {
                 $this->mailer->setFrom($datos['from_email'], $datos['from_name'] ?? 'Taller Pro');
             }
             
             $this->mailer->send();
 
-            // Log del envío exitoso
             $this->logEnvio([
                 'tipo'            => $datos['tipo'] ?? 'OTRO',
                 'to'              => $datos['to'],
@@ -548,7 +571,6 @@ class EmailService
         } catch (Exception $e) {
             error_log("EmailService: Error al enviar email genérico: " . $e->getMessage());
 
-            // Log del fallo
             $this->logEnvio([
                 'tipo'            => $datos['tipo'] ?? 'OTRO',
                 'to'              => $datos['to'],

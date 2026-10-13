@@ -47,7 +47,15 @@
                     <!-- HEADER -->
                     <div class="email-header">
                         <?php if (!empty($empresa->logo)): ?>
-                            <img src="<?= URLROOT . '/uploads/' . htmlspecialchars($empresa->logo) ?>" alt="<?= htmlspecialchars($empresa->name ?? SITENAME) ?>" style="max-width:180px;height:auto;">
+                            <?php
+                                // FIX v3.0: el campo $empresa->logo ya contiene la ruta relativa completa
+                                // (ej: 'uploads/logo/logo_empresa_123.png'). NO concatenar '/uploads/'.
+                                $logoRel = ltrim((string)$empresa->logo, '/');
+                                $logoUrl = (strpos($logoRel, 'http://') === 0 || strpos($logoRel, 'https://') === 0)
+                                    ? $logoRel
+                                    : URLROOT . '/' . $logoRel;
+                            ?>
+                            <img src="<?= htmlspecialchars($logoUrl) ?>" alt="<?= htmlspecialchars($empresa->name ?? SITENAME) ?>" style="max-width:180px;height:auto;">
                         <?php endif; ?>
                         <h1><?= htmlspecialchars($empresa->name ?? SITENAME) ?></h1>
                     </div>

@@ -2,6 +2,17 @@
 /**
  * Modelo de Cliente
  * Gestiona la persistencia de datos de clientes en la base de datos.
+ * 
+ * v3.0 (2026-10-13):
+ *   • `searchClients()` mejorado:
+ *       - Ahora busca también por email (antes solo id/nombre/teléfono).
+ *       - Parámetro `$limit` configurable (default 20).
+ *       - ORDER BY inteligente: coincidencia exacta por id → empieza con el
+ *         término → contiene el término → resto. Desempate por nombre ASC.
+ *       - Índice del ORDER BY usa collation utf8mb4_general_ci (case-insensitive).
+ * 
+ * v2.0: métodos listar/contar/obtenerPorId/crear/actualizar/eliminar/
+ *       obtenerVehiculos/verificarIdUnico sin cambios.
  */
 class ModelCliente {
     private $db;
@@ -15,13 +26,13 @@ class ModelCliente {
     }
 
     /**
-     * Lista clientes con soporte para búsqueda y paginación
+     * Lista clientes con soporte para búsqueda y paginación.
      */
     public function listar($limit = null, $offset = null, $search = null) {
         $sql = "SELECT * FROM table_clientes";
         
         if ($search) {
-            $sql .= " WHERE nombre LIKE :search OR id LIKE :search OR telefono LIKE :search";
+            $sql .= " WHERE nombre LIKE :search OR id LIKE :search OR telefono LIKE :search OR email LIKE :search";
         }
 
         $sql .= " ORDER BY fecha_registro DESC";
@@ -53,7 +64,8 @@ class ModelCliente {
         $this->db->query("SELECT COUNT(*) as total FROM table_clientes 
                           WHERE nombre LIKE :search 
                           OR id LIKE :search 
-                          OR telefono LIKE :search");
+                          OR telefono LIKE :search
+                          OR email LIKE :search");
         $this->db->bind(':search', "%$search%");
         return (int)$this->db->single()->total;
     }
@@ -123,12 +135,49 @@ class ModelCliente {
     }
 
     /**
-     * Busca clientes por ID, nombre o teléfono para el buscador global.
+     * Busca clientes por término para el autocompletado global.
+     * 
+     * v3.0: 
+     *   • Busca por id, nombre, teléfono Y email.
+     *   • Parámetro $limit configurable (default 20).
+     *   • Orden inteligente: exacta por id → empieza con término → contiene → resto.
+     * 
+     * @param string $term  Término a buscar
+     * @param int    $limit Máximo de resultados (default 20)
+     * @return array
      */
-    public function searchClients($term) {
-        $this->db->query("SELECT id, nombre, telefono, email, direccion FROM table_clientes
-                          WHERE id LIKE :term OR nombre LIKE :term OR telefono LIKE :term LIMIT 5");
-        $this->db->bind(':term', "%$term%");
+    public function searchClients($term, $limit = 20) {
+        $term = trim((string)$term);
+        if ($term === '') {
+            return [];
+        }
+
+        $like = '%' . $term . '%';
+        $startLike = $term . '%';
+
+        $this->db->query("
+            SELECT id, nombre, telefono, email, direccion
+            FROM table_clientes
+            WHERE id LIKE :term
+               OR nombre LIKE :term
+               OR telefono LIKE :term
+               OR email LIKE :term
+            ORDER BY 
+                CASE
+                    WHEN id = :term_exact THEN 1
+                    WHEN nombre LIKE :term_start THEN 2
+                    WHEN nombre LIKE :term THEN 3
+                    ELSE 4
+                END,
+                nombre ASC
+            LIMIT :limit
+        ");
+
+        $this->db->bind(':term', $like);
+        $this->db->bind(':term_exact', $term);
+        $this->db->bind(':term_start', $startLike);
+        $this->db->bind(':limit', (int)$limit);
+
         return $this->db->resultSet();
     }
 
@@ -137,5 +186,15 @@ class ModelCliente {
         $this->db->bind(':id', mb_strtoupper(trim($id), 'UTF-8'));
         $result = $this->db->single();
         return (int)$result->total > 0;
+    }
+
+    /**
+     * Búsqueda general para el módulo de Reportes/Auditoría (searchClients).
+     * Mantiene compatibilidad con el nombre `buscar` por si algún módulo lo usa.
+     * 
+     * @deprecated Usar searchClients(). Mantenido por retrocompatibilidad.
+     */
+    public function buscar($term, $limit = 20) {
+        return $this->searchClients($term, $limit);
     }
 }

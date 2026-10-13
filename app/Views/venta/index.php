@@ -392,7 +392,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // FIX v2.1: usar ?q= en lugar de ?search[value]= para consistencia con el sistema
-        const res = await fetch(`<?php echo URLROOT; ?>/clientes/listar?q=${encodeURIComponent(term)}&limit=5&offset=0`);
+        //const res = await fetch(`<?php echo URLROOT; ?>/clientes/listar?q=${encodeURIComponent(term)}&limit=5&offset=0`);
+        const res = await fetch(`<?php echo URLROOT; ?>/clientes/listar?q=${encodeURIComponent(term)}&limit=20&offset=0`);
         const data = await res.json();
         lastClientResults = data.data || [];
 
