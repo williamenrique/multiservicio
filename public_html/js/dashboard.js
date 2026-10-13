@@ -1,14 +1,21 @@
 /**
  * Lógica del Dashboard en Tiempo Real
  * 
+ * v3.0 (2026-10-13) — REDISEÑO DEL DASHBOARD:
+ *   • Nuevos bloques renderizados:
+ *       - 4 tarjetas financieras con comparativos ↑↓ (vs mes anterior).
+ *       - Widget "Órdenes sin Mecánico".
+ *       - Widget "Entregas Próximas 48h".
+ *   • La gráfica ahora muestra 3 series: Ingresos, Egresos, Utilidad Neta.
+ *   • Filtro de rango de la gráfica: 7d / 30d / mes actual.
+ *     Hace fetch a /dashboard/getFinancialHistoryCustom?range=X.
+ *   • Los comparativos muestran "Sin datos previos" (gris) cuando no hay
+ *     datos del periodo anterior.
+ * 
  * v2.2 (2026-10-09) — FIX bloque Core (P1-01, P1-02, P1-03):
- *   • updateDashboard() ahora usa DashboardCache.get() en vez de hacer
- *     fetch directo a /dashboard/getStats. Esto comparte la respuesta
- *     con initLowStockNotifications y initProfitabilityCard de app.js,
- *     reduciendo 3 fetches duplicados a 1 solo.
- *   • El setInterval(updateDashboard, 60000) fue reemplazado por
- *     PollingManager.register('dashboard-refresh', ...). Ahora se pausa
- *     automáticamente cuando la pestaña no está visible.
+ *   • updateDashboard() usa DashboardCache.get() para compartir la respuesta
+ *     con initLowStockNotifications y initProfitabilityCard de app.js.
+ *   • PollingManager en lugar de setInterval.
  * 
  * DEPENDENCIAS:
  *   1. polling.js (window.PollingManager + window.DashboardCache)
@@ -18,7 +25,6 @@
  */
 document.addEventListener('DOMContentLoaded', () => {
     // GUARD: Si no estamos en la sección de dashboard, no ejecutar nada.
-    // Esto evita que el setInterval y las peticiones corran en otras páginas.
     if (!document.getElementById('sec-dashboard')) return;
 
     const statsElements = {
@@ -31,10 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
         financialStatusCards: document.getElementById('financial-status-cards'),
         debtorsCard: document.getElementById('dashboard-debtors-card-container'),
         workshopStatus: document.getElementById('workshop-status-container'),
-        topProducts: document.getElementById('top-products-container')
+        topProducts: document.getElementById('top-products-container'),
+        osSinMecanico: document.getElementById('dashboard-os-sin-mecanico'),
+        entregasProximas: document.getElementById('dashboard-entregas-proximas'),
     };
 
     let performanceChart = null;
+    let currentChartRange = '7d';
 
     // Vincular botón de exportación si existe
     const btnExport = document.getElementById('btnExportInventory');
@@ -52,13 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Carga las estadísticas desde el servidor y refresca toda la UI.
-     * 
-     * Usa DashboardCache para compartir la respuesta con las tarjetas de
-     * low-stock y profitability que consume app.js.
      */
     window.updateDashboard = async (forceRefresh = false) => {
         try {
-            // FIX P1-02: caché compartida (25s TTL) para no duplicar fetch
+            // Caché compartida (25s TTL) para no duplicar fetch
             const data = await DashboardCache.get(forceRefresh);
             if (!data) return;
 
@@ -92,10 +98,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('salesChart')?.closest('.glass-card'),
             statsElements.financialContainer,
             statsElements.debtorsCard,
+            statsElements.osSinMecanico,
+            statsElements.entregasProximas,
             document.getElementById('financial-summary-heading'),
             document.getElementById('supplier-debts-heading'),
             document.getElementById('expenses-month-heading'),
-            document.getElementById('financial-performance-block')
+            document.getElementById('financial-performance-block'),
+            document.getElementById('quick-actions')
         ];
 
         financialElements.forEach(el => {
@@ -110,50 +119,250 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
+     * v3.0: Renderiza el badge de comparativo (↑↓ %).
+     * Devuelve HTML. Si no hay datos previos, muestra "Sin datos previos".
+     */
+    const renderComparativo = (variacionPct, invertido = false) => {
+        if (variacionPct === null || variacionPct === undefined || isNaN(variacionPct)) {
+            return `<span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sin datos previos</span>`;
+        }
+
+        const valor = parseFloat(variacionPct);
+        if (Math.abs(valor) < 0.1) {
+            return `<span class="inline-flex items-center gap-1 text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        <i data-lucide="minus" class="w-2.5 h-2.5"></i> 0.0%
+                    </span>`;
+        }
+
+        // invertido: si es true, "subir" es malo (ej: gastos). Si es false, "subir" es bueno (ej: ventas).
+        const esPositivo = invertido ? valor < 0 : valor > 0;
+        const colorClass = esPositivo ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
+        const icono = valor > 0 ? 'trending-up' : 'trending-down';
+        const signo = valor > 0 ? '+' : '';
+
+        return `<span class="inline-flex items-center gap-1 text-[10px] font-black ${colorClass} px-2 py-0.5 rounded-full">
+                    <i data-lucide="${icono}" class="w-2.5 h-2.5"></i> ${signo}${valor.toFixed(1)}%
+                </span>`;
+    };
+
+    /**
+     * v3.0: Renderiza las 4 tarjetas financieras con comparativos.
+     */
+    const renderFinancialStatusCards = (data) => {
+        if (!statsElements.financialStatusCards || !isAdmin()) return;
+
+        const ingresos = parseFloat(data.ingresosHoy) || 0;
+        const gastos = parseFloat(data.gastosMes) || 0;
+        const ordenesActivas = data.drafts ? data.drafts.length : 0;
+        const comp = data.comparativo || {};
+        const compIngresos = comp.ingresos || {};
+        const compGastos = comp.gastos || {};
+        const compUtilidad = comp.utilidad || {};
+
+        const utilidadMes = parseFloat(compUtilidad.actual || 0);
+        const margen = ingresos > 0 ? ((utilidadMes / ingresos) * 100).toFixed(1) : 0;
+
+        statsElements.financialStatusCards.innerHTML = `
+            <!-- Ventas Hoy (con comparativo vs ayer) -->
+            <a href="${URLROOT}/facturas?desde=${new Date().toISOString().split('T')[0]}"
+               class="glass-card p-5 rounded-xl border-l-4 border-blue-600 hover:shadow-md transition-all cursor-pointer group">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
+                        <i data-lucide="trending-up" class="w-4 h-4 text-blue-600"></i>
+                    </div>
+                    ${renderComparativo(compIngresos.variacion_hoy_pct)}
+                </div>
+                <p class="text-slate-400 text-[10px] font-black uppercase tracking-wider mb-1">Ventas Hoy</p>
+                <h3 class="text-2xl font-black text-blue-600 mb-1">${AppUtils.formatCurrency(ingresos)}</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase">Ayer: ${AppUtils.formatCurrency(compIngresos.ayer || 0)}</p>
+            </a>
+
+            <!-- Órdenes Activas (borradores) -->
+            <a href="${URLROOT}/facturacion"
+               class="glass-card p-5 rounded-xl border-l-4 border-amber-600 hover:shadow-md transition-all cursor-pointer group">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="p-2 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors">
+                        <i data-lucide="clipboard-list" class="w-4 h-4 text-amber-600"></i>
+                    </div>
+                </div>
+                <p class="text-slate-400 text-[10px] font-black uppercase tracking-wider mb-1">Órdenes Activas</p>
+                <h3 class="text-2xl font-black text-amber-600 mb-1">${ordenesActivas}</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase">Facturas en proceso</p>
+            </a>
+
+            <!-- Gastos del Mes (con comparativo vs mes anterior) -->
+            <a href="${URLROOT}/gastos"
+               class="glass-card p-5 rounded-xl border-l-4 border-rose-600 hover:shadow-md transition-all cursor-pointer group">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="p-2 bg-rose-50 rounded-lg group-hover:bg-rose-100 transition-colors">
+                        <i data-lucide="trending-down" class="w-4 h-4 text-rose-600"></i>
+                    </div>
+                    ${renderComparativo(compGastos.variacion_pct, true)}
+                </div>
+                <p class="text-slate-400 text-[10px] font-black uppercase tracking-wider mb-1">Gastos del Mes</p>
+                <h3 class="text-2xl font-black text-rose-600 mb-1">${AppUtils.formatCurrency(gastos)}</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase">Mes anterior: ${AppUtils.formatCurrency(compGastos.anterior || 0)}</p>
+            </a>
+
+            <!-- Utilidad Neta (con comparativo vs mes anterior) -->
+            <div class="glass-card p-5 rounded-xl border-l-4 ${utilidadMes >= 0 ? 'border-emerald-600' : 'border-rose-600'}">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="p-2 ${utilidadMes >= 0 ? 'bg-emerald-50' : 'bg-rose-50'} rounded-lg">
+                        <i data-lucide="wallet" class="w-4 h-4 ${utilidadMes >= 0 ? 'text-emerald-600' : 'text-rose-600'}"></i>
+                    </div>
+                    ${renderComparativo(compUtilidad.variacion_pct)}
+                </div>
+                <p class="text-slate-400 text-[10px] font-black uppercase tracking-wider mb-1">Utilidad Neta Mes</p>
+                <h3 class="text-2xl font-black ${utilidadMes >= 0 ? 'text-emerald-600' : 'text-rose-600'} mb-1">${AppUtils.formatCurrency(utilidadMes)}</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase">Mes anterior: ${AppUtils.formatCurrency(compUtilidad.anterior || 0)}</p>
+            </div>
+        `;
+    };
+
+    /**
+     * v3.0: Renderiza el widget de "Órdenes sin Mecánico".
+     */
+    const renderOsSinMecanico = (data) => {
+        const container = statsElements.osSinMecanico;
+        if (!container || !isAdmin()) return;
+
+        const lista = data.osSinMecanico || [];
+
+        if (lista.length === 0) {
+            container.innerHTML = `
+                <div class="glass-card p-6 rounded-2xl border border-slate-100 h-full flex flex-col">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="p-2 bg-emerald-500 text-white rounded-lg">
+                            <i data-lucide="user-check" class="w-4 h-4"></i>
+                        </div>
+                        <h3 class="text-base font-black text-navy-blue uppercase tracking-tight">Órdenes sin Mecánico</h3>
+                    </div>
+                    <div class="p-6 text-center flex-1 flex flex-col items-center justify-center">
+                        <i data-lucide="check-circle-2" class="w-12 h-12 text-emerald-400 mb-3"></i>
+                        <p class="text-sm font-bold text-slate-600">Todas las órdenes tienen mecánico asignado</p>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="glass-card p-6 rounded-2xl border border-slate-100 h-full flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-rose-500 text-white rounded-lg">
+                            <i data-lucide="user-x" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-black text-navy-blue uppercase tracking-tight">Órdenes sin Mecánico</h3>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">Requieren asignación</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-black bg-rose-100 text-rose-700 px-2 py-1 rounded-full">${lista.length}</span>
+                </div>
+
+                <div class="space-y-2 flex-1 overflow-y-auto max-h-64">
+                    ${lista.map(o => {
+                        const horas = parseInt(o.horas_en_taller) || 0;
+                        const urgenciaClass = horas >= 24 ? 'text-rose-600 bg-rose-50 border-rose-200' : 'text-amber-600 bg-amber-50 border-amber-200';
+                        return `
+                        <div class="flex items-center justify-between p-3 ${urgenciaClass} border rounded-lg hover:shadow-sm transition-all cursor-pointer"
+                             onclick="window.verDetalleOrdenTaller(${o.id})">
+                            <div class="flex-1 min-w-0">
+                                <p class="text-xs font-black text-navy-blue uppercase truncate">${o.placa} · ${o.marca || ''} ${o.modelo || ''}</p>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase truncate">${o.cliente_nombre || 'SIN CLIENTE'}</p>
+                            </div>
+                            <div class="text-right ml-2">
+                                <p class="text-[10px] font-black uppercase">${horas}h</p>
+                                <p class="text-[9px] font-bold uppercase opacity-70">en taller</p>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+    };
+
+    /**
+     * v3.0: Renderiza el widget de "Entregas Próximas 48h".
+     */
+    const renderEntregasProximas = (data) => {
+        const container = statsElements.entregasProximas;
+        if (!container || !isAdmin()) return;
+
+        const lista = data.entregasProximas || [];
+
+        if (lista.length === 0) {
+            container.innerHTML = `
+                <div class="glass-card p-6 rounded-2xl border border-slate-100 h-full flex flex-col">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="p-2 bg-slate-500 text-white rounded-lg">
+                            <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+                        </div>
+                        <h3 class="text-base font-black text-navy-blue uppercase tracking-tight">Entregas Próximas 48h</h3>
+                    </div>
+                    <div class="p-6 text-center flex-1 flex flex-col items-center justify-center">
+                        <i data-lucide="calendar-check-2" class="w-12 h-12 text-slate-300 mb-3"></i>
+                        <p class="text-sm font-bold text-slate-600">No hay entregas programadas en las próximas 48 horas</p>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="glass-card p-6 rounded-2xl border border-slate-100 h-full flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-500 text-white rounded-lg">
+                            <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-black text-navy-blue uppercase tracking-tight">Entregas Próximas 48h</h3>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">Prioriza estos trabajos</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-black bg-blue-100 text-blue-700 px-2 py-1 rounded-full">${lista.length}</span>
+                </div>
+
+                <div class="space-y-2 flex-1 overflow-y-auto max-h-64">
+                    ${lista.map(o => {
+                        const minutos = parseInt(o.minutos_restantes) || 0;
+                        const horas = Math.floor(minutos / 60);
+                        const mins = minutos % 60;
+                        let tiempoTexto = '';
+                        if (minutos < 60) tiempoTexto = `${minutos} min`;
+                        else if (horas < 24) tiempoTexto = `${horas}h ${mins}m`;
+                        else tiempoTexto = `${Math.floor(horas / 24)}d`;
+
+                        const urgenciaClass = minutos < 120 ? 'text-rose-600 bg-rose-50 border-rose-200' : 
+                                              (minutos < 720 ? 'text-amber-600 bg-amber-50 border-amber-200' : 
+                                              'text-blue-600 bg-blue-50 border-blue-200');
+                        return `
+                        <div class="flex items-center justify-between p-3 ${urgenciaClass} border rounded-lg hover:shadow-sm transition-all cursor-pointer"
+                             onclick="window.verDetalleOrdenTaller(${o.id})">
+                            <div class="flex-1 min-w-0">
+                                <p class="text-xs font-black text-navy-blue uppercase truncate">${o.placa} · ${o.marca || ''} ${o.modelo || ''}</p>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase truncate">
+                                    ${o.mecanico_nombre ? 'Téc: ' + o.mecanico_nombre : '⚠ Sin mecánico'}
+                                </p>
+                            </div>
+                            <div class="text-right ml-2">
+                                <p class="text-[10px] font-black uppercase">${tiempoTexto}</p>
+                                <p class="text-[9px] font-bold uppercase opacity-70">${o.estado}</p>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+    };
+
+    /**
      * Actualiza el DOM con los nuevos datos
      */
     const renderDashboard = (data) => {
         setupRoleVisibility();
 
-        // 1. Renderizar Tarjetas Financieras (Ventas, Órdenes, Gastos)
+        // 1. Renderizar Tarjetas Financieras con comparativos (v3.0)
         if (statsElements.financialStatusCards && isAdmin()) {
-            const ingresos = parseFloat(data.ingresosHoy) || 0;
-            const gastos = parseFloat(data.gastosMes) || 0;
-            const ordenesActivas = data.drafts ? data.drafts.length : 0;
-
-            const finCards = [
-                {
-                    label: 'Ventas Hoy',
-                    value: AppUtils.formatCurrency(ingresos),
-                    color: 'text-blue-600',
-                    border: 'border-blue-600',
-                    icon: 'trending-up'
-                },
-                {
-                    label: 'Órdenes Activas',
-                    value: ordenesActivas,
-                    color: 'text-amber-600',
-                    border: 'border-amber-600',
-                    icon: 'clock'
-                },
-                {
-                    label: 'Gastos del Mes',
-                    value: AppUtils.formatCurrency(gastos),
-                    color: 'text-rose-600',
-                    border: 'border-rose-600',
-                    icon: 'trending-down'
-                }
-            ];
-
-            statsElements.financialStatusCards.innerHTML = finCards.map(c => `
-                <div class="glass-card p-6 rounded-xl flex items-center justify-between border-l-4 ${c.border} transition-all">
-                    <div class="pointer-events-none">
-                        <p class="text-slate-400 text-xs font-bold uppercase tracking-wider">${c.label}</p>
-                        <h3 class="text-3xl font-black ${c.color}">${c.value}</h3>
-                    </div>
-                    <i data-lucide="${c.icon}" class="${c.color} w-8 h-8 opacity-30"></i>
-                </div>
-            `).join('');
+            renderFinancialStatusCards(data);
         }
 
         // 2. Renderizar Tarjetas de Inventario
@@ -176,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('');
         }
 
-        // 2.1 Renderizar Estado Operativo del Taller (Órdenes de Servicio)
+        // 2.1 Renderizar Estado Operativo del Taller
         if (statsElements.workshopStatus) {
             const ws = data.workshopStatus || { recibidos: 0, reparacion: 0, listos: 0 };
             const totalActivas = (parseInt(ws.recibidos) || 0) + (parseInt(ws.reparacion) || 0) + (parseInt(ws.listos) || 0);
@@ -238,12 +447,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>`;
         }
 
-        // 3. Limpiar el contenedor financiero duplicado (el que está al lado de la gráfica)
+        // 2.3 Renderizar widget "Órdenes sin Mecánico" (v3.0)
+        if (statsElements.osSinMecanico && isAdmin()) {
+            renderOsSinMecanico(data);
+        }
+
+        // 2.4 Renderizar widget "Entregas Próximas 48h" (v3.0)
+        if (statsElements.entregasProximas && isAdmin()) {
+            renderEntregasProximas(data);
+        }
+
+        // 3. Limpiar el contenedor financiero duplicado
         if (statsElements.financialContainer && statsElements.financialContainer !== statsElements.inventoryContainer) {
             statsElements.financialContainer.innerHTML = '';
         }
 
-        // 3. Renderizar Lista de Gastos Detallados (Tarjetas individuales)
+        // 3. Renderizar Lista de Gastos Detallados
         if (statsElements.expensesDashboard && data.recentExpenses && isAdmin()) {
             if (data.recentExpenses.length === 0) {
                 statsElements.expensesDashboard.innerHTML = `
@@ -494,6 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Lógica para la gráfica de Rendimiento Financiero
+     * v3.0: 3 series (Ingresos, Egresos, Utilidad Neta)
      */
     const renderChart = (history) => {
         const canvas = document.getElementById('salesChart');
@@ -512,7 +732,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 noDataMsg.className = 'flex flex-col items-center justify-center h-64 text-slate-400 bg-slate-50/50 rounded-xl border-2 border-dashed border-slate-200';
                 noDataMsg.innerHTML = `
                     <i data-lucide="bar-chart-3" class="w-12 h-12 mb-2 opacity-10"></i>
-                    <p class="font-bold text-xs uppercase tracking-widest text-center px-4">Sin actividad financiera en los últimos 7 días</p>
+                    <p class="font-bold text-xs uppercase tracking-widest text-center px-4">Sin actividad financiera en el periodo</p>
                 `;
                 container.appendChild(noDataMsg);
                 if (window.lucide) lucide.createIcons();
@@ -528,11 +748,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const labels = history.map(d => d.day);
         const incomeData = history.map(d => d.income);
         const expensesData = history.map(d => d.expenses);
+        const profitData = history.map(d => d.profit);
 
         if (performanceChart) {
             performanceChart.data.labels = labels;
             performanceChart.data.datasets[0].data = incomeData;
             performanceChart.data.datasets[1].data = expensesData;
+            performanceChart.data.datasets[2].data = profitData;
             performanceChart.update();
         } else if (window.Chart) {
             performanceChart = new Chart(canvas, {
@@ -540,8 +762,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 data: {
                     labels: labels,
                     datasets: [
-                        { label: 'Ingresos', data: incomeData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 4 },
-                        { label: 'Egresos', data: expensesData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 4 }
+                        {
+                            label: 'Ingresos',
+                            data: incomeData,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 3,
+                            pointRadius: 4
+                        },
+                        {
+                            label: 'Egresos',
+                            data: expensesData,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 3,
+                            pointRadius: 4
+                        },
+                        {
+                            label: 'Utilidad Neta',
+                            data: profitData,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.4,
+                            borderWidth: 2,
+                            pointRadius: 3
+                        }
                     ]
                 },
                 options: {
@@ -566,6 +817,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
+    };
+
+    /**
+     * v3.0: Maneja el cambio de rango de la gráfica.
+     */
+    const initChartRangeFilter = () => {
+        const filter = document.getElementById('chart-range-filter');
+        if (!filter) return;
+
+        filter.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.chart-range-btn');
+            if (!btn) return;
+
+            const range = btn.dataset.range;
+            if (range === currentChartRange) return;
+            currentChartRange = range;
+
+            // Actualizar estilo activo
+            filter.querySelectorAll('.chart-range-btn').forEach(b => {
+                b.classList.remove('bg-navy-blue', 'text-neon-green');
+                b.classList.add('text-slate-500');
+            });
+            btn.classList.remove('text-slate-500');
+            btn.classList.add('bg-navy-blue', 'text-neon-green');
+
+            // Fetch del nuevo rango
+            try {
+                const res = await fetch(`${URLROOT}/dashboard/getFinancialHistoryCustom?range=${range}`);
+                const data = await res.json();
+                if (data.success && data.history) {
+                    renderChart(data.history);
+                }
+            } catch (e) {
+                console.error('Error cargando rango de gráfica:', e);
+            }
+        });
     };
 
     const getStatusClass = (status) => {
@@ -597,12 +884,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ═══════════════════════════════════════════════════════════════
     // FIX P1-01: Polling del dashboard vía PollingManager (60s)
-    // 
-    // Antes: setInterval(updateDashboard, 60000) + updateDashboard()
-    //        inmediato al cargar.
-    // Ahora: registrado en PollingManager → se ejecuta al arrancar
-    //        (equivalente al call inicial) y se reprograma cada 60s.
-    //        Se pausa automáticamente cuando la pestaña no está visible.
     // ═══════════════════════════════════════════════════════════════
     if (typeof PollingManager !== 'undefined') {
         PollingManager.register('dashboard-refresh', updateDashboard, 60000);
@@ -612,7 +893,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(updateDashboard, 60000);
     }
 
-    // Re-renderizar si la información del usuario llega después de la carga inicial (Race condition)
+    // v3.0: Filtro de rango de la gráfica
+    initChartRangeFilter();
+
+    // Re-renderizar si la información del usuario llega después de la carga inicial
     document.addEventListener('userLoaded', () => {
         updateDashboard(true); // force refresh al loguear
     });

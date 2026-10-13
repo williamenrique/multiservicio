@@ -622,7 +622,6 @@ class ControllerTaller extends Controller {
      *   • Se permite `mecanico_id` vacío/nulo para poder DESASIGNAR el mecánico.
      *   • Se acepta tanto `id` como `orden_id` como identificador de la orden
      *     (fallback defensivo por si el frontend cambia el nombre del campo).
-     *   • Se loguea el payload recibido para debugging.
      */
     public function asignarMecanico() {
         if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
@@ -633,11 +632,9 @@ class ControllerTaller extends Controller {
             $raw = file_get_contents('php://input');
             $input = json_decode($raw, true) ?: [];
 
-            // Aceptar 'id' o 'orden_id' como identificador de la orden
             $ordenId = $input['id'] ?? $input['orden_id'] ?? null;
             $mecanicoId = $input['mecanico_id'] ?? null;
 
-            // Loguear para debugging
             error_log('[asignarMecanico] Payload recibido: ' . $raw);
 
             if (empty($ordenId)) {
@@ -648,7 +645,6 @@ class ControllerTaller extends Controller {
                 ], 400);
             }
 
-            // Sanitizar: si viene vacío, asignar NULL (permite desasignar)
             $mecanicoIdFinal = (!empty($mecanicoId) && $mecanicoId !== '0') ? $mecanicoId : null;
 
             $db = new Database();
@@ -747,13 +743,9 @@ class ControllerTaller extends Controller {
             return $this->jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
+
     /**
      * RONDA 13 — T-01: Eliminar una orden de servicio y limpiar todo lo asociado.
-     * 
-     * POST /taller/eliminarOrden/{id}
-     * Body JSON: { motivo: string }
-     * 
-     * Solo administradores.
      */
     public function eliminarOrden($id = null) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -796,17 +788,10 @@ class ControllerTaller extends Controller {
     /**
      * RONDA 13 — T-02: Actualizar campos editables de la orden de servicio.
      * 
-     * POST /taller/actualizarOrden
-     * Body JSON: {
-     *     id: int,
-     *     mecanico_id?: string,
-     *     fecha_entrega_estimada?: string (Y-m-d\TH:i o Y-m-d H:i:s),
-     *     observaciones?: string,
-     *     diagnostico_salida?: string
-     * }
-     * 
-     * Reemplaza funcionalmente a `asignarMecanico()`. El endpoint viejo se
-     * mantiene por compatibilidad, pero el modal ahora usa este.
+     * v2.4 (2026-10-13):
+     *   • Ahora devuelve los valores efectivamente persistidos para que el
+     *     frontend pueda actualizar la fila sin recargar.
+     *   • El modelo valida que `fecha_entrega_estimada` sea > fecha/hora actual.
      */
     public function actualizarOrden() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -829,7 +814,6 @@ class ControllerTaller extends Controller {
                 ], 400);
             }
 
-            // Extraer solo los campos que llegan (permitir updates parciales)
             $datos = [];
             if (array_key_exists('mecanico_id', $input)) {
                 $mid = $input['mecanico_id'];
@@ -852,13 +836,17 @@ class ControllerTaller extends Controller {
                 ], 400);
             }
 
-            $this->ordenModel->actualizarOrden((int)$ordenId, $datos);
+            $persistido = $this->ordenModel->actualizarOrden((int)$ordenId, $datos);
 
             logAction('TALLER', 'UPDATE_OS', "O.S. #{$ordenId} actualizada: " . implode(', ', array_keys($datos)));
 
             return $this->jsonResponse([
                 'success' => true,
-                'mensaje' => 'Orden actualizada correctamente'
+                'mensaje' => 'Orden actualizada correctamente',
+                'data' => [
+                    'mecanico_id' => $persistido['mecanico_id'] ?? null,
+                    'fecha_entrega_estimada' => $persistido['fecha_entrega_estimada'] ?? null,
+                ]
             ]);
 
         } catch (Throwable $e) {

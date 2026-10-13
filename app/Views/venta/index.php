@@ -115,7 +115,7 @@
                 <div class="mb-6">
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-xs font-bold text-slate-500 uppercase">Cliente</label>
-                        <button type="button" onclick="abrirModalCliente()" class="text-[10px] font-black text-blue-600 hover:text-blue-800 transition-colors uppercase">+ Nuevo Cliente</button>
+                        <button type="button" id="btnNuevoClienteVenta" class="text-[10px] font-black text-blue-600 hover:text-blue-800 transition-colors uppercase">+ Nuevo Cliente</button>
                     </div>
                     <div class="relative">
                         <input type="text" id="clienteSearch" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/10 text-sm" placeholder="Buscar por nombre o CC (Venta Mostrador)" autocomplete="off">
@@ -212,36 +212,6 @@
     </div>
 </div>
 
-<!-- Modal Registro Rápido de Cliente -->
-<div id="modalNuevoCliente" class="fixed inset-0 z-[60] hidden bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-            <h5 class="text-lg font-bold text-slate-800">Registro Rápido de Cliente</h5>
-            <button onclick="cerrarModalCliente()" class="text-slate-400 hover:text-slate-600">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-        <div class="p-6 space-y-4">
-            <div>
-                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Cédula / NIT</label>
-                <input type="text" id="new_cli_id" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none text-sm" placeholder="Ej: 12345678">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Nombre Completo</label>
-                <input type="text" id="new_cli_nombre" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none text-sm" placeholder="Ej: JUAN PEREZ">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Teléfono</label>
-                <input type="text" id="new_cli_tel" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 outline-none text-sm" placeholder="Ej: 3001234567">
-            </div>
-        </div>
-        <div class="p-6 bg-slate-50 flex gap-3">
-            <button onclick="cerrarModalCliente()" class="flex-1 py-3 text-slate-500 font-bold text-xs uppercase hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
-            <button onclick="guardarClienteRapido()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">Guardar Cliente</button>
-        </div>
-    </div>
-</div>
-
 <!-- Modal Venta Exitosa -->
 <div id="modalVentaExitosa" class="fixed inset-0 z-[70] hidden bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200 text-center p-8">
@@ -270,6 +240,23 @@
 </style>
 
 <script>
+/**
+ * VENTA MOSTRADOR - JS de la vista
+ * 
+ * v2.1 (2026-10-13) — FIX doble petición a /venta/historial:
+ *   • Se eliminó la llamada explícita `historialTable.reload()` que estaba
+ *     justo después del constructor. `DataTableRefactor` ya llama a
+ *     `reload()` internamente desde su `init()`, por lo que la doble
+ *     invocación disparaba DOS peticiones simultáneas al endpoint. La
+ *     primera era abortada por el `AbortController` del DataTableRefactor,
+ *     dejando un warning PHP en el log y rompiendo la Vista Previa del
+ *     DevTools.
+ *   • Se reemplazó `'d-none'` (Bootstrap) por `'hidden'` (Tailwind) en el
+ *     buscador de productos. Antes el dropdown no se ocultaba correctamente
+ *     cuando el término era muy corto.
+ *   • El buscador inline de clientes ahora usa `?q=...` en lugar de
+ *     `?search[value]=...` para ser consistente con el resto del sistema.
+ */
 document.addEventListener('DOMContentLoaded', function() {
     if (window.lucide) lucide.createIcons();
 
@@ -287,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Estado del presupuesto anexado a esta venta
     let presupuestoSeleccionadoIdVenta = null;
 
-    // 1. Inicializar fechas con el mes cursante ANTES de crear la tabla
+    // 1. Inicializar fechas con el mes cursante
     const d = new Date();
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -300,7 +287,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (inputDesde) inputDesde.value = `${year}-${month}-01`;
     if (inputHasta) inputHasta.value = today;
 
-    // Motor de Tablas centralizado
+    // ─── Motor de Tablas centralizado ───
+    // FIX v2.1: NO llamamos a `historialTable.reload()` después. El propio
+    // DataTableRefactor llama a reload() en su init() → init() se llama en
+    // el constructor. Llamarlo dos veces provocaba DOS peticiones simultáneas.
     const historialTable = new DataTableRefactor({
         tableBodyId: 'cuerpoHistorial',
         endpoint: `${URLROOT}/venta/historial`,
@@ -334,7 +324,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    historialTable.reload();
+    // FIX v2.1: El DataTableRefactor ya hizo reload() dentro de su constructor.
+    // NO agregar `historialTable.reload();` aquí — eso causa doble petición.
 
     if (inputDesde) inputDesde.addEventListener('change', () => historialTable.reload());
     if (inputHasta) inputHasta.addEventListener('change', () => historialTable.reload());
@@ -351,7 +342,8 @@ document.addEventListener('DOMContentLoaded', function() {
     inputBusqueda.addEventListener('input', async (e) => {
         const term = e.target.value;
         if (term.length < 2) {
-            resultados.classList.add('d-none');
+            // FIX v2.1: 'd-none' (Bootstrap) → 'hidden' (Tailwind)
+            resultados.classList.add('hidden');
             return;
         }
 
@@ -390,7 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Buscador de Clientes en tiempo real
+    // Buscador de Clientes en tiempo real (inline)
     inputCliSearch.addEventListener('input', async (e) => {
         const term = e.target.value.trim();
         if (term.length < 2) {
@@ -399,7 +391,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        const res = await fetch(`<?php echo URLROOT; ?>/clientes/listar?search[value]=${term}&length=5`);
+        // FIX v2.1: usar ?q= en lugar de ?search[value]= para consistencia con el sistema
+        const res = await fetch(`<?php echo URLROOT; ?>/clientes/listar?q=${encodeURIComponent(term)}&limit=5&offset=0`);
         const data = await res.json();
         lastClientResults = data.data || [];
 
@@ -430,6 +423,20 @@ document.addEventListener('DOMContentLoaded', function() {
             AppUtils.showToast('Cliente vinculado');
         }
     };
+
+    // Registro rápido de cliente con helper unificado
+    document.getElementById('btnNuevoClienteVenta').addEventListener('click', async () => {
+        await AppUtils.openQuickClientModal({
+            title: 'REGISTRO RÁPIDO DE CLIENTE',
+            confirmText: 'REGISTRAR Y SELECCIONAR',
+            onSuccess: (cliente) => {
+                hiddenCliId.value = cliente.id;
+                inputCliSearch.value = cliente.nombre;
+                divCliResultados.classList.add('hidden');
+                AppUtils.showToast('Cliente registrado y vinculado a la venta');
+            }
+        });
+    });
 
     /* ==================== BÚSQUEDA DE PRESUPUESTOS ACTIVOS ==================== */
     const inputPresupuestoVenta = document.getElementById('buscarPresupuestoActivoVenta');
@@ -468,7 +475,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 300);
         });
 
-        // ─── DELEGACIÓN DE EVENTOS ───
+        // Delegación de eventos
         resultsContainerPresupuesto.addEventListener('click', (e) => {
             const item = e.target.closest('[data-presupuesto-id]');
             if (!item) return;
@@ -541,13 +548,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.lucide) lucide.createIcons();
     }
 
-    /**
-     * Selecciona un presupuesto, carga sus items en el carrito y autocompleta el cliente.
-     * 
-     * ⚠️ NO cambia el estado del presupuesto en el backend. Solo carga los items
-     * localmente. El estado se actualizará a CONVERTIDO al procesar la venta
-     * (porque el payload incluirá presupuesto_activo_id).
-     */
     window.seleccionarPresupuestoActivoVenta = async (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
         console.log('[VENTA] Presupuesto seleccionado:', { id, numero, clienteNombre });
 
@@ -556,7 +556,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Si el carrito ya tiene items, preguntar si reemplazar
         if (carrito.length > 0) {
             const confirm = await Swal.fire({
                 title: '¿Reemplazar venta actual?',
@@ -575,7 +574,6 @@ document.addEventListener('DOMContentLoaded', function() {
             carrito = [];
         }
 
-        // Si ya había un presupuesto distinto, avisar que se reemplaza
         if (presupuestoSeleccionadoIdVenta && presupuestoSeleccionadoIdVenta !== id) {
             const confirm = await Swal.fire({
                 title: '¿Reemplazar presupuesto?',
@@ -597,12 +595,10 @@ document.addEventListener('DOMContentLoaded', function() {
         inputPresupuestoVenta.value = `${numero} - ${clienteNombre}`;
         if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
 
-        // Mostrar info del presupuesto seleccionado
         infoElementPresupuesto.textContent = `${numero} | Total: $${parseFloat(total).toLocaleString('es-CO', {minimumFractionDigits: 2})}`;
         clienteElementPresupuesto.textContent = `Cliente: ${clienteNombre} | Tel: ${clienteTelefono || 'N/A'} | Activado: ${fecha ? new Date(fecha).toLocaleDateString('es-ES') : 'N/A'}`;
         seleccionadoContainerPresupuesto.classList.remove('hidden');
 
-        // ─── CARGAR ITEMS DEL PRESUPUESTO ───
         try {
             AppUtils.showLoading('Cargando items del presupuesto...');
             const res = await fetch(`${URLROOT}/presupuesto/obtenerParaAnexar/${id}`);
@@ -611,14 +607,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (!data.success || !data.items) {
                 AppUtils.showToast(data.mensaje || 'No se pudieron cargar los items', 'error');
-                // Revertir
                 presupuestoSeleccionadoIdVenta = null;
                 inputPresupuestoVenta.value = '';
                 seleccionadoContainerPresupuesto.classList.add('hidden');
                 return;
             }
 
-            // Cargar items al carrito
             data.items.forEach(item => {
                 carrito.push({
                     id: item.producto_id,
@@ -631,7 +625,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
 
-            // Autocompletar cliente si no hay uno seleccionado
             if (!hiddenCliId.value && data.data.cliente_id) {
                 hiddenCliId.value = data.data.cliente_id;
                 inputCliSearch.value = data.data.cliente_nombre || data.data.cliente_id;
@@ -649,15 +642,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    /**
-     * Desanexa el presupuesto activo.
-     * 
-     * @param {boolean} skipConfirm - Si true, NO pide confirmación (se usa al limpiar post-venta).
-     * @param {boolean} keepCart    - Si true, NO elimina los items del carrito (default false).
-     */
     window.desanexarPresupuestoVenta = async (skipConfirm = false, keepCart = false) => {
         if (!presupuestoSeleccionadoIdVenta) {
-            // Solo limpiar UI defensivamente
             inputPresupuestoVenta.value = '';
             if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
             if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
@@ -680,7 +666,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!confirm.isConfirmed) return;
         }
 
-        // Si NO se conserva el carrito, quitar los items que vinieron del presupuesto
         if (!keepCart) {
             carrito = [];
         }
@@ -790,7 +775,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('msgSaldo').classList.add('hidden');
         document.getElementById('txtSaldo').innerText = '';
 
-        // ✅ Desanexar presupuesto SIN confirmar (ya se procesó la venta)
         if (typeof window.desanexarPresupuestoVenta === 'function') {
             window.desanexarPresupuestoVenta(true, true);
         }
@@ -847,47 +831,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Funciones para Registro Rápido de Cliente
-    window.abrirModalCliente = () => {
-        document.getElementById('modalNuevoCliente').classList.remove('hidden');
-        document.getElementById('new_cli_id').focus();
-    };
-
-    window.cerrarModalCliente = () => {
-        document.getElementById('modalNuevoCliente').classList.add('hidden');
-        document.getElementById('new_cli_id').value = '';
-        document.getElementById('new_cli_nombre').value = '';
-        document.getElementById('new_cli_tel').value = '';
-    };
-
-    window.guardarClienteRapido = async () => {
-        const id = document.getElementById('new_cli_id').value.trim();
-        const nombre = document.getElementById('new_cli_nombre').value.trim();
-        const telefono = document.getElementById('new_cli_tel').value.trim();
-
-        if (!id || !nombre) {
-            AppUtils.showToast('Cédula y Nombre son obligatorios', 'error');
-            return;
-        }
-
-        const res = await fetch('<?php echo URLROOT; ?>/clientes/guardar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, nombre, telefono, email: '', direccion: '' })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            hiddenCliId.value = id;
-            inputCliSearch.value = nombre;
-            cerrarModalCliente();
-            divCliResultados.classList.add('hidden');
-            AppUtils.showToast('Cliente registrado y seleccionado');
-        } else {
-            AppUtils.showToast(data.mensaje || 'Error al guardar', 'error');
-        }
-    };
-
     // Procesar Venta
     document.getElementById('btnProcesar').onclick = async function() {
         const btn = this;
@@ -902,8 +845,6 @@ document.addEventListener('DOMContentLoaded', function() {
             placa: '',
             iva_activo: document.getElementById('pos-iva-toggle') ? document.getElementById('pos-iva-toggle').checked : false,
             tasa_iva: parseFloat('<?php echo $data['iva_defecto'] ?? 0; ?>') || 0,
-            // ✅ Enviar el ID del presupuesto anexado (si existe) para que
-            // ControllerFacturacion lo marque como CONVERTIDO al procesar.
             presupuesto_activo_id: presupuestoSeleccionadoIdVenta || null
         };
 

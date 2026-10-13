@@ -1063,11 +1063,16 @@ async function initWorkshopAlerts() {
 /**
  * Modal de gestión de Orden de Servicio en el taller.
  * 
- * FIX v2.7 (2026-10-09):
- *   • El valor del mecánico se captura en el evento `change` del select
- *     (dentro de didOpen). Así el valor persiste aunque el select se
- *     resetee por alguna razón.
- *   • Logs [Taller] para ver exactamente qué se envía.
+ * FIX v2.8 (2026-10-13) — Edición de fecha de entrega:
+ *   • Se agregó input `datetime-local` para editar `fecha_entrega_estimada`.
+ *   • Se valida en el frontend que la fecha sea estrictamente mayor a AHORA.
+ *   • Se envía a `/taller/actualizarOrden` (reemplaza a `/taller/asignarMecanico`).
+ *   • Al guardar exitosamente, se actualiza la fila del taller: mecánico,
+ *     fecha de entrega y semáforo (color + badges).
+ * 
+ * v2.7 (2026-10-09):
+ *   • El valor del mecánico se captura en el evento `change` del select.
+ *   • Logs de diagnóstico [Taller].
  */
 window.verDetalleOrdenTaller = async (id) => {
     try {
@@ -1093,8 +1098,16 @@ window.verDetalleOrdenTaller = async (id) => {
             id: orden.id,
             placa: orden.placa,
             mecanico_actual: orden.mecanico_id,
+            fecha_entrega: orden.fecha_entrega_estimada,
             staff_count: staff.length
         });
+
+        // ─── Valor inicial de la fecha de entrega (formato datetime-local) ───
+        const fechaEntregaActual = orden.fecha_entrega_estimada || '';
+        // Convertir 'YYYY-MM-DD HH:MM:SS' → 'YYYY-MM-DDTHH:MM' para <input type="datetime-local">
+        const fechaInputValue = fechaEntregaActual
+            ? fechaEntregaActual.replace(' ', 'T').substring(0, 16)
+            : '';
 
         // ─── Variable externa que captura el valor del select ───
         let mecanicoSeleccionadoId = orden.mecanico_id || '';
@@ -1204,6 +1217,18 @@ window.verDetalleOrdenTaller = async (id) => {
                         ${!isAdmin ? '<p class="text-[9px] text-amber-500 font-bold italic ml-1">* Solo el administrador puede reasignar mecánicos</p>' : ''}
                     </div>
 
+                    <div class="space-y-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center justify-between">
+                            <span>Fecha y Hora de Entrega Estimada</span>
+                            ${orden.fecha_entrega_estimada ? `<span class="text-[9px] text-slate-500 normal-case font-mono">Actual: ${orden.fecha_entrega_estimada}</span>` : ''}
+                        </label>
+                        <input type="datetime-local" id="swal-fecha-entrega"
+                               value="${fechaInputValue}"
+                               class="w-full p-3 bg-black border border-slate-800 rounded-xl text-white font-bold text-sm focus:ring-2 focus:ring-neon-green outline-none transition-all ${!isAdmin ? 'opacity-50 pointer-events-none' : ''}"
+                               ${!isAdmin ? 'disabled' : ''}>
+                        <p class="text-[9px] text-slate-400 font-medium italic ml-1">Debe ser mayor a la fecha y hora actual. Formato: YYYY-MM-DD HH:MM.</p>
+                    </div>
+
                     ${serviciosHtml}
 
                     <div class="space-y-2">
@@ -1227,10 +1252,8 @@ window.verDetalleOrdenTaller = async (id) => {
             didOpen: () => {
                 if (window.lucide) lucide.createIcons();
 
-                // ─── FIX: capturar valor del select en cada change ───
                 const select = document.getElementById('swal-mecanico-id');
                 if (select) {
-                    // Guardar valor inicial
                     mecanicoSeleccionadoId = select.value || '';
                     const opt = select.options[select.selectedIndex];
                     mecanicoSeleccionadoNombre = opt ? opt.text.split('(')[0].trim() : '';
@@ -1241,7 +1264,6 @@ window.verDetalleOrdenTaller = async (id) => {
                         optionCount: select.options.length
                     });
 
-                    // Capturar cada cambio
                     select.addEventListener('change', (e) => {
                         mecanicoSeleccionadoId = e.target.value || '';
                         const selectedOpt = e.target.options[e.target.selectedIndex];
@@ -1258,14 +1280,10 @@ window.verDetalleOrdenTaller = async (id) => {
                 }
             },
             preConfirm: () => {
-                // Leer del select (por si acaso el change no disparó)
                 const select = document.getElementById('swal-mecanico-id');
                 const currentSelectValue = select ? (select.value || '') : '';
-
-                // Usar el más reciente: el capturado por change, o el del select actual
                 const mecanicoIdFinal = currentSelectValue || mecanicoSeleccionadoId || '';
 
-                // Obtener nombre del select actual si no tenemos
                 let mecanicoNombreFinal = mecanicoSeleccionadoNombre;
                 if (!mecanicoNombreFinal && select && select.selectedIndex >= 0) {
                     const opt = select.options[select.selectedIndex];
@@ -1274,11 +1292,37 @@ window.verDetalleOrdenTaller = async (id) => {
                     }
                 }
 
+                // ─── Validar fecha de entrega ───
+                const fechaInput = document.getElementById('swal-fecha-entrega');
+                let fechaEntregaFinal = null;
+
+                if (fechaInput && fechaInput.value) {
+                    const fechaLocal = fechaInput.value; // 'YYYY-MM-DDTHH:MM'
+                    // Convertir a 'YYYY-MM-DD HH:MM:00'
+                    const fechaConSegundos = fechaLocal.replace('T', ' ') + ':00';
+
+                    const ahora = new Date();
+                    const fechaSeleccionada = new Date(fechaLocal.replace('T', ' '));
+
+                    if (isNaN(fechaSeleccionada.getTime())) {
+                        Swal.showValidationMessage('Formato de fecha inválido');
+                        return false;
+                    }
+
+                    if (fechaSeleccionada <= ahora) {
+                        Swal.showValidationMessage('La fecha de entrega debe ser mayor a la fecha y hora actual');
+                        return false;
+                    }
+
+                    fechaEntregaFinal = fechaConSegundos;
+                }
+
                 const payload = {
                     id: orden.id,
                     orden_id: orden.id,
                     mecanico_id: mecanicoIdFinal,
-                    mecanico_nombre: mecanicoNombreFinal
+                    mecanico_nombre: mecanicoNombreFinal,
+                    fecha_entrega_estimada: fechaEntregaFinal
                 };
 
                 console.log('[Taller] Payload final a enviar:', payload);
@@ -1298,12 +1342,13 @@ window.verDetalleOrdenTaller = async (id) => {
             const bodyToSend = {
                 id: formValues.id,
                 orden_id: formValues.orden_id,
-                mecanico_id: formValues.mecanico_id
+                mecanico_id: formValues.mecanico_id,
+                fecha_entrega_estimada: formValues.fecha_entrega_estimada
             };
 
-            console.log('[Taller] Enviando POST a /taller/asignarMecanico con:', bodyToSend);
+            console.log('[Taller] Enviando POST a /taller/actualizarOrden con:', bodyToSend);
 
-            const response = await fetch(`${URLROOT}/taller/asignarMecanico`, {
+            const response = await fetch(`${URLROOT}/taller/actualizarOrden`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1319,9 +1364,9 @@ window.verDetalleOrdenTaller = async (id) => {
             if (saveResult.success) {
                 AppUtils.showToast(saveResult.mensaje);
 
-                // Actualizar la celda del mecánico en la tabla
                 const fila = document.querySelector(`tr[data-orden-id="${formValues.id}"]`);
                 if (fila) {
+                    // ─── Actualizar celda de mecánico ───
                     const celda = fila.querySelector('.celda-mecanico');
                     if (celda) {
                         if (formValues.mecanico_id && formValues.mecanico_nombre) {
@@ -1336,9 +1381,51 @@ window.verDetalleOrdenTaller = async (id) => {
                                     <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Sin Asignar
                                 </span>`;
                         }
-                        if (window.lucide) lucide.createIcons();
                     }
 
+                    // ─── Actualizar celda de fecha de entrega (columna 5) ───
+                    const celdaFecha = fila.cells[4]; // 0=Orden, 1=Vehículo, 2=Cliente, 3=Estado, 4=Entrega
+                    if (celdaFecha) {
+                        if (formValues.fecha_entrega_estimada) {
+                            const fechaStr = formValues.fecha_entrega_estimada;
+                            const fechaObj = new Date(fechaStr.replace(' ', 'T'));
+                            const ahora = new Date();
+                            const diffMs = fechaObj - ahora;
+                            const diffMin = diffMs / 60000;
+
+                            let colorClass = 'text-slate-600';
+                            let badgeHtml = '';
+                            if (diffMin < 0) {
+                                colorClass = 'text-rose-500';
+                                badgeHtml = `<span class="text-[9px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded uppercase alert-shake">¡RETRASADO!</span>`;
+                            } else if (diffMin < 120) {
+                                colorClass = 'text-amber-500';
+                                badgeHtml = `<span class="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded uppercase animate-pulse">Cerca</span>`;
+                            }
+
+                            // Formatear 'DD/MM HH:MM AM/PM' (compacto como en la vista)
+                            const dd = String(fechaObj.getDate()).padStart(2, '0');
+                            const mm = String(fechaObj.getMonth() + 1).padStart(2, '0');
+                            let hh = fechaObj.getHours();
+                            const min = String(fechaObj.getMinutes()).padStart(2, '0');
+                            const ampm = hh >= 12 ? 'PM' : 'AM';
+                            hh = hh % 12; hh = hh === 0 ? 12 : hh;
+                            const hhStr = String(hh).padStart(2, '0');
+                            const fechaFormateada = `${dd}/${mm} ${hhStr}:${min} ${ampm}`;
+
+                            celdaFecha.innerHTML = `
+                                <div class="flex flex-col items-center">
+                                    <span class="text-xs font-mono font-bold ${colorClass}">${fechaFormateada}</span>
+                                    ${badgeHtml}
+                                </div>`;
+                        } else {
+                            celdaFecha.innerHTML = `<span class="text-slate-300 italic text-xs">Sin fecha</span>`;
+                        }
+                    }
+
+                    if (window.lucide) lucide.createIcons();
+
+                    // ─── Actualizar botones de facturación si el estado es LISTO ───
                     const selectEstado = fila.querySelector('.status-select');
                     const estadoActual = selectEstado ? selectEstado.value : '';
                     if (estadoActual === 'LISTO') {

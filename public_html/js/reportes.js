@@ -1,6 +1,15 @@
 /**
  * GESTIÓN DE REPORTES - UNIFICADO
  * 
+ * v2.8 (2026-10-13) — FIX badge destino en devoluciones:
+ *   • El badge del campo `destino` ahora maneja 3 casos:
+ *       STOCK          → verde
+ *       DANADO         → rojo
+ *       N/A / vacío    → gris con ícono de llave "SERVICIO"
+ *   • Antes solo tenía 2 estados (STOCK/DANADO) y las devoluciones de
+ *     mano de obra (sin producto_id, destino N/A o vacío) mostraban el
+ *     badge rojo incorrectamente.
+ * 
  * v2.7 (2026-10-08) — FIX:
  *   • Se agregó botón "IMPRIMIR FACTURA" en el modal de verDetalleVenta.
  *   • Se agregó botón de imprimir 🖨 por cada factura en el drawer de cartera.
@@ -1909,19 +1918,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.lucide) lucide.createIcons();
             }
         },
-        renderRow: (d) => `
+        renderRow: (d) => {
+            // ─── FIX v2.8: badge de destino con 3 estados ───
+            // STOCK          → verde
+            // DANADO         → rojo
+            // N/A / vacío    → gris con ícono de llave "SERVICIO"
+            const destino = (d.destino || '').toUpperCase().trim();
+            let destinoBadge;
+            if (destino === 'STOCK') {
+                destinoBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black uppercase bg-emerald-100 text-emerald-600">
+                                    <i data-lucide="package-check" class="w-3 h-3"></i>
+                                    STOCK
+                                </span>`;
+            } else if (destino === 'DANADO') {
+                destinoBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black uppercase bg-rose-100 text-rose-600">
+                                    <i data-lucide="package-x" class="w-3 h-3"></i>
+                                    DAÑADO
+                                </span>`;
+            } else {
+                destinoBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black uppercase bg-slate-100 text-slate-500">
+                                    <i data-lucide="wrench" class="w-3 h-3"></i>
+                                    SERVICIO
+                                </span>`;
+            }
+
+            return `
             <tr class="hover:bg-slate-50/50 transition-colors border-b border-slate-50">
                 <td class="px-4 py-4 font-black text-navy-blue text-sm uppercase">#${d.id}</td>
                 <td class="px-4 py-4 text-sm font-bold text-slate-500">${new Date(d.fecha).toLocaleDateString()}</td>
                 <td class="px-4 py-4 text-sm font-black text-navy-blue uppercase">${d.cliente_nombre || 'N/A'}<br><span class="text-[10px] text-slate-400 font-bold">${d.placa || '---'}</span></td>
                 <td class="px-4 py-4 text-sm text-slate-600 uppercase font-medium">${d.descripcion}</td>
                 <td class="px-4 py-4 text-right font-black text-rose-500">${AppUtils.formatCurrency(d.monto_devuelto)}</td>
-                <td class="px-4 py-4 text-center">
-                    <span class="px-2 py-0.5 rounded-full text-xs font-black uppercase ${d.destino === 'STOCK' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}">
-                        ${d.destino}
-                    </span>
-                </td>
-            </tr>`
+                <td class="px-4 py-4 text-center">${destinoBadge}</td>
+            </tr>`;
+        }
     });
 
     document.getElementById('rep-desde')?.addEventListener('change', window.actualizarFiltrosFechas);

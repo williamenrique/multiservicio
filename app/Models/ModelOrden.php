@@ -2,18 +2,13 @@
 /**
  * Modelo de Órdenes de Servicio
  * 
- * v2.1 (2026-10-09) — Ronda 13:
- *   • Nuevo método eliminarOrdenCompleta($id, $motivo)
- *   • Nuevo método tieneFacturaProcesada($id)
- *   • Nuevo método actualizarOrden($id, $datos)
- * 
- * v2.2 (2026-10-09) — FIX:
- *   • Corregido eliminarOrdenCompleta(): presupuesto_activo_id se lee
- *     desde table_facturas, no desde table_ordenes_servicio.
- * 
- * v2.3 (2026-10-09) — Mejora UI:
- *   • obtenerOrdenesActivas() ahora incluye cliente_nombre y
- *     cliente_telefono mediante JOIN con table_clientes.
+ * v2.4 (2026-10-13) — Edición de fecha de entrega:
+ *   • `actualizarOrden()` ahora valida que `fecha_entrega_estimada` sea
+ *     ESTRICTAMENTE MAYOR a la fecha/hora actual (no solo a fecha_ingreso).
+ *   • Se acepta formato `Y-m-d\TH:i` o `Y-m-d H:i:s` y se normaliza a
+ *     `Y-m-d H:i:s` (mismo formato que se usa al crear la orden).
+ *   • Se devuelven los valores efectivamente persistidos para que el
+ *     controlador pueda exponerlos al frontend sin re-consultar.
  */
 class ModelOrden {
     private $db;
@@ -110,10 +105,6 @@ class ModelOrden {
         return $this->db->resultSet();
     }
 
-    /**
-     * v2.3: se agregó JOIN con table_clientes para traer cliente_nombre
-     * y cliente_telefono.
-     */
     public function obtenerOrdenesActivas() {
         $this->db->query("SELECT os.*, v.placa, v.marca, v.modelo, s.nombre as mecanico_nombre,
                           c.nombre as cliente_nombre, c.telefono as cliente_telefono,
@@ -378,10 +369,24 @@ class ModelOrden {
         }
     }
 
+    /**
+     * Actualiza campos editables de la orden de servicio.
+     * 
+     * v2.4 (2026-10-13):
+     *   • `fecha_entrega_estimada` debe ser ESTRICTAMENTE MAYOR a la fecha/hora
+     *     actual (no solo a fecha_ingreso). Se normaliza a `Y-m-d H:i:s`.
+     *   • Se devuelven los valores efectivamente persistidos para que el
+     *     controlador pueda exponerlos al frontend.
+     * 
+     * @param int   $ordenId
+     * @param array $datos  Campos a actualizar: mecanico_id, fecha_entrega_estimada,
+     *                      observaciones, diagnostico_salida
+     * @return array Datos persistidos: ['mecanico_id' => ..., 'fecha_entrega_estimada' => ...]
+     */
     public function actualizarOrden($ordenId, $datos) {
         $ordenId = (int)$ordenId;
 
-        $this->db->query("SELECT id, estado, fecha_ingreso FROM table_ordenes_servicio WHERE id = :id");
+        $this->db->query("SELECT id, estado, fecha_ingreso, fecha_entrega_estimada FROM table_ordenes_servicio WHERE id = :id");
         $this->db->bind(':id', $ordenId);
         $orden = $this->db->single();
 
@@ -395,46 +400,74 @@ class ModelOrden {
 
         $sets = [];
         $binds = [':id' => $ordenId];
+        $resultado = [
+            'mecanico_id' => $orden->mecanico_id ?? null,
+            'fecha_entrega_estimada' => $orden->fecha_entrega_estimada,
+        ];
 
+        // ─── mecanico_id ───
         if (array_key_exists('mecanico_id', $datos)) {
+            $mid = !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null;
             $sets[] = "mecanico_id = :mid";
-            $binds[':mid'] = !empty($datos['mecanico_id']) ? $datos['mecanico_id'] : null;
+            $binds[':mid'] = $mid;
+            $resultado['mecanico_id'] = $mid;
         }
 
+        // ─── fecha_entrega_estimada (v2.4: > ahora, formato Y-m-d H:i:s) ───
         if (array_key_exists('fecha_entrega_estimada', $datos)) {
             $fecha = trim((string)$datos['fecha_entrega_estimada']);
-            if ($fecha !== '') {
+
+            if ($fecha === '') {
+                $binds[':fed'] = null;
+                $sets[] = "fecha_entrega_estimada = :fed";
+                $resultado['fecha_entrega_estimada'] = null;
+            } else {
+                // Normalizar: aceptar 'Y-m-d\TH:i' o 'Y-m-d H:i:s'
                 $fecha = str_replace('T', ' ', $fecha);
-                if (strlen($fecha) === 16) {
+                // Si viene 'YYYY-MM-DD HH:MM' (sin segundos), agregar ':00'
+                if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $fecha)) {
                     $fecha .= ':00';
                 }
+
                 $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $fecha);
                 if (!$dt) {
-                    throw new Exception("Formato de fecha inválido.");
+                    throw new Exception("Formato de fecha inválido. Use Y-m-d H:i:s.");
                 }
+
+                // Validación: fecha > AHORA (no solo > fecha_ingreso)
+                $ahora = new \DateTime();
+                if ($dt <= $ahora) {
+                    throw new Exception("La fecha de entrega debe ser mayor a la fecha y hora actual.");
+                }
+
+                // Validación adicional: fecha > fecha_ingreso
                 if ($dt->format('Y-m-d H:i:s') < $orden->fecha_ingreso) {
                     throw new Exception("La fecha de entrega no puede ser anterior a la fecha de ingreso.");
                 }
-                $binds[':fed'] = $dt->format('Y-m-d H:i:s');
-            } else {
-                $binds[':fed'] = null;
+
+                $fechaNormalizada = $dt->format('Y-m-d H:i:s');
+                $binds[':fed'] = $fechaNormalizada;
+                $sets[] = "fecha_entrega_estimada = :fed";
+                $resultado['fecha_entrega_estimada'] = $fechaNormalizada;
             }
-            $sets[] = "fecha_entrega_estimada = :fed";
         }
 
+        // ─── observaciones ───
         if (array_key_exists('observaciones', $datos)) {
+            $obs = mb_strtoupper(trim((string)$datos['observaciones']), 'UTF-8');
             $sets[] = "observaciones = :obs";
-            $binds[':obs'] = mb_strtoupper(trim((string)$datos['observaciones']), 'UTF-8');
+            $binds[':obs'] = $obs;
         }
 
+        // ─── diagnostico_salida ───
         if (array_key_exists('diagnostico_salida', $datos)) {
-            $sets[] = "ds = :ds_placeholder"; // nunca entra aquí
-            $binds[':ds'] = mb_strtoupper(trim((string)$datos['diagnostico_salida']), 'UTF-8');
-            $sets[count($sets) - 1] = "diagnostico_salida = :ds";
+            $ds = mb_strtoupper(trim((string)$datos['diagnostico_salida']), 'UTF-8');
+            $sets[] = "diagnostico_salida = :ds";
+            $binds[':ds'] = $ds;
         }
 
         if (empty($sets)) {
-            return true;
+            return $resultado;
         }
 
         $sql = "UPDATE table_ordenes_servicio SET " . implode(', ', $sets) . " WHERE id = :id";
@@ -443,6 +476,7 @@ class ModelOrden {
             $this->db->bind($key, $val);
         }
 
-        return $this->db->execute();
+        $this->db->execute();
+        return $resultado;
     }
 }

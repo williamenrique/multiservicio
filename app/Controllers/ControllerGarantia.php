@@ -2,12 +2,16 @@
 /**
  * Controlador de Garantías
  * Gestiona el módulo de garantías de servicios y repuestos.
- * 
+ *
+ * v3.0 (2026-10-13) — REDISEÑO DEL FLUJO DE GARANTÍA:
+ *   • procesar() ahora devuelve un 'resumen' con los totales del impacto:
+ *       egreso_devolucion, ingreso_adicional, items_devueltos_stock, items_descartados.
+ *   • Se mantiene la validación de `factura_id`, `tipo_garantia`, `motivo`, `items`.
+ *   • El modelo hace la validación fina de acciones/destinos por tipo de item.
+ *
  * v2.1 (2026-10-09):
- *   • FIX P0-09: pdf() ahora devuelve la URL al endpoint imprimir/{id}
- *     (que streamea el PDF) en vez de concatenar el binario a URLROOT.
- *   • FIX P0-09: imprimir() eliminó el bloque de temp_pdfs (ruta
- *     incorrecta y código muerto — PdfService nunca escribe en disco).
+ *   • FIX P0-09: pdf() devuelve URL al endpoint imprimir/{id}.
+ *   • FIX P0-09: imprimir() sin temp_pdfs (PdfService nunca escribe en disco).
  */
 class ControllerGarantia extends Controller {
 
@@ -16,9 +20,6 @@ class ControllerGarantia extends Controller {
         $this->model('Garantia');
     }
 
-    /**
-     * Vista principal del módulo de garantías.
-     */
     public function index() {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
         $this->view('garantia/index');
@@ -29,7 +30,6 @@ class ControllerGarantia extends Controller {
      */
     public function listarFacturas() {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
-        // Leer datos: soporta JSON body y form-urlencoded
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true);
         if (!is_array($data)) {
@@ -82,6 +82,7 @@ class ControllerGarantia extends Controller {
 
     /**
      * AJAX: Procesa una garantía.
+     * v3.0: el modelo devuelve un `resumen` con el impacto contable/stock.
      */
     public function procesar() {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
@@ -101,6 +102,23 @@ class ControllerGarantia extends Controller {
         }
 
         $resultado = $this->model('Garantia')->procesarGarantia($data);
+
+        // Log de auditoría
+        if (!empty($resultado['success'])) {
+            try {
+                $resumen = $resultado['resumen'] ?? [];
+                $desc = "Garantía #{$resultado['garantia_id']} sobre factura #{$data['factura_id']}"
+                      . " | Nueva factura: #{$resultado['factura_garantia_id']}"
+                      . " | Egreso devolución: $" . number_format($resumen['egreso_devolucion'] ?? 0, 2)
+                      . " | Ingreso adicional: $" . number_format($resumen['ingreso_adicional'] ?? 0, 2)
+                      . " | Reingresos stock: " . ($resumen['items_devueltos_stock'] ?? 0) . " uds"
+                      . " | Descartados: " . ($resumen['items_descartados'] ?? 0) . " uds";
+                logAction('GARANTIA', 'PROCESAR', $desc);
+            } catch (\Throwable $e) {
+                error_log('ControllerGarantia::procesar logAction falló: ' . $e->getMessage());
+            }
+        }
+
         $this->jsonResponse($resultado);
     }
 
@@ -110,7 +128,6 @@ class ControllerGarantia extends Controller {
     public function historial() {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
 
-        // Detectar peticiones AJAX: header X-Requested-With, Content-Type JSON o parámetro ajax
         $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])
                 && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
             || (isset($_SERVER['CONTENT_TYPE'])
@@ -118,7 +135,6 @@ class ControllerGarantia extends Controller {
             || isset($_GET['ajax']);
 
         if ($isAjax) {
-            // Leer datos: soporta JSON body y form-urlencoded
             $raw = file_get_contents('php://input');
             $data = json_decode($raw, true);
             if (!is_array($data)) {
@@ -164,7 +180,6 @@ class ControllerGarantia extends Controller {
             $this->jsonResponse(['success' => false, 'mensaje' => 'GARANTÍA NO ENCONTRADA']);
             return;
         }
-        // Información completa de la factura original
         $facturaOriginal = $this->model('Garantia')->obtenerFacturaOriginalCompleta($garantia->factura_original_id);
         $this->jsonResponse([
             'success' => true,
@@ -175,11 +190,6 @@ class ControllerGarantia extends Controller {
 
     /**
      * AJAX: Devuelve la URL para imprimir el PDF de una garantía.
-     * 
-     * FIX P0-09: Antes llamaba a generarDocumento(..., false) esperando
-     * un path de archivo, pero el método devuelve binario. Ahora devuelve
-     * la URL al endpoint /garantia/imprimir/{id} que streamea el PDF
-     * directamente (mismo patrón que ControllerFacturacion::generarPdfAjax).
      */
     public function pdf($id = null) {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
@@ -201,10 +211,6 @@ class ControllerGarantia extends Controller {
 
     /**
      * Sirve el PDF de la garantía directamente en el navegador.
-     * URL: /garantia/imprimir/{id}
-     * 
-     * FIX P0-09: Se eliminó el bloque temp_pdfs (ruta incorrecta y código
-     * muerto — PdfService nunca escribe archivos en disco).
      */
     public function imprimir($id = null) {
         RoleGuard::hasAccess(['ADMINISTRADOR', 'CAJERO']);
@@ -223,7 +229,7 @@ class ControllerGarantia extends Controller {
         $pdfService->generarDocumento('garantia', [
             'garantia' => $garantia,
             'items'    => $garantia->detalle,
-        ], $doc_name . '.pdf'); // Stream to browser por defecto
+        ], $doc_name . '.pdf');
         exit;
     }
 }
