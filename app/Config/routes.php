@@ -1,0 +1,94 @@
+<?php
+/**
+ * MAPEO DE RUTAS EXPLÍCITAS
+ * 
+ * v3.1 (2026-10-13):
+ *   • Se agregó 'email/preview' => 'Email@preview' para la vista previa
+ *     del email antes de enviarlo.
+ */
+return [
+    // Garantías
+    'garantia'           => 'Garantia@index',
+    'garantia/historial' => 'Garantia@historial',
+    'garantia/detalle'   => 'Garantia@detalle',
+    'garantia/pdf'       => 'Garantia@pdf',
+    'garantia/imprimir'  => 'Garantia@imprimir',
+
+    // Devoluciones
+    'devoluciones'           => 'Devoluciones@index',
+    'devoluciones/historial' => 'Devoluciones@historial',
+    'devoluciones/detalle'   => 'Devoluciones@detalle',
+    'devoluciones/pdf'       => 'Devoluciones@pdf',
+    'devoluciones/imprimir'  => 'Devoluciones@imprimir',
+
+    // Emails
+    'email'                     => 'Email@index',
+    'email/listar'              => 'Email@listar',
+    'email/enviar'              => 'Email@enviar',
+    'email/enviar-plantilla'    => 'Email@enviarConPlantilla',
+    'email/preview'             => 'Email@preview',           // v3.1: vista previa
+    'email/getClientes'         => 'Email@getClientes',
+    'email/obtener'             => 'Email@obtener',
+    'email/reenviar'            => 'Email@reenviar',
+    'email/plantillas'          => 'Email@plantillas',
+    'email/plantillas/listar'   => 'Email@listarPlantillas',
+    'email/plantillas/guardar'  => 'Email@guardarPlantilla',
+    'email/plantillas/eliminar' => 'Email@eliminarPlantilla',
+    'email/plantillas/obtener'  => 'Email@obtenerPlantilla',
+
+    // Presupuestos
+    'presupuesto'                        => 'Presupuesto@index',
+    'presupuesto/listar'                 => 'Presupuesto@listar',
+    'presupuesto/crear'                  => 'Presupuesto@crear',
+    'presupuesto/editar'                 => 'Presupuesto@editar',
+    'presupuesto/ver'                    => 'Presupuesto@ver',
+    'presupuesto/guardar'                => 'Presupuesto@guardar',
+    'presupuesto/actualizar'             => 'Presupuesto@actualizar',
+    'presupuesto/cambiarEstado'          => 'Presupuesto@cambiarEstado',
+    'presupuesto/eliminar'               => 'Presupuesto@eliminar',
+    'presupuesto/pdf'                    => 'Presupuesto@pdf',
+    'presupuesto/imprimir'               => 'Presupuesto@imprimir',
+    'presupuesto/enviarEmail'            => 'Presupuesto@enviarEmail',
+    'presupuesto/buscarProductos'        => 'Presupuesto@buscarProductos',
+    'presupuesto/buscarClientes'         => 'Presupuesto@buscarClientes',
+    'presupuesto/getStats'               => 'Presupuesto@getStats',
+    'presupuesto/activar'                => 'Presupuesto@activar',
+    'presupuesto/buscarActivos'          => 'Presupuesto@buscarActivos',
+    'presupuesto/obtenerActivoCompleto'  => 'Presupuesto@obtenerActivoCompleto',
+    'presupuesto/liberarInventario'      => 'Presupuesto@liberarInventario',
+    'presupuesto/iniciarProceso'         => 'Presupuesto@iniciarProceso',
+    'presupuesto/obtenerReservas'        => 'Presupuesto@obtenerReservas',
+    'presupuesto/obtener'                => 'Presupuesto@obtener',
+    'presupuesto/aceptar'                => 'Presupuesto@aceptar',
+    'presupuesto/convertirAVenta'        => 'Presupuesto@convertirAVenta',
+
+    // Auth
+    'login'              => 'Auth@index',
+    'logout'             => 'Auth@logout',
+    'mi-perfil'          => 'Perfil@index',
+    'solicitudes-acceso' => 'Auth@solicitudes',
+    
+    // Venta - Buscar presupuestos activos
+    'venta/buscarPresupuestosActivos' => 'Venta@buscarPresupuestosActivos',
+    
+    // Taller - Corrección de rutas con guiones bajos
+    'taller/nueva_orden' => 'Taller@nuevaOrden',
+    'taller/buscarPresupuestosActivos' => 'Taller@buscarPresupuestosActivos',
+
+    // Catálogo público - rutas con guiones
+    'catalogo/procesar-pedido'    => 'Catalogo@procesarPedido',
+    'catalogo/agregar-carrito'    => 'Catalogo@agregarCarrito',
+    'catalogo/actualizar-carrito' => 'Catalogo@actualizarCarrito',
+    'catalogo/eliminar-carrito'   => 'Catalogo@eliminarCarrito',
+    'catalogo/contar-carrito'     => 'Catalogo@contarCarrito',
+    'catalogo/limpiar-carrito'    => 'Catalogo@limpiarCarrito',
+
+    // Catálogo staff - gestión de pedidos
+    'catalogo/pedidos-pendientes'            => 'Catalogo@pedidosPendientes',
+    'catalogo/pedidos-procesados'            => 'Catalogo@pedidosProcesados',
+    'catalogo/ver-pedido'                    => 'Catalogo@verPedido',
+    'catalogo/procesar-pedido-staff'         => 'Catalogo@procesarPedidoStaff',
+    'catalogo/cancelar-pedido-staff'         => 'Catalogo@cancelarPedidoStaff',
+    'catalogo/notificaciones-pedidos'        => 'Catalogo@notificacionesPedidos',
+    'catalogo/listar-pedidos-pendientes-api' => 'Catalogo@listarPedidosPendientesApi',
+];

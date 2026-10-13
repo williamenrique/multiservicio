@@ -1,0 +1,749 @@
+<?php
+/**
+ * Modelo de Facturación
+ * 
+ * v2.2 (2026-10-08):
+ *   • Nuevo: obtenerAbonosPorFactura() — historial de abonos.
+ *   • Nuevo: obtenerReciboAbono() — datos para PDF del recibo.
+ *   • Nuevo: actualizarEstadoGestion() — semáforo de cobranza.
+ *   • Modificado: obtenerFacturasCreditoPorCliente() ahora incluye
+ *     `estado_gestion` y `ultimo_abono` (fecha + monto del último pago).
+ * 
+ * v2.3 (2026-10-09) — FIX CRÍTICO:
+ *   • registrarAbono() ahora inserta usuario_id en table_abonos_clientes.
+ *     Antes lo dejaba NULL aunque la columna se usa en:
+ *       - ModelFacturas::obtenerPorId (JOIN para mostrar "Registrado por")
+ *       - ModelFacturacion::obtenerAbonosPorFactura
+ *       - ModelFacturacion::obtenerReciboAbono
+ *     Requiere migración: sql/migration_abonos_usuario_id.sql
+ */
+class ModelFacturacion {
+    private $db;
+
+    public function __construct($db = null) {
+        $this->db = $db ?: new Database();
+    }
+
+    public function searchInvoices($term) {
+        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                                  COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre,
+                                  v.status, v.origen, v.total,
+                                  (SELECT COUNT(*) FROM table_devoluciones d WHERE d.factura_id = v.id) as tiene_devolucion,
+                                  (SELECT COUNT(*) FROM table_garantias g WHERE g.factura_original_id = v.id OR g.factura_garantia_id = v.id) as tiene_garantia
+                          FROM table_facturas v
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE (CAST(v.id AS CHAR) LIKE :term
+                                 OR CONCAT('FAC-', LPAD(v.id, 3, '0')) LIKE :term
+                                 OR CAST(os.id AS CHAR) LIKE :term
+                                 OR vh.placa LIKE :term
+                                 OR c.nombre LIKE :term
+                                 OR v.placa LIKE :term)
+                          AND v.status != 'ANULADO'
+                          ORDER BY v.id DESC LIMIT 8");
+        $this->db->bind(':term', "%$term%");
+        return $this->db->resultSet();
+    }
+
+    public function buscarItems($termino) {
+        $this->db->query("SELECT i.id, i.nombre, i.categoria, i.stock, i.precio, i.costo_promedio,
+                          (i.stock - COALESCE((
+                              SELECT SUM(vd.cantidad) 
+                              FROM table_facturas_detalle vd 
+                              JOIN table_facturas v ON vd.factura_id = v.id 
+                              WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
+                          ), 0)) as stock_disponible
+                          FROM table_inventario i
+                          WHERE (i.nombre LIKE :term OR i.categoria LIKE :term OR i.id LIKE :term) AND i.estado = 'ACTIVO'
+                          ORDER BY (stock_disponible > 0) DESC, i.nombre ASC
+                          LIMIT 30");
+        $this->db->bind(':term', "%$termino%");
+        return $this->db->resultSet();
+    }
+
+    public function obtenerBorradores() {
+        $this->db->query("SELECT * FROM table_facturas WHERE status = 'PENDIENTE' ORDER BY fecha DESC");
+        return $this->db->resultSet();
+    }
+
+    public function obtenerBorradoresCompleto() {
+        $this->db->query("SELECT v.*, v.observaciones as observaciones, 
+                                 os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
+                                 CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                                 COALESCE(sm.id, (SELECT vd.mecanico_id FROM table_facturas_detalle vd WHERE vd.factura_id = v.id AND vd.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_id,
+                                 COALESCE(sm.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1), su.nombre, u.username) as usuario_nombre, 
+                                 c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
+                                 COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                                 CASE WHEN v.orden_id IS NOT NULL THEN 'OS' WHEN (v.placa IS NOT NULL AND v.placa != '') THEN 'TALLER' ELSE 'MOSTRADOR' END as tipo_procedencia
+                          FROM table_facturas v 
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id 
+                          LEFT JOIN table_staff su ON u.staff_id = su.id 
+                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.status = 'PENDIENTE' ORDER BY v.fecha DESC");
+        $ventas = $this->db->resultSet();
+
+        foreach ($ventas as $key => $venta) {
+            $this->db->query("SELECT vd.*, i.id as prod_id
+                              FROM table_facturas_detalle vd 
+                              LEFT JOIN table_inventario i ON vd.producto_id = i.id
+                              WHERE vd.factura_id = :vid");
+            $this->db->bind(':vid', $venta->id);
+            $items = $this->db->resultSet();
+            
+            $ventas[$key]->items = array_map(function($it) {
+                return [
+                    'id' => $it->producto_id,
+                    'nombre' => $it->descripcion,
+                    'precio' => (float)$it->precio_unitario,
+                    'costo_promedio' => (float)($it->costo_unitario ?? 0),
+                    'cantidad' => (int)$it->cantidad,
+                    'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO'
+                ];
+            }, $items);
+        }
+        return $ventas;
+    }
+
+    public function obtenerBorradorPorOrden($ordenId) {
+        $this->db->query("SELECT v.*, v.observaciones as observaciones, 
+                                 os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
+                                 c.nombre as cliente_nombre, COALESCE(vh.placa, v.placa) as placa, 
+                                 COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                                 os.mecanico_id,
+                                 'OS' as tipo_procedencia
+                          FROM table_facturas v 
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.orden_id = :oid AND v.status = 'PENDIENTE' LIMIT 1");
+        $this->db->bind(':oid', $ordenId);
+        $venta = $this->db->single();
+
+        if ($venta) {
+            $this->db->query("SELECT vd.*, i.id as prod_id
+                              FROM table_facturas_detalle vd 
+                              LEFT JOIN table_inventario i ON vd.producto_id = i.id
+                              WHERE vd.factura_id = :vid");
+            $this->db->bind(':vid', $venta->id);
+            $items = $this->db->resultSet();
+            
+            $venta->items = array_map(function($it) {
+                return [
+                    'id' => $it->producto_id,
+                    'nombre' => $it->descripcion,
+                    'precio' => (float)$it->precio_unitario,
+                    'costo_promedio' => (float)($it->costo_unitario ?? 0),
+                    'cantidad' => (int)$it->cantidad,
+                    'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO',
+                    'temp_id' => bin2hex(random_bytes(4))
+                ];
+            }, $items);
+        }
+        return $venta;
+    }
+
+    public function guardarCabeceraVenta($datos, $status, $totales, $usuarioId) {
+        try {
+            $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
+            $ordenIdPersist = !empty($datos['orden_id']) ? (int)$datos['orden_id'] : null;
+            $presupuestoActivoId = !empty($datos['presupuesto_activo_id']) ? (int)$datos['presupuesto_activo_id'] : null;
+
+            if ($ventaId && $ordenIdPersist === null) {
+                $this->db->query("SELECT orden_id, presupuesto_activo_id FROM table_facturas WHERE id = :id");
+                $this->db->bind(':id', $ventaId);
+                $facturaActual = $this->db->single();
+                if ($facturaActual) {
+                    $ordenIdPersist = !empty($facturaActual->orden_id) ? (int)$facturaActual->orden_id : null;
+                    if ($presupuestoActivoId === null && !empty($facturaActual->presupuesto_activo_id)) {
+                        $presupuestoActivoId = (int)$facturaActual->presupuesto_activo_id;
+                    }
+                }
+            }
+
+            $origen = !empty($datos['origen']) ? mb_strtoupper($datos['origen'], 'UTF-8') : 'MOSTRADOR';
+
+            if ($ventaId) {
+                $this->db->query("UPDATE table_facturas SET
+                                  cliente_id = :cid, orden_id = :oid, presupuesto_activo_id = :paid, 
+                                  placa = :placa, modelo_vehiculo = :modelo,
+                                  subtotal = :sub, iva_monto = :iva, total = :total, 
+                                  pago_efectivo = :pef, pago_transferencia = :ptra, saldo_pendiente = :spend,
+                                  status = :status, origen = :origen, observaciones = :obs
+                                  WHERE id = :id");
+                $this->db->bind(':id', $ventaId);
+            } else {
+                $this->db->query("INSERT INTO table_facturas (cliente_id, orden_id, presupuesto_activo_id, placa, modelo_vehiculo, subtotal, iva_monto, total, 
+                                  pago_efectivo, pago_transferencia, saldo_pendiente, usuario_id, status, origen, observaciones) 
+                                  VALUES (:cid, :oid, :paid, :placa, :modelo, :sub, :iva, :total, :pef, :ptra, :spend, :uid, :status, :origen, :obs)");
+                $this->db->bind(':uid', $usuarioId);
+            }
+            $this->db->bind(':origen', $origen);
+            $this->db->bind(':cid', !empty($datos['cliente_id']) ? $datos['cliente_id'] : null);
+            $this->db->bind(':oid', $ordenIdPersist);
+            $this->db->bind(':paid', $presupuestoActivoId);
+            $this->db->bind(':placa', !empty($datos['placa']) ? mb_strtoupper($datos['placa'], 'UTF-8') : null);
+            $this->db->bind(':modelo', !empty($datos['modelo']) ? mb_strtoupper($datos['modelo'], 'UTF-8') : null);
+            $this->db->bind(':sub', $totales['subtotal']);
+            $this->db->bind(':iva', $totales['iva']);
+            $this->db->bind(':total', $totales['total']);
+            $this->db->bind(':pef', $datos['pago_efectivo']);
+            $this->db->bind(':ptra', $datos['pago_transferencia']);
+            $this->db->bind(':spend', $totales['saldo']);
+            $this->db->bind(':status', mb_strtoupper($status, 'UTF-8'));
+            $this->db->bind(':obs', mb_strtoupper($datos['observaciones'] ?? '', 'UTF-8'));
+            $this->db->execute();
+
+            $esFacturaOrdenServicio = !empty($ordenIdPersist);
+            if ($esFacturaOrdenServicio && in_array($status, ['COMPLETADO', 'CREDITO'], true)) {
+                $this->sincronizarOrdenServicio(
+                    $ordenIdPersist,
+                    $status,
+                    trim((string)($datos['observaciones'] ?? $datos['diagnostico_salida'] ?? '')),
+                    trim((string)($datos['diagnostico_salida'] ?? $datos['observaciones'] ?? '')),
+                    $usuarioId,
+                    'FACTURACIÓN FINALIZADA'
+                );
+            }
+
+            return $ventaId ?: $this->db->lastInsertId();
+        } catch (Exception $e) {
+            error_log("Error en guardarCabeceraVenta: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    private function sincronizarOrdenServicio($ordenId, $statusFactura, $observacionesFactura, $diagnosticoSalidaFactura, $usuarioId, $motivo) {
+        if (!$ordenId || !in_array($statusFactura, ['COMPLETADO', 'CREDITO'], true)) {
+            return;
+        }
+
+        $this->db->query("SELECT id, estado, diagnostico_salida, observaciones FROM table_ordenes_servicio WHERE id = :oid");
+        $this->db->bind(':oid', $ordenId);
+        $ordenActual = $this->db->single();
+
+        if (!$ordenActual) {
+            return;
+        }
+
+        $estadoPrevio = $ordenActual->estado ?? 'DESCONOCIDO';
+        $diagnosticoSalida = trim((string)($diagnosticoSalidaFactura !== '' ? $diagnosticoSalidaFactura : ($ordenActual->diagnostico_salida ?? '')));
+        $observacionesFactura = trim((string)$observacionesFactura);
+
+        if ($diagnosticoSalida === '' && $observacionesFactura !== '') {
+            $diagnosticoSalida = $observacionesFactura;
+        }
+
+        $observacionesOrden = trim((string)($ordenActual->observaciones ?? ''));
+        if ($observacionesFactura !== '' && stripos($observacionesOrden, $observacionesFactura) === false) {
+            $observacionesOrden = $observacionesOrden === ''
+                ? $observacionesFactura
+                : $observacionesOrden . "\n" . $observacionesFactura;
+        }
+
+        $this->db->query("UPDATE table_ordenes_servicio
+                          SET estado = 'ENTREGADO',
+                              fecha_entrega_real = NOW(),
+                              diagnostico_salida = :diag,
+                              observaciones = :obs
+                          WHERE id = :oid");
+        $this->db->bind(':diag', $diagnosticoSalida !== '' ? mb_strtoupper($diagnosticoSalida, 'UTF-8') : null);
+        $this->db->bind(':obs', $observacionesOrden !== '' ? mb_strtoupper($observacionesOrden, 'UTF-8') : null);
+        $this->db->bind(':oid', $ordenId);
+        $this->db->execute();
+
+        $this->db->query("INSERT INTO table_orden_estados_log (orden_id, estado_anterior, estado_nuevo, usuario_id, comentario)
+                          VALUES (:oid, :ant, 'ENTREGADO', :uid, :txt)");
+        $this->db->bind(':oid', $ordenId);
+        $this->db->bind(':ant', mb_strtoupper($estadoPrevio, 'UTF-8'));
+        $this->db->bind(':uid', $usuarioId);
+        $this->db->bind(':txt', mb_strtoupper(trim($motivo . ' (' . $statusFactura . ')'), 'UTF-8'));
+        $this->db->execute();
+    }
+
+    public function obtenerVentaCompleta($id) {
+        $this->db->query("SELECT v.*, v.observaciones as observaciones_factura, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                                 c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email, 
+                                 COALESCE(vh.placa, v.placa) as placa, 
+                                 COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo,
+                                 vh.marca as marca_vehiculo,
+                                 COALESCE(st_m.nombre, (SELECT s2.nombre FROM table_facturas_detalle vd2 JOIN table_staff s2 ON vd2.mecanico_id = s2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1)) as mecanico_nombre,
+                                 sv.nombre as vendedor_nombre,
+                                 os.kilometraje, os.nivel_combustible, os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden
+                          FROM table_facturas v
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_staff st_m ON os.mecanico_id = st_m.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff sv ON u.staff_id = sv.id
+                          WHERE v.id = :id");
+        $this->db->bind(':id', $id);
+        $venta = $this->db->single();
+
+        if ($venta) {
+            $this->db->query("SELECT vd.*, s.nombre as mecanico_nombre 
+                              FROM table_facturas_detalle vd
+                              LEFT JOIN table_staff s ON vd.mecanico_id = s.id 
+                              WHERE vd.factura_id = :vid");
+            $this->db->bind(':vid', $id);
+            $venta->items = $this->db->resultSet();
+        }
+
+        if ($venta && $venta->orden_id) {
+            $this->db->query("SELECT item, observacion FROM table_orden_checklist WHERE orden_id = :oid");
+            $this->db->bind(':oid', $venta->orden_id);
+            $venta->checklist = $this->db->resultSet();
+        }
+
+        return $venta;
+    }
+
+    public function obtenerVentasMostrador($limit = 10, $offset = 0, $search = null, $desde = null, $hasta = null) {
+        $where = "WHERE v.orden_id IS NULL AND (v.placa IS NULL OR v.placa = '') AND v.status IN ('COMPLETADO', 'CREDITO')";
+        
+        if ($search) {
+            $where .= " AND (v.id LIKE :search OR c.nombre LIKE :search)";
+        }
+        if ($desde) {
+            $where .= " AND DATE(v.fecha) >= :desde";
+        }
+        if ($hasta) {
+            $where .= " AND DATE(v.fecha) <= :hasta";
+        }
+
+        $this->db->query("SELECT COUNT(*) as total FROM table_facturas v LEFT JOIN table_clientes c ON v.cliente_id = c.id $where");
+        if ($search) $this->db->bind(':search', "%$search%");
+        if ($desde) $this->db->bind(':desde', $desde);
+        if ($hasta) $this->db->bind(':hasta', $hasta);
+        $total = (int)$this->db->single()->total;
+
+        $this->db->query("SELECT v.*, c.nombre as cliente_nombre, 
+                          COALESCE(sv.nombre, u.username, 'SISTEMA') as vendedor_nombre, 
+                          (SELECT COUNT(*) FROM table_facturas_detalle WHERE factura_id = v.id AND producto_id IS NOT NULL) as cant_productos
+                          FROM table_facturas v
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff sv ON u.staff_id = sv.id
+                          $where
+                          ORDER BY v.fecha DESC 
+                          LIMIT :limit OFFSET :offset");
+        if ($search) $this->db->bind(':search', "%$search%");
+        if ($desde) $this->db->bind(':desde', $desde);
+        if ($hasta) $this->db->bind(':hasta', $hasta);
+        $this->db->bind(':limit', (int)$limit);
+        $this->db->bind(':offset', (int)$offset);
+        
+        return ['data' => $this->db->resultSet(), 'total' => $total];
+    }
+
+    public function obtenerBorradorPorId($id) {
+        $this->db->query("SELECT * FROM table_facturas WHERE id = :id AND status = 'PENDIENTE'");
+        $this->db->bind(':id', $id);
+        return $this->db->single();
+    }
+
+    public function eliminarBorrador($id) {
+        $this->db->query("DELETE FROM table_facturas_detalle WHERE factura_id = :id");
+        $this->db->bind(':id', $id);
+        $this->db->execute();
+
+        $this->db->query("DELETE FROM table_facturas WHERE id = :id AND status = 'PENDIENTE'");
+        $this->db->bind(':id', $id);
+        return $this->db->execute();
+    }
+
+    public function obtenerAuditoriaTrabajos($limit = 10, $offset = 0) {
+        $this->db->query("SELECT SUM(saldo_pendiente) as total_deuda, COUNT(DISTINCT cliente_id) as cantidad_deudores 
+                          FROM table_facturas WHERE status = 'CREDITO' AND saldo_pendiente > 0.05 AND (orden_id IS NOT NULL OR placa IS NOT NULL)");
+        $resumen = $this->db->single();
+
+        $this->db->query("SELECT COUNT(*) as total FROM table_facturas WHERE status IN ('COMPLETADO', 'CREDITO', 'PENDIENTE') AND (orden_id IS NOT NULL OR placa IS NOT NULL)");
+        $total = $this->db->single()->total;
+
+        $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                                 v.fecha, v.total, v.saldo_pendiente, v.status,
+                                 c.nombre as cliente_nombre, c.telefono as cliente_telefono, sv.nombre as vendedor_nombre, 
+                                 COALESCE(
+                                     sm.nombre, 
+                                     (SELECT st2.nombre FROM table_facturas_detalle vd2 JOIN table_staff st2 ON vd2.mecanico_id = st2.id WHERE vd2.factura_id = v.id AND vd2.mecanico_id IS NOT NULL LIMIT 1),
+                                     sv.nombre, 
+                                     'ADMIN') as responsable_nombre,
+                                 COALESCE(vh.placa, v.placa) as placa, 
+                                 COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
+                                 CASE WHEN v.orden_id IS NOT NULL THEN 'OS' WHEN v.placa IS NOT NULL THEN 'TALLER' ELSE 'MOSTRADOR' END as tipo_procedencia
+                          FROM table_facturas v
+                          LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON v.usuario_id = u.id
+                          LEFT JOIN table_staff sv ON u.staff_id = sv.id
+                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO', 'PENDIENTE') AND (v.orden_id IS NOT NULL OR v.placa IS NOT NULL)
+                          ORDER BY v.fecha DESC
+                          LIMIT :limit OFFSET :offset");
+        $this->db->bind(':limit', (int)$limit);
+        $this->db->bind(':offset', (int)$offset);
+        $lista = $this->db->resultSet();
+
+        return [
+            'resumen' => $resumen,
+            'lista' => $lista,
+            'total' => $total
+        ];
+    }
+
+    public function registrarAbono($ventaId, $monto, $metodo) {
+        try {
+            $this->db->query("SELECT id, orden_id, observaciones, total, pago_efectivo, pago_transferencia, saldo_pendiente FROM table_facturas WHERE id = :id");
+            $this->db->bind(':id', $ventaId);
+            $venta = $this->db->single();
+
+            if (!$venta) throw new AppException("Venta no encontrada para registrar el abono.");
+
+            $monto = (float)$monto;
+            $nuevoPendiente = $venta->saldo_pendiente - $monto;
+            
+            // FIX CRÍTICO (v2.3): Incluir usuario_id en el INSERT
+            // Requiere migración previa: sql/migration_abonos_usuario_id.sql
+            $this->db->query("INSERT INTO table_abonos_clientes (factura_id, monto, metodo_pago, usuario_id) 
+                              VALUES (:vid, :monto, :metodo, :uid)");
+            $this->db->bind(':vid', $ventaId);
+            $this->db->bind(':monto', $monto);
+            $this->db->bind(':metodo', mb_strtoupper($metodo, 'UTF-8'));
+            $this->db->bind(':uid', $_SESSION['user_id'] ?? null);
+            $this->db->execute();
+
+            $abonoId = $this->db->lastInsertId();
+
+            $columnaPago = ($metodo === 'TRANSFERENCIA') ? 'pago_transferencia' : 'pago_efectivo';
+            $nuevoStatus = ($nuevoPendiente <= 0.01) ? 'COMPLETADO' : 'CREDITO';
+
+            $this->db->query("UPDATE table_facturas SET 
+                              $columnaPago = $columnaPago + :monto,
+                              saldo_pendiente = :pendiente,
+                              status = :status
+                              WHERE id = :id");
+            $this->db->bind(':monto', $monto);
+            $this->db->bind(':pendiente', $nuevoPendiente > 0 ? $nuevoPendiente : 0);
+            $this->db->bind(':status', $nuevoStatus);
+            $this->db->bind(':id', $ventaId);
+            $this->db->execute();
+
+            if ($venta->orden_id && in_array($nuevoStatus, ['COMPLETADO', 'CREDITO'], true)) {
+                $this->sincronizarOrdenServicio(
+                    (int)$venta->orden_id,
+                    $nuevoStatus,
+                    trim((string)($venta->observaciones ?? '')),
+                    '',
+                    $_SESSION['user_id'] ?? null,
+                    'ABONO A FACTURA'
+                );
+            }
+
+            $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                              VALUES (1, 'INGRESO', 'ABONO_CLIENTE', :monto_abono, :ref_id, :desc_abono, :uid)");
+            $this->db->bind(':monto_abono', $monto);
+            $this->db->bind(':ref_id', $ventaId);
+            $this->db->bind(':desc_abono', mb_strtoupper("ABONO FACTURA #" . $ventaId . " (" . $metodo . ")", 'UTF-8'));
+            $this->db->bind(':uid', $_SESSION['user_id']);
+            $this->db->execute();
+
+            return ['success' => true, 'abono_id' => (int)$abonoId];
+        } catch (Exception $e) {
+            throw $e;
+        }
+    }
+
+    public function obtenerCreditosVencidos($dias = 15) {
+        $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, 
+                                 COALESCE(vh.placa, v.placa) as placa, 
+                                 COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
+                                 COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre 
+                          FROM table_facturas v
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.status = 'CREDITO'
+                            AND v.saldo_pendiente > 0.05
+                            AND DATEDIFF(CURDATE(), DATE(v.fecha)) >= :dias
+                          ORDER BY v.fecha ASC");
+        $this->db->bind(':dias', $dias);
+        return $this->db->resultSet();
+    }
+
+    /**
+     * Obtiene TODAS las facturas a crédito con saldo pendiente de un cliente.
+     * Incluye estado_gestion y datos del último abono.
+     */
+    public function obtenerFacturasCreditoPorCliente($clienteId) {
+        $this->db->query("SELECT 
+                            v.id,
+                            v.fecha,
+                            v.total,
+                            v.subtotal,
+                            v.iva_monto,
+                            v.pago_efectivo,
+                            v.pago_transferencia,
+                            v.saldo_pendiente,
+                            v.status,
+                            v.estado_gestion,
+                            v.origen,
+                            v.observaciones,
+                            CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
+                            COALESCE(vh.placa, v.placa, '---') as placa,
+                            COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
+                            vh.marca as marca_vehiculo,
+                            DATEDIFF(CURDATE(), DATE(v.fecha)) as dias_atraso,
+                            COALESCE(c.nombre, 'SIN CLIENTE') as cliente_nombre,
+                            c.telefono as cliente_telefono,
+                            c.email as cliente_email,
+                            (SELECT MAX(a.fecha) FROM table_abonos_clientes a WHERE a.factura_id = v.id) as ultimo_abono_fecha,
+                            (SELECT a.monto FROM table_abonos_clientes a WHERE a.factura_id = v.id ORDER BY a.fecha DESC LIMIT 1) as ultimo_abono_monto,
+                            (SELECT a.metodo_pago FROM table_abonos_clientes a WHERE a.factura_id = v.id ORDER BY a.fecha DESC LIMIT 1) as ultimo_abono_metodo
+                          FROM table_facturas v
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          WHERE v.cliente_id = :cid
+                            AND v.status = 'CREDITO'
+                            AND v.saldo_pendiente > 0.05
+                          ORDER BY v.fecha DESC");
+        $this->db->bind(':cid', $clienteId);
+        return $this->db->resultSet() ?: [];
+    }
+
+    /**
+     * NUEVO (mejora 3): Obtiene el historial completo de abonos de una factura.
+     * 
+     * @param int $facturaId
+     * @return array
+     */
+    public function obtenerAbonosPorFactura($facturaId) {
+        $this->db->query("SELECT 
+                            a.id,
+                            a.factura_id,
+                            a.monto,
+                            a.metodo_pago,
+                            a.fecha,
+                            COALESCE(s.nombre, u.username, 'SISTEMA') as usuario_nombre
+                          FROM table_abonos_clientes a
+                          LEFT JOIN table_usuarios u ON a.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          WHERE a.factura_id = :fid
+                          ORDER BY a.fecha DESC");
+        $this->db->bind(':fid', $facturaId);
+        return $this->db->resultSet() ?: [];
+    }
+
+    /**
+     * NUEVO (mejora 2): Datos completos de un abono para generar el PDF del recibo.
+     * 
+     * @param int $abonoId
+     * @return object|null
+     */
+    public function obtenerReciboAbono($abonoId) {
+        $this->db->query("SELECT 
+                            a.id as abono_id,
+                            a.monto as abono_monto,
+                            a.metodo_pago as abono_metodo,
+                            a.fecha as abono_fecha,
+                            v.id as factura_id,
+                            v.fecha as factura_fecha,
+                            v.total as factura_total,
+                            v.subtotal as factura_subtotal,
+                            v.iva_monto as factura_iva,
+                            v.pago_efectivo,
+                            v.pago_transferencia,
+                            v.saldo_pendiente,
+                            CONCAT('FAC-', LPAD(v.id, 3, '0')) as factura_formateada,
+                            COALESCE(vh.placa, v.placa, '---') as placa,
+                            COALESCE(vh.modelo, v.modelo_vehiculo, 'N/A') as modelo_vehiculo,
+                            COALESCE(c.nombre, 'CONSUMIDOR FINAL') as cliente_nombre,
+                            c.telefono as cliente_telefono,
+                            c.email as cliente_email,
+                            c.direccion as cliente_direccion,
+                            COALESCE(s.nombre, u.username, 'SISTEMA') as usuario_nombre
+                          FROM table_abonos_clientes a
+                          JOIN table_facturas v ON a.factura_id = v.id
+                          LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_usuarios u ON a.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          WHERE a.id = :aid");
+        $this->db->bind(':aid', $abonoId);
+        return $this->db->single();
+    }
+
+    /**
+     * NUEVO (mejora 8): Actualiza el estado de gestión de una factura.
+     * 
+     * @param int $facturaId
+     * @param string $estado NUEVO|GESTIONADO|PROMETIDO|ACUERDO_PAGO|JUDICIAL
+     * @return bool
+     */
+    public function actualizarEstadoGestion($facturaId, $estado) {
+        $estadosValidos = ['NUEVO','GESTIONADO','PROMETIDO','ACUERDO_PAGO','JUDICIAL'];
+        $estado = mb_strtoupper($estado, 'UTF-8');
+        if (!in_array($estado, $estadosValidos, true)) {
+            throw new Exception("Estado de gestión no válido: $estado");
+        }
+
+        $this->db->query("UPDATE table_facturas SET estado_gestion = :est WHERE id = :id");
+        $this->db->bind(':est', $estado);
+        $this->db->bind(':id', (int)$facturaId);
+        return $this->db->execute();
+    }
+
+    private function calcularDiferenciaDias($d1, $d2) {
+        return round(abs(strtotime($d1) - strtotime($d2)) / 86400);
+    }
+
+    private function obtenerDiasGarantia($productoId) {
+        if (!empty($productoId)) {
+            $this->db->query("SELECT dias_garantia FROM table_inventario WHERE id = :pid");
+            $this->db->bind(':pid', $productoId);
+            $row = $this->db->single();
+            if ($row && !empty($row->dias_garantia) && $row->dias_garantia > 0) {
+                return (int)$row->dias_garantia;
+            }
+        }
+
+        $this->db->query("SELECT dias_garantia_devolucion FROM table_company_settings WHERE id = 1");
+        $row = $this->db->single();
+        if ($row && !empty($row->dias_garantia_devolucion) && $row->dias_garantia_devolucion > 0) {
+            return (int)$row->dias_garantia_devolucion;
+        }
+
+        return 5;
+    }
+
+    public function procesarDevolucion($ventaId, $detalleId, $destino, $motivo = '') {
+        try {
+            $this->db->query("SELECT vd.producto_id, vd.descripcion, vd.cantidad, vd.precio_unitario, 
+                                     v.fecha, v.subtotal, v.iva_monto, v.total, v.saldo_pendiente,
+                                     v.pago_efectivo, v.pago_transferencia
+                              FROM table_facturas_detalle vd
+                              JOIN table_facturas v ON vd.factura_id = v.id
+                              WHERE vd.id = :id AND v.id = :vid");
+            $this->db->bind(':id', $detalleId);
+            $this->db->bind(':vid', $ventaId);
+            $item = $this->db->single();
+
+            if (!$item) {
+                throw new Exception("El ítem de la factura no existe.");
+            }
+
+            $diasTranscurridos = $this->calcularDiferenciaDias(date('Y-m-d'), $item->fecha);
+            $diasGarantia = $this->obtenerDiasGarantia($item->producto_id);
+            if ($diasTranscurridos > $diasGarantia) {
+                throw new Exception("Plazo de devolución vencido. La garantía para este repuesto es de {$diasGarantia} día(s) y han transcurrido {$diasTranscurridos} día(s).");
+            }
+
+            $montoBase = (float)$item->precio_unitario * (int)$item->cantidad;
+            $factorIva = ((float)$item->subtotal > 0) ? ((float)$item->iva_monto / (float)$item->subtotal) : 0;
+            $ivaDevolver = $montoBase * $factorIva;
+            $totalARestar = $montoBase + $ivaDevolver;
+
+            if (!empty($item->producto_id)) {
+                if (mb_strtoupper($destino, 'UTF-8') === 'STOCK') {
+                    $this->db->query("UPDATE table_inventario SET stock = stock + :cant WHERE id = :pid");
+                    $this->db->bind(':cant', $item->cantidad);
+                    $this->db->bind(':pid', $item->producto_id);
+                    $this->db->execute();
+                    
+                    $invModel = new ModelInventario($this->db);
+                    $invModel->registrarMovimiento($item->producto_id, 'DEVOLUCION', $item->cantidad, $ventaId, "DEVOLUCIÓN FACTURA #$ventaId");
+                }
+            }
+
+            $this->db->query("INSERT INTO table_devoluciones (factura_id, producto_id, descripcion, cantidad, monto_devuelto, destino, motivo, usuario_id, dias_garantia_aplicado, dias_transcurridos) 
+                              VALUES (:vid, :pid, :desc, :cant, :monto, :dest, :motivo, :uid, :dga, :dt)");
+            $this->db->bind(':vid', $ventaId);
+            $this->db->bind(':pid', $item->producto_id);
+            $this->db->bind(':desc', mb_strtoupper($item->descripcion, 'UTF-8'));
+            $this->db->bind(':cant', $item->cantidad);
+            $this->db->bind(':monto', $totalARestar);
+            $this->db->bind(':dest', mb_strtoupper($destino, 'UTF-8'));
+            $this->db->bind(':motivo', mb_strtoupper($motivo, 'UTF-8'));
+            $this->db->bind(':uid', $_SESSION['user_id']);
+            $this->db->bind(':dga', $diasGarantia);
+            $this->db->bind(':dt', $diasTranscurridos);
+            $this->db->execute();
+
+            $nuevoSubtotal = max(0, (float)$item->subtotal - $montoBase);
+            $nuevoIva = max(0, (float)$item->iva_monto - $ivaDevolver);
+            $nuevoTotal = max(0, (float)$item->total - $totalARestar);
+
+            $saldoAReducir = min((float)$item->saldo_pendiente, $totalARestar);
+            $restoParaPagos = $totalARestar - $saldoAReducir;
+            
+            $nuevoSaldo = (float)$item->saldo_pendiente - $saldoAReducir;
+            $nuevoPagoEfe = (float)$item->pago_efectivo;
+            $nuevoPagoTra = (float)$item->pago_transferencia;
+
+            if ($restoParaPagos > 0) {
+                if ($nuevoPagoEfe >= $restoParaPagos) {
+                    $nuevoPagoEfe -= $restoParaPagos;
+                } else {
+                    $sobrante = $restoParaPagos - $nuevoPagoEfe;
+                    $nuevoPagoEfe = 0;
+                    $nuevoPagoTra = max(0, $nuevoPagoTra - $sobrante);
+                }
+            }
+
+            $this->db->query("UPDATE table_facturas SET 
+                              subtotal = :sub,
+                              iva_monto = :iva,
+                              total = :total, 
+                              pago_efectivo = :pefe,
+                              pago_transferencia = :ptra,
+                              saldo_pendiente = :saldo 
+                              WHERE id = :vid");
+            $this->db->bind(':sub', $nuevoSubtotal);
+            $this->db->bind(':iva', $nuevoIva);
+            $this->db->bind(':total', $nuevoTotal);
+            $this->db->bind(':pefe', $nuevoPagoEfe);
+            $this->db->bind(':ptra', $nuevoPagoTra);
+            $this->db->bind(':saldo', $nuevoSaldo > 0 ? $nuevoSaldo : 0);
+            $this->db->bind(':vid', $ventaId);
+            $this->db->execute();
+
+            $this->db->query("INSERT INTO table_transacciones (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id) 
+                              VALUES (1, 'EGRESO', 'DEVOLUCION', :monto, :ref, :desc, :uid)");
+            $this->db->bind(':monto', $totalARestar);
+            $this->db->bind(':ref', $ventaId);
+            $this->db->bind(':desc', mb_strtoupper("DEVOLUCION ITEM: " . $item->descripcion, 'UTF-8'));
+            $this->db->bind(':uid', $_SESSION['user_id']);
+            $this->db->execute();
+
+            $this->db->query("DELETE FROM table_facturas_detalle WHERE id = :id");
+            $this->db->bind(':id', $detalleId);
+            $this->db->execute();
+
+            return true;
+        } catch (Exception $e) {
+            error_log("Error Devolución: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    public function obtenerReporteUtilidad($desde, $hasta) {
+        $this->db->query("SELECT 
+                            SUM(vd.precio_unitario * vd.cantidad) as total_ventas,
+                            SUM(vd.costo_unitario * vd.cantidad) as total_costos,
+                            SUM(CASE WHEN vd.producto_id IS NULL THEN (vd.precio_unitario * vd.cantidad) ELSE 0 END) as total_servicios,
+                            SUM(CASE WHEN vd.producto_id IS NOT NULL THEN (vd.precio_unitario - vd.costo_unitario) * vd.cantidad ELSE 0 END) as ganancia_repuestos,
+                            SUM((vd.precio_unitario - vd.costo_unitario) * vd.cantidad) as utilidad_bruta
+                          FROM table_facturas_detalle vd
+                          JOIN table_facturas v ON vd.factura_id = v.id
+                          WHERE v.status IN ('COMPLETADO', 'CREDITO')
+                          AND DATE(v.fecha) BETWEEN :desde AND :hasta");
+        
+        $this->db->bind(':desde', $desde);
+        $this->db->bind(':hasta', $hasta);
+        
+        return $this->db->single();
+    }
+}

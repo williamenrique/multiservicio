@@ -1,0 +1,822 @@
+<?php if (!defined('URLROOT')) exit('No direct script access allowed'); ?>
+<div class="container mx-auto p-6 space-y-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div>
+            <a href="<?php echo URLROOT; ?>/presupuesto" class="text-slate-500 hover:text-navy-blue transition-colors flex items-center gap-2 text-sm font-semibold mb-2">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                Volver a Presupuestos
+            </a>
+            <h1 class="text-3xl font-extrabold text-navy-blue tracking-tight"><?php echo $data['titulo']; ?></h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <?php if ($presupuesto->estado === 'BORRADOR'): ?>
+            <button onclick="editarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-slate-600 text-white px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-slate-700 text-sm font-semibold shadow-sm">
+                <i data-lucide="edit-3" class="w-4 h-4"></i> Editar
+            </button>
+            <?php endif; ?>
+            <?php if (in_array($presupuesto->estado, ['BORRADOR', 'ENVIADO', 'ACTIVO', 'EN_PROCESO', 'ACEPTADO'])): ?>
+            <button onclick="enviarPresupuestoEmail(<?php echo $presupuesto->id; ?>)" class="bg-blue-600 text-white px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-blue-700 text-sm font-semibold shadow-sm">
+                <i data-lucide="mail" class="w-4 h-4"></i> <?php echo $presupuesto->estado === 'BORRADOR' ? 'Enviar' : 'Reenviar'; ?>
+            </button>
+            <?php endif; ?>
+            <button onclick="generarPDFPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-purple-600 text-white px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-purple-700 text-sm font-semibold shadow-sm">
+                <i data-lucide="file-text" class="w-4 h-4"></i> PDF
+            </button>
+            <?php if ($presupuesto->estado === 'BORRADOR'): ?>
+            <button onclick="guardarYEnviarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-neon-green text-navy-blue px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:brightness-110 text-sm font-semibold shadow-lg shadow-neon-green/20">
+                <i data-lucide="send" class="w-4 h-4"></i> Guardar y Enviar
+            </button>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Header del Presupuesto (bloque dinámico: badge de estado + total) -->
+    <div id="presupuesto-header-bloque" class="bg-gradient-to-r from-navy-blue to-slate-800 text-white rounded-3xl p-6 sm:p-8 shadow-xl" style="background: linear-gradient(to right, #1e3a5f, #1e293b);">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full text-sm font-black uppercase tracking-wider text-white">
+                        <?php echo s($presupuesto->numero); ?>
+                    </span>
+                    <span class="px-3 py-1.5 rounded-full text-sm font-black uppercase tracking-wider <?php 
+                        $estadoColors = [
+                            'BORRADOR' => 'bg-slate-200 text-slate-700',
+                            'ENVIADO' => 'bg-amber-200 text-amber-800',
+                            'ACTIVO' => 'bg-emerald-200 text-emerald-800',
+                            'EN_PROCESO' => 'bg-blue-200 text-blue-800',
+                            'ACEPTADO' => 'bg-emerald-200 text-emerald-800',
+                            'RECHAZADO' => 'bg-red-200 text-red-800',
+                            'EXPIRADO' => 'bg-red-200 text-red-800',
+                            'CONVERTIDO' => 'bg-purple-200 text-purple-800'
+                        ];
+                        echo $estadoColors[$presupuesto->estado] ?? 'bg-slate-200 text-slate-700';
+                    ?>">
+                        <?php echo s($presupuesto->estado); ?>
+                    </span>
+                    <?php 
+                    $vencido = $presupuesto->fecha_vencimiento && new DateTime($presupuesto->fecha_vencimiento) < new DateTime() && $presupuesto->estado === 'ENVIADO';
+                    if ($vencido): ?>
+                    <span class="px-3 py-1.5 rounded-full text-sm font-black uppercase tracking-wider bg-red-200 text-red-800">VENCIDO</span>
+                    <?php endif; ?>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2 text-white">Presupuesto / Cotización</h2>
+                <p class="text-slate-200 text-sm">Creado el <?php echo date('d/m/Y', strtotime($presupuesto->fecha_creacion)); ?> por <?php echo s($presupuesto->staff_nombre ?? $presupuesto->usuario_nombre ?? 'Sistema'); ?></p>
+            </div>
+            <div class="text-right md:text-left">
+                <div class="text-4xl font-extrabold text-neon-green">$<?php echo number_format($presupuesto->total ?? 0, 2, ',', '.'); ?></div>
+                <p class="text-slate-300 text-sm mt-1">Total con IVA</p>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-white/20">
+            <div>
+                <p class="text-[10px] font-black text-slate-300 uppercase tracking-wider">Fecha Emisión</p>
+                <p class="font-bold text-white"><?php echo date('d/m/Y', strtotime($presupuesto->fecha_emision)); ?></p>
+            </div>
+            <div>
+                <p class="text-[10px] font-black text-slate-300 uppercase tracking-wider">Vencimiento</p>
+                <p class="font-bold text-white <?php echo $vencido ? 'text-red-300' : ''; ?>">
+                    <?php echo $presupuesto->fecha_vencimiento ? date('d/m/Y', strtotime($presupuesto->fecha_vencimiento)) : 'N/A'; ?>
+                    <?php if ($vencido): ?><span class="ml-1 text-red-300 text-xs">(VENCIDO)</span><?php endif; ?>
+                </p>
+            </div>
+            <div>
+                <p class="text-[10px] font-black text-slate-300 uppercase tracking-wider">Validez</p>
+                <p class="font-bold text-white"><?php echo $presupuesto->validez_dias; ?> días</p>
+            </div>
+            <div>
+                <p class="text-[10px] font-black text-slate-300 uppercase tracking-wider">IVA</p>
+                <p class="font-bold text-white"><?php echo ($presupuesto->iva_activo && $presupuesto->tasa_iva) ? $presupuesto->tasa_iva . '%' : 'No aplica'; ?></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+        <!-- Cliente y Vehículo -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Cliente -->
+            <div class="glass-card rounded-2xl p-6 shadow-xl border border-slate-100">
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <i data-lucide="user" class="w-4 h-4 text-neon-green"></i> Cliente
+                </h3>
+                <div class="space-y-3">
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nombre</p>
+                        <p class="font-bold text-slate-700 text-lg"><?php echo s($presupuesto->cliente_nombre); ?></p>
+                    </div>
+                    <?php if ($presupuesto->cliente_cedula): ?>
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Cédula / NIT</p>
+                        <p class="font-mono text-slate-600"><?php echo s($presupuesto->cliente_cedula); ?></p>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ($presupuesto->cliente_telefono): ?>
+                    <div class="flex items-center gap-2">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Teléfono</p>
+                        <a href="tel:<?php echo s($presupuesto->cliente_telefono); ?>" class="font-semibold text-slate-600 hover:text-neon-green transition-colors"><?php echo s($presupuesto->cliente_telefono); ?></a>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ($presupuesto->cliente_email): ?>
+                    <div class="flex items-center gap-2">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Email</p>
+                        <a href="mailto:<?php echo s($presupuesto->cliente_email); ?>" class="font-semibold text-slate-600 hover:text-neon-green transition-colors"><?php echo s($presupuesto->cliente_email); ?></a>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ($presupuesto->cliente_direccion): ?>
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Dirección</p>
+                        <p class="text-slate-600"><?php echo s($presupuesto->cliente_direccion); ?></p>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Vehículo -->
+            <?php if ($presupuesto->vehiculo_placa || $presupuesto->vehiculo_marca || $presupuesto->vehiculo_modelo): ?>
+            <div class="glass-card rounded-2xl p-6 shadow-xl border border-slate-100">
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <i data-lucide="car" class="w-4 h-4 text-neon-green"></i> Vehículo
+                </h3>
+                <div class="space-y-3">
+                    <?php if ($presupuesto->vehiculo_placa): ?>
+                    <div class="flex items-center gap-2">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Placa</p>
+                        <p class="font-bold text-slate-700 text-lg font-mono"><?php echo s($presupuesto->vehiculo_placa); ?></p>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ($presupuesto->vehiculo_marca || $presupuesto->vehiculo_modelo): ?>
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Marca / Modelo</p>
+                        <p class="font-bold text-slate-700"><?php echo s(trim($presupuesto->vehiculo_marca . ' ' . $presupuesto->vehiculo_modelo)); ?></p>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ($presupuesto->vehiculo_anio): ?>
+                    <div class="flex items-center gap-2">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Año</p>
+                        <p class="font-semibold text-slate-600"><?php echo $presupuesto->vehiculo_anio; ?></p>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ($presupuesto->vehiculo_color): ?>
+                    <div class="flex items-center gap-2">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Color</p>
+                        <p class="font-semibold text-slate-600 capitalize"><?php echo s($presupuesto->vehiculo_color); ?></p>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Info del Presupuesto (bloque dinámico: estado, vencimiento) -->
+            <div id="presupuesto-info-bloque" class="glass-card rounded-2xl p-6 shadow-xl border border-slate-100">
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-neon-green"></i> Detalles del Presupuesto
+                </h3>
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Estado</span>
+                        <span class="font-bold px-3 py-1 rounded-full text-xs uppercase tracking-wider <?php 
+                            $estadoColors = [
+                                'BORRADOR' => 'bg-slate-100 text-slate-700',
+                                'ENVIADO' => 'bg-amber-100 text-amber-800',
+                                'ACTIVO' => 'bg-emerald-100 text-emerald-800',
+                                'EN_PROCESO' => 'bg-blue-100 text-blue-800',
+                                'ACEPTADO' => 'bg-emerald-100 text-emerald-800',
+                                'RECHAZADO' => 'bg-red-100 text-red-800',
+                                'EXPIRADO' => 'bg-red-100 text-red-800',
+                                'CONVERTIDO' => 'bg-purple-100 text-purple-800'
+                            ];
+                            echo $estadoColors[$presupuesto->estado] ?? 'bg-slate-100 text-slate-700';
+                        ?>">
+                            <?php echo s($presupuesto->estado); ?>
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Fecha Emisión</span>
+                        <span class="font-bold"><?php echo date('d/m/Y', strtotime($presupuesto->fecha_emision)); ?></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Vencimiento</span>
+                        <span class="font-bold <?php echo $vencido ? 'text-red-600' : ''; ?>">
+                            <?php echo $presupuesto->fecha_vencimiento ? date('d/m/Y', strtotime($presupuesto->fecha_vencimiento)) : 'N/A'; ?>
+                            <?php if ($vencido): ?><span class="text-red-500 ml-1">(VENCIDO)</span><?php endif; ?>
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Validez</span>
+                        <span class="font-bold"><?php echo $presupuesto->validez_dias; ?> días</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">IVA</span>
+                        <span class="font-bold text-slate-700"><?php echo $presupuesto->iva_activo ? $presupuesto->tasa_iva . '%' : 'No aplica'; ?></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Creado por</span>
+                        <span class="font-bold"><?php echo s($presupuesto->staff_nombre ?? $presupuesto->usuario_nombre ?? 'Sistema'); ?></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Fecha Creación</span>
+                        <span class="font-bold"><?php echo date('d/m/Y H:i', strtotime($presupuesto->fecha_creacion)); ?></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items y Totales -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Items -->
+            <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-100">
+                <div class="p-6 border-b border-slate-100 bg-slate-50/50">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="package" class="w-4 h-4 text-neon-green"></i> Items del Presupuesto
+                    </h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
+                                <th class="px-6 py-4">#</th>
+                                <th class="px-6 py-4">Tipo</th>
+                                <th class="px-6 py-4">Descripción</th>
+                                <th class="px-6 py-4 text-center">Cant.</th>
+                                <th class="px-6 py-4 text-right">P. Unitario</th>
+                                <th class="px-6 py-4 text-center">Desc. %</th>
+                                <th class="px-6 py-4 text-right">Subtotal</th>
+                                <th class="px-6 py-4 text-center">IVA %</th>
+                                <th class="px-6 py-4 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <?php if (!empty($presupuesto->items)): ?>
+                                <?php foreach ($presupuesto->items as $index => $detalle): ?>
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="px-6 py-4 text-center text-xs font-bold text-slate-500"><?php echo $index + 1; ?></td>
+                                    <td class="px-6 py-4">
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase <?php echo $detalle->tipo_item === 'SERVICIO' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'; ?>">
+                                            <?php echo s($detalle->tipo_item); ?>
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <p class="font-medium text-slate-700"><?php echo s($detalle->descripcion); ?></p>
+                                        <?php if ($detalle->notas): ?>
+                                        <p class="text-[10px] text-slate-400 italic mt-1"><?php echo s($detalle->notas); ?></p>
+                                        <?php endif; ?>
+                                        <?php if ($detalle->producto_id): ?>
+                                        <p class="text-[10px] text-slate-400 font-mono">Ref: <?php echo s($detalle->producto_codigo ?? 'ID:' . $detalle->producto_id); ?></p>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="px-6 py-4 text-center font-bold text-slate-700"><?php echo $detalle->cantidad; ?></td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-700">$<?php echo number_format($detalle->precio_unitario, 2, ',', '.'); ?></td>
+                                    <td class="px-6 py-4 text-center text-xs font-bold text-slate-600"><?php echo $detalle->descuento_porcentaje > 0 ? $detalle->descuento_porcentaje . '%' : '-'; ?></td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-700">$<?php echo number_format($detalle->subtotal, 2, ',', '.'); ?></td>
+                                    <td class="px-6 py-4 text-center text-xs font-bold text-slate-600"><?php echo $detalle->iva_porcentaje > 0 ? $detalle->iva_porcentaje . '%' : '-'; ?></td>
+                                    <td class="px-6 py-4 text-right font-extrabold text-navy-blue">$<?php echo number_format($detalle->total, 2, ',', '.'); ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="9" class="px-6 py-16 text-center text-slate-400 italic">No hay items en este presupuesto</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Totales -->
+            <div class="glass-card rounded-2xl overflow-hidden shadow-xl border border-slate-100">
+                <div class="p-6 bg-gradient-to-r from-navy-blue to-slate-800 text-white rounded-t-2xl" style="background: linear-gradient(to right, #1e3a5f, #1e293b);">
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                        <div class="text-center">
+                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70 text-white">Subtotal</p>
+                            <p class="text-2xl font-extrabold text-white">$<?php echo number_format($presupuesto->subtotal ?? 0, 2, ',', '.'); ?></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70 text-white">Descuentos</p>
+                            <p class="text-2xl font-extrabold text-white">-$<?php echo number_format(!empty($presupuesto->items) ? array_sum(array_column($presupuesto->items, 'descuento_monto')) : 0, 2, ',', '.'); ?></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70 text-white">IVA (<?php echo $presupuesto->tasa_iva ?? 0; ?>%)</p>
+                            <p class="text-2xl font-extrabold text-white">$<?php echo number_format($presupuesto->iva_monto ?? 0, 2, ',', '.'); ?></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] font-black uppercase tracking-wider opacity-70 text-white">Total</p>
+                            <p class="text-3xl font-extrabold text-neon-green">$<?php echo number_format($presupuesto->total ?? 0, 2, ',', '.'); ?></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6 bg-slate-50/50 rounded-b-2xl">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <?php if ($presupuesto->observaciones): ?>
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Observaciones</p>
+                            <p class="text-slate-600"><?php echo s($presupuesto->observaciones); ?></p>
+                        </div>
+                        <?php endif; ?>
+                        <?php if ($presupuesto->condiciones): ?>
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Términos y Condiciones</p>
+                            <p class="text-slate-600"><?php echo s($presupuesto->condiciones); ?></p>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acciones (bloque dinámico: botones condicionales por estado) -->
+            <div id="presupuesto-acciones-bloque" class="flex flex-wrap gap-3 justify-end">
+                <?php if ($presupuesto->estado === 'BORRADOR'): ?>
+                <button onclick="editarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-slate-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-slate-700 font-semibold shadow-sm">
+                    <i data-lucide="edit-3" class="w-5 h-5"></i> Editar
+                </button>
+                <button onclick="enviarPresupuestoEmail(<?php echo $presupuesto->id; ?>)" class="bg-blue-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-blue-700 font-semibold shadow-sm">
+                    <i data-lucide="mail" class="w-5 h-5"></i> Enviar por Email
+                </button>
+                <button onclick="guardarYEnviarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-neon-green text-navy-blue px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:brightness-110 font-semibold shadow-lg shadow-neon-green/20">
+                    <i data-lucide="send" class="w-5 h-5"></i> Guardar y Enviar
+                </button>
+                <?php endif; ?>
+                
+                <?php if (in_array($presupuesto->estado, ['BORRADOR', 'ENVIADO'])): ?>
+                <button onclick="activarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-neon-green text-navy-blue px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:brightness-110 font-semibold shadow-lg shadow-neon-green/20">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i> Aplicar Presupuesto
+                </button>
+                <button onclick="aceptarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-emerald-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-emerald-700 font-semibold shadow-lg shadow-emerald-600/20">
+                    <i data-lucide="check-check" class="w-5 h-5"></i> Aceptar
+                </button>
+                <?php endif; ?>
+                
+                <?php if (in_array($presupuesto->estado, ['BORRADOR', 'ENVIADO', 'ACTIVO', 'ACEPTADO'])): ?>
+                <button onclick="convertirPresupuestoAVenta(<?php echo $presupuesto->id; ?>)" class="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-purple-700 font-semibold shadow-lg shadow-purple-600/20">
+                    <i data-lucide="shopping-cart" class="w-5 h-5"></i> Convertir a Venta
+                </button>
+                <?php endif; ?>
+                
+                <?php if ($presupuesto->estado === 'ACTIVO'): ?>
+                <button onclick="iniciarProcesoPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-blue-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-blue-700 font-semibold shadow-sm">
+                    <i data-lucide="play-circle" class="w-5 h-5"></i> Iniciar Proceso
+                </button>
+                <button onclick="liberarInventarioPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-amber-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-amber-700 font-semibold shadow-sm">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i> Liberar Inventario
+                </button>
+                <?php endif; ?>
+                
+                <?php if ($presupuesto->estado === 'EN_PROCESO'): ?>
+                <span class="px-4 py-3 bg-blue-100 text-blue-800 rounded-xl font-semibold text-sm flex items-center gap-2">
+                    <i data-lucide="loader" class="w-4 h-4 animate-spin"></i> En Proceso
+                </span>
+                <?php endif; ?>
+                
+                <button onclick="generarPDFPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-purple-700 font-semibold shadow-sm">
+                    <i data-lucide="download" class="w-5 h-5"></i> Descargar PDF
+                </button>
+                <button onclick="imprimirPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-slate-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-slate-700 font-semibold shadow-sm">
+                    <i data-lucide="printer" class="w-5 h-5"></i> Imprimir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ==================== FIX RONDA 5 (P2-01): refresco sin location.reload() ====================
+ * En vez de recargar toda la página, se hace fetch al mismo URL, se parsea con
+ * DOMParser y se reemplazan SOLO los 3 bloques dinámicos:
+ *   - #presupuesto-header-bloque    (badge de estado + total + vencido)
+ *   - #presupuesto-info-bloque      (detalle lateral: estado, vencimiento)
+ *   - #presupuesto-acciones-bloque  (botones condicionales por estado)
+ * Los scripts inline no se re-ejecutan (DOMParser no ejecuta), pero las funciones
+ * ya están definidas globalmente, así que los onclick siguen funcionando.
+ */
+const PRESUPUESTO_ID = <?php echo (int)$presupuesto->id; ?>;
+
+async function refrescarPresupuestoActual() {
+    try {
+        const url = window.location.pathname + window.location.search;
+        const res = await fetch(url, { cache: 'no-store' });
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+
+        ['presupuesto-header-bloque', 'presupuesto-info-bloque', 'presupuesto-acciones-bloque'].forEach(id => {
+            const actual = document.getElementById(id);
+            const nuevo = doc.getElementById(id);
+            if (actual && nuevo) {
+                actual.replaceWith(nuevo);
+            }
+        });
+
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        console.error('Error al refrescar presupuesto:', e);
+    }
+}
+
+/* ==================== ACCIONES ==================== */
+function editarPresupuesto(id) {
+    window.location.href = `${URLROOT}/presupuesto/editar/${id}`;
+}
+
+async function enviarPresupuestoEmail(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Enviar Presupuesto por Email',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email Destinatario *</label>
+                    <input type="email" id="email-destinatario" class="swal2-input w-full m-0 text-sm" placeholder="cliente@ejemplo.com" required>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nombre Destinatario</label>
+                    <input type="text" id="email-nombre" class="swal2-input w-full m-0 text-sm" placeholder="Nombre del cliente">
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'ENVIAR',
+        confirmButtonColor: '#3b82f6',
+        preConfirm: () => {
+            const email = document.getElementById('email-destinatario').value;
+            const nombre = document.getElementById('email-nombre').value;
+            if (!email) {
+                Swal.showValidationMessage('El email es obligatorio');
+                return false;
+            }
+            return { email, nombre };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Enviando...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/enviarEmail/${PRESUPUESTO_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({
+                    destinatario_email: formValues.email,
+                    destinatario_nombre: formValues.nombre
+                })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                await refrescarPresupuestoActual();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al enviar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function generarPDFPresupuesto(id) {
+    try {
+        AppUtils.showLoading('Generando PDF...');
+        const res = await fetch(`${URLROOT}/presupuesto/pdf/${id}`);
+        const result = await res.json();
+        AppUtils.hideLoading();
+        
+        if (result.success) {
+            window.open(result.pdf_url, '_blank');
+        } else {
+            AppUtils.showToast(result.mensaje || 'Error al generar PDF', 'error');
+        }
+    } catch (e) {
+        AppUtils.hideLoading();
+        AppUtils.showToast('Error de conexión', 'error');
+    }
+}
+
+async function activarPresupuesto(id) {
+    const result = await Swal.fire({
+        title: '¿Activar Presupuesto?',
+        text: 'Se reservará el stock de los productos en inventario. El presupuesto pasará a estado ACTIVO.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Sí, activar',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (result.isConfirmed) {
+        AppUtils.showLoading('Activando presupuesto y reservando stock...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/activar/${PRESUPUESTO_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                await refrescarPresupuestoActual();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al activar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function iniciarProcesoPresupuesto(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Iniciar Proceso',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Módulo *</label>
+                    <select id="proceso-modulo" class="swal2-input w-full m-0 text-sm">
+                        <option value="OS">Orden de Servicio</option>
+                        <option value="FACTURACION">Facturación</option>
+                        <option value="VENTA">Venta Repuestos</option>
+                        <option value="OTRO">Otro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">ID de Referencia (opcional)</label>
+                    <input type="text" id="proceso-referencia" class="swal2-input w-full m-0 text-sm" placeholder="ID de la OS, Factura o Venta">
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'INICIAR PROCESO',
+        confirmButtonColor: '#3b82f6',
+        preConfirm: () => {
+            const modulo = document.getElementById('proceso-modulo').value;
+            const referenciaId = document.getElementById('proceso-referencia').value;
+            return { modulo, referencia_id: referenciaId || null };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Iniciando proceso...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/iniciarProceso/${PRESUPUESTO_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify(formValues)
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                await refrescarPresupuestoActual();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al iniciar proceso', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function liberarInventarioPresupuesto(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Liberar Inventario',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Motivo *</label>
+                    <select id="liberar-motivo" class="swal2-input w-full m-0 text-sm">
+                        <option value="CANCELACION_CLIENTE">Cancelación por Cliente</option>
+                        <option value="ERROR_STOCK">Error en Stock</option>
+                        <option value="CAMBIO_PRESUPUESTO">Cambio de Presupuesto</option>
+                        <option value="OTRO">Otro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Detalles</label>
+                    <textarea id="liberar-detalles" rows="3" class="swal2-input w-full m-0 text-sm" placeholder="Detalles adicionales..."></textarea>
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'LIBERAR INVENTARIO',
+        confirmButtonColor: '#f59e0b',
+        preConfirm: () => {
+            const motivo = document.getElementById('liberar-motivo').value;
+            const detalles = document.getElementById('liberar-detalles').value;
+            return { motivo: `${motivo}${detalles ? ' - ' + detalles : ''}` };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Liberando inventario...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/liberarInventario/${PRESUPUESTO_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ motivo: formValues.motivo })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                await refrescarPresupuestoActual();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al liberar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+function imprimirPresupuesto(id) {
+    window.open(`${URLROOT}/presupuesto/imprimir/${id}`, '_blank');
+}
+
+async function guardarYEnviarPresupuesto(id) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Guardar y Enviar Presupuesto',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email Destinatario *</label>
+                    <input type="email" id="email-destinatario" class="swal2-input w-full m-0 text-sm" placeholder="cliente@ejemplo.com" required>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nombre Destinatario</label>
+                    <input type="text" id="email-nombre" class="swal2-input w-full m-0 text-sm" placeholder="Nombre del cliente">
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'GUARDAR Y ENVIAR',
+        confirmButtonColor: '#10b981',
+        preConfirm: () => {
+            const email = document.getElementById('email-destinatario').value;
+            const nombre = document.getElementById('email-nombre').value;
+            if (!email) {
+                Swal.showValidationMessage('El email es obligatorio');
+                return false;
+            }
+            return { email, nombre };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Guardando y enviando...');
+        try {
+            // Primero cambiar estado a ENVIADO
+            const resEstado = await fetch(`${URLROOT}/presupuesto/cambiarEstado/${PRESUPUESTO_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ estado: 'ENVIADO' })
+            });
+            const resultEstado = await resEstado.json();
+            
+            if (!resultEstado.success) throw new Error(resultEstado.mensaje);
+            
+            // Luego enviar email
+            const resEmail = await fetch(`${URLROOT}/presupuesto/enviarEmail/${PRESUPUESTO_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({
+                    destinatario_email: formValues.email,
+                    destinatario_nombre: formValues.nombre
+                })
+            });
+            const resultEmail = await resEmail.json();
+            AppUtils.hideLoading();
+            
+            if (resultEmail.success) {
+                AppUtils.showToast('Presupuesto guardado y enviado', 'success');
+                await refrescarPresupuestoActual();
+            } else {
+                AppUtils.showToast(resultEmail.mensaje || 'Error al enviar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    lucide.createIcons();
+});
+
+/* ==================== NUEVAS ACCIONES: ACEPTAR Y CONVERTIR A VENTA ==================== */
+async function aceptarPresupuesto(id) {
+    const result = await Swal.fire({
+        title: '¿Aceptar Presupuesto?',
+        text: 'Se reservará el stock de los productos en inventario. El presupuesto pasará a estado ACEPTADO.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Sí, aceptar',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (result.isConfirmed) {
+        AppUtils.showLoading('Aceptando presupuesto y reservando stock...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/aceptar/${PRESUPUESTO_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN }
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                await refrescarPresupuestoActual();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al aceptar', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+
+async function convertirPresupuestoAVenta(id) {
+    const total = <?php echo (float)($presupuesto->total ?? 0); ?>;
+    const { value: formValues } = await Swal.fire({
+        title: 'Convertir a Venta',
+        html: `
+            <div class="text-left space-y-4 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Pago en Efectivo</label>
+                    <input type="number" id="venta-efectivo" class="swal2-input w-full m-0 text-sm" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Pago por Transferencia</label>
+                    <input type="number" id="venta-transferencia" class="swal2-input w-full m-0 text-sm" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="bg-slate-50 p-3 rounded-lg">
+                    <p class="text-xs font-bold text-slate-600">Total del presupuesto: <span id="venta-total-display" class="text-neon-green"></span></p>
+                    <p class="text-xs font-bold text-slate-600">Saldo pendiente: <span id="venta-saldo-display" class="text-red-600"></span></p>
+                </div>
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'CONVERTIR A VENTA',
+        confirmButtonColor: '#7c3aed',
+        didOpen: () => {
+            document.getElementById('venta-total-display').textContent = '$' + total.toLocaleString('es-CO', {minimumFractionDigits: 2});
+            document.getElementById('venta-efectivo').value = total.toFixed(2);
+            
+            const updateSaldo = () => {
+                const efectivo = parseFloat(document.getElementById('venta-efectivo').value) || 0;
+                const transferencia = parseFloat(document.getElementById('venta-transferencia').value) || 0;
+                const saldo = Math.max(0, total - (efectivo + transferencia));
+                document.getElementById('venta-saldo-display').textContent = '$' + saldo.toLocaleString('es-CO', {minimumFractionDigits: 2});
+            };
+            
+            document.getElementById('venta-efectivo').addEventListener('input', updateSaldo);
+            document.getElementById('venta-transferencia').addEventListener('input', updateSaldo);
+            updateSaldo();
+        },
+        preConfirm: () => {
+            const efectivo = parseFloat(document.getElementById('venta-efectivo').value) || 0;
+            const transferencia = parseFloat(document.getElementById('venta-transferencia').value) || 0;
+            
+            if (efectivo + transferencia > total) {
+                Swal.showValidationMessage('El pago total no puede exceder el monto del presupuesto');
+                return false;
+            }
+            
+            return { 
+                pago_efectivo: efectivo, 
+                pago_transferencia: transferencia 
+            };
+        }
+    });
+    
+    if (formValues) {
+        AppUtils.showLoading('Convirtiendo presupuesto a venta...');
+        try {
+            const res = await fetch(`${URLROOT}/presupuesto/convertirAVenta/${PRESUPUESTO_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                body: JSON.stringify({ datos_pago: formValues })
+            });
+            const result = await res.json();
+            AppUtils.hideLoading();
+            
+            if (result.success) {
+                AppUtils.showToast(result.mensaje, 'success');
+                // FIX Ronda 5: abrir el PDF en nueva pestaña en vez de reemplazar la vista actual
+                if (result.redirect) {
+                    setTimeout(() => window.open(result.redirect, '_blank'), 800);
+                }
+                await refrescarPresupuestoActual();
+            } else {
+                AppUtils.showToast(result.mensaje || 'Error al convertir a venta', 'error');
+            }
+        } catch (e) {
+            AppUtils.hideLoading();
+            AppUtils.showToast('Error de conexión', 'error');
+        }
+    }
+}
+</script>

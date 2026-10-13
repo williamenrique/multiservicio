@@ -1,0 +1,610 @@
+================================================================================
+  MANUAL DE INSTALACIÓN — SISTEMA MULTISERVICIO "TALLER PRO" v2.0
+================================================================================
+  Arquitectura: PHP MVC personalizado + MySQL + Node.js (WhatsApp)
+  Librerías: DomPDF 3.1 | PHPMailer 6.8 | chillerlan/php-qrcode 6.0
+================================================================================
+
+ÍNDICE
+  1. Requisitos del sistema
+  2. Instalación en servidor LOCAL (XAMPP / WAMP / Laragon)
+  3. Instalación en servidor WEB DE PRODUCCIÓN (Hosting compartido / VPS)
+  4. Configuración del servidor Node.js para WhatsApp
+  5. Configuración de tareas programadas (Cron Jobs)
+  6. Verificación final y solución de problemas
+  7. Estructura del proyecto (referencia rápida)
+
+================================================================================
+SECCIÓN 1 — REQUISITOS DEL SISTEMA
+================================================================================
+
+1.1 Requisitos mínimos del servidor:
+  - PHP 8.0 o superior
+  - MySQL 5.7+ o MariaDB 10.3+
+  - Apache 2.4+ con mod_rewrite habilitado (o Nginx con reglas equivalentes)
+  - Extensión PHP: PDO, pdo_mysql, mbstring, gd, curl, json, fileinfo, openssl
+  - Composer 2.x (gestor de dependencias PHP)
+  - Node.js 18+ (solo para el servicio de WhatsApp, opcional)
+  - Espacio en disco: ~50 MB (más uploads)
+
+1.2 Extensiones PHP requeridas (verificar con phpinfo()):
+  - pdo_mysql       → Conexión a base de datos
+  - mbstring        → Manejo de UTF-8
+  - gd              → Generación de imágenes (QR, fotos)
+  - curl            → Comunicación con servidor Node.js (WhatsApp)
+  - openssl         → Encriptación AES-256-CBC
+  - fileinfo        → Validación de archivos subidos
+  - json            → Manejo de datos JSON
+  - dom             → DomPDF (generación de PDFs)
+
+================================================================================
+SECCIÓN 2 — INSTALACIÓN EN SERVIDOR LOCAL (XAMPP / WAMP / Laragon)
+================================================================================
+
+2.1 Clonar o copiar el proyecto
+  ─────────────────────────────
+  Copia la carpeta completa del proyecto a la raíz de tu servidor local:
+
+    XAMPP:   C:\xampp\htdocs\multiservicio\
+    WAMP:    C:\wamp64\www\multiservicio\
+    Laragon: C:\laragon\www\multiservicio\
+
+2.2 Configurar VirtualHost (XAMPP) — OPCIONAL pero recomendado
+  ─────────────────────────────────────────────────────────────
+  Edita el archivo:
+    C:\xampp\apache\conf\extra\httpd-vhosts.conf
+
+  Agrega al final:
+    <VirtualHost *:80>
+        DocumentRoot "C:/xampp/htdocs/multiservicio"
+        ServerName multiservicio.test
+        <Directory "C:/xampp/htdocs/multiservicio">
+            Options Indexes FollowSymLinks
+            AllowOverride All
+            Require all granted
+        </Directory>
+    </VirtualHost>
+
+  Edita el archivo de hosts del sistema:
+    C:\Windows\System32\drivers\etc\hosts
+
+  Agrega la línea:
+    127.0.0.1   multiservicio.test
+
+  Reinicia Apache desde el panel de control de XAMPP.
+
+2.3 Instalar dependencias con Composer
+──────────────────────────────────────
+  Abre una terminal (PowerShell o CMD) en la raíz del proyecto:
+    cd C:\xampp\htdocs\multiservicio
+
+  Si NO tienes Composer instalado globalmente:
+    - Descarga Composer desde https://getcomposer.org/
+    - O usa el comando: php composer.phar install
+
+  Si YA tienes Composer instalado:
+    composer install
+
+  Esto instalará en vendor/:
+    - dompdf/dompdf          (^3.1)  → Generación de PDFs
+    - phpmailer/phpmailer    (^6.8)  → Envío de correos SMTP
+    - chillerlan/php-qrcode  (^6.0)  → Códigos QR
+
+2.3 Crear la base de datos
+──────────────────────────
+  Opción A — Desde phpMyAdmin:
+    1. Abre http://localhost/phpmyadmin
+    2. Crea una nueva base de datos llamada: multiservicio_2.0
+    3. Selecciona cotejamiento: utf8mb4_spanish_ci
+    4. Ve a la pestaña "Importar"
+    5. Selecciona el archivo: sql/database_schema_2.0.sql
+    6. Haz clic en "Continuar"
+
+  Opción B — Desde terminal:
+    mysql -u root -p < sql/database_schema_2.0.sql
+
+2.4 Configurar el archivo de constantes
+───────────────────────────────────────
+  Edita: app/Config/config.php
+
+  Valores por defecto para desarrollo local:
+    DB_HOST = 'localhost'
+    DB_USER = 'root'
+    DB_PASS = ''              ← Contraseña de MySQL (vacía en XAMPP por defecto)
+    DB_NAME = 'multiservicio_2.0'
+
+  La URL se detecta automáticamente. Si usas VirtualHost, se ajustará solo.
+  Si accedes como http://localhost/multiservicio, también funciona.
+
+  ⚠ ACLARACIÓN IMPORTANTE — ¿Dónde se configura el dominio?
+  ─────────────────────────────────────────────────────────
+  ¡NO necesitas cambiar nada manualmente! El sistema detecta el dominio
+  de forma automática mediante la constante URLROOT definida en
+  app/Config/config.php (líneas 26-36).
+
+  CÓMO FUNCIONA LA DETECCIÓN AUTOMÁTICA DE URLROOT:
+  ─────────────────────────────────────────────────
+  El sistema usa este orden de prioridad:
+
+    1. Si existe un archivo .env con URLROOT=... → USA ESE VALOR
+       (recomendado para producción)
+
+    2. Si NO hay .env → DETECTA AUTOMÁTICAMENTE:
+       - Lee $_SERVER['HTTP_HOST'] (el dominio que el visitante usó)
+       - Lee $_SERVER['HTTPS'] para saber si es http o https
+       - Lee $_SERVER['SCRIPT_NAME'] para detectar subcarpetas
+
+  EJEMPLOS DE DETECCIÓN AUTOMÁTICA:
+  ─────────────────────────────────
+  • Local XAMPP:   http://localhost/multiservicio  → URLROOT = http://localhost/multiservicio
+  • Local VirtualHost: http://multiservicio.test     → URLROOT = http://multiservicio.test
+  • Producción:    https://multiservicio.com         → URLROOT = https://multiservicio.com
+  • Producción:    https://www.miservicio.net        → URLROOT = https://www.miservicio.net
+
+  CUÁNDO USAR EL ARCHIVO .ENV PARA FORZAR LA URL:
+  ────────────────────────────────────────────────
+  Solo necesitas crear un .env con URLROOT si:
+    - Usas un proxy inverso (Cloudflare, Nginx reverse proxy)
+    - El dominio detectado automáticamente no es el correcto
+    - Quieres forzar https aunque el servidor no lo detecte
+
+  En el 95% de los casos, la detección automática funciona sin
+  que tengas que tocar nada. Solo contratas tu dominio, apuntas
+  el DNS al hosting, y el sistema lo lee solo.
+
+2.5 Configurar el correo SMTP
+─────────────────────────────
+  En app/Config/config.php, ajusta las constantes MAIL_*:
+
+    define('MAIL_HOST', 'smtp.gmail.com');
+    define('MAIL_PORT', 587);
+    define('MAIL_USERNAME', 'tu-correo@gmail.com');
+    define('MAIL_PASSWORD', 'tu-contraseña-de-aplicacion');
+    define('MAIL_ENCRYPTION', 'tls');
+    define('MAIL_FROM_ADDRESS', 'tu-correo@gmail.com');
+    define('MAIL_FROM_NAME', 'Taller Pro');
+
+  ⚠ IMPORTANTE para Gmail:
+    - NO uses tu contraseña normal de Gmail
+    - Debes generar una "Contraseña de aplicación" en:
+      https://myaccount.google.com/apppasswords
+    - Requiere tener activada la verificación en 2 pasos
+
+2.5 Configurar el servidor Node.js para WhatsApp (opcional)
+───────────────────────────────────────────────────────────
+  Ver SECCIÓN 4 más abajo. Si no necesitas WhatsApp, el sistema
+  funciona igual — solo mostrará un aviso de que el servidor no
+  está disponible.
+
+2.6 Probar la instalación
+─────────────────────────
+  Abre en el navegador:
+    http://multiservicio.test
+    o
+    http://localhost/multiservicio
+
+  Deberías ver la página de login del sistema.
+  Credenciales por defecto (si se insertaron en el SQL):
+    Usuario: admin
+    Contraseña: admin123
+
+================================================================================
+SECCIÓN 3 — INSTALACIÓN EN SERVIDOR WEB DE PRODUCCIÓN
+================================================================================
+
+3.1 Preparar el proyecto para subir
+───────────────────────────────────
+  Antes de subir, asegúrate de:
+
+  a) Cambiar ENVIRONMENT a 'production' en app/Config/config.php:
+     define('ENVIRONMENT', 'production');
+
+  b) Verificar que NO haya credenciales reales hardcodeadas.
+     Las credenciales se toman de $_ENV o de los valores por defecto.
+     Para producción, usa un archivo .env en la raíz del proyecto.
+
+  c) Crear archivo .env en la raíz (NO se sube a Git, está en .gitignore):
+     ─────────────────────────────────────────────────────────────
+     DB_HOST=localhost
+     DB_USER=tu_usuario_mysql
+     DB_PASS=tu_contraseña_segura
+     DB_NAME=multiservicio_2.0
+
+     URLROOT=https://tudominio.com
+     SITENAME=Taller Pro
+     ENVIRONMENT=production
+     TIMEZONE=America/Caracas
+
+     MAIL_HOST=smtp.gmail.com
+     MAIL_PORT=587
+     MAIL_USERNAME=tu-correo@gmail.com
+     MAIL_PASSWORD=tu-contraseña-de-app
+     MAIL_ENCRYPTION=tls
+     MAIL_FROM_ADDRESS=tu-correo@gmail.com
+     MAIL_FROM_NAME=Taller Pro
+     MAIL_ADMIN=admin@tudominio.com
+
+     WHATSAPP_API_URL=http://localhost:3000/enviar-pedido
+     WHATSAPP_TIMEOUT=10
+     WHATSAPP_ADMIN_PHONE=584125181629
+
+     SECRET_KEY=tu-clave-secreta-32-caracteres
+     SECRET_IV=tu-iv-16-caracteres
+     ─────────────────────────────────────────────────────────────
+
+  d) ⚠ ACLARACIÓN IMPORTANTE — ¿Se debe subir la carpeta vendor/?
+     ─────────────────────────────────────────────────────────────
+     ¡SÍ! La carpeta vendor/ DEBE subirse completa al servidor.
+     Contiene todas las dependencias del sistema (~15-20 MB):
+
+       • dompdf/dompdf          → Generación de PDFs (facturas, reportes)
+       • phpmailer/phpmailer    → Envío de correos electrónicos SMTP
+       • chillerlan/php-qrcode  → Generación de códigos QR
+       • composer/              → Autoloader de clases (PSR-4)
+
+     DOS FORMAS DE MANEJARLO:
+     ────────────────────────
+     Opción A — Subir vendor/ por FTP (recomendado para hosting compartido):
+       Simplemente arrastrá la carpeta vendor/ completa con FileZilla
+       o el cliente FTP que uses. Ya está lista después de haber
+       ejecutado "composer install" en tu máquina local.
+
+     Opción B — Ejecutar composer en el servidor (si tenés SSH):
+       Subí todo el proyecto MENOS la carpeta vendor/, luego
+       ejecutá en el servidor:
+         composer install --no-dev --optimize-autoloader
+
+     La Opción A es la más práctica para la mayoría de hostings.
+     La carpeta pesa ~15-20 MB, no afecta el rendimiento del sitio.
+
+3.2 Subir archivos al hosting
+─────────────────────────────
+  Opción A — FTP (FileZilla, WinSCP):
+    1. Conecta al servidor FTP de tu hosting
+    2. Navega a la carpeta raíz (public_html, htdocs, www, etc.)
+    3. Sube TODO el contenido de la carpeta del proyecto
+    4. Asegúrate de que la estructura quede así:
+       /public_html/           ← raíz del hosting
+         .htaccess             ← redirige a public_html/
+         app/
+         public_html/          ← aquí apunta el dominio
+           index.php
+           .htaccess
+           css/
+           js/
+           img/
+           uploads/
+         vendor/
+         sql/
+         .env                  ← archivo de entorno (opcional pero recomendado)
+
+  Opción B — Git (si el hosting soporta SSH):
+    git clone <tu-repo> .
+    composer install --no-dev --optimize-autoloader
+
+3.3 Configurar la base de datos en producción
+─────────────────────────────────────────────
+  1. En el panel de control del hosting (cPanel, Plesk, etc.):
+     - Crea una base de datos MySQL
+     - Crea un usuario y asígnalo a la base de datos con TODOS los privilegios
+     - Anota: nombre de BD, usuario, contraseña, host (generalmente localhost)
+
+  2. Importa el esquema SQL:
+     - Ve a phpMyAdmin en tu hosting
+     - Selecciona la base de datos creada
+     - Importa: sql/database_schema_2.0.sql
+
+  3. Actualiza el archivo .env con los datos de la BD de producción.
+
+3.4 Configurar .htaccess en el hosting
+──────────────────────────────────────
+  El proyecto ya incluye dos archivos .htaccess:
+
+  a) /.htaccess (raíz del proyecto):
+     Redirige todas las peticiones a la carpeta public_html/.
+     Esto oculta la carpeta app/ del acceso público.
+
+  b) /public_html/.htaccess:
+     Enrutamiento MVC: todas las URLs que no sean archivos físicos
+     se redirigen a index.php.
+
+  Si tu hosting NO permite .htaccess en la raíz, puedes:
+    - Apuntar el dominio directamente a la carpeta public_html/
+    - O mover el contenido de public_html/ a la raíz y ajustar las rutas
+
+3.5 Ajustar permisos de carpetas
+────────────────────────────────
+  En servidores Linux, asegura los permisos correctos:
+
+    chmod -R 755 public_html/
+    chmod -R 777 public_html/uploads/   ← Necesario para subir imágenes
+    chmod 644 .htaccess
+    chmod 644 public_html/.htaccess
+
+3.6 Verificar la instalación en producción
+──────────────────────────────────────────
+  - Abre https://tudominio.com
+  - Deberías ver la página de login
+  - Revisa que no se muestren errores PHP (ENVIRONMENT=production los oculta)
+  - Prueba el login con las credenciales de administrador
+
+================================================================================
+SECCIÓN 4 — CONFIGURACIÓN DEL SERVIDOR NODE.JS PARA WHATSAPP
+================================================================================
+
+4.1 ¿Qué hace el servidor Node.js?
+──────────────────────────────────
+  El sistema PHP envía peticiones HTTP (cURL) a un servidor Node.js local
+  que se comunica con la API de WhatsApp Web usando la librería baileys.
+  Esto permite enviar notificaciones de pedidos por WhatsApp.
+
+  Si el servidor Node.js NO está disponible, el sistema sigue funcionando
+  normalmente y muestra un aviso tipo toast al usuario.
+
+4.2 Requisitos del servidor WhatsApp
+────────────────────────────────────
+  - Node.js 18 o superior
+  - npm (incluido con Node.js)
+  - Un número de WhatsApp activo (se escanea un código QR para vincularlo)
+
+4.3 Instalación del servidor WhatsApp
+─────────────────────────────────────
+  El código del servidor Node.js NO está incluido en este proyecto.
+  Debes crearlo en una carpeta separada, por ejemplo:
+
+    C:\whatsapp-server\   (local)
+    /opt/whatsapp-server/ (producción)
+
+  Estructura del servidor:
+    whatsapp-server/
+    ├── package.json
+    ├── server.js
+    └── auth_info/          ← Se crea automáticamente al vincular WhatsApp
+
+  package.json:
+    {
+      "name": "whatsapp-server",
+      "version": "1.0.0",
+      "dependencies": {
+        "@whiskeysockets/baileys": "^6.7.0",
+        "express": "^4.18.0",
+        "qrcode-terminal": "^0.12.0"
+      }
+    }
+
+  Instalar dependencias:
+    cd whatsapp-server
+    npm install
+
+4.4 Código del servidor (server.js)
+───────────────────────────────────
+  Crea un archivo server.js con el siguiente contenido:
+
+    const express = require('express');
+    const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+    const qrcode = require('qrcode-terminal');
+
+    const app = express();
+    app.use(express.json());
+
+    let sock = null;
+
+    async function connectWhatsApp() {
+        const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+
+        sock = makeWASocket({
+            auth: state,
+            printQRInTerminal: true
+        });
+
+        sock.ev.on('creds.update', saveCreds);
+
+        sock.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect } = update;
+            if (connection === 'close') {
+                const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+                if (shouldReconnect) {
+                    console.log('Reconectando...');
+                    connectWhatsApp();
+                } else {
+                    console.log('Sesión cerrada. Borra auth_info/ y reinicia.');
+                }
+            } else if (connection === 'open') {
+                console.log('✅ WhatsApp conectado');
+            }
+        });
+    }
+
+    // Endpoint que recibe las peticiones del PHP
+    app.post('/enviar-pedido', async (req, res) => {
+        const { telefono, mensaje } = req.body;
+
+        if (!telefono || !mensaje) {
+            return res.status(400).json({ success: false, error: 'Faltan datos' });
+        }
+
+        try {
+            const jid = telefono + '@s.whatsapp.net';
+            await sock.sendMessage(jid, { text: mensaje });
+            res.json({ success: true, mensaje: 'Mensaje enviado' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.listen(3000, () => {
+        console.log('Servidor WhatsApp en puerto 3000');
+        connectWhatsApp();
+    });
+
+4.5 Iniciar el servidor y vincular WhatsApp
+───────────────────────────────────────────
+  1. Ejecuta: node server.js
+  2. Aparecerá un código QR en la terminal
+  3. Abre WhatsApp en tu teléfono → Ajustes → Dispositivos vinculados
+  4. Escanea el QR code
+  5. La terminal mostrará: "✅ WhatsApp conectado"
+
+  El servidor queda corriendo en http://localhost:3000
+
+4.6 Ejecutar como servicio (producción)
+───────────────────────────────────────
+  En Linux (VPS), usa PM2 para mantener el servidor siempre activo:
+
+    npm install -g pm2
+    pm2 start server.js --name whatsapp-server
+    pm2 save
+    pm2 startup
+
+  En Windows, puedes usar el Programador de Tareas o NSSM (Non-Sucking Service Manager).
+
+4.7 Configuración en el sistema PHP
+───────────────────────────────────
+  En app/Config/config.php o en el archivo .env:
+
+    WHATSAPP_API_URL = 'http://localhost:3000/enviar-pedido'
+    WHATSAPP_TIMEOUT = 10
+    WHATSAPP_ADMIN_PHONE = '584125181629'   ← Número del admin (código país + número)
+
+  Si el servidor Node.js está en otra máquina, cambia localhost por la IP:
+    WHATSAPP_API_URL = 'http://192.168.1.100:3000/enviar-pedido'
+
+================================================================================
+SECCIÓN 5 — CONFIGURACIÓN DE TAREAS PROGRAMADAS (CRON JOBS)
+================================================================================
+
+5.1 Script de notificación de proveedores
+─────────────────────────────────────────
+  El script app/Scripts/notificar_proveedores.php verifica facturas
+  de proveedores próximas a vencer y envía alertas por correo.
+
+  En Linux (cPanel / VPS):
+    crontab -e
+    Agrega:
+    0 8 * * * /usr/bin/php /ruta/a/multiservicio/app/Scripts/notificar_proveedores.php
+
+  En cPanel:
+    - Ve a "Tareas Cron" (Cron Jobs)
+    - Comando: php /home/usuario/public_html/app/Scripts/notificar_proveedores.php
+    - Frecuencia: Una vez al día (0 8 * * *)
+
+  En Windows (Programador de Tareas):
+    - Crear tarea básica
+    - Acción: Iniciar un programa
+    - Programa: C:\xampp\php\php.exe
+    - Argumentos: C:\xampp\htdocs\multiservicio\app\Scripts\notificar_proveedores.php
+    - Desencadenador: Diario a las 8:00 AM
+
+================================================================================
+SECCIÓN 6 — VERIFICACIÓN FINAL Y SOLUCIÓN DE PROBLEMAS
+================================================================================
+
+6.1 Checklist de verificación
+─────────────────────────────
+  ☐ PHP 8.0+ instalado y funcionando
+  ☐ Extensiones PHP requeridas habilitadas (pdo_mysql, gd, mbstring, curl, etc.)
+  ☐ mod_rewrite habilitado en Apache
+  ☐ Composer install ejecutado sin errores
+  ☐ Base de datos creada y esquema SQL importado
+  ☐ Archivo .env configurado con credenciales reales
+  ☐ Carpeta public_html/uploads/ con permisos de escritura (777 en Linux)
+  ☐ ENVIRONMENT = 'production' en producción
+  ☐ URL del sistema accesible desde el navegador
+  ☐ Login funciona con credenciales de administrador
+  ☐ Correos SMTP probados (usar test en app/Scripts/)
+  ☐ WhatsApp: servidor Node.js corriendo y QR escaneado (opcional)
+
+6.2 Problemas comunes
+─────────────────────
+  Error: "404 Not Found" al navegar
+    → Verifica que mod_rewrite esté habilitado en Apache
+    → Verifica que los archivos .htaccess estén presentes
+    → En hosting, asegúrate de que AllowOverride All esté configurado
+
+  Error: "No se pudo conectar a la base de datos"
+    → Verifica credenciales en app/Config/config.php o .env
+    → Asegúrate de que la base de datos exista y el usuario tenga permisos
+
+  Error: "Class 'Dompdf\Dompdf' not found"
+    → Ejecuta: composer install
+    → Verifica que vendor/autoload.php exista
+
+  Error: "Class 'chillerlan\QRCode\QRCode' not found"
+    → Ejecuta: composer require chillerlan/php-qrcode
+    → O reinstala: composer install
+
+  Error: "No se pudo enviar el correo"
+    → Verifica credenciales SMTP
+    → Para Gmail: usa contraseña de aplicación, no la contraseña normal
+    → Verifica que el puerto SMTP no esté bloqueado por el firewall del hosting
+
+  Error: WhatsApp no envía mensajes
+    → Verifica que el servidor Node.js esté corriendo (node server.js)
+    → Verifica que el QR code fue escaneado y WhatsApp está conectado
+    → Verifica que WHATSAPP_API_URL apunte al puerto correcto
+    → El sistema muestra un toast de advertencia si WhatsApp no está disponible
+
+  Error: "getallheaders() not found"
+    → El sistema ya incluye un polyfill en config.php para FastCGI
+    → Si persiste, verifica que Apache esté usando mod_php (no CGI/FastCGI)
+
+  Error: Imágenes no se suben
+    → Verifica permisos de public_html/uploads/ (777 en Linux)
+    → Verifica que la extensión fileinfo esté habilitada
+
+================================================================================
+SECCIÓN 7 — ESTRUCTURA DEL PROYECTO (REFERENCIA RÁPIDA)
+================================================================================
+
+multiservicio/
+├── .env                          ← Variables de entorno (NO se sube a Git)
+├── .gitignore                    ← Archivos ignorados por Git
+├── .htaccess                     ← Redirige todo a public_html/
+├── composer.json                 ← Dependencias del proyecto
+├── composer.lock                 ← Versiones exactas de dependencias
+│
+├── app/                          ← LÓGICA INTERNA (NO accesible desde web)
+│   ├── Config/
+│   │   ├── config.php            ← Constantes globales (DB, SMTP, WhatsApp, etc.)
+│   │   └── routes.php            ← Mapeo de URLs amigables
+│   ├── Controllers/              ← Controladores (lógica de negocio)
+│   ├── Core/                     ← Núcleo del framework (App, Database, Model, etc.)
+│   ├── Helpers/                  ← Funciones auxiliares y Validator
+│   ├── Middleware/               ← AuthGuard y RoleGuard
+│   ├── Models/                   ← Modelos de base de datos
+│   ├── Scripts/                  ← Scripts CLI (notificaciones, tests)
+│   ├── Services/                 ← Servicios centralizados
+│   │   ├── BillingService.php    ← Facturación y contabilidad
+│   │   ├── CalculadoraFinaciera.php
+│   │   ├── CompraService.php
+│   │   ├── EmailService.php      ← Envío de correos (PHPMailer)
+│   │   ├── NotificacionService.php
+│   │   ├── PdfService.php        ← Generación de PDFs (DomPDF)
+│   │   └── WhatsAppService.php   ← Envío de WhatsApp (cURL → Node.js)
+│   └── Views/                    ← Vistas (HTML/PHP)
+│       ├── email/                ← Plantillas de correo
+│       ├── pdf/                  ← Plantillas de PDF
+│       └── ...                   ← Vistas por módulo
+│
+├── public_html/                  ← RAÍZ PÚBLICA (aquí apunta el dominio)
+│   ├── .htaccess                 ← Enrutamiento MVC
+│   ├── index.php                 ← Punto de entrada único (Front Controller)
+│   ├── css/                      ← Hojas de estilo
+│   ├── js/                       ← JavaScript
+│   ├── img/                      ← Imágenes estáticas
+│   └── uploads/                  ← Archivos subidos por usuarios (permisos 777)
+│
+├── sql/
+│   └── database_schema_2.0.sql   ← Esquema completo de la base de datos
+│
+├── vendor/                       ← Dependencias de Composer (autogenerado)
+│   ├── dompdf/                   ← DomPDF 3.1
+│   ├── phpmailer/                ← PHPMailer 6.8
+│   ├── chillerlan/               ← php-qrcode 6.0
+│   └── autoload.php              ← Autoloader de Composer
+│
+└── doc/                          ← Documentación interna
+
+================================================================================
+FIN DEL MANUAL
+================================================================================

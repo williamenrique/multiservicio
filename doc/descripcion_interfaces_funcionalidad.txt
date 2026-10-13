@@ -1,0 +1,428 @@
+================================================================================
+  DESCRIPCIÓN ORGANIZADA DE INTERFACES Y FUNCIONALIDAD
+  Sistema: TALLER PRO (PHP MVC) - Gestión de Taller Mecánico y Facturación
+  Fecha de revisión: 2026-08-14
+================================================================================
+
+Este documento describe cada interfaz del sistema, su propósito, los
+componentes visuales que la conforman y la funcionalidad esperada. Sirve
+como checklist para detectar qué falta implementar o completar en cada
+módulo.
+
+Convención de estados de implementación:
+  [OK]   = Funcionalidad presente y operativa
+  [??]   = Requiere verificación / posiblemente incompleta
+  [FALTA]= No implementado o ausente
+
+================================================================================
+ 0. SISTEMA DE DISEÑO Y COMPONENTES COMPARTIDOS
+================================================================================
+
+DISEÑO GENERAL
+- Paleta: Navy-blue #0f172a (fondo) · Neon-green #10b981 (acento)
+- Estilo: Glassmorphism (backdrop-blur, bg-opacity, rounded-2xl)
+- Iconografía: Lucide Icons 0.344.0
+- Alertas: SweetAlert2 · Toastify-js
+- Gráficos: Chart.js
+- Tablas dinámicas: DataTableRefactor.js (motor propio)
+- Tipografía: títulos font-black uppercase tracking-tight
+
+HEADER (app/Views/inc/header.php)
+- Sidebar lateral fijo (w-64, bg-navy-blue)
+- Menú organizado en secciones:
+  * Dashboard
+  * Gestión: Venta Repuestos, Inventario, Facturación, Taller,
+    Proveedores, Gastos, Reportes Contables
+  * Administración: Clientes, Personal, Configuración
+  * (Revisar) Garantías, Devoluciones, Catálogo/Pedidos
+- Top bar: botón hamburguesa, reloj digital (neon-green, font-mono),
+  logo y nombre de empresa
+- Variables JS globales: URLROOT, URL_IMG, IVA_RATE, CSRF_TOKEN,
+  USER_ROLE, USER_ROLE_ID
+
+FOOTER (app/Views/inc/footer.php)
+- jQuery 3.7.0, pdfmake, SweetAlert2, Chart.js, Toastify-js, Lucide
+- DataTableRefactor.js, app.js (funciones globales)
+
+[??] Verificar que Garantías, Devoluciones y Pedidos de Catálogo
+    aparezcan en el sidebar según el rol del usuario.
+
+================================================================================
+ 1. AUTENTICACIÓN
+================================================================================
+
+1.1 LOGIN  ·  app/Views/auth/Login.php  ·  ControllerAuth
+- Tarjeta glassmorphism centrada sobre gradiente radial oscuro
+- Logo de llave inglesa (wrench) en verde neón + título "TALLERPRO"
+- Campos: USUARIO (icono User), CONTRASEÑA (icono Lock)
+- Enlace "¿Olvidaste tu contraseña?" → recuperar
+- Botón "INGRESAR" + CSRF Token oculto
+- Submit AJAX; errores con SweetAlert2; redirección al dashboard
+[??] Verificar bloqueo tras N intentos fallidos / captcha
+
+1.2 SOLICITUDES DE ACCESO  ·  Auth@solicitudes
+- Vista de solicitudes pendientes de acceso al sistema
+[??] Confirmar existencia de vista dedicada (¿reutiliza auth?)
+
+1.3 RECUPERAR CONTRASEÑA  ·  app/Views/recuperar/index.php
+- Tabla de solicitudes de recuperación cargada vía AJAX
+  (cargarTablaRecuperacion())
+- Aprobación/rechazo de solicitudes + envío de email
+[??] Confirmar flujo de email y token de recuperación
+
+1.4 PERFIL DE USUARIO  ·  app/Views/perfil/index.php  ·  ControllerPerfil
+- Tema oscuro (glass-card, gray-900 inputs, verde neón)
+- Foto avatar circular (overlay cámara al hover) + foto carnet rectangular
+- Badge de rol
+- Formulario: Nombre, Email, Teléfono, Dirección
+- Sección CAMBIAR CONTRASEÑA: nueva + confirmación
+[OK] Subida de fotos con preview, edición de datos, cambio de clave
+
+================================================================================
+ 2. DASHBOARD (Panel Principal)
+================================================================================
+
+app/Views/dashboard/index.php  ·  ControllerDashboard
+- Encabezado "Dashboard" / "Resumen General"
+- 4 tarjetas financieras: Ventas (azul), Órdenes (índigo),
+  Gastos (rojo), Utilidad (verde)
+- Sección "Rentabilidad y Deudores" (2 columnas):
+  rentabilidad (ingresos vs gastos) + deudores (clientes con deuda)
+- Estado del inventario (4 columnas): stock bajo, agotados, etc.
+- Órdenes pendientes (borradores) en tarjetas
+- Deudas con proveedores
+- Gráfico de ventas mensuales (Chart.js, canvas línea)
+- Botón descarga de respaldo (JSON)
+[OK] Carga dinámica JS, gráfico, hover en tarjetas
+[??] Verificar refresco automático / periódico de métricas
+
+================================================================================
+ 3. TALLER (Órdenes de Servicio)
+================================================================================
+
+3.1 TALLER ACTIVO  ·  app/Views/taller/index.php  ·  ControllerTaller
+- Encabezado "Taller Activo" + botones "Nueva O.S." e "Historial"
+- Barra de búsqueda con resultados en vivo (dropdown)
+- Tabla de órdenes activas: Orden #, Vehículo (placa+marca/modelo),
+  Cliente, Estado (select coloreado), Mecánico, Fecha Ingreso,
+  Fecha Estimada (alerta si retrasada), Acciones
+- Estados: RECIBIDO (azul), DIAGNOSTICANDO (ámbar),
+  EN_REPARACION (índigo), LISTO (esmeralda)
+[OK] Cambio de estado AJAX, búsqueda con debounce, asignación mecánico
+
+3.2 NUEVA ORDEN DE SERVICIO  ·  app/Views/taller/nueva_orden.php
+- Banner verde si viene de QR (datos precargados)
+- Sección VEHÍCULO: Placa (búsqueda+dropdown), Cliente (búsqueda
+  con dropdown ID+nombre, nombre readonly autocompleta), Marca,
+  Modelo, Año, Color, Mecánico asignado (select)
+- Sección CHECKLIST (items a revisar)
+- Observaciones (textarea)
+- Botones: "Guardar Orden", "Cancelar"
+[OK] Autocompletado placa/cliente, validación de campos
+
+3.3 EXPEDIENTE TÉCNICO (Historial del Vehículo)  ·  taller/historial.php
+- 2 columnas: izquierda fija (placa 4xl, badge marca, modelo/año,
+  color con muestra visual, propietario+teléfono, QR con botón
+  descargar); derecha scroll (timeline de servicios)
+- Cada entrada timeline: fecha, estado coloreado, descripción, monto
+- Botones: "Taller Activo", "Historial Cerradas", "Nueva O.S.",
+  "Generar QR"
+[OK] Timeline vertical, QR dinámico, descarga QR
+
+3.4 ÓRDENES CERRADAS  ·  app/Views/taller/cerradas.php
+- Barra búsqueda (placa, orden o cliente) + selector límite (10/25/50)
+- Tabla: Orden #, Vehículo/Placa, Cliente, Fecha Entrega, Responsable,
+  Acciones (ver detalle)
+- Paginación con índice (Mostrando X a Y de Z)
+- Modal de detalle: vehículo, cliente, mecánico, fechas (ingreso,
+  estimada, real), diagnóstico, observaciones
+[OK] Búsqueda, paginación, modal detalle
+
+3.5 HISTORIAL PÚBLICO QR  ·  app/Views/public/vehicle_history_qr.php
+- Fondo gradiente purple/indigo, tarjeta glassmorphism
+- Info vehículo: placa 4xl, marca badge, modelo/año/color
+- Botón admin (solo rol ADMINISTRADOR)
+- Historial con badges de estado (RECIBIDO, DIAGNOSTICANDO,
+  EN_REPARACION, LISTO, ENTREGADO, CANCELADO)
+- Sección "Items Facturados" (descripción, cantidad, precio)
+- Modal QR con backdrop blur + info propietario
+[OK] Acceso público sin login, QR escaneable
+
+================================================================================
+ 4. FACTURACIÓN / POS
+================================================================================
+
+4.1 FACTURACIÓN  ·  app/Views/facturacion/index.php  ·  ControllerFacturacion
+- Barra superior con cola de facturas borrador
+- Sección VEHÍCULO: descripción, placa, mecánico (select, solo admin)
+- Sección CLIENTE: búsqueda + botón "REGISTRAR RÁPIDO"
+- Diagnóstico (desde la OS) + Observaciones (textarea)
+- Sección REPUESTOS: búsqueda con resultados, cantidad, "Agregar"
+- Tabla items: descripción, cantidad, precio, subtotal, eliminar
+- Total general
+- Botones: "FACTURAR", "GUARDAR BORRADOR", "IMPRIMIR"
+[OK] Autocompletado productos, carrito dinámico, totales en tiempo real,
+     generación PDF, guardado borrador
+[??] Verificar múltiples facturas parciales por orden
+
+4.2 VENTA MOSTRADOR  ·  app/Views/venta/index.php  ·  ControllerVenta
+- Sección PRODUCTO: búsqueda con dropdown, tabla items (producto,
+  cantidad, precio, subtotal, eliminar), total general, placeholder
+  package-open si vacío
+- Sección HISTORIAL: búsqueda, filtros fecha, selector límite, tabla
+  ventas recientes, paginación
+[OK] Autocompletado, carrito, total en tiempo real, historial con filtros
+
+================================================================================
+ 5. INVENTARIO Y REPUESTOS
+================================================================================
+
+5.1 INVENTARIO  ·  app/Views/inventario/index.php  ·  ControllerInventario
+- Encabezado "+ NUEVO PRODUCTO"
+- Búsqueda (nombre, categoría, SKU) + contador + selector límite
+- Tabla: Imagen, Producto (nombre+SKU), Categoría, Stock (alerta si
+  bajo), Precio, Estado (activo/inactivo), Acciones
+  (editar/eliminar/kardex)
+- Paginación
+- Modal crear/editar: subida imagen (archivo o URL), nombre, SKU,
+  categoría, stock actual, stock mínimo, precio compra, precio venta,
+  estado
+[OK] CRUD AJAX, subida imágenes, alerta stock, enlace kardex
+
+5.2 KARDEX  ·  app/Views/inventario/kardex.php
+- Botón "Volver a Inventario"
+- Tarjeta producto: imagen, nombre, categoría, stock actual, stock
+  mínimo, último costo, precio venta
+- Gráfico historial costos (Chart.js línea)
+- Tabla movimientos: ID, Fecha, Tipo (entrada/salida), Cantidad,
+  Flujo Stock, Referencia, Acciones
+- Búsqueda + selector límite + paginación
+[OK] Gráfico costos, búsqueda, paginación, enlace referencia
+
+5.3 REPUESTOS (catálogo interno)  ·  app/Views/repuestos/index.php
+[??] Verificar si es vista duplicada de inventario o catálogo staff
+    (revisar ControllerRepuesto)
+
+================================================================================
+ 6. CATÁLOGO PÚBLICO Y PEDIDOS
+================================================================================
+
+6.1 CATÁLOGO PÚBLICO  ·  app/Views/public/catalogo/  ·  ControllerCatalogo
+- Vista pública de repuestos para clientes
+- Búsqueda, filtros por categoría, agregar al carrito
+[??] Confirmar plantilla de catálogo público y flujo de checkout
+
+6.2 CARRITO  ·  app/Views/carrito/index.php  ·  ControllerCarrito
+- Título "Tu Carrito"
+- Alertas de error y errores de stock
+- Lista de items: imagen, código, nombre, marca, precio, stock
+- Control de cantidad (+/−), botón eliminar, subtotal por item
+- Resumen: productos, total
+- Estado vacío con CTA "Ver catálogo"
+[OK] Gestión cantidades, subtotales, validación stock
+[??] Verificar flujo de checkout / datos del cliente / confirmación
+
+6.3 PEDIDOS PENDIENTES (staff)  ·  app/Views/catalogo/pedidos_pendientes.php
+- Encabezado + enlace "Ver Catálogo" (externo)
+- Empty state "No hay pedidos pendientes"
+- Tarjetas de pedido: #id, estado, fecha, nombre cliente, teléfono,
+  correo, total
+- Acciones: "Ver Detalle", "Procesar", "Cancelar"
+[OK] Procesar/cancelar pedido vía AJAX
+
+6.4 PEDIDOS PROCESADOS  ·  app/Views/catalogo/pedidos_procesados.php
+[??] Confirmar estructura (similar a pendientes, solo lectura)
+
+6.5 VER PEDIDO  ·  app/Views/catalogo/ver_pedido.php
+- Header gradiente esmeralda con #pedido, fecha y badge estado
+- Grid info cliente: nombre, cédula/NIT, teléfono, correo,
+  dirección, notas
+- Tabla de productos del pedido
+[OK] Detalle completo del pedido
+
+6.6 NOTIFICACIONES DE PEDIDOS  ·  Catalogo@notificacionesPedidos
+[??] Verificar badge/contador en sidebar y polling de notificaciones
+
+================================================================================
+ 7. GARANTÍAS
+================================================================================
+
+app/Views/garantia/index.php  ·  ControllerGarantia
+- Encabezado "Garantías" + subtítulo (15 días servicio, excepto lavados)
+- Tabs: "Nueva Garantía" / "Historial"
+- NUEVA GARANTÍA:
+  * Buscador de facturas (# factura o cliente)
+  * Tabla facturas: # Factura, Cliente, Placa, Fecha, Total, Acciones
+  * Paginación
+  * Panel items de la factura seleccionada (oculto hasta seleccionar)
+- HISTORIAL: garantías registradas
+[OK] Búsqueda facturas, selección items, registro garantía
+[??] Verificar vista de detalle/PDF de garantía (Garantia@detalle,
+    Garantia@pdf, Garantia@imprimir)
+[??] Confirmar cálculo automático de vigencia (15 días)
+
+================================================================================
+ 8. DEVOLUCIONES
+================================================================================
+
+app/Views/devoluciones/index.php  ·  ControllerDevoluciones
+- Encabezado "Devoluciones" + subtítulo (validación de garantía)
+- Tabs: "Nueva Devolución" / "Historial"
+- NUEVA DEVOLUCIÓN:
+  * Buscador de facturas (# factura o cliente) + selector límite
+  * Tabla facturas: # Factura, Cliente, Fecha, Total, Acciones
+  * Paginación
+  * Panel items de la factura seleccionada
+- HISTORIAL: devoluciones registradas
+[OK] Búsqueda facturas, selección items, registro devolución
+[??] Verificar reintegro automático al inventario (kardex)
+[??] Confirmar validación de garantía vigente al devolver
+
+================================================================================
+ 9. GESTIÓN ADMINISTRATIVA
+================================================================================
+
+9.1 CLIENTES  ·  app/Views/cliente/index.php  ·  ControllerClientes
+- Encabezado "+ NUEVO CLIENTE"
+- Búsqueda + contador + selector límite
+- Tabla: ID, Nombre, Contacto (teléfono), Ubicación (dirección),
+  Acciones (editar/eliminar)
+- Paginación
+- Modal crear/editar: ID Fiscal (NIT/Cédula), Teléfono, Nombre,
+  Email, Dirección
+[OK] CRUD AJAX, modal, confirmación SweetAlert2, búsqueda en vivo
+
+9.2 PROVEEDORES  ·  app/Views/proveedor/index.php  ·  ControllerProveedores
+- 2 pestañas:
+  TAB 1 DIRECTORIO: búsqueda, tabla (NIT, Nombre, Contacto, Acciones),
+    modal crear/editar
+  TAB 2 CUENTAS POR PAGAR: tabla deudas pendientes, facturas
+    pendientes, saldo, próximo vencimiento, acciones
+[OK] Tabs, CRUD proveedores, vista deudas y vencimientos
+
+9.3 PERSONAL  ·  app/Views/personal/index.php  ·  ControllerPersonal
+- Encabezado "+ NUEVO"
+- Búsqueda (nombre, rol, documento)
+- Tabla: ID Interno, Cédula, Nombre, Rol/Especialidad, Nivel Acceso,
+  Contacto, Acciones
+- Modal crear/editar: ID Interno, Cédula, Cargo (select:
+  ADMINISTRADOR, MECANICO, AYUDANTE, VENDEDOR), Nombres, Apellidos,
+  Teléfono, Email, Dirección, Nivel Acceso
+[OK] CRUD AJAX, roles predefinidos con colores
+
+9.4 EMPRESA (Configuración)  ·  app/Views/empresa/index.php  ·  ControllerEmpresa
+- Formulario único: logo (subida con preview), nombre, NIT, IVA (%),
+  teléfono, dirección, email
+- Botón "GUARDAR CAMBIOS"
+[OK] Subida logo preview, guardado AJAX, validación
+
+9.5 GASTOS  ·  app/Views/gastos/index.php  ·  ControllerGastos
+- Encabezado + botón rojo "REGISTRAR GASTO"
+- Filtros fecha (desde/hasta) + búsqueda (descripción/categoría)
+- Tabla: Fecha, Descripción, Categoría, Monto, Acciones
+- Paginación + botón "IMPRIMIR REPORTE" (PDF)
+[OK] CRUD AJAX, filtro fechas, búsqueda, reporte PDF
+
+================================================================================
+ 10. REPORTES Y AUDITORÍA
+================================================================================
+
+10.1 REPORTES CONTABLES  ·  app/Views/reportes/index.php  ·  ControllerReportes
+- 5 tarjetas totales rápidos: Ingreso Neto Repuestos (azul), Ingreso
+  Neto Servicios (índigo), Gastos y Compras (rojo), Deuda Proveedores
+  (ámbar), Utilidad Real (esmeralda)
+- 7 pestañas:
+  1. Flujo de Caja
+  2. Auditoría de Trabajos
+  3. Cartera por Edades
+  4. Análisis Rentabilidad
+  5. Nómina y Pagos
+  6. Devoluciones
+  7. Historial Nómina
+- Filtro rango fechas + búsqueda + selector límite + exportar/PDF
+[OK] Tabs dinámicos, filtros fecha, PDF por reporte, cálculos tiempo real
+[??] Verificar pestaña "Devoluciones" conectada a ControllerDevoluciones
+
+10.2 AUDITORÍA  ·  app/Views/audit/index.php  ·  ControllerAudit
+- Encabezado + botón "REFRESH"
+- Tabla: Fecha/Hora, Usuario, Módulo, Acción (badges coloreados),
+  Descripción, Dirección IP
+- Colores: DELETE=rojo, CREATE=verde, LOGIN=azul, UPDATE=amarillo
+[OK] Carga dinámica JS, solo lectura, botón refrescar
+[??] Verificar filtros (fecha, usuario, módulo) y paginación
+
+================================================================================
+ 11. DOCUMENTOS PDF
+================================================================================
+
+app/Views/pdf/templates/  (11 plantillas)
+1.  factura.php              - Factura de venta
+2.  orden.php                - Orden de servicio
+3.  cartera.php              - Cartera de clientes
+4.  recibo_pago.php          - Recibo de pago
+5.  kardex_individual.php    - Kardex de un producto
+6.  kardex_reporte.php       - Reporte general de kardex
+7.  reporte_gastos.php       - Reporte de gastos
+8.  reporte_auditoria.php    - Reporte de auditoría
+9.  reporte_cartera_proveedores.php - Cartera proveedores
+10. reporte_mostrador.php    - Reporte ventas mostrador
+11. reporte_proveedor_individual.php - Reporte proveedor individual
+
+Header compartido (app/Views/pdf/inc/header.php):
+- Nombre empresa (22px, weight 900) + línea verde decorativa
+- NIT, Dirección, Teléfono
+- Tipo documento (coloreado) + número + fecha emisión
+- Estado, Vendedor, Técnico
+[OK] 11 plantillas con header compartido
+[??] Verificar plantilla PDF de GARANTÍA (no listada)
+[??] Verificar plantilla PDF de DEVOLUCIÓN (no listada)
+
+================================================================================
+ 12. ERRORES
+================================================================================
+
+app/Views/errores/404.php  ·  ControllerErrores
+- Número "404" grande (150px, slate-200) + icono search-x
+- Título "¡Oops! Página no encontrada"
+- Descripción + botón "VOLVER AL INICIO" (verde neón)
+[OK] Página 404 funcional
+
+================================================================================
+ 13. EMAIL Y NOTIFICACIONES
+================================================================================
+
+app/Views/email/  ·  EmailService
+[??] Verificar plantillas de email (recuperación contraseña,
+    notificación proveedores, confirmación pedido)
+- Scripts: Scripts/notificar_proveedores.php, test_whatsapp.php
+[??] Confirmar integración WhatsApp / notificaciones proveedores
+
+================================================================================
+ RESUMEN DE PENDIENTES DETECTADOS
+================================================================================
+
+Prioridad alta:
+  [FALTA] Plantilla PDF de Garantía (Garantia@pdf/imprimir)
+  [FALTA] Plantilla PDF de Devolución
+  [??]    Reintegro automático al inventario en devoluciones
+  [??]    Validación de vigencia de garantía (15 días) en devoluciones
+  [??]    Vista de detalle de garantía (Garantia@detalle)
+
+Prioridad media:
+  [??]    Vista de catálogo público y flujo de checkout completos
+  [??]    Notificaciones de pedidos (badge/contador en sidebar)
+  [??]    Pedidos procesados (vista solo lectura)
+  [??]    Repuestos/index.php — definir si duplica inventario
+  [??]    Filtros y paginación en Auditoría
+  [??]    Pestaña "Devoluciones" en Reportes conectada al controlador
+
+Prioridad baja:
+  [??]    Bloqueo tras intentos fallidos / captcha en Login
+  [??]    Refresco automático de métricas en Dashboard
+  [??]    Plantillas de email (recuperación, proveedores, pedidos)
+  [??]    Integración WhatsApp (Scripts/test_whatsapp.php)
+  [??]    Garantías/Devoluciones/Pedidos en el sidebar por rol
+
+================================================================================
+ FIN DEL DOCUMENTO
+================================================================================

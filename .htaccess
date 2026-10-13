@@ -1,0 +1,21 @@
+<IfModule mod_rewrite.c>
+    # Activar el motor de reescritura
+    RewriteEngine on
+
+    # Regla 1: Redirigir cualquier petición que llegue a la raíz hacia la carpeta public
+    # Esto hace que '://tu-dominio.com' cargue '://tu-dominio.compublic_html/' internamente
+    RewriteRule ^$ public_html/ [L]
+
+    # Regla 2: Cualquier otra ruta (ej. /login) también se envía a public
+    # pero manteniendo el resto de la URL ($1)
+    RewriteRule (.*) public_html/$1 [L]
+</IfModule>
+
+# Seguridad extra: Evitar que se listen archivos si no hay un index
+Options -Indexes
+
+# Bloquear acceso a archivos sensibles desde la raíz (como el .env)
+<Files .env>
+    Order allow,deny
+    Deny from all
+</Files>

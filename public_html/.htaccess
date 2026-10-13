@@ -1,0 +1,20 @@
+<IfModule mod_rewrite.c>
+    Options -Multiviews
+    RewriteEngine On
+
+    # Establece la base si el proyecto está en una subcarpeta (ej: /taller/)
+    # Si está en la raíz del dominio, puedes dejarlo como /
+    # RewriteBase /
+
+    # Si el archivo solicitado existe físicamente (ej: una imagen, un .css), cárgalo directo
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+
+    # Si NO existe, envía todo el texto de la URL al index.php como el parámetro "url"
+    # QSA mantiene otros parámetros si existen (ej: ?id=1)
+    RewriteRule ^(.+)$ index.php?url=$1 [QSA,L]
+
+    # Para asegurar que la cabecera Authorization se pase a PHP en entornos FastCGI
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    ErrorDocument 404 /index.php?url=errores
+</IfModule>
