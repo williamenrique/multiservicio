@@ -88,7 +88,7 @@
                 </a>
             </div>
         </div>
-        <p class="text-center text-gray-600 text-xs mt-8">© <?php echo date('Y'); ?> Taller Pro v2.0 - Gestión
+        <p class="text-center text-gray-600 text-xs mt-8">© <?php echo date('Y'); ?> Taller Pro v3.0 - Gestión
             Profesional</p>
     </div>
 
