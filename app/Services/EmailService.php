@@ -112,6 +112,12 @@ class EmailService
      */
     private function logEnvio(array $meta, bool $success, ?string $error = null): void
     {
+         error_log('EMAIL LOG DEBUG - Intentando registrar: ' . json_encode([
+            'tipo' => $meta['tipo'] ?? 'NO DEFINIDO',
+            'to' => $meta['to'] ?? 'NO DEFINIDO',
+            'subject' => $meta['subject'] ?? 'NO DEFINIDO',
+            'success' => $success
+        ]));
         try {
             $emailModel = new \ModelEmail();
 

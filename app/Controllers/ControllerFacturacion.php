@@ -81,7 +81,24 @@ class ControllerFacturacion extends Controller {
 
                 $datos['iva_activo'] = $datos['iva_activo'] ?? false;
                 $datos['placa'] = !empty($datos['placa']) ? strtoupper(trim($datos['placa'])) : '';
-                $datos['origen'] = !empty($datos['orden_id']) ? 'TALLER' : 'MOSTRADOR';
+                // ─── FIX v3.14: Determinación correcta del ORIGEN ───
+                // Reglas de prioridad:
+                //   1. Viene del catálogo público       → CATALOGO
+                //   2. Tiene orden_id                   → TALLER (viene de O.S.)
+                //   3. Tiene presupuesto_activo_id      → PRESUPUESTO
+                //   4. Tiene placa (sin orden)          → TALLER
+                //   5. Sin nada de lo anterior          → MOSTRADOR
+                if (!empty($datos['es_catalogo']) || !empty($datos['desde_catalogo'])) {
+                    $datos['origen'] = 'CATALOGO';
+                } elseif (!empty($datos['orden_id'])) {
+                    $datos['origen'] = 'TALLER';
+                } elseif (!empty($datos['presupuesto_activo_id'])) {
+                    $datos['origen'] = 'PRESUPUESTO';
+                } elseif (!empty($datos['placa'])) {
+                    $datos['origen'] = 'TALLER';
+                } else {
+                    $datos['origen'] = 'MOSTRADOR';
+                }
 
                 $v = new Validator($datos);
                 $v->required(['items'])->array('items');

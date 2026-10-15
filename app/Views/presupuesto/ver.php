@@ -456,58 +456,118 @@ function editarPresupuesto(id) {
     window.location.href = `${URLROOT}/presupuesto/editar/${id}`;
 }
 
+/**
+ * FIX v3.15: Ahora precarga el email y nombre del cliente desde los
+ * datos del presupuesto antes de mostrar el modal. Si el cliente no
+ * tiene email registrado, se muestra un aviso y el campo queda vacío
+ * para que el usuario lo ingrese manualmente.
+ */
 async function enviarPresupuestoEmail(id) {
-    const { value: formValues } = await Swal.fire({
-        title: 'Enviar Presupuesto por Email',
-        html: `
-            <div class="text-left space-y-4 pt-2">
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email Destinatario *</label>
-                    <input type="email" id="email-destinatario" class="swal2-input w-full m-0 text-sm" placeholder="cliente@ejemplo.com" required>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nombre Destinatario</label>
-                    <input type="text" id="email-nombre" class="swal2-input w-full m-0 text-sm" placeholder="Nombre del cliente">
-                </div>
-            </div>`,
-        showCancelButton: true,
-        confirmButtonText: 'ENVIAR',
-        confirmButtonColor: '#3b82f6',
-        preConfirm: () => {
-            const email = document.getElementById('email-destinatario').value;
-            const nombre = document.getElementById('email-nombre').value;
-            if (!email) {
-                Swal.showValidationMessage('El email es obligatorio');
-                return false;
-            }
-            return { email, nombre };
+    try {
+        AppUtils.showLoading('Cargando datos del cliente...');
+        const res = await fetch(`${URLROOT}/presupuesto/obtener/${id}`);
+        const result = await res.json();
+        AppUtils.hideLoading();
+
+        if (!result.success || !result.data) {
+            AppUtils.showToast('No se pudo cargar el presupuesto', 'error');
+            return;
         }
-    });
-    
-    if (formValues) {
-        AppUtils.showLoading('Enviando...');
-        try {
-            const res = await fetch(`${URLROOT}/presupuesto/enviarEmail/${PRESUPUESTO_ID}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
-                body: JSON.stringify({
-                    destinatario_email: formValues.email,
-                    destinatario_nombre: formValues.nombre
-                })
-            });
-            const result = await res.json();
-            AppUtils.hideLoading();
-            
-            if (result.success) {
-                AppUtils.showToast(result.mensaje, 'success');
-                await refrescarPresupuestoActual();
-            } else {
-                AppUtils.showToast(result.mensaje || 'Error al enviar', 'error');
+
+        const p = result.data;
+        const emailCliente = (p.cliente_email || '').trim();
+        const nombreCliente = (p.cliente_nombre || '').trim();
+        const tieneEmail = emailCliente !== '';
+
+        // Aviso si el cliente no tiene email
+        const avisoHtml = tieneEmail
+            ? ''
+            : `<div class="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[10px] font-bold uppercase">
+                   ⚠ El cliente no tiene email registrado. Ingrésalo manualmente.
+               </div>`;
+
+        const { value: formValues } = await Swal.fire({
+            title: 'Enviar Presupuesto por Email',
+            html: `
+                <div class="text-left space-y-4 pt-2">
+                    <div class="p-3 bg-slate-50 border border-slate-100 rounded-lg">
+                        <p class="text-[10px] font-black text-slate-400 uppercase">Presupuesto</p>
+                        <p class="text-sm font-bold text-navy-blue uppercase">${p.numero}</p>
+                        <p class="text-xs text-slate-500 uppercase">Cliente: ${nombreCliente || 'SIN CLIENTE'}</p>
+                    </div>
+                    ${avisoHtml}
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Email Destinatario *</label>
+                        <input type="email" id="email-destinatario" class="swal2-input w-full m-0 text-sm"
+                               placeholder="cliente@ejemplo.com"
+                               value="${emailCliente.replace(/"/g, '&quot;')}" required>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nombre Destinatario</label>
+                        <input type="text" id="email-nombre" class="swal2-input w-full m-0 text-sm"
+                               placeholder="Nombre del cliente"
+                               value="${nombreCliente.replace(/"/g, '&quot;')}">
+                    </div>
+                </div>`,
+            showCancelButton: true,
+            confirmButtonText: 'ENVIAR',
+            confirmButtonColor: '#3b82f6',
+            cancelButtonText: 'CANCELAR',
+            cancelButtonColor: '#64748b',
+            preConfirm: () => {
+                const email = document.getElementById('email-destinatario').value.trim();
+                const nombre = document.getElementById('email-nombre').value.trim();
+                if (!email) {
+                    Swal.showValidationMessage('El email es obligatorio');
+                    return false;
+                }
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    Swal.showValidationMessage('El email no tiene un formato válido');
+                    return false;
+                }
+                return { email, nombre };
             }
-        } catch (e) {
-            AppUtils.hideLoading();
-            AppUtils.showToast('Error de conexión', 'error');
+        });
+
+        if (formValues) {
+            AppUtils.showLoading('Enviando...');
+            try {
+                const resEnv = await fetch(`${URLROOT}/presupuesto/enviarEmail/${id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                    body: JSON.stringify({
+                        destinatario_email: formValues.email,
+                        destinatario_nombre: formValues.nombre
+                    })
+                });
+                const resultEnv = await resEnv.json();
+                AppUtils.hideLoading();
+
+                if (resultEnv.success) {
+                    AppUtils.showToast(resultEnv.mensaje || 'Presupuesto enviado correctamente', 'success');
+                    // Refrescar la tabla/vista según el archivo
+                    if (typeof cargarPresupuestos === 'function') {
+                        cargarPresupuestos(presupuestosPage);
+                    }
+                    if (typeof actualizarStats === 'function') {
+                        actualizarStats();
+                    }
+                    if (typeof refrescarPresupuestoActual === 'function') {
+                        await refrescarPresupuestoActual();
+                    }
+                } else {
+                    AppUtils.showToast(resultEnv.mensaje || 'Error al enviar', 'error');
+                }
+            } catch (e) {
+                AppUtils.hideLoading();
+                AppUtils.showToast('Error de conexión al enviar', 'error');
+            }
         }
+    } catch (e) {
+        AppUtils.hideLoading();
+        console.error('Error preparando envío de presupuesto:', e);
+        AppUtils.showToast('Error al cargar los datos del presupuesto', 'error');
     }
 }
 
