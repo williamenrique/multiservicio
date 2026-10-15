@@ -484,46 +484,150 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // FIN DEL BUSCADOR CON DROPDOWN FLOTANTE
 
-    // Buscador de Clientes en tiempo real
-    inputCliSearch.addEventListener('input', async (e) => {
+    // ═══════════════════════════════════════════════════════════════════════
+    // FIX v3.20: BUSQUEDA DE CLIENTES CON DROPDOWN FLOTANTE
+    // Replica el sistema de facturación y presupuesto. Al hacer foco muestra
+    // TODOS los clientes; al escribir filtra en tiempo real. Se renderiza
+    // en el <body> con position:fixed para no recortarse.
+    // ═══════════════════════════════════════════════════════════════════════
+    let searchTimeoutClientesVenta = null;
+
+    inputCliSearch.addEventListener('focus', async () => {
+        const term = inputCliSearch.value.trim();
+        await ejecutarBusquedaClientesVenta(term);
+    });
+
+    inputCliSearch.addEventListener('input', (e) => {
+        clearTimeout(searchTimeoutClientesVenta);
         const term = e.target.value.trim();
-        if (term.length < 2) {
-            divCliResultados.classList.add('hidden');
-            if (term.length === 0) hiddenCliId.value = '';
+        searchTimeoutClientesVenta = setTimeout(async () => {
+            if (term.length === 0) {
+                hiddenCliId.value = '';
+            }
+            await ejecutarBusquedaClientesVenta(term);
+        }, 250);
+    });
+
+    async function ejecutarBusquedaClientesVenta(term) {
+        try {
+            const url = term.length >= 1
+                ? `${URLROOT}/clientes/listar?q=${encodeURIComponent(term)}&limit=30&offset=0`
+                : `${URLROOT}/clientes/listar?limit=30&offset=0`;
+
+            const res = await fetch(url);
+            if (!res.ok) return;
+
+            const data = await res.json();
+            lastClientResults = data.data || [];
+            renderizarDropdownClientesVenta(lastClientResults);
+        } catch (e) {
+            console.error('Error buscando clientes:', e);
+        }
+    }
+
+    function renderizarDropdownClientesVenta(clientes) {
+        const existingFloat = document.getElementById('venta-clientes-dropdown-float');
+        if (existingFloat) existingFloat.remove();
+
+        if (!inputCliSearch) return;
+
+        const rect = inputCliSearch.getBoundingClientRect();
+        const MIN_WIDTH = 480;
+        const PADDING = 16;
+        let dropdownWidth = Math.max(rect.width, MIN_WIDTH);
+        const maxWidthRight = window.innerWidth - rect.left - PADDING;
+        if (dropdownWidth > maxWidthRight) dropdownWidth = maxWidthRight;
+        if (dropdownWidth < 320) dropdownWidth = Math.min(320, window.innerWidth - PADDING * 2);
+
+        const espacioDebajo = window.innerHeight - rect.bottom - 20;
+        const alturaMax = Math.min(340, Math.max(180, espacioDebajo));
+
+        const dropdown = document.createElement('div');
+        dropdown.id = 'venta-clientes-dropdown-float';
+        dropdown.style.cssText = `
+            position: fixed;
+            top: ${rect.bottom + 4}px;
+            left: ${rect.left}px;
+            width: ${dropdownWidth}px;
+            max-height: ${alturaMax}px;
+            overflow-y: auto;
+            z-index: 100000;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.1);
+        `;
+
+        if (!clientes || clientes.length === 0) {
+            dropdown.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron clientes</div>';
+            document.body.appendChild(dropdown);
             return;
         }
 
-        const res = await fetch(`<?php echo URLROOT; ?>/clientes/listar?q=${encodeURIComponent(term)}&limit=20&offset=0`);
-        const data = await res.json();
-        lastClientResults = data.data || [];
+        const html = clientes.map((c, index) => {
+            const tieneVehiculo = c.placa || c.marca || c.modelo;
+            const vehiculoHtml = tieneVehiculo
+                ? `<div class="text-[10px] text-blue-600 font-mono mt-0.5">
+                       🚗 ${c.placa || ''} ${c.marca ? '· ' + c.marca : ''} ${c.modelo ? '· ' + c.modelo : ''}
+                   </div>`
+                : '';
 
-        if (lastClientResults.length > 0) {
-            divCliResultados.innerHTML = lastClientResults.map((c, i) => `
-                <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center group transition-colors" 
-                     onclick="seleccionarCliente('${i}')">
-                    <div>
-                        <p class="font-black text-xs uppercase text-slate-800 leading-none mb-1 group-hover:text-blue-600">${c.nombre}</p>
-                        <p class="text-[10px] text-slate-400 font-mono italic font-bold">CC/NIT: ${c.id}</p>
-                    </div>
-                    <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 group-hover:text-blue-500"></i>
-                </div>`).join('');
-            divCliResultados.classList.remove('hidden');
-            if (window.lucide) lucide.createIcons();
-        } else {
-            divCliResultados.innerHTML = '<p class="p-3 text-center text-slate-400 text-xs uppercase">No encontrado. Use "+ Nuevo Cliente"</p>';
-            divCliResultados.classList.remove('hidden');
+            return `<div class="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 last:border-0 transition-colors"
+                         onclick="seleccionarClienteDesdeDropdownVenta(${index})">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1 min-w-0">
+                                <div class="font-bold text-xs text-slate-800 uppercase truncate">${c.nombre}</div>
+                                <div class="text-[10px] text-slate-400 font-mono mt-0.5">CC/NIT: ${c.id}</div>
+                                ${c.telefono ? `<div class="text-[10px] text-slate-400 font-mono">Tel: ${c.telefono}</div>` : ''}
+                                ${c.email ? `<div class="text-[10px] text-slate-400 font-mono">✉ ${c.email}</div>` : ''}
+                                ${vehiculoHtml}
+                            </div>
+                            <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 flex-shrink-0 ml-2"></i>
+                        </div>
+                    </div>`;
+        }).join('');
+
+        dropdown.innerHTML = html;
+        document.body.appendChild(dropdown);
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    window.seleccionarClienteDesdeDropdownVenta = (index) => {
+        const cliente = lastClientResults[index];
+        if (!cliente) return;
+
+        const dd = document.getElementById('venta-clientes-dropdown-float');
+        if (dd) dd.remove();
+
+        hiddenCliId.value = cliente.id;
+        inputCliSearch.value = cliente.nombre;
+
+        AppUtils.showToast('Cliente vinculado');
+    };
+
+    // Cerrar el dropdown de clientes al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        const dd = document.getElementById('venta-clientes-dropdown-float');
+        if (!dd) return;
+        if (inputCliSearch && !inputCliSearch.contains(e.target) && !dd.contains(e.target)) {
+            dd.remove();
         }
     });
 
-    window.seleccionarCliente = (index) => {
-        const cliente = lastClientResults[index];
-        if (cliente) {
-            hiddenCliId.value = cliente.id;
-            inputCliSearch.value = cliente.nombre;
-            divCliResultados.classList.add('hidden');
-            AppUtils.showToast('Cliente vinculado');
-        }
-    };
+    // Cerrar el dropdown de clientes si el scroll ocurre FUERA de él
+    document.addEventListener('scroll', (e) => {
+        const dd = document.getElementById('venta-clientes-dropdown-float');
+        if (!dd) return;
+        if (dd.contains(e.target)) return;
+        dd.remove();
+    }, true);
+
+    // Cerrar el dropdown de clientes al redimensionar
+    window.addEventListener('resize', () => {
+        const dd = document.getElementById('venta-clientes-dropdown-float');
+        if (dd) dd.remove();
+    });
 
     // Registro rápido de cliente
     document.getElementById('btnNuevoClienteVenta').addEventListener('click', async () => {
@@ -776,11 +880,6 @@ document.addEventListener('DOMContentLoaded', function() {
         renderizar();
     };
 
-    // Cerrar resultados de cliente al hacer clic fuera
-    document.addEventListener('click', (e) => {
-        if (!divCliResultados.contains(e.target) && e.target !== inputCliSearch) divCliResultados.classList.add('hidden');
-    });
-
     /**
      * FIX OFERTA-V1 v3.0: Al agregar un producto al carrito, si tiene
      * oferta vigente, se usa el precio final y se guardan metadatos
@@ -911,6 +1010,9 @@ document.addEventListener('DOMContentLoaded', function() {
         hiddenCliId.value = '';
         inputCliSearch.value = '';
         inputBusqueda.value = '';
+        // Cerrar dropdown de clientes si estuviera abierto
+        const ddCli = document.getElementById('venta-clientes-dropdown-float');
+        if (ddCli) ddCli.remove();
         inputPagoEfectivo.value = '';
         inputPagoTransferencia.value = '';
         document.getElementById('msgSaldo').classList.add('hidden');

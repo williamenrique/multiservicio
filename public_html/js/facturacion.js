@@ -367,46 +367,126 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
-    // BÚSQUEDA DE CLIENTES
+    // ═══════════════════════════════════════════════════════════════════════
+    // FIX v3.19: BUSQUEDA DE CLIENTES CON DROPDOWN FLOTANTE
+    // Replica el sistema del dropdown de productos. Al hacer foco muestra
+    // TODOS los clientes; al escribir filtra en tiempo real. Se renderiza
+    // en el <body> con position:fixed para no recortarse.
+    // ═══════════════════════════════════════════════════════════════════════
     if (clientSearchInput) {
-        clientSearchInput.addEventListener('input', async (e) => {
+        let searchTimeoutClientes = null;
+
+        clientSearchInput.addEventListener('focus', async () => {
+            const term = clientSearchInput.value.trim();
+            await ejecutarBusquedaClientes(term);
+        });
+
+        clientSearchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeoutClientes);
             const term = e.target.value.trim();
-            if (term.length < 2) {
-                clientSearchResults.classList.add('hidden');
+            searchTimeoutClientes = setTimeout(async () => {
                 if (term.length === 0) {
                     inputCliente.value = '';
                     updateActiveData('cliente_id', '');
                 }
-                return;
-            }
-
-            const res = await fetch(`${URLROOT}/clientes/listar?q=${term}&limit=20&offset=0`);
-            const data = await res.json();
-            lastClientResults = data.data || [];
-
-            if (lastClientResults.length > 0) {
-                clientSearchResults.innerHTML = lastClientResults.map((c, i) => `
-                    <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center group transition-colors" 
-                         onclick="selectClientFromResults('${i}')">
-                        <div>
-                            <p class="font-black text-xs uppercase text-navy-blue leading-none mb-1 group-hover:text-black">${c.nombre}</p>
-                            <p class="text-[10px] text-slate-400 font-mono italic font-bold">CC/NIT: ${c.id}</p>
-                        </div>
-                        <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 group-hover:text-neon-green"></i>
-                    </div>`).join('');
-                clientSearchResults.classList.remove('hidden');
-                if (window.lucide) lucide.createIcons();
-            } else {
-                clientSearchResults.innerHTML = '<p class="p-3 text-center text-slate-400 text-xs uppercase">No encontrado</p>';
-                clientSearchResults.classList.remove('hidden');
-            }
+                await ejecutarBusquedaClientes(term);
+            }, 250);
         });
     }
 
-    window.selectClientFromResults = async (index) => {
+    async function ejecutarBusquedaClientes(term) {
+        try {
+            const url = term.length >= 1
+                ? `${URLROOT}/clientes/listar?q=${encodeURIComponent(term)}&limit=30&offset=0`
+                : `${URLROOT}/clientes/listar?limit=30&offset=0`;
+
+            const res = await fetch(url);
+            if (!res.ok) return;
+
+            const data = await res.json();
+            lastClientResults = data.data || [];
+            renderizarDropdownClientesFacturacion(lastClientResults);
+        } catch (e) {
+            console.error('Error buscando clientes:', e);
+        }
+    }
+
+    function renderizarDropdownClientesFacturacion(clientes) {
+        const existingFloat = document.getElementById('facturacion-clientes-dropdown-float');
+        if (existingFloat) existingFloat.remove();
+
+        if (!clientSearchInput) return;
+
+        const rect = clientSearchInput.getBoundingClientRect();
+        const MIN_WIDTH = 480;
+        const PADDING = 16;
+        let dropdownWidth = Math.max(rect.width, MIN_WIDTH);
+        const maxWidthRight = window.innerWidth - rect.left - PADDING;
+        if (dropdownWidth > maxWidthRight) dropdownWidth = maxWidthRight;
+        if (dropdownWidth < 320) dropdownWidth = Math.min(320, window.innerWidth - PADDING * 2);
+
+        const espacioDebajo = window.innerHeight - rect.bottom - 20;
+        const alturaMax = Math.min(340, Math.max(180, espacioDebajo));
+
+        const dropdown = document.createElement('div');
+        dropdown.id = 'facturacion-clientes-dropdown-float';
+        dropdown.style.cssText = `
+            position: fixed;
+            top: ${rect.bottom + 4}px;
+            left: ${rect.left}px;
+            width: ${dropdownWidth}px;
+            max-height: ${alturaMax}px;
+            overflow-y: auto;
+            z-index: 100000;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.1);
+        `;
+
+        if (!clientes || clientes.length === 0) {
+            dropdown.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron clientes</div>';
+            document.body.appendChild(dropdown);
+            return;
+        }
+
+        const html = clientes.map((c, index) => {
+            const tieneVehiculo = c.placa || c.marca || c.modelo;
+            const vehiculoHtml = tieneVehiculo
+                ? `<div class="text-[10px] text-blue-600 font-mono mt-0.5">
+                       🚗 ${c.placa || ''} ${c.marca ? '· ' + c.marca : ''} ${c.modelo ? '· ' + c.modelo : ''}
+                   </div>`
+                : '';
+
+            return `<div class="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 last:border-0 transition-colors"
+                         onclick="seleccionarClienteDesdeDropdownFacturacion(${index})">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1 min-w-0">
+                                <div class="font-bold text-xs text-slate-800 uppercase truncate">${c.nombre}</div>
+                                <div class="text-[10px] text-slate-400 font-mono mt-0.5">CC/NIT: ${c.id}</div>
+                                ${c.telefono ? `<div class="text-[10px] text-slate-400 font-mono">Tel: ${c.telefono}</div>` : ''}
+                                ${c.email ? `<div class="text-[10px] text-slate-400 font-mono">✉ ${c.email}</div>` : ''}
+                                ${vehiculoHtml}
+                            </div>
+                            <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 flex-shrink-0 ml-2"></i>
+                        </div>
+                    </div>`;
+        }).join('');
+
+        dropdown.innerHTML = html;
+        document.body.appendChild(dropdown);
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    window.seleccionarClienteDesdeDropdownFacturacion = async (index) => {
         const client = lastClientResults[index];
         if (!client) return;
 
+        const dd = document.getElementById('facturacion-clientes-dropdown-float');
+        if (dd) dd.remove();
+
+        // Reutilizar la lógica existente
         let option = inputCliente.querySelector(`option[value="${client.id}"]`);
         if (!option) {
             option = document.createElement('option');
@@ -417,7 +497,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         inputCliente.value = client.id;
         if (clientSearchInput) clientSearchInput.value = client.nombre;
-        clientSearchResults.classList.add('hidden');
 
         const inv = openInvoices.find(i => i.id === activeInvoiceId);
         if (inv) {
@@ -430,6 +509,37 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
         AppUtils.showToast('Cliente vinculado y guardado');
     };
+
+    // Cerrar el dropdown de clientes al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        const dd = document.getElementById('facturacion-clientes-dropdown-float');
+        if (!dd) return;
+        if (clientSearchInput && !clientSearchInput.contains(e.target) && !dd.contains(e.target)) {
+            dd.remove();
+        }
+    });
+
+    // Cerrar el dropdown de clientes si el scroll ocurre FUERA de él
+    document.addEventListener('scroll', (e) => {
+        const dd = document.getElementById('facturacion-clientes-dropdown-float');
+        if (!dd) return;
+        if (dd.contains(e.target)) return;
+        dd.remove();
+    }, true);
+
+    // Cerrar el dropdown de clientes al redimensionar
+    window.addEventListener('resize', () => {
+        const dd = document.getElementById('facturacion-clientes-dropdown-float');
+        if (dd) dd.remove();
+    });
+
+    // ─── Cerrar dropdown de clientes cuando se crea una nueva factura ───
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('#btn-new-invoice')) {
+            const dd = document.getElementById('facturacion-clientes-dropdown-float');
+            if (dd) dd.remove();
+        }
+    });
 
     // BÚSQUEDA DE PRESUPUESTOS PARA ANEXAR
     async function cargarInfoPresupuestoParaFactura(presupuestoId, activeInvoice) {

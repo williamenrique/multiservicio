@@ -178,20 +178,34 @@ window.PRESUPUESTO_CONFIG = {
                     <div class="sm:col-span-2">
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Cliente *</label>
                         <div class="relative">
-                            <input type="text" name="cliente_nombre" id="presupuesto-cliente-nombre" required
-                                placeholder="Nombre del cliente"
-                                class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all uppercase">
-                            <div id="cliente-suggestions"
-                                class="absolute z-20 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 hidden max-h-40 overflow-y-auto">
-                            </div>
+                            <input type="text"
+                                   name="cliente_nombre"
+                                   id="presupuesto-cliente-nombre"
+                                   required
+                                   placeholder="Buscar por nombre, cédula, teléfono..."
+                                   autocomplete="off"
+                                   class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 pr-10 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all uppercase"
+                                   oninput="filtrarClientesPresupuesto(this.value)"
+                                   onfocus="mostrarDropdownClientesPresupuesto()">
+                            <i data-lucide="search" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none"></i>
+                            <!-- Dropdown inline como ancla (oculto, el real se renderiza en el body) -->
+                            <div id="cliente-suggestions" class="hidden"></div>
                         </div>
                         <input type="hidden" name="cliente_id" id="presupuesto-cliente-id">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Cédula / NIT</label>
-                        <input type="text" name="cliente_cedula" id="presupuesto-cliente-cedula"
-                            placeholder="Sin puntos ni guiones"
-                            class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all">
+                        <div class="relative">
+                            <input type="text"
+                                   name="cliente_cedula"
+                                   id="presupuesto-cliente-cedula"
+                                   placeholder="Buscar por cédula..."
+                                   autocomplete="off"
+                                   class="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 pr-10 text-slate-700 outline-none focus:border-neon-green focus:ring-1 focus:ring-neon-green transition-all"
+                                   oninput="filtrarClientesPresupuestoCedula(this.value)"
+                                   onfocus="mostrarDropdownClientesPresupuestoCedula()">
+                            <i data-lucide="search" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none"></i>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Teléfono</label>
@@ -654,8 +668,7 @@ function abrirModalCrear() {
     document.getElementById('presupuesto-observaciones').value = '';
     document.getElementById('presupuesto-condiciones').value = '';
 
-    const sug = document.getElementById('cliente-suggestions');
-    if (sug) sug.classList.add('hidden');
+    cerrarDropdownClientesPresupuesto();
 
     document.getElementById('presupuesto-fecha-emision').value = new Date().toISOString().split('T')[0];
     document.getElementById('presupuesto-validez-dias').value = 30;
@@ -694,6 +707,9 @@ function cerrarModalPresupuesto() {
     if (modal) modal.classList.add('hidden');
     // Limpiar hidden residuales al cerrar
     document.querySelectorAll('#formPresupuesto input.item-hidden-calc').forEach(el => el.remove());
+    // Cerrar dropdowns flotantes
+    cerrarDropdownClientesPresupuesto();
+    cerrarDropdownClientesPresupuestoCedula();
 }
 
 /* ==================== SUGERENCIAS CLIENTES ==================== */
@@ -708,7 +724,341 @@ async function cargarSugerenciasClientes() {
         console.error(e);
     }
 }
+/**
+ * FIX v3.17: Dropdown de clientes con buscador y renderizado flotante.
+ * Reemplaza al sistema anterior de sugerencias inline. Muestra TODOS
+ * los clientes al hacer foco y filtra en tiempo real al escribir.
+ */
 
+async function mostrarDropdownClientesPresupuesto() {
+    if (!window.clientesPresupuesto) {
+        await cargarSugerenciasClientes();
+    }
+    renderizarDropdownClientesPresupuesto(window.clientesPresupuesto || []);
+}
+
+async function filtrarClientesPresupuesto(term) {
+    if (!window.clientesPresupuesto) {
+        await cargarSugerenciasClientes();
+    }
+    const t = (term || '').toLowerCase().trim();
+    const todos = window.clientesPresupuesto || [];
+
+    if (!t) {
+        renderizarDropdownClientesPresupuesto(todos);
+        return;
+    }
+
+    const filtrados = todos.filter(c => {
+        const nombre = (c.nombre || '').toLowerCase();
+        const id = (c.id || '').toLowerCase();
+        const telefono = (c.telefono || '').toLowerCase();
+        const email = (c.email || '').toLowerCase();
+        const placa = (c.placa || '').toLowerCase();
+        return nombre.includes(t) || id.includes(t) || telefono.includes(t) || email.includes(t) || placa.includes(t);
+    });
+
+    renderizarDropdownClientesPresupuesto(filtrados);
+
+    // Si el usuario borra el input, desvincular el cliente_id
+    if (!t) {
+        document.getElementById('presupuesto-cliente-id').value = '';
+    }
+}
+
+function renderizarDropdownClientesPresupuesto(clientes) {
+    const input = document.getElementById('presupuesto-cliente-nombre');
+    if (!input) return;
+
+    // Eliminar dropdown flotante previo
+    const existing = document.getElementById('cliente-dropdown-float');
+    if (existing) existing.remove();
+
+    const rect = input.getBoundingClientRect();
+    const MIN_WIDTH = 520;
+    const PADDING = 16;
+    let dropdownWidth = Math.max(rect.width, MIN_WIDTH);
+    const maxWidthRight = window.innerWidth - rect.left - PADDING;
+    if (dropdownWidth > maxWidthRight) dropdownWidth = maxWidthRight;
+    if (dropdownWidth < 320) dropdownWidth = Math.min(320, window.innerWidth - PADDING * 2);
+
+    const espacioDebajo = window.innerHeight - rect.bottom - 20;
+    const alturaMax = Math.min(340, Math.max(180, espacioDebajo));
+
+    const dropdown = document.createElement('div');
+    dropdown.id = 'cliente-dropdown-float';
+    dropdown.style.cssText = `
+        position: fixed;
+        top: ${rect.bottom + 4}px;
+        left: ${rect.left}px;
+        width: ${dropdownWidth}px;
+        max-height: ${alturaMax}px;
+        overflow-y: auto;
+        z-index: 100000;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.1);
+    `;
+
+    if (!clientes || clientes.length === 0) {
+        dropdown.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron clientes</div>';
+        document.body.appendChild(dropdown);
+        return;
+    }
+
+    const html = clientes.map((c, index) => {
+        const tieneVehiculo = c.placa || c.marca || c.modelo;
+        const vehiculoHtml = tieneVehiculo
+            ? `<div class="text-[10px] text-blue-600 font-mono mt-0.5">
+                   🚗 ${c.placa || ''} ${c.marca ? '· ' + c.marca : ''} ${c.modelo ? '· ' + c.modelo : ''}
+               </div>`
+            : '';
+
+        return `<div class="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 last:border-0 transition-colors"
+                     onclick="seleccionarClienteDesdeDropdown(${index})"
+                     data-cliente-index="${index}">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center flex-wrap">
+                                <span class="font-bold text-xs text-slate-800 uppercase truncate">${c.nombre}</span>
+                            </div>
+                            <div class="text-[10px] text-slate-400 font-mono mt-0.5">
+                                CC/NIT: ${c.id} ${c.telefono ? '· Tel: ' + c.telefono : ''}
+                            </div>
+                            ${c.email ? `<div class="text-[10px] text-slate-400 font-mono">✉ ${c.email}</div>` : ''}
+                            ${vehiculoHtml}
+                        </div>
+                        <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 flex-shrink-0 ml-2"></i>
+                    </div>
+                </div>`;
+    }).join('');
+
+    dropdown.innerHTML = html;
+    document.body.appendChild(dropdown);
+
+    // Guardar la lista actual para poder seleccionar por índice
+    window._clientesDropdownActual = clientes;
+
+    if (window.lucide) lucide.createIcons();
+}
+
+function seleccionarClienteDesdeDropdown(index) {
+    const lista = window._clientesDropdownActual || [];
+    const c = lista[index];
+    if (!c) return;
+
+    document.getElementById('presupuesto-cliente-id').value = c.id;
+    document.getElementById('presupuesto-cliente-cedula').value = c.id;
+    document.getElementById('presupuesto-cliente-nombre').value = c.nombre;
+    document.getElementById('presupuesto-cliente-telefono').value = c.telefono || '';
+    document.getElementById('presupuesto-cliente-email').value = c.email || '';
+    document.getElementById('presupuesto-cliente-direccion').value = c.direccion || '';
+    document.getElementById('presupuesto-vehiculo-placa').value = c.placa || '';
+    document.getElementById('presupuesto-vehiculo-marca').value = c.marca || '';
+    document.getElementById('presupuesto-vehiculo-modelo').value = c.modelo || '';
+    document.getElementById('presupuesto-vehiculo-anio').value = c.anio || '';
+    document.getElementById('presupuesto-vehiculo-color').value = c.color || '';
+
+    cerrarDropdownClientesPresupuesto();
+    if (window.AppUtils) AppUtils.showToast('Cliente vinculado');
+}
+
+function cerrarDropdownClientesPresupuesto() {
+    const dd = document.getElementById('cliente-dropdown-float');
+    if (dd) dd.remove();
+}
+/**
+ * FIX v3.18: Dropdown de clientes para el campo CÉDULA / NIT.
+ * Replica el sistema del campo nombre pero con su propio dropdown
+ * flotante para evitar colisiones. Filtra por cédula, nombre, teléfono
+ * o placa del vehículo.
+ */
+
+async function mostrarDropdownClientesPresupuestoCedula() {
+    // Cerrar el dropdown del nombre si estuviera abierto
+    cerrarDropdownClientesPresupuesto();
+
+    if (!window.clientesPresupuesto) {
+        await cargarSugerenciasClientes();
+    }
+    renderizarDropdownClientesPresupuestoCedula(window.clientesPresupuesto || []);
+}
+
+async function filtrarClientesPresupuestoCedula(term) {
+    if (!window.clientesPresupuesto) {
+        await cargarSugerenciasClientes();
+    }
+    const t = (term || '').toLowerCase().trim();
+    const todos = window.clientesPresupuesto || [];
+
+    if (!t) {
+        renderizarDropdownClientesPresupuestoCedula(todos);
+        return;
+    }
+
+    const filtrados = todos.filter(c => {
+        const nombre = (c.nombre || '').toLowerCase();
+        const id = (c.id || '').toLowerCase();
+        const telefono = (c.telefono || '').toLowerCase();
+        const email = (c.email || '').toLowerCase();
+        const placa = (c.placa || '').toLowerCase();
+        return nombre.includes(t) || id.includes(t) || telefono.includes(t) || email.includes(t) || placa.includes(t);
+    });
+
+    renderizarDropdownClientesPresupuestoCedula(filtrados);
+
+    // Si el usuario borra el input, desvincular
+    if (!t) {
+        document.getElementById('presupuesto-cliente-id').value = '';
+    }
+}
+
+function renderizarDropdownClientesPresupuestoCedula(clientes) {
+    const input = document.getElementById('presupuesto-cliente-cedula');
+    if (!input) return;
+
+    // Eliminar dropdown flotante previo específico de cédula
+    const existing = document.getElementById('cliente-dropdown-float-cedula');
+    if (existing) existing.remove();
+
+    const rect = input.getBoundingClientRect();
+    const MIN_WIDTH = 520;
+    const PADDING = 16;
+    let dropdownWidth = Math.max(rect.width, MIN_WIDTH);
+    const maxWidthRight = window.innerWidth - rect.left - PADDING;
+    if (dropdownWidth > maxWidthRight) dropdownWidth = maxWidthRight;
+    if (dropdownWidth < 320) dropdownWidth = Math.min(320, window.innerWidth - PADDING * 2);
+
+    const espacioDebajo = window.innerHeight - rect.bottom - 20;
+    const alturaMax = Math.min(340, Math.max(180, espacioDebajo));
+
+    const dropdown = document.createElement('div');
+    dropdown.id = 'cliente-dropdown-float-cedula';
+    dropdown.style.cssText = `
+        position: fixed;
+        top: ${rect.bottom + 4}px;
+        left: ${rect.left}px;
+        width: ${dropdownWidth}px;
+        max-height: ${alturaMax}px;
+        overflow-y: auto;
+        z-index: 100000;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.1);
+    `;
+
+    if (!clientes || clientes.length === 0) {
+        dropdown.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">No se encontraron clientes</div>';
+        document.body.appendChild(dropdown);
+        return;
+    }
+
+    const html = clientes.map((c, index) => {
+        const tieneVehiculo = c.placa || c.marca || c.modelo;
+        const vehiculoHtml = tieneVehiculo
+            ? `<div class="text-[10px] text-blue-600 font-mono mt-0.5">
+                   🚗 ${c.placa || ''} ${c.marca ? '· ' + c.marca : ''} ${c.modelo ? '· ' + c.modelo : ''}
+               </div>`
+            : '';
+
+        return `<div class="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 last:border-0 transition-colors"
+                     onclick="seleccionarClienteDesdeDropdownCedula(${index})">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-black text-navy-blue font-mono">${c.id}</div>
+                            <div class="text-xs font-bold text-slate-700 uppercase truncate mt-0.5">${c.nombre}</div>
+                            ${c.telefono ? `<div class="text-[10px] text-slate-400 font-mono">Tel: ${c.telefono}</div>` : ''}
+                            ${c.email ? `<div class="text-[10px] text-slate-400 font-mono">✉ ${c.email}</div>` : ''}
+                            ${vehiculoHtml}
+                        </div>
+                        <i data-lucide="user-plus" class="w-4 h-4 text-slate-300 flex-shrink-0 ml-2"></i>
+                    </div>
+                </div>`;
+    }).join('');
+
+    dropdown.innerHTML = html;
+    document.body.appendChild(dropdown);
+
+    // Guardar lista actual para poder seleccionar por índice
+    window._clientesDropdownCedulaActual = clientes;
+
+    if (window.lucide) lucide.createIcons();
+}
+
+function seleccionarClienteDesdeDropdownCedula(index) {
+    const lista = window._clientesDropdownCedulaActual || [];
+    const c = lista[index];
+    if (!c) return;
+
+    document.getElementById('presupuesto-cliente-id').value = c.id;
+    document.getElementById('presupuesto-cliente-cedula').value = c.id;
+    document.getElementById('presupuesto-cliente-nombre').value = c.nombre;
+    document.getElementById('presupuesto-cliente-telefono').value = c.telefono || '';
+    document.getElementById('presupuesto-cliente-email').value = c.email || '';
+    document.getElementById('presupuesto-cliente-direccion').value = c.direccion || '';
+    document.getElementById('presupuesto-vehiculo-placa').value = c.placa || '';
+    document.getElementById('presupuesto-vehiculo-marca').value = c.marca || '';
+    document.getElementById('presupuesto-vehiculo-modelo').value = c.modelo || '';
+    document.getElementById('presupuesto-vehiculo-anio').value = c.anio || '';
+    document.getElementById('presupuesto-vehiculo-color').value = c.color || '';
+
+    cerrarDropdownClientesPresupuestoCedula();
+    if (window.AppUtils) AppUtils.showToast('Cliente vinculado');
+}
+
+function cerrarDropdownClientesPresupuestoCedula() {
+    const dd = document.getElementById('cliente-dropdown-float-cedula');
+    if (dd) dd.remove();
+}
+
+// Cerrar el dropdown de cédula al hacer clic fuera
+document.addEventListener('click', (e) => {
+    const dd = document.getElementById('cliente-dropdown-float-cedula');
+    if (!dd) return;
+    const input = document.getElementById('presupuesto-cliente-cedula');
+    if (input && !input.contains(e.target) && !dd.contains(e.target)) {
+        dd.remove();
+    }
+});
+
+// Cerrar el dropdown de cédula si el scroll ocurre FUERA de él
+document.addEventListener('scroll', (e) => {
+    const dd = document.getElementById('cliente-dropdown-float-cedula');
+    if (!dd) return;
+    if (dd.contains(e.target)) return;
+    dd.remove();
+}, true);
+
+// Cerrar el dropdown de cédula al redimensionar
+window.addEventListener('resize', () => {
+    const dd = document.getElementById('cliente-dropdown-float-cedula');
+    if (dd) dd.remove();
+});
+// Cerrar el dropdown al hacer clic fuera
+document.addEventListener('click', (e) => {
+    const dd = document.getElementById('cliente-dropdown-float');
+    if (!dd) return;
+    const input = document.getElementById('presupuesto-cliente-nombre');
+    if (input && !input.contains(e.target) && !dd.contains(e.target)) {
+        dd.remove();
+    }
+});
+
+// Cerrar el dropdown si el scroll ocurre FUERA de él
+document.addEventListener('scroll', (e) => {
+    const dd = document.getElementById('cliente-dropdown-float');
+    if (!dd) return;
+    if (dd.contains(e.target)) return;
+    dd.remove();
+}, true);
+
+// Cerrar al redimensionar
+window.addEventListener('resize', () => {
+    const dd = document.getElementById('cliente-dropdown-float');
+    if (dd) dd.remove();
+});
 function mostrarSugerenciasCliente(input) {
     const suggestions = document.getElementById('cliente-suggestions');
     const value = input.value.toLowerCase();
@@ -782,12 +1132,7 @@ document.getElementById('presupuesto-cliente-nombre')?.addEventListener('input',
     }
 });
 
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('#presupuesto-cliente-nombre') && !e.target.closest('#cliente-suggestions')) {
-        const el = document.getElementById('cliente-suggestions');
-        if (el) el.classList.add('hidden');
-    }
-});
+
 /**
  * FIX v3.11: Versión de agregarItemPresupuesto que recibe el itemId
  * explícitamente, para evitar que la colisión de itemCounter pise las
@@ -1546,10 +1891,22 @@ async function guardarPresupuesto(estado) {
         const result = await res.json();
 
         if (result.success) {
+            // ─── FIX v3.16: Obtener el ID del presupuesto guardado ───
+            // Si es nuevo, viene en result.presupuesto_id.
+            // Si es actualización, viene en el input hidden presupuesto-id.
+            const idGuardado = result.presupuesto_id
+                || parseInt(document.getElementById('presupuesto-id').value)
+                || null;
+
             AppUtils.showToast(result.mensaje, 'success');
             cerrarModalPresupuesto();
             cargarPresupuestos(presupuestosPage);
             actualizarStats();
+
+            // ─── FIX v3.16: Si el estado es ENVIADO, enviar el email automáticamente ───
+            if (estado === 'ENVIADO' && idGuardado) {
+                await enviarPresupuestoEmail(idGuardado, true);
+            }
         } else {
             AppUtils.showToast(result.mensaje || 'Error al guardar', 'error');
         }
@@ -1562,14 +1919,12 @@ async function guardarPresupuesto(estado) {
     }
 }
 
-/* ==================== ACCIONES PRESUPUESTO ==================== */
 /**
- * FIX v3.15: Ahora precarga el email y nombre del cliente desde los
- * datos del presupuesto antes de mostrar el modal. Si el cliente no
- * tiene email registrado, se muestra un aviso y el campo queda vacío
- * para que el usuario lo ingrese manualmente.
+ * FIX v3.16: Ahora acepta el parámetro `skipModal`. Si es true, envía
+ * el email directamente al cliente sin mostrar el modal de confirmación.
+ * Se usa desde "Guardar y Enviar" para que envíe automáticamente tras guardar.
  */
-async function enviarPresupuestoEmail(id) {
+async function enviarPresupuestoEmail(id, skipModal = false) {
     try {
         AppUtils.showLoading('Cargando datos del cliente...');
         const res = await fetch(`${URLROOT}/presupuesto/obtener/${id}`);
@@ -1584,9 +1939,41 @@ async function enviarPresupuestoEmail(id) {
         const p = result.data;
         const emailCliente = (p.cliente_email || '').trim();
         const nombreCliente = (p.cliente_nombre || '').trim();
-        const tieneEmail = emailCliente !== '';
 
-        // Aviso si el cliente no tiene email
+        // ─── Modo auto-send: enviar sin modal ───
+        if (skipModal) {
+            if (!emailCliente) {
+                AppUtils.showToast('Guardado como ENVIADO. El cliente no tiene email registrado.', 'warning');
+                return;
+            }
+
+            AppUtils.showLoading('Enviando presupuesto por email...');
+            try {
+                const resEnv = await fetch(`${URLROOT}/presupuesto/enviarEmail/${id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                    body: JSON.stringify({
+                        destinatario_email: emailCliente,
+                        destinatario_nombre: nombreCliente
+                    })
+                });
+                const resultEnv = await resEnv.json();
+                AppUtils.hideLoading();
+
+                if (resultEnv.success) {
+                    AppUtils.showToast('Presupuesto guardado y enviado por email', 'success');
+                } else {
+                    AppUtils.showToast(resultEnv.mensaje || 'Guardado, pero falló el envío del email', 'warning');
+                }
+            } catch (e) {
+                AppUtils.hideLoading();
+                AppUtils.showToast('Guardado. Error de conexión al enviar email.', 'warning');
+            }
+            return;
+        }
+
+        // ─── Modo normal: mostrar modal con datos precargados ───
+        const tieneEmail = emailCliente !== '';
         const avisoHtml = tieneEmail
             ? ''
             : `<div class="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[10px] font-bold uppercase">
@@ -1653,16 +2040,8 @@ async function enviarPresupuestoEmail(id) {
 
                 if (resultEnv.success) {
                     AppUtils.showToast(resultEnv.mensaje || 'Presupuesto enviado correctamente', 'success');
-                    // Refrescar la tabla/vista según el archivo
-                    if (typeof cargarPresupuestos === 'function') {
-                        cargarPresupuestos(presupuestosPage);
-                    }
-                    if (typeof actualizarStats === 'function') {
-                        actualizarStats();
-                    }
-                    if (typeof refrescarPresupuestoActual === 'function') {
-                        await refrescarPresupuestoActual();
-                    }
+                    if (typeof cargarPresupuestos === 'function') cargarPresupuestos(presupuestosPage);
+                    if (typeof actualizarStats === 'function') actualizarStats();
                 } else {
                     AppUtils.showToast(resultEnv.mensaje || 'Error al enviar', 'error');
                 }
@@ -2119,8 +2498,8 @@ function abrirModalRepuestos() {
     document.getElementById('presupuesto-cliente-email').value = '';
     document.getElementById('presupuesto-cliente-direccion').value = '';
 
-    const sug = document.getElementById('cliente-suggestions');
-    if (sug) sug.classList.add('hidden');
+    cerrarDropdownClientesPresupuesto();
+    cerrarDropdownClientesPresupuestoCedula();
 
     document.getElementById('presupuesto-fecha-emision').value = new Date().toISOString().split('T')[0];
     document.getElementById('presupuesto-validez-dias').value = 30;
