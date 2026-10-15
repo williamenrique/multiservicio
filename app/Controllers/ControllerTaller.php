@@ -479,7 +479,20 @@ class ControllerTaller extends Controller {
                     $orden = $this->ordenModel->obtenerDetalleOrden($input['id']);
                     if ($orden && !empty($orden->cliente_email)) {
                         $logs = $this->ordenModel->obtenerLogsEstado($input['id']);
-                        $estadoAnterior = (count($logs) >= 2) ? $logs[1]->estado : 'RECIBIDO';
+                        // ─── FIX v3.1: La columna correcta es estado_anterior, no estado.
+                        // El último log registrado (el más reciente) contiene el estado
+                        // que tenía la orden antes del cambio actual. Si no hay logs
+                        // previos, asumimos 'RECIBIDO' como estado inicial.
+                        $estadoAnterior = 'RECIBIDO';
+                        if (!empty($logs)) {
+                            // Los logs vienen ordenados ASC por fecha, así que el último
+                            // elemento es el más reciente. Su estado_anterior es el que
+                            // tenía la orden justo antes del cambio que acabamos de hacer.
+                            $ultimoLog = end($logs);
+                            if (!empty($ultimoLog->estado_anterior)) {
+                                $estadoAnterior = $ultimoLog->estado_anterior;
+                            }
+                        }
                         $emailService = new \App\Services\EmailService();
                         $datosEmail = [
                             'cliente_email' => $orden->cliente_email,

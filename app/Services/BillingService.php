@@ -35,9 +35,20 @@ class BillingService {
             $iva = ($datos['aplicar_iva'] ?? false || !empty($datos['iva_activo'])) ? ($subtotal * ($tasaIva / 100)) : 0;
             $totalVenta = $subtotal + $iva;
             
-            $pagoEfe = (float)($datos['pago_efectivo'] ?? 0);
+                        $pagoEfe = (float)($datos['pago_efectivo'] ?? 0);
             $pagoTra = (float)($datos['pago_transferencia'] ?? 0);
-            $saldoPendiente = $totalVenta - ($pagoEfe + $pagoTra);
+            $totalPagado = $pagoEfe + $pagoTra;
+
+            // ─── FIX v3.10: Validar que el pago no exceda el total ───
+            if ($totalPagado > $totalVenta + 0.01) {
+                throw new Exception(
+                    "El pago total ($" . number_format($totalPagado, 2) . ") " .
+                    "excede el total de la factura ($" . number_format($totalVenta, 2) . "). " .
+                    "Ajuste los montos."
+                );
+            }
+
+            $saldoPendiente = $totalVenta - $totalPagado;
             
             $status = ($saldoPendiente > 0.05) ? 'CREDITO' : 'COMPLETADO';
             $totales = [

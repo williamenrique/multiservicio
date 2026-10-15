@@ -1196,14 +1196,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('pos-total').textContent = AppUtils.formatCurrency(total);
 
-        const saldoPendiente = total - (parseFloat(activeInvoice.pago_efectivo || 0) + parseFloat(activeInvoice.pago_transferencia || 0));
+                // ─── FIX v3.10: Validación de pago vs total ───
+        // Si la suma de pagos (efectivo + transferencia) EXCEDE el total,
+        // mostramos alerta visual y bloqueamos el botón de procesar.
+        const totalPagado = parseFloat(activeInvoice.pago_efectivo || 0) + parseFloat(activeInvoice.pago_transferencia || 0);
+        const saldoPendiente = total - totalPagado;
+        const pagoExcede = totalPagado > total + 0.01;
+
         if (displaySaldoPendiente) {
-            displaySaldoPendiente.textContent = AppUtils.formatCurrency(saldoPendiente > 0 ? saldoPendiente : 0);
+            if (pagoExcede) {
+                const excedente = totalPagado - total;
+                displaySaldoPendiente.textContent = AppUtils.formatCurrency(excedente);
+                displaySaldoPendiente.classList.add('text-rose-500');
+                displaySaldoPendiente.classList.remove('text-white');
+            } else {
+                displaySaldoPendiente.textContent = AppUtils.formatCurrency(saldoPendiente > 0 ? saldoPendiente : 0);
+                displaySaldoPendiente.classList.remove('text-rose-500');
+                displaySaldoPendiente.classList.add('text-white');
+            }
 
             const containerDeuda = document.getElementById('pos-container-deuda');
             if (containerDeuda) {
-                if (saldoPendiente > 0) containerDeuda.classList.remove('opacity-40');
-                else containerDeuda.classList.add('opacity-40');
+                if (pagoExcede) {
+                    // Cambiar el label a "EXCEDENTE" temporalmente
+                    const labelEl = containerDeuda.querySelector('span');
+                    if (labelEl) labelEl.textContent = 'PAGO EXCEDE EL TOTAL';
+                    containerDeuda.classList.remove('opacity-40');
+                } else {
+                    const labelEl = containerDeuda.querySelector('span');
+                    if (labelEl) labelEl.textContent = 'Saldo Pendiente (Crédito)';
+                    if (saldoPendiente > 0) containerDeuda.classList.remove('opacity-40');
+                    else containerDeuda.classList.add('opacity-40');
+                }
+            }
+        }
+
+        // ─── FIX v3.10: Mostrar/ocultar alerta de exceso y bloquear botón ───
+        let alertaExceso = document.getElementById('alerta-pago-excede');
+        if (!alertaExceso) {
+            alertaExceso = document.createElement('div');
+            alertaExceso.id = 'alerta-pago-excede';
+            alertaExceso.className = 'hidden mt-2 p-2 bg-rose-500/20 border border-rose-500/40 rounded-lg text-rose-300 text-[10px] font-black uppercase text-center';
+            alertaExceso.textContent = '⚠ El monto pagado excede el total de la factura';
+            const containerDeuda = document.getElementById('pos-container-deuda');
+            if (containerDeuda) containerDeuda.parentNode.insertBefore(alertaExceso, containerDeuda.nextSibling);
+        }
+
+        if (alertaExceso) {
+            if (pagoExcede) alertaExceso.classList.remove('hidden');
+            else alertaExceso.classList.add('hidden');
+        }
+
+        // Bloquear el botón de procesar si hay exceso
+        if (btnProcessSale) {
+            if (pagoExcede) {
+                btnProcessSale.disabled = true;
+                btnProcessSale.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                btnProcessSale.disabled = false;
+                btnProcessSale.classList.remove('opacity-50', 'cursor-not-allowed');
             }
         }
 
@@ -1233,10 +1284,22 @@ document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
     };
 
-    btnProcessSale.addEventListener('click', async () => {
+       btnProcessSale.addEventListener('click', async () => {
         const activeInvoice = openInvoices.find(i => i.id === activeInvoiceId);
         if (!activeInvoice) return;
         if (activeInvoice.items.length === 0) return AppUtils.showToast('La factura está vacía', 'warning');
+
+        // ─── FIX v3.10: Bloquear si el pago excede el total ───
+        const totalFactura = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+        const isIvaEnabledCheck = activeInvoice.iva_activo === true;
+        const ivaCheck = isIvaEnabledCheck ? (totalFactura * (IVA_PERCENT / 100)) : 0;
+        const totalConIvaCheck = totalFactura + ivaCheck;
+        const pagadoCheck = parseFloat(activeInvoice.pago_efectivo || 0) + parseFloat(activeInvoice.pago_transferencia || 0);
+
+        if (pagadoCheck > totalConIvaCheck + 0.01) {
+            const excedente = (pagadoCheck - totalConIvaCheck).toFixed(2);
+            return AppUtils.showToast(`El pago excede el total en $${excedente}. Ajuste los montos.`, 'error');
+        }
 
         const originalContent = btnProcessSale.innerHTML;
 
