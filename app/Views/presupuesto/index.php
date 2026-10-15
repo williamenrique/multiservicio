@@ -788,7 +788,125 @@ document.addEventListener('click', function(e) {
         if (el) el.classList.add('hidden');
     }
 });
+/**
+ * FIX v3.11: Versión de agregarItemPresupuesto que recibe el itemId
+ * explícitamente, para evitar que la colisión de itemCounter pise las
+ * filas al editar un presupuesto con múltiples items.
+ */
+async function agregarItemPresupuestoConId(item, forcedId) {
+    const currentItemId = forcedId;
+    const tbody = document.getElementById('presupuesto-items-body');
 
+    const emptyRow = document.getElementById('empty-items-row');
+    if (emptyRow) emptyRow.remove();
+
+    const row = document.createElement('tr');
+    row.className = 'hover:bg-slate-50 transition-colors';
+    row.dataset.itemId = currentItemId;
+    row.innerHTML = `
+        <td class="px-4 py-3 text-center text-xs font-bold text-slate-500">${currentItemId}</td>
+        <td class="px-4 py-3">
+            <select name="items[${currentItemId}][tipo_item]" class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm outline-none focus:border-neon-green" onchange="actualizarTipoItem(this, ${currentItemId})">
+                <option value="PRODUCTO">Producto</option>
+                <option value="SERVICIO">Servicio</option>
+            </select>
+        </td>
+        <td class="px-4 py-3" style="position: relative;">
+            <div class="relative">
+                <input type="text"
+                       id="item-producto-search-${currentItemId}"
+                       placeholder="Buscar producto..."
+                       autocomplete="off"
+                       class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 pr-8 text-sm outline-none focus:border-neon-green uppercase item-producto-search"
+                       oninput="filtrarProductosPresupuesto(${currentItemId}, this.value)"
+                       onfocus="mostrarDropdownProductos(${currentItemId})">
+                <i data-lucide="search" class="absolute right-2 top-2.5 w-4 h-4 text-slate-300 pointer-events-none"></i>
+                <input type="hidden" name="items[${currentItemId}][producto_id]" id="item-producto-${currentItemId}">
+                <div id="item-producto-dropdown-${currentItemId}"
+                    class="hidden absolute z-[9999] left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-72 overflow-y-auto">
+                </div>
+                <input type="text"
+                       name="items[${currentItemId}][descripcion]"
+                       id="item-descripcion-${currentItemId}"
+                       placeholder="Descripción manual"
+                       class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm outline-none focus:border-neon-green hidden mt-1 uppercase"
+                       oninput="actualizarSubtotalItem(${currentItemId})">
+                <div id="item-oferta-badge-${currentItemId}" class="hidden mt-1 flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase w-fit">
+                    <i data-lucide="tag" class="w-3 h-3"></i>
+                    <span>OFERTA <span id="item-oferta-pct-${currentItemId}">0</span>%</span>
+                </div>
+            </div>
+        </td>
+        <td class="px-4 py-3 text-center">
+            <input type="number" name="items[${currentItemId}][cantidad]" value="${item?.cantidad || 1}" min="1" class="w-20 bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm text-center outline-none focus:border-neon-green" oninput="actualizarSubtotalItem(${currentItemId})">
+        </td>
+        <td class="px-4 py-3 text-right">
+            <input type="number" name="items[${currentItemId}][precio_unitario]" id="item-precio-${currentItemId}" value="${item?.precio_unitario || 0}" step="0.01" min="0" class="w-28 bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm text-right outline-none focus:border-neon-green" oninput="actualizarSubtotalItem(${currentItemId})">
+        </td>
+        <td class="px-4 py-3 text-center">
+            <input type="number" name="items[${currentItemId}][descuento_porcentaje]" value="${item?.descuento_porcentaje || 0}" step="0.01" min="0" max="100" class="w-20 bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm text-center outline-none focus:border-neon-green" oninput="actualizarSubtotalItem(${currentItemId})">
+        </td>
+        <td class="px-4 py-3 text-right font-bold text-slate-700" data-role="subtotal">$0.00</td>
+        <td class="px-4 py-3 text-center">
+            <input type="number" name="items[${currentItemId}][iva_porcentaje]" id="item-iva-${currentItemId}" value="0" step="0.01" min="0" max="100" class="w-20 bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm text-center outline-none focus:border-neon-green" oninput="actualizarSubtotalItem(${currentItemId})">
+        </td>
+        <td class="px-4 py-3 text-right font-bold text-slate-700" data-role="total">$0.00</td>
+        <td class="px-4 py-3 text-center">
+            <button type="button" onclick="eliminarItemPresupuesto(${currentItemId})" class="p-2 bg-red-100 hover:bg-red-500 hover:text-black text-red-600 rounded-lg transition-all" title="Eliminar">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+        </td>
+    `;
+
+    tbody.appendChild(row);
+
+    // Rellenar valores del item
+    document.querySelector(`select[name="items[${currentItemId}][tipo_item]"]`).value = item.tipo_item || 'PRODUCTO';
+
+    if (item.producto_id) {
+        document.getElementById(`item-producto-${currentItemId}`).value = item.producto_id;
+        const productos = await cargarProductosPresupuesto();
+        const prod = productos.find(p => parseInt(p.id) === parseInt(item.producto_id));
+        if (prod) {
+            document.getElementById(`item-producto-search-${currentItemId}`).value = prod.nombre;
+        }
+    }
+
+    document.getElementById(`item-descripcion-${currentItemId}`).value = item.descripcion || '';
+    document.querySelector(`input[name="items[${currentItemId}][cantidad]"]`).value = item.cantidad || 1;
+    document.getElementById(`item-precio-${currentItemId}`).value = item.precio_unitario || 0;
+    document.querySelector(`input[name="items[${currentItemId}][descuento_porcentaje]"]`).value = item.descuento_porcentaje || 0;
+    document.getElementById(`item-iva-${currentItemId}`).value = item.iva_porcentaje || 0;
+
+    // Aplicar tipo (oculta/muestra campos según corresponda)
+    actualizarTipoItem(
+        document.querySelector(`select[name="items[${currentItemId}][tipo_item]"]`),
+        currentItemId
+    );
+
+    // Reconstruir badge de oferta
+    if (item.producto_id) {
+        const productos = await cargarProductosPresupuesto();
+        const prod = productos.find(p => parseInt(p.id) === parseInt(item.producto_id));
+        if (prod && parseInt(prod.en_oferta_vigente) === 1) {
+            const precioBase = parseFloat(prod.precio || 0);
+            const precioOferta = parseFloat(prod.precio_final || prod.precio);
+            const precioGuardado = parseFloat(item.precio_unitario || 0);
+
+            if (Math.abs(precioGuardado - precioOferta) < 0.01) {
+                const badge = document.getElementById(`item-oferta-badge-${currentItemId}`);
+                const badgePct = document.getElementById(`item-oferta-pct-${currentItemId}`);
+                if (badge && badgePct) {
+                    const pct = Math.round(((precioBase - precioOferta) / precioBase) * 100);
+                    badgePct.textContent = pct;
+                    badge.classList.remove('hidden');
+                }
+            }
+        }
+    }
+
+    actualizarSubtotalItem(currentItemId);
+}
 /**
  * FIX OFERTA-P4 v3.8: Se reemplazó el <select> nativo de productos por
  * un input de búsqueda con dropdown moderno. Cada producto del dropdown
@@ -871,7 +989,10 @@ async function agregarItemPresupuesto(item = null) {
         </td>
     `;
 
-    tbody.insertAdjacentHTML('beforeend', row.outerHTML);
+    // FIX v3.12: En vez de insertAdjacentHTML con outerHTML (que puede
+    // perder atributos en algunos navegadores), usamos appendChild
+    // que inserta el nodo directamente y preserva todos los atributos.
+    tbody.appendChild(row);
 
     if (item) {
         document.querySelector(`select[name="items[${currentItemId}][tipo_item]"]`).value = item.tipo_item || 'PRODUCTO';
@@ -1226,7 +1347,17 @@ function actualizarSubtotalItem(itemId) {
     if (subtotalEl) subtotalEl.textContent = '$' + subtotal.toLocaleString('es-CO', { minimumFractionDigits: 2 });
     if (totalEl)    totalEl.textContent    = '$' + total.toLocaleString('es-CO', { minimumFractionDigits: 2 });
 
-    // Remover hidden previos DENTRO de la fila y crear los nuevos
+    // ─── FIX v3.10: Eliminar TODOS los hiddens de cálculo de este item,
+    // tanto dentro de la fila como huérfanos en el form. Antes solo se
+    // borraban los de la fila, y podían quedar duplicados en el form
+    // que el FormData enviaba como valor final (último gana).
+    const form = document.getElementById('formPresupuesto');
+    if (form) {
+        form.querySelectorAll(`input[name="items[${itemId}][subtotal]"],
+                               input[name="items[${itemId}][iva_monto]"],
+                               input[name="items[${itemId}][total]"],
+                               input[name="items[${itemId}][descuento_monto]"]`).forEach(el => el.remove());
+    }
     row.querySelectorAll('input.item-hidden-calc').forEach(el => el.remove());
 
     const crearHidden = (field, value) => {
@@ -1359,16 +1490,18 @@ async function guardarPresupuesto(estado) {
         const cantInput = fila.querySelector(`input[name="items[${itemId}][cantidad]"]`);
 
         const tipo = (tipoSelect?.value || '').toUpperCase();
-        const productoId = productSelect?.value || '';
+        const productoId = (productSelect?.value || '').trim();
         const descripcion = (descInput?.value || '').trim();
         const cantidad = parseInt(cantInput?.value || '0') || 0;
 
+        // ─── FIX v3.13: Un item es válido si tiene cantidad > 0 Y al menos
+        // UNO de estos: producto_id (hidden) o descripcion. Antes se exigía
+        // producto_id para PRODUCTO, lo que rompía el guardado cuando el
+        // usuario escribía el nombre manualmente sin seleccionar del dropdown.
         let esValida = false;
 
-        if (tipo === 'SERVICIO') {
-            esValida = descripcion !== '' && cantidad > 0;
-        } else {
-            esValida = productoId !== '' && cantidad > 0;
+        if (cantidad > 0) {
+            esValida = productoId !== '' || descripcion !== '';
         }
 
         if (!esValida) {
@@ -1840,6 +1973,7 @@ async function abrirModalEditar(presupuesto) {
     document.getElementById('presupuestoModal').classList.remove('hidden');
     // Limpiar hidden residuales
     document.querySelectorAll('#formPresupuesto input.item-hidden-calc').forEach(el => el.remove());
+    document.querySelectorAll('#formPresupuesto input.item-hidden-oferta').forEach(el => el.remove());
 
     document.getElementById('presupuestoModalTitle').textContent = 'Editar Presupuesto';
     document.getElementById('presupuesto-id').value = presupuesto.id;
@@ -1874,16 +2008,24 @@ async function abrirModalEditar(presupuesto) {
 
     await cargarProductosPresupuesto();
 
-    // ─── FIX v3.5: Filtrar items inválidos antes de renderizar ───
+    // ─── FIX v3.11: Filtrar items inválidos antes de renderizar ───
     const itemsValidos = (presupuesto.items || []).filter(it => {
         const desc = String(it.descripcion || '').trim();
         const prodId = it.producto_id;
         return desc !== '' || (prodId !== null && prodId !== undefined && prodId !== 0 && prodId !== '0');
     });
 
+    // ─── FIX v3.11: En lugar de usar for...await (que puede colisionar con
+    // el itemCounter si el DOM se muta entre iteraciones), esperamos a que
+    // TODAS las promesas se resuelvan y luego insertamos las filas de una vez.
     if (itemsValidos.length > 0) {
-        for (const item of itemsValidos) {
-            await agregarItemPresupuesto(item);
+        for (let i = 0; i < itemsValidos.length; i++) {
+            const item = itemsValidos[i];
+            itemCounter = i + 1;
+            const currentItemId = itemCounter;
+
+            // Reutilizamos agregarItemPresupuesto pero forzando el ID correcto
+            await agregarItemPresupuestoConId(item, currentItemId);
         }
     } else {
         tbody.innerHTML = '<tr id="empty-items-row"><td colspan="10" class="px-4 py-16 text-center text-slate-400 italic">No hay items agregados</td></tr>';

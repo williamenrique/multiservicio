@@ -249,7 +249,7 @@ class ControllerPresupuesto extends Controller {
     public function guardar() {
         try {
             $input = $this->procesarInput();
-            
+
             $v = new Validator($input);
             $v->required(['cliente_nombre', 'items']);
             $v->array('items');
@@ -282,7 +282,6 @@ class ControllerPresupuesto extends Controller {
             }
 
             $input = $this->procesarInput();
-            
             $v = new Validator($input);
             $v->required(['cliente_nombre', 'items']);
             $v->array('items');
