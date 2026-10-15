@@ -44,6 +44,7 @@
                             'ENVIADO' => 'bg-amber-200 text-amber-800',
                             'ACTIVO' => 'bg-emerald-200 text-emerald-800',
                             'EN_PROCESO' => 'bg-blue-200 text-blue-800',
+                            'ANEXADO' => 'bg-cyan-200 text-cyan-800',
                             'ACEPTADO' => 'bg-emerald-200 text-emerald-800',
                             'RECHAZADO' => 'bg-red-200 text-red-800',
                             'EXPIRADO' => 'bg-red-200 text-red-800',
@@ -180,6 +181,7 @@
                                 'ENVIADO' => 'bg-amber-100 text-amber-800',
                                 'ACTIVO' => 'bg-emerald-100 text-emerald-800',
                                 'EN_PROCESO' => 'bg-blue-100 text-blue-800',
+                                'ANEXADO' => 'bg-cyan-100 text-cyan-800',
                                 'ACEPTADO' => 'bg-emerald-100 text-emerald-800',
                                 'RECHAZADO' => 'bg-red-100 text-red-800',
                                 'EXPIRADO' => 'bg-red-100 text-red-800',
@@ -265,7 +267,19 @@
                                         <?php endif; ?>
                                     </td>
                                     <td class="px-6 py-4 text-center font-bold text-slate-700"><?php echo $detalle->cantidad; ?></td>
-                                    <td class="px-6 py-4 text-right font-bold text-slate-700">$<?php echo number_format($detalle->precio_unitario, 2, ',', '.'); ?></td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-700">
+                                        <?php if (!empty($detalle->en_oferta) && !empty($detalle->precio_base) && $detalle->precio_base > $detalle->precio_unitario): ?>
+                                            <div class="flex flex-col items-end">
+                                                <span class="text-[10px] text-slate-400 line-through">$<?php echo number_format($detalle->precio_base, 2, ',', '.'); ?></span>
+                                                <span class="text-emerald-600 font-black">$<?php echo number_format($detalle->precio_unitario, 2, ',', '.'); ?></span>
+                                                <span class="text-[9px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded uppercase mt-0.5">
+                                                    OFERTA <?php echo round((($detalle->precio_base - $detalle->precio_unitario) / $detalle->precio_base) * 100); ?>%
+                                                </span>
+                                            </div>
+                                        <?php else: ?>
+                                            $<?php echo number_format($detalle->precio_unitario, 2, ',', '.'); ?>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="px-6 py-4 text-center text-xs font-bold text-slate-600"><?php echo $detalle->descuento_porcentaje > 0 ? $detalle->descuento_porcentaje . '%' : '-'; ?></td>
                                     <td class="px-6 py-4 text-right font-bold text-slate-700">$<?php echo number_format($detalle->subtotal, 2, ',', '.'); ?></td>
                                     <td class="px-6 py-4 text-center text-xs font-bold text-slate-600"><?php echo $detalle->iva_porcentaje > 0 ? $detalle->iva_porcentaje . '%' : '-'; ?></td>
@@ -322,8 +336,35 @@
                 </div>
             </div>
 
+            <!-- Aviso cuando está atascado en ANEXADO -->
+            <?php if ($presupuesto->estado === 'ANEXADO'): ?>
+            <div class="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl">
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0 p-2 bg-amber-200 rounded-lg">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-700"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-black text-amber-800 uppercase tracking-wider mb-1">
+                            Presupuesto Anexado pero sin Items Cargados
+                        </p>
+                        <p class="text-xs text-amber-700 leading-relaxed">
+                            Este presupuesto está marcado como <strong>ANEXADO</strong> pero no tiene items vinculados a ninguna factura.
+                            Probablemente quedó atascado por el bug previo. Usa el botón <strong>"Devolver a Borrador"</strong> para
+                            resetearlo y poder anexarlo de nuevo desde Facturación.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
             <!-- Acciones (bloque dinámico: botones condicionales por estado) -->
             <div id="presupuesto-acciones-bloque" class="flex flex-wrap gap-3 justify-end">
+                <?php if ($presupuesto->estado === 'ANEXADO'): ?>
+                <button onclick="resetearPresupuestoDesdeVer()" class="bg-amber-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-amber-700 font-semibold shadow-lg shadow-amber-600/20">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i> Devolver a Borrador
+                </button>
+                <?php endif; ?>
+
                 <?php if ($presupuesto->estado === 'BORRADOR'): ?>
                 <button onclick="editarPresupuesto(<?php echo $presupuesto->id; ?>)" class="bg-slate-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all hover:bg-slate-700 font-semibold shadow-sm">
                     <i data-lucide="edit-3" class="w-5 h-5"></i> Editar
@@ -817,6 +858,69 @@ async function convertirPresupuestoAVenta(id) {
             AppUtils.hideLoading();
             AppUtils.showToast('Error de conexión', 'error');
         }
+    }
+}
+
+/* ==================== RESET DE PRESUPUESTO ATASCADO EN ANEXADO ==================== */
+async function resetearPresupuestoDesdeVer() {
+    const { value: formValues } = await Swal.fire({
+        title: '¿Devolver presupuesto a Borrador?',
+        html: `
+            <p class="text-sm text-slate-600 mb-3">
+                Este presupuesto está <strong>ANEXADO</strong> pero no tiene items cargados en ninguna factura.
+                Al devolverlo a <strong>BORRADOR</strong> podrás anexarlo de nuevo desde Facturación.
+            </p>
+            <p class="text-xs text-slate-500 mb-3">
+                No se descuenta ni se reintegra stock físico.
+            </p>
+            <div class="text-left space-y-3 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Estado destino</label>
+                    <select id="reset-estado-ver" class="swal2-input w-full m-0 text-sm">
+                        <option value="BORRADOR">BORRADOR (recomendado)</option>
+                        <option value="ENVIADO">ENVIADO</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Motivo (opcional)</label>
+                    <input type="text" id="reset-motivo-ver" class="swal2-input w-full m-0 text-sm" placeholder="Ej: Bug de anexado" value="BUG_ANEXADO_SIN_ITEMS">
+                </div>
+            </div>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'SÍ, DEVOLVER',
+        confirmButtonColor: '#f59e0b',
+        cancelButtonColor: '#64748b',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            return {
+                estado_destino: document.getElementById('reset-estado-ver').value,
+                motivo: document.getElementById('reset-motivo-ver').value || 'RESET_MANUAL'
+            };
+        }
+    });
+
+    if (!formValues) return;
+
+    AppUtils.showLoading('Devolviendo presupuesto...');
+    try {
+        const res = await fetch(`${URLROOT}/presupuesto/resetear/${PRESUPUESTO_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            body: JSON.stringify(formValues)
+        });
+        const result = await res.json();
+        AppUtils.hideLoading();
+
+        if (result.success) {
+            AppUtils.showToast(result.mensaje || 'Presupuesto devuelto correctamente', 'success');
+            await refrescarPresupuestoActual();
+        } else {
+            AppUtils.showToast(result.mensaje || 'Error al devolver el presupuesto', 'error');
+        }
+    } catch (e) {
+        AppUtils.hideLoading();
+        AppUtils.showToast('Error de conexión', 'error');
     }
 }
 </script>

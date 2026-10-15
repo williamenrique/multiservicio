@@ -762,4 +762,95 @@ class ControllerPresupuesto extends Controller {
     public function obtenerActivoCompleto($id = null) {
         return $this->obtenerParaAnexar($id);
     }
+        /**
+     * Endpoint ligero que devuelve solo los metadatos básicos de un presupuesto
+     * (número, cliente, total, etc.) sin importar el estado.
+     * 
+     * v2.7 (2026-10-14):
+     *   • Usado por facturación para rehidratar el estado visual del presupuesto
+     *     cuando el usuario cambia entre facturas abiertas.
+     *   • A diferencia de obtenerParaAnexar(), NO rechaza presupuestos ANEXADOS
+     *     ni CONVERTIDOS, porque solo devuelve información de cabecera, no
+     *     items ni stock.
+     * 
+     * GET /presupuesto/infoBasica/{id}
+     * 
+     * Respuesta:
+     * {
+     *   "success": true,
+     *   "data": { id, numero, cliente_nombre, cliente_telefono, total, estado, ... }
+     * }
+     */
+    public function infoBasica($id = null) {
+        try {
+            if (!$id || !is_numeric($id)) {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'mensaje' => 'ID de presupuesto inválido'
+                ], 400);
+            }
+
+            $info = $this->presupuestoModel->obtenerInfoBasica((int)$id);
+
+            if (!$info) {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'mensaje' => 'Presupuesto no encontrado'
+                ], 404);
+            }
+
+            return $this->jsonResponse([
+                'success' => true,
+                'data' => $info
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'mensaje' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+        /**
+     * Resetea un presupuesto atascado en ANEXADO (o EN_PROCESO) devolviéndolo
+     * a BORRADOR o ENVIADO. NO toca stock físico.
+     * 
+     * v2.8 (2026-10-14):
+     *   • Endpoint para desatascar presupuestos que quedaron huérfanos por el
+     *     bug de orden en seleccionarPresupuestoActivoFacturacion().
+     * 
+     * POST /presupuesto/resetear/{id}
+     * Body: { "estado_destino": "BORRADOR" | "ENVIADO", "motivo": "..." }
+     */
+    public function resetear($id = null) {
+        try {
+            if (!$id || !is_numeric($id)) {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'mensaje' => 'ID de presupuesto inválido'
+                ], 400);
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true) ?: [];
+            $estadoDestino = $input['estado_destino'] ?? 'BORRADOR';
+            $motivo = $input['motivo'] ?? 'RESET_MANUAL_DESDE_UI';
+
+            $this->presupuestoModel->resetearDesdeAnexado(
+                (int)$id,
+                (int)$_SESSION['user_id'],
+                $estadoDestino,
+                $motivo
+            );
+
+            return $this->jsonResponse([
+                'success' => true,
+                'mensaje' => "Presupuesto devuelto a {$estadoDestino} correctamente."
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'mensaje' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

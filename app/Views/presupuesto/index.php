@@ -166,7 +166,7 @@ window.PRESUPUESTO_CONFIG = {
             </button>
         </div>
 
-        <form id="formPresupuesto" class="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1" enctype="multipart/form-data">
+        <form id="formPresupuesto" class="p-4 sm:p-6 space-y-5 flex-1" enctype="multipart/form-data" style="overflow-y: auto; overflow-x: visible;">
             <input type="hidden" name="id" id="presupuesto-id">
             <input type="hidden" name="estado" id="presupuesto-estado" value="BORRADOR">
 
@@ -250,7 +250,7 @@ window.PRESUPUESTO_CONFIG = {
                         <i data-lucide="plus" class="w-3 h-3"></i> Agregar Item
                     </button>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto" style="overflow-y: visible;">
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
@@ -477,6 +477,85 @@ async function cargarPresupuestos(page = 1) {
             const vencidoBadge = vencido ?
                 '<span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-black bg-red-100 text-red-700">VENCIDO</span>' : '';
 
+            // ─── FIX v3.4: Construir botones según estado SIN duplicar ───
+            let botonesEstado = '';
+
+            if (p.estado === 'BORRADOR') {
+                botonesEstado = `
+                    <button onclick="editarPresupuesto(${p.id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Editar">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
+                        <i data-lucide="mail" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="eliminarPresupuesto(${p.id})" class="p-2 bg-slate-100 hover:bg-red-500 hover:text-black text-slate-500 rounded-lg transition-all" title="Eliminar">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                `;
+            } else if (p.estado === 'ENVIADO') {
+                botonesEstado = `
+                    <button onclick="editarPresupuesto(${p.id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Editar Presupuesto">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Reenviar por Email">
+                        <i data-lucide="mail" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="cambiarEstadoPresupuesto(${p.id}, 'ACEPTADO')" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Marcar Aceptado">
+                        <i data-lucide="check-circle" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="cambiarEstadoPresupuesto(${p.id}, 'RECHAZADO')" class="p-2 bg-red-100 hover:bg-red-500 hover:text-black text-red-600 rounded-lg transition-all" title="Marcar Rechazado">
+                        <i data-lucide="x-circle" class="w-4 h-4"></i>
+                    </button>
+                `;
+            } else if (p.estado === 'ACTIVO') {
+                botonesEstado = `
+                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
+                        <i data-lucide="mail" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="activarPresupuestoDesdeTabla(${p.id})" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Ver Reservas">
+                        <i data-lucide="package" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="liberarInventarioDesdeTabla(${p.id})" class="p-2 bg-amber-100 hover:bg-amber-500 hover:text-black text-amber-600 rounded-lg transition-all" title="Liberar Inventario">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    </button>
+                `;
+            } else if (p.estado === 'EN_PROCESO') {
+                botonesEstado = `
+                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
+                        <i data-lucide="mail" class="w-4 h-4"></i>
+                    </button>
+                    <span class="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-black rounded-lg self-center">En Proceso</span>
+                `;
+            } else if (p.estado === 'ANEXADO') {
+                botonesEstado = `
+                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
+                        <i data-lucide="mail" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="resetearPresupuestoDesdeTabla(${p.id}, '${p.numero}')" class="p-2 bg-amber-100 hover:bg-amber-500 hover:text-black text-amber-700 rounded-lg transition-all" title="Devolver a Borrador (liberar)">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    </button>
+                `;
+            } else if (p.estado === 'ACEPTADO') {
+                botonesEstado = `
+                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
+                        <i data-lucide="mail" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="convertirPresupuestoAVenta(${p.id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="Convertir a Venta">
+                        <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                    </button>
+                `;
+            }
+            // CONVERTIDO, RECHAZADO, EXPIRADO → sin botones de estado, solo Ver + PDF
+
+            const botonesGenericos = `
+                <a href="${URLROOT}/presupuesto/ver/${p.id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                </a>
+                <button onclick="generarPDFPresupuesto(${p.id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="PDF">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                </button>
+            `;
+
             return `
                 <tr class="hover:bg-slate-50 transition-colors" data-id="${p.id}">
                     <td class="px-6 py-4 font-black text-navy-blue">${p.numero}</td>
@@ -493,67 +572,9 @@ async function cargarPresupuestos(page = 1) {
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${estadoColor}">${p.estado}</span>
                     </td>
                     <td class="px-6 py-4 text-right">
-                        <div class="flex gap-1 justify-end">
-                            ${p.estado === 'BORRADOR' ? `
-                                <button onclick="editarPresupuesto(${p.id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Editar">
-                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
-                                </button>
-                                <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
-                                    <i data-lucide="mail" class="w-4 h-4"></i>
-                                </button>
-                                <button onclick="generarPDFPresupuesto(${p.id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="PDF">
-                                    <i data-lucide="file-text" class="w-4 h-4"></i>
-                                </button>
-                                <button onclick="eliminarPresupuesto(${p.id})" class="p-2 bg-slate-100 hover:bg-red-500 hover:text-black text-slate-500 rounded-lg transition-all" title="Eliminar">
-                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                </button>
-                            ` : `
-                                ${p.estado === 'ENVIADO' ? `
-                                    <button onclick="editarPresupuesto(${p.id})" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Editar Presupuesto">
-                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Reenviar por Email">
-                                        <i data-lucide="mail" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="cambiarEstadoPresupuesto(${p.id}, 'ACEPTADO')" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Marcar Aceptado">
-                                        <i data-lucide="check-circle" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="cambiarEstadoPresupuesto(${p.id}, 'RECHAZADO')" class="p-2 bg-red-100 hover:bg-red-500 hover:text-black text-red-600 rounded-lg transition-all" title="Marcar Rechazado">
-                                        <i data-lucide="x-circle" class="w-4 h-4"></i>
-                                    </button>
-                                ` : ''}
-                                ${p.estado === 'ACTIVO' ? `
-                                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
-                                        <i data-lucide="mail" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="activarPresupuestoDesdeTabla(${p.id})" class="p-2 bg-emerald-100 hover:bg-emerald-500 hover:text-black text-emerald-600 rounded-lg transition-all" title="Ver Reservas">
-                                        <i data-lucide="package" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="liberarInventarioDesdeTabla(${p.id})" class="p-2 bg-amber-100 hover:bg-amber-500 hover:text-black text-amber-600 rounded-lg transition-all" title="Liberar Inventario">
-                                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                                    </button>
-                                ` : ''}
-                                ${p.estado === 'EN_PROCESO' ? `
-                                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
-                                        <i data-lucide="mail" class="w-4 h-4"></i>
-                                    </button>
-                                    <span class="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-black rounded-lg">En Proceso</span>
-                                ` : ''}
-                                ${p.estado === 'ACEPTADO' ? `
-                                    <button onclick="enviarPresupuestoEmail(${p.id})" class="p-2 bg-blue-100 hover:bg-blue-500 hover:text-black text-blue-600 rounded-lg transition-all" title="Enviar por Email">
-                                        <i data-lucide="mail" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="convertirPresupuestoAVenta(${p.id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="Convertir a Venta">
-                                        <i data-lucide="shopping-cart" class="w-4 h-4"></i>
-                                    </button>
-                                ` : ''}
-                                <a href="${URLROOT}/presupuesto/ver/${p.id}" class="p-2 bg-slate-100 hover:bg-neon-green hover:text-black text-slate-500 rounded-lg transition-all" title="Ver">
-                                    <i data-lucide="eye" class="w-4 h-4"></i>
-                                </a>
-                                <button onclick="generarPDFPresupuesto(${p.id})" class="p-2 bg-purple-100 hover:bg-purple-500 hover:text-black text-purple-600 rounded-lg transition-all" title="PDF">
-                                    <i data-lucide="file-text" class="w-4 h-4"></i>
-                                </button>
-                            `}
+                        <div class="flex gap-1 justify-end flex-wrap">
+                            ${botonesEstado}
+                            ${botonesGenericos}
                         </div>
                     </td>
                 </tr>`;
@@ -602,12 +623,40 @@ function limpiarFiltrosPresupuesto() {
 }
 
 /* ==================== MODAL PRESUPUESTO ==================== */
+
+/**
+ * FIX v3.6: Al abrir el modal de crear, se limpian explícitamente TODOS
+ * los campos del cliente (incluido el hidden cliente_id) para evitar que
+ * el ID del cliente anterior quede "pegado" en el nuevo presupuesto.
+ */
 function abrirModalCrear() {
     document.getElementById('presupuestoModal').classList.remove('hidden');
     document.getElementById('formPresupuesto').reset();
+    // Limpiar hidden residuales de items
+    document.querySelectorAll('#formPresupuesto input.item-hidden-calc').forEach(el => el.remove());
+
     document.getElementById('presupuestoModalTitle').textContent = 'Nuevo Presupuesto';
     document.getElementById('presupuesto-id').value = '';
     document.getElementById('presupuesto-estado').value = 'BORRADOR';
+
+    // ─── FIX v3.6: LIMPIAR CAMPOS DEL CLIENTE ───
+    document.getElementById('presupuesto-cliente-id').value = '';
+    document.getElementById('presupuesto-cliente-cedula').value = '';
+    document.getElementById('presupuesto-cliente-nombre').value = '';
+    document.getElementById('presupuesto-cliente-telefono').value = '';
+    document.getElementById('presupuesto-cliente-email').value = '';
+    document.getElementById('presupuesto-cliente-direccion').value = '';
+    document.getElementById('presupuesto-vehiculo-placa').value = '';
+    document.getElementById('presupuesto-vehiculo-marca').value = '';
+    document.getElementById('presupuesto-vehiculo-modelo').value = '';
+    document.getElementById('presupuesto-vehiculo-anio').value = '';
+    document.getElementById('presupuesto-vehiculo-color').value = '';
+    document.getElementById('presupuesto-observaciones').value = '';
+    document.getElementById('presupuesto-condiciones').value = '';
+
+    const sug = document.getElementById('cliente-suggestions');
+    if (sug) sug.classList.add('hidden');
+
     document.getElementById('presupuesto-fecha-emision').value = new Date().toISOString().split('T')[0];
     document.getElementById('presupuesto-validez-dias').value = 30;
     document.getElementById('presupuesto-iva-activo').checked = false;
@@ -643,6 +692,8 @@ async function editarPresupuesto(id) {
 function cerrarModalPresupuesto() {
     const modal = document.getElementById('presupuestoModal');
     if (modal) modal.classList.add('hidden');
+    // Limpiar hidden residuales al cerrar
+    document.querySelectorAll('#formPresupuesto input.item-hidden-calc').forEach(el => el.remove());
 }
 
 /* ==================== SUGERENCIAS CLIENTES ==================== */
@@ -710,6 +761,27 @@ document.getElementById('presupuesto-cliente-nombre')?.addEventListener('focus',
     mostrarSugerenciasCliente(this);
 });
 
+/**
+ * FIX v3.6: Si el usuario modifica manualmente el nombre del cliente
+ * (después de haber seleccionado una sugerencia), desvinculamos el
+ * cliente_id para que el backend cree un cliente nuevo con los datos
+ * que el usuario escribió.
+ */
+document.getElementById('presupuesto-cliente-nombre')?.addEventListener('input', function() {
+    const cedulaInput = document.getElementById('presupuesto-cliente-cedula');
+    const idHidden = document.getElementById('presupuesto-cliente-id');
+
+    if (cedulaInput && idHidden) {
+        const cedulaActual = cedulaInput.value.trim();
+        const idActual = idHidden.value.trim();
+
+        // Si la cédula ya no coincide con el cliente_id, desvincular
+        if (idActual && cedulaActual && cedulaActual !== idActual) {
+            idHidden.value = '';
+        }
+    }
+});
+
 document.addEventListener('click', function(e) {
     if (!e.target.closest('#presupuesto-cliente-nombre') && !e.target.closest('#cliente-suggestions')) {
         const el = document.getElementById('cliente-suggestions');
@@ -717,7 +789,12 @@ document.addEventListener('click', function(e) {
     }
 });
 
-/* ==================== GESTIÓN DE ITEMS ==================== */
+/**
+ * FIX OFERTA-P4 v3.8: Se reemplazó el <select> nativo de productos por
+ * un input de búsqueda con dropdown moderno. Cada producto del dropdown
+ * muestra su badge de oferta (si aplica), precio base tachado y precio
+ * final en verde. El dropdown se filtra al escribir.
+ */
 async function agregarItemPresupuesto(item = null) {
     itemCounter++;
     const currentItemId = itemCounter;
@@ -725,16 +802,6 @@ async function agregarItemPresupuesto(item = null) {
 
     const emptyRow = document.getElementById('empty-items-row');
     if (emptyRow) emptyRow.remove();
-
-    const productos = await cargarProductosPresupuesto();
-    let productosOptions = '<option value="">-- Seleccionar producto/servicio --</option>';
-    productos.forEach(p => {
-        const precioRegular = p.precio;
-        const precioOferta = p.en_oferta_vigente ? p.precio_final : p.precio;
-        const ofertaBadge = p.en_oferta_vigente ? ` (OFERTA ${p.oferta_porcentaje}%)` : '';
-        productosOptions +=
-            `<option value="${p.id}" data-precio="${precioRegular}" data-precio-oferta="${precioOferta}" data-tipo="PRODUCTO" data-stock="${p.stock}" data-costo="${p.costo_promedio}">${p.nombre} ${ofertaBadge} - $${parseFloat(precioRegular).toLocaleString('es-CO', {minimumFractionDigits: 2})} (Stock: ${p.stock})</option>`;
-    });
 
     const row = document.createElement('tr');
     row.className = 'hover:bg-slate-50 transition-colors';
@@ -747,12 +814,40 @@ async function agregarItemPresupuesto(item = null) {
                 <option value="SERVICIO">Servicio</option>
             </select>
         </td>
-        <td class="px-4 py-3">
+        <td class="px-4 py-3" style="position: relative;">
             <div class="relative">
-                <select name="items[${currentItemId}][producto_id]" id="item-producto-${currentItemId}" class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm outline-none focus:border-neon-green" onchange="seleccionarProductoPresupuesto(this, ${currentItemId})">
-                    ${productosOptions}
-                </select>
-                <input type="text" name="items[${currentItemId}][descripcion]" id="item-descripcion-${currentItemId}" placeholder="Descripción manual" class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm outline-none focus:border-neon-green hidden mt-1 uppercase" oninput="actualizarSubtotalItem(${currentItemId})">
+                <!-- Input de búsqueda reemplaza al select nativo -->
+                <input type="text"
+                       id="item-producto-search-${currentItemId}"
+                       placeholder="Buscar producto..."
+                       autocomplete="off"
+                       class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 pr-8 text-sm outline-none focus:border-neon-green uppercase item-producto-search"
+                       oninput="filtrarProductosPresupuesto(${currentItemId}, this.value)"
+                       onfocus="mostrarDropdownProductos(${currentItemId})">
+
+                <i data-lucide="search" class="absolute right-2 top-2.5 w-4 h-4 text-slate-300 pointer-events-none"></i>
+
+                <!-- Hidden que guarda el producto_id seleccionado -->
+                <input type="hidden" name="items[${currentItemId}][producto_id]" id="item-producto-${currentItemId}">
+
+                <!-- Dropdown de resultados -->
+                <div id="item-producto-dropdown-${currentItemId}"
+                    class="hidden absolute z-[9999] left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-72 overflow-y-auto">
+                </div>
+
+                <!-- Descripción manual (solo visible para servicios) -->
+                <input type="text"
+                       name="items[${currentItemId}][descripcion]"
+                       id="item-descripcion-${currentItemId}"
+                       placeholder="Descripción manual"
+                       class="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-sm outline-none focus:border-neon-green hidden mt-1 uppercase"
+                       oninput="actualizarSubtotalItem(${currentItemId})">
+
+                <!-- Badge de oferta del producto seleccionado -->
+                <div id="item-oferta-badge-${currentItemId}" class="hidden mt-1 flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase w-fit">
+                    <i data-lucide="tag" class="w-3 h-3"></i>
+                    <span>OFERTA <span id="item-oferta-pct-${currentItemId}">0</span>%</span>
+                </div>
             </div>
         </td>
         <td class="px-4 py-3 text-center">
@@ -780,9 +875,14 @@ async function agregarItemPresupuesto(item = null) {
 
     if (item) {
         document.querySelector(`select[name="items[${currentItemId}][tipo_item]"]`).value = item.tipo_item || 'PRODUCTO';
-        const productoSelect = document.getElementById(`item-producto-${currentItemId}`);
         if (item.producto_id) {
-            productoSelect.value = item.producto_id;
+            document.getElementById(`item-producto-${currentItemId}`).value = item.producto_id;
+            // Cargar el nombre del producto en el input de búsqueda
+            const productos = await cargarProductosPresupuesto();
+            const prod = productos.find(p => parseInt(p.id) === parseInt(item.producto_id));
+            if (prod) {
+                document.getElementById(`item-producto-search-${currentItemId}`).value = prod.nombre;
+            }
         }
         document.getElementById(`item-descripcion-${currentItemId}`).value = item.descripcion || '';
         document.querySelector(`input[name="items[${currentItemId}][cantidad]"]`).value = item.cantidad || 1;
@@ -790,6 +890,28 @@ async function agregarItemPresupuesto(item = null) {
         document.querySelector(`input[name="items[${currentItemId}][descuento_porcentaje]"]`).value = item.descuento_porcentaje || 0;
         document.getElementById(`item-iva-${currentItemId}`).value = item.iva_porcentaje || 0;
         actualizarTipoItem(document.querySelector(`select[name="items[${currentItemId}][tipo_item]"]`), currentItemId);
+
+        // ─── FIX OFERTA-P4: Reconstruir badge al editar un item existente ───
+        if (item.producto_id) {
+            const productos = await cargarProductosPresupuesto();
+            const prod = productos.find(p => parseInt(p.id) === parseInt(item.producto_id));
+            if (prod && prod.en_oferta_vigente) {
+                const precioBase = parseFloat(prod.precio || 0);
+                const precioOferta = parseFloat(prod.precio_final || prod.precio);
+                const precioGuardado = parseFloat(item.precio_unitario || 0);
+
+                if (Math.abs(precioGuardado - precioOferta) < 0.01) {
+                    const badge = document.getElementById(`item-oferta-badge-${currentItemId}`);
+                    const badgePct = document.getElementById(`item-oferta-pct-${currentItemId}`);
+                    if (badge && badgePct) {
+                        const pct = Math.round(((precioBase - precioOferta) / precioBase) * 100);
+                        badgePct.textContent = pct;
+                        badge.classList.remove('hidden');
+                    }
+                }
+            }
+        }
+
         actualizarSubtotalItem(currentItemId);
     } else {
         actualizarSubtotalItem(currentItemId);
@@ -798,21 +920,231 @@ async function agregarItemPresupuesto(item = null) {
     if (window.lucide) lucide.createIcons();
 }
 
+/**
+ * FIX OFERTA-P4 v3.8: Muestra el dropdown de productos al hacer foco en
+ * el input de búsqueda. Si no hay término, muestra todos.
+ */
+async function mostrarDropdownProductos(itemId) {
+    const productos = await cargarProductosPresupuesto();
+    renderizarDropdownProductos(itemId, productos);
+}
+
+/**
+ * FIX OFERTA-P4 v3.8: Filtra productos por término de búsqueda (nombre,
+ * código o marca) y actualiza el dropdown.
+ */
+async function filtrarProductosPresupuesto(itemId, term) {
+    const productos = await cargarProductosPresupuesto();
+    const termLower = (term || '').toLowerCase().trim();
+
+    if (!termLower) {
+        renderizarDropdownProductos(itemId, productos);
+        return;
+    }
+
+    const filtrados = productos.filter(p => {
+        const nombre = (p.nombre || '').toLowerCase();
+        const codigo = (p.codigo || '').toLowerCase();
+        const marca = (p.marca || '').toLowerCase();
+        return nombre.includes(termLower) || codigo.includes(termLower) || marca.includes(termLower);
+    });
+
+    renderizarDropdownProductos(itemId, filtrados);
+
+    // Si el usuario borró el input, limpiamos el producto_id seleccionado
+    const hiddenId = document.getElementById(`item-producto-${itemId}`);
+    if (hiddenId && !termLower) {
+        hiddenId.value = '';
+    }
+}
+
+/**
+ * FIX OFERTA-P5 v3.9: El dropdown ahora se renderiza en el <body> con
+ * position:fixed y usa las coordenadas del input para posicionarse.
+ * Esto evita que los contenedores con overflow-hidden/auto del modal
+ * lo recorten. Ahora se ve por encima de todo.
+ */
+function renderizarDropdownProductos(itemId, productos) {
+    const searchInput = document.getElementById(`item-producto-search-${itemId}`);
+    if (!searchInput) return;
+
+    // Referencia al dropdown "inline" (oculto) que sirve solo como punto de anclaje
+    const inlineDropdown = document.getElementById(`item-producto-dropdown-${itemId}`);
+    if (inlineDropdown) inlineDropdown.classList.add('hidden');
+
+    // Eliminar cualquier dropdown flotante previo para este item
+    const existingFloating = document.getElementById(`item-producto-dropdown-float-${itemId}`);
+    if (existingFloating) existingFloating.remove();
+
+    // Calcular posición del input
+    const rect = searchInput.getBoundingClientRect();
+    // FIX OFERTA-P6 v3.9: Ancho ampliado para mejor lectura.
+    // Se toma el mayor entre el ancho del input y 520px, con tope de
+    // viewport para no salirse de la pantalla en móvil.
+    const MIN_WIDTH = 520;
+    const PADDING = 16;
+    let dropdownWidth = Math.max(rect.width, MIN_WIDTH);
+    // Evitar que se salga por la derecha
+    const maxWidthRight = window.innerWidth - rect.left - PADDING;
+    if (dropdownWidth > maxWidthRight) {
+        dropdownWidth = maxWidthRight;
+    }
+    // Evitar que se salga por la izquierda (por si el input está pegado al borde)
+    if (dropdownWidth < 320) {
+        dropdownWidth = Math.min(320, window.innerWidth - PADDING * 2);
+    }
+    // Altura máxima disponible debajo del input
+    const espacioDebajo = window.innerHeight - rect.bottom - 20;
+    const alturaMax = Math.min(300, Math.max(150, espacioDebajo));
+
+    // Crear dropdown flotante en el body
+    const dropdown = document.createElement('div');
+    dropdown.id = `item-producto-dropdown-float-${itemId}`;
+    dropdown.style.cssText = `
+        position: fixed;
+        top: ${rect.bottom + 4}px;
+        left: ${rect.left}px;
+        width: ${dropdownWidth}px;
+        max-height: ${alturaMax}px;
+        overflow-y: auto;
+        z-index: 100000;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.1);
+    `;
+
+    if (!productos || productos.length === 0) {
+        dropdown.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs italic">Sin resultados</div>';
+        document.body.appendChild(dropdown);
+        return;
+    }
+
+    const html = productos.map(p => {
+        const enOferta = parseInt(p.en_oferta_vigente) === 1;
+        const precioBase = parseFloat(p.precio || 0);
+        const precioFinal = parseFloat(p.precio_final || p.precio);
+        const stock = parseInt(p.stock || 0);
+
+        let stockColor = 'text-slate-400';
+        if (stock <= 0) stockColor = 'text-rose-500 font-black';
+        else if (stock <= 5) stockColor = 'text-amber-500 font-black';
+
+        const ofertaBadge = enOferta
+            ? `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700 uppercase">OFERTA ${parseFloat(p.oferta_porcentaje).toFixed(0)}%</span>`
+            : '';
+
+        const precioHtml = enOferta
+            ? `<div class="flex flex-col items-end">
+                   <span class="text-[10px] text-slate-400 line-through">$${precioBase.toLocaleString('es-CO', {minimumFractionDigits: 2})}</span>
+                   <span class="font-black text-emerald-600 text-sm">$${precioFinal.toLocaleString('es-CO', {minimumFractionDigits: 2})}</span>
+               </div>`
+            : `<span class="font-bold text-navy-blue text-sm">$${precioBase.toLocaleString('es-CO', {minimumFractionDigits: 2})}</span>`;
+
+        return `<div class="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center transition-colors"
+                     onclick="seleccionarProductoDesdeDropdown(${itemId}, ${p.id})">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center flex-wrap">
+                            <span class="font-bold text-xs text-slate-800 uppercase truncate">${p.nombre}</span>
+                            ${ofertaBadge}
+                        </div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-0.5">
+                            ${p.codigo || ''} ${p.marca ? '· ' + p.marca : ''} · <span class="${stockColor}">Stock: ${stock}</span>
+                        </div>
+                    </div>
+                    <div class="ml-3 flex-shrink-0">${precioHtml}</div>
+                </div>`;
+    }).join('');
+
+    dropdown.innerHTML = html;
+    document.body.appendChild(dropdown);
+}
+
+/**
+ * FIX OFERTA-P4 v3.8: Selecciona un producto desde el dropdown.
+ * Reemplaza al anterior seleccionarProductoPresupuesto (que trabajaba
+ * con un <select> nativo). Ahora se recibe solo el productoId.
+ */
+async function seleccionarProductoDesdeDropdown(itemId, productoId) {
+    const productos = await cargarProductosPresupuesto();
+    const p = productos.find(prod => parseInt(prod.id) === parseInt(productoId));
+    if (!p) return;
+
+    const enOferta = parseInt(p.en_oferta_vigente) === 1;
+    const precioBase = parseFloat(p.precio || 0);
+    const precioFinal = enOferta ? parseFloat(p.precio_final) : precioBase;
+
+    // Asignar hidden del producto_id
+    document.getElementById(`item-producto-${itemId}`).value = p.id;
+    // Poner el nombre del producto en el input de búsqueda
+    document.getElementById(`item-producto-search-${itemId}`).value = p.nombre;
+    // Poner la descripción interna para que se guarde
+    document.getElementById(`item-descripcion-${itemId}`).value = p.nombre;
+    // Asignar el precio final (oferta o base)
+    document.getElementById(`item-precio-${itemId}`).value = precioFinal;
+
+    // Guardar metadatos de oferta como hidden DENTRO de la fila
+    const row = document.querySelector(`#presupuesto-items-body tr[data-item-id="${itemId}"]`);
+    if (row) {
+        row.querySelectorAll('input.item-hidden-oferta').forEach(el => el.remove());
+
+        const hiddenBase = document.createElement('input');
+        hiddenBase.type = 'hidden';
+        hiddenBase.name = `items[${itemId}][precio_base]`;
+        hiddenBase.value = precioBase.toFixed(2);
+        hiddenBase.classList.add('item-hidden-oferta');
+        row.appendChild(hiddenBase);
+
+        const hiddenOferta = document.createElement('input');
+        hiddenOferta.type = 'hidden';
+        hiddenOferta.name = `items[${itemId}][en_oferta]`;
+        hiddenOferta.value = enOferta ? '1' : '0';
+        hiddenOferta.classList.add('item-hidden-oferta');
+        row.appendChild(hiddenOferta);
+    }
+
+    // Mostrar/ocultar badge de oferta
+    const badge = document.getElementById(`item-oferta-badge-${itemId}`);
+    const badgePct = document.getElementById(`item-oferta-pct-${itemId}`);
+    if (badge && badgePct) {
+        if (enOferta) {
+            const pct = Math.round(((precioBase - precioFinal) / precioBase) * 100);
+            badgePct.textContent = pct;
+            badge.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+        // FIX OFERTA-P5: Cerrar el dropdown flotante
+    const floatDropdown = document.getElementById(`item-producto-dropdown-float-${itemId}`);
+    if (floatDropdown) floatDropdown.remove();
+
+    actualizarSubtotalItem(itemId);
+}
 function actualizarTipoItem(select, itemId) {
     const tipo = select.value;
-    const productoSelect = document.getElementById(`item-producto-${itemId}`);
+    const searchInput = document.getElementById(`item-producto-search-${itemId}`);
+    const dropdown = document.getElementById(`item-producto-dropdown-${itemId}`);
     const descripcionInput = document.getElementById(`item-descripcion-${itemId}`);
     const precioInput = document.getElementById(`item-precio-${itemId}`);
+    const badge = document.getElementById(`item-oferta-badge-${itemId}`);
 
     if (tipo === 'SERVICIO') {
-        productoSelect.classList.add('hidden');
+        if (searchInput) searchInput.classList.add('hidden');
+        if (dropdown) dropdown.classList.add('hidden');
+        // FIX OFERTA-P5: cerrar también el dropdown flotante
+        const floatDd = document.getElementById(`item-producto-dropdown-float-${itemId}`);
+        if (floatDd) floatDd.remove();
+        if (badge) badge.classList.add('hidden');
         descripcionInput.classList.remove('hidden');
         descripcionInput.required = true;
         precioInput.readOnly = false;
         precioInput.classList.remove('bg-slate-100', 'cursor-not-allowed');
-        productoSelect.value = '';
+        document.getElementById(`item-producto-${itemId}`).value = '';
     } else {
-        productoSelect.classList.remove('hidden');
+        if (searchInput) searchInput.classList.remove('hidden');
         descripcionInput.classList.add('hidden');
         descripcionInput.required = false;
         precioInput.readOnly = true;
@@ -821,18 +1153,23 @@ function actualizarTipoItem(select, itemId) {
     actualizarSubtotalItem(itemId);
 }
 
+/**
+ * FIX OFERTA-P1 v3.8: Si el producto tiene oferta vigente, usar el
+ * precio de oferta en lugar del precio base, y guardar los metadatos
+ * (precio_base, en_oferta) como hiddens dentro de la fila para que
+ * viajen en el FormData al guardar el presupuesto.
+ */
 async function seleccionarProductoPresupuesto(select, itemId) {
     const option = select.options[select.selectedIndex];
     if (!option.value) return;
 
     const tipo = option.dataset.tipo;
+    const precioBase = parseFloat(option.dataset.precio || 0);
+    const precioOferta = parseFloat(option.dataset.precioOferta || option.dataset.precio || 0);
+    const enOferta = precioOferta < precioBase - 0.01;
 
-    let precio;
-    if (tipo === 'PRODUCTO') {
-        precio = option.dataset.precio;
-    } else {
-        precio = option.dataset.precioOferta || option.dataset.precio;
-    }
+    // Usar precio de oferta si aplica
+    const precio = enOferta ? precioOferta : precioBase;
 
     document.getElementById(`item-precio-${itemId}`).value = precio;
     document.getElementById(`item-descripcion-${itemId}`).value = option.text.split(' - ')[0];
@@ -841,9 +1178,34 @@ async function seleccionarProductoPresupuesto(select, itemId) {
     if (tipoSelect) tipoSelect.value = tipo;
     actualizarTipoItem(tipoSelect, itemId);
 
+    // Guardar metadatos de oferta como hidden dentro de la fila
+    const row = document.querySelector(`#presupuesto-items-body tr[data-item-id="${itemId}"]`);
+    if (row) {
+        row.querySelectorAll('input.item-hidden-oferta').forEach(el => el.remove());
+
+        const hiddenBase = document.createElement('input');
+        hiddenBase.type = 'hidden';
+        hiddenBase.name = `items[${itemId}][precio_base]`;
+        hiddenBase.value = precioBase.toFixed(2);
+        hiddenBase.classList.add('item-hidden-oferta');
+        row.appendChild(hiddenBase);
+
+        const hiddenOferta = document.createElement('input');
+        hiddenOferta.type = 'hidden';
+        hiddenOferta.name = `items[${itemId}][en_oferta]`;
+        hiddenOferta.value = enOferta ? '1' : '0';
+        hiddenOferta.classList.add('item-hidden-oferta');
+        row.appendChild(hiddenOferta);
+    }
+
     actualizarSubtotalItem(itemId);
 }
 
+/**
+ * FIX v3.5: Los hidden de cálculo ahora se insertan DENTRO de la fila,
+ * no en el <form>. Antes se acumulaban inputs huérfanos que el FormData
+ * enviaba como "items fantasma" al backend.
+ */
 function actualizarSubtotalItem(itemId) {
     const row = document.querySelector(`#presupuesto-items-body tr[data-item-id="${itemId}"]`);
     if (!row) return;
@@ -864,22 +1226,21 @@ function actualizarSubtotalItem(itemId) {
     if (subtotalEl) subtotalEl.textContent = '$' + subtotal.toLocaleString('es-CO', { minimumFractionDigits: 2 });
     if (totalEl)    totalEl.textContent    = '$' + total.toLocaleString('es-CO', { minimumFractionDigits: 2 });
 
-    ['subtotal', 'iva_monto', 'total', 'descuento_monto'].forEach(field => {
-        document.querySelector(`input[name="items[${itemId}][${field}]"]`)?.remove();
-    });
+    // Remover hidden previos DENTRO de la fila y crear los nuevos
+    row.querySelectorAll('input.item-hidden-calc').forEach(el => el.remove());
 
-    const form = document.getElementById('formPresupuesto');
-    const addHidden = (name, value) => {
+    const crearHidden = (field, value) => {
         const input = document.createElement('input');
         input.type = 'hidden';
-        input.name = name;
+        input.name = `items[${itemId}][${field}]`;
         input.value = value.toFixed(2);
-        form.appendChild(input);
+        input.classList.add('item-hidden-calc');
+        row.appendChild(input);
     };
-    addHidden(`items[${itemId}][subtotal]`, subtotal);
-    addHidden(`items[${itemId}][iva_monto]`, ivaMonto);
-    addHidden(`items[${itemId}][total]`, total);
-    addHidden(`items[${itemId}][descuento_monto]`, descuentoMonto);
+    crearHidden('subtotal', subtotal);
+    crearHidden('iva_monto', ivaMonto);
+    crearHidden('total', total);
+    crearHidden('descuento_monto', descuentoMonto);
 
     actualizarTotalesPresupuesto();
 }
@@ -984,11 +1345,56 @@ async function guardarPresupuesto(estado) {
     const formData = new FormData(form);
     formData.set('estado', estado);
 
-    const items = document.querySelectorAll('#presupuesto-items-body tr[data-item-id]');
-    if (items.length === 0) {
-        AppUtils.showToast('Debe agregar al menos un item', 'error');
+    // ═══════════════════════════════════════════════════════════════════
+    // FIX v3.4: Filtrar filas VACÍAS antes de guardar
+    // ═══════════════════════════════════════════════════════════════════
+    const filasItems = document.querySelectorAll('#presupuesto-items-body tr[data-item-id]');
+    let itemsValidos = 0;
+
+    filasItems.forEach(fila => {
+        const itemId = fila.dataset.itemId;
+        const tipoSelect = fila.querySelector(`select[name="items[${itemId}][tipo_item]"]`);
+        const productSelect = fila.querySelector(`select[name="items[${itemId}][producto_id]"]`);
+        const descInput = fila.querySelector(`input[name="items[${itemId}][descripcion]"]`);
+        const cantInput = fila.querySelector(`input[name="items[${itemId}][cantidad]"]`);
+
+        const tipo = (tipoSelect?.value || '').toUpperCase();
+        const productoId = productSelect?.value || '';
+        const descripcion = (descInput?.value || '').trim();
+        const cantidad = parseInt(cantInput?.value || '0') || 0;
+
+        let esValida = false;
+
+        if (tipo === 'SERVICIO') {
+            esValida = descripcion !== '' && cantidad > 0;
+        } else {
+            esValida = productoId !== '' && cantidad > 0;
+        }
+
+        if (!esValida) {
+            fila.remove();
+            const clavesAEliminar = [];
+            for (const key of formData.keys()) {
+                if (key.startsWith(`items[${itemId}]`)) {
+                    clavesAEliminar.push(key);
+                }
+            }
+            clavesAEliminar.forEach(k => formData.delete(k));
+        } else {
+            itemsValidos++;
+        }
+    });
+
+    if (itemsValidos === 0) {
+        AppUtils.showToast('Debe agregar al menos un item con descripción o producto', 'error');
+        const tbody = document.getElementById('presupuesto-items-body');
+        if (tbody && !tbody.querySelector('tr[data-item-id]')) {
+            tbody.innerHTML = '<tr id="empty-items-row"><td colspan="10" class="px-4 py-16 text-center text-slate-400 italic">No hay items agregados</td></tr>';
+        }
         return;
     }
+
+    actualizarTotalesPresupuesto();
 
     const btn = form.querySelector(`button[onclick="guardarPresupuesto('${estado}')"]`);
     const originalText = btn.innerHTML;
@@ -1432,6 +1838,9 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ==================== EDICIÓN DE PRESUPUESTO EXISTENTE ==================== */
 async function abrirModalEditar(presupuesto) {
     document.getElementById('presupuestoModal').classList.remove('hidden');
+    // Limpiar hidden residuales
+    document.querySelectorAll('#formPresupuesto input.item-hidden-calc').forEach(el => el.remove());
+
     document.getElementById('presupuestoModalTitle').textContent = 'Editar Presupuesto';
     document.getElementById('presupuesto-id').value = presupuesto.id;
     document.getElementById('presupuesto-estado').value = presupuesto.estado;
@@ -1465,8 +1874,15 @@ async function abrirModalEditar(presupuesto) {
 
     await cargarProductosPresupuesto();
 
-    if (presupuesto.items && presupuesto.items.length > 0) {
-        for (const item of presupuesto.items) {
+    // ─── FIX v3.5: Filtrar items inválidos antes de renderizar ───
+    const itemsValidos = (presupuesto.items || []).filter(it => {
+        const desc = String(it.descripcion || '').trim();
+        const prodId = it.producto_id;
+        return desc !== '' || (prodId !== null && prodId !== undefined && prodId !== 0 && prodId !== '0');
+    });
+
+    if (itemsValidos.length > 0) {
+        for (const item of itemsValidos) {
             await agregarItemPresupuesto(item);
         }
     } else {
@@ -1479,12 +1895,32 @@ async function abrirModalEditar(presupuesto) {
 }
 
 /* ==================== PRESUPUESTO DE REPUESTOS ==================== */
+
+/**
+ * FIX v3.6: Misma limpieza explícita que abrirModalCrear, para evitar
+ * que el cliente_id residual se pegue en el nuevo presupuesto de repuestos.
+ */
 function abrirModalRepuestos() {
     document.getElementById('presupuestoModal').classList.remove('hidden');
     document.getElementById('formPresupuesto').reset();
+    // Limpiar hidden residuales
+    document.querySelectorAll('#formPresupuesto input.item-hidden-calc').forEach(el => el.remove());
+
     document.getElementById('presupuestoModalTitle').textContent = 'Nuevo Presupuesto de Repuestos';
     document.getElementById('presupuesto-id').value = '';
     document.getElementById('presupuesto-estado').value = 'BORRADOR';
+
+    // ─── FIX v3.6: LIMPIAR CAMPOS DEL CLIENTE ───
+    document.getElementById('presupuesto-cliente-id').value = '';
+    document.getElementById('presupuesto-cliente-cedula').value = '';
+    document.getElementById('presupuesto-cliente-nombre').value = '';
+    document.getElementById('presupuesto-cliente-telefono').value = '';
+    document.getElementById('presupuesto-cliente-email').value = '';
+    document.getElementById('presupuesto-cliente-direccion').value = '';
+
+    const sug = document.getElementById('cliente-suggestions');
+    if (sug) sug.classList.add('hidden');
+
     document.getElementById('presupuesto-fecha-emision').value = new Date().toISOString().split('T')[0];
     document.getElementById('presupuesto-validez-dias').value = 30;
     document.getElementById('presupuesto-iva-activo').checked = false;
@@ -1504,4 +1940,95 @@ function ocultarCamposVehiculo(ocultar) {
         el.style.display = ocultar ? 'none' : '';
     });
 }
+
+/* ==================== RESET DE PRESUPUESTO ATASCADO EN ANEXADO ==================== */
+async function resetearPresupuestoDesdeTabla(id, numero) {
+    const { value: formValues } = await Swal.fire({
+        title: '¿Devolver presupuesto a Borrador?',
+        html: `
+            <p class="text-sm text-slate-600 mb-3">
+                Presupuesto <strong>${numero}</strong> está en estado <strong>ANEXADO</strong> pero no tiene items cargados en ninguna factura.
+                Al devolverlo a <strong>BORRADOR</strong> podrás anexarlo de nuevo desde Facturación correctamente.
+            </p>
+            <p class="text-xs text-slate-500 mb-3">
+                No se descuenta ni se reintegra stock físico (el presupuesto nunca llegó a descontarlo).
+            </p>
+            <div class="text-left space-y-3 pt-2">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Estado destino</label>
+                    <select id="reset-estado" class="swal2-input w-full m-0 text-sm">
+                        <option value="BORRADOR">BORRADOR (recomendado)</option>
+                        <option value="ENVIADO">ENVIADO</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Motivo (opcional)</label>
+                    <input type="text" id="reset-motivo" class="swal2-input w-full m-0 text-sm" placeholder="Ej: Bug de anexado" value="BUG_ANEXADO_SIN_ITEMS">
+                </div>
+            </div>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'SÍ, DEVOLVER',
+        confirmButtonColor: '#f59e0b',
+        cancelButtonColor: '#64748b',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            return {
+                estado_destino: document.getElementById('reset-estado').value,
+                motivo: document.getElementById('reset-motivo').value || 'RESET_MANUAL'
+            };
+        }
+    });
+
+    if (!formValues) return;
+
+    AppUtils.showLoading('Devolviendo presupuesto...');
+    try {
+        const res = await fetch(`${URLROOT}/presupuesto/resetear/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN },
+            body: JSON.stringify(formValues)
+        });
+        const result = await res.json();
+        AppUtils.hideLoading();
+
+        if (result.success) {
+            AppUtils.showToast(result.mensaje || 'Presupuesto devuelto correctamente', 'success');
+            cargarPresupuestos(presupuestosPage);
+            actualizarStats();
+        } else {
+            AppUtils.showToast(result.mensaje || 'Error al devolver el presupuesto', 'error');
+        }
+    } catch (e) {
+        AppUtils.hideLoading();
+        AppUtils.showToast('Error de conexión', 'error');
+    }
+}
+
+// FIX OFERTA-P5 v3.9: Cerrar dropdowns flotantes al hacer clic fuera
+document.addEventListener('click', (e) => {
+    document.querySelectorAll('[id^="item-producto-dropdown-float-"]').forEach(dd => {
+        const itemId = dd.id.replace('item-producto-dropdown-float-', '');
+        const searchInput = document.getElementById(`item-producto-search-${itemId}`);
+        if (searchInput && !searchInput.contains(e.target) && !dd.contains(e.target)) {
+            dd.remove();
+        }
+    });
+});
+
+// FIX OFERTA-P6: Cerrar dropdowns solo si el scroll ocurre FUERA de ellos
+document.addEventListener('scroll', (e) => {
+    document.querySelectorAll('[id^="item-producto-dropdown-float-"]').forEach(dd => {
+        // Si el scroll ocurre DENTRO del dropdown, no cerrarlo
+        if (dd.contains(e.target)) return;
+        dd.remove();
+    });
+}, true);
+
+// FIX OFERTA-P5: Reposicionar dropdowns al redimensionar la ventana
+window.addEventListener('resize', () => {
+    document.querySelectorAll('[id^="item-producto-dropdown-float-"]').forEach(dd => {
+        dd.remove();
+    });
+});
 </script>

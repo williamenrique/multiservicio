@@ -30,15 +30,45 @@ class ModelPresupuesto {
         $this->db = $db ?: new Database();
     }
 
+    /**
+     * Genera el siguiente número de presupuesto de forma segura.
+     * 
+     * FIX v3.5: Usar MAX(numero) en vez de COUNT(*) para evitar
+     * colisiones cuando hay huecos en la secuencia (por ejemplo, si
+     * se borró un presupuesto intermedio).
+     */
     private function generarNumero() {
         $year = date('Y');
-        $this->db->query("SELECT COUNT(*) as total FROM table_presupuestos WHERE numero LIKE :pattern");
-        $this->db->bind(':pattern', "PRES-$year-%");
-        $count = (int)$this->db->single()->total;
-        $next = $count + 1;
-        return sprintf("PRES-%s-%04d", $year, $next);
-    }
 
+        $this->db->query("SELECT MAX(CAST(SUBSTRING(numero, -4) AS UNSIGNED)) as ultimo 
+                          FROM table_presupuestos 
+                          WHERE numero LIKE :pattern");
+        $this->db->bind(':pattern', "PRES-$year-%");
+        $row = $this->db->single();
+
+        $ultimo = (int)($row->ultimo ?? 0);
+        $siguiente = $ultimo + 1;
+
+        // Loop de seguridad: si por alguna razón el número ya existe
+        // (concurrencia, imports, etc.), incrementa hasta encontrar uno libre.
+        $intentos = 0;
+        while ($intentos < 9999) {
+            $candidato = sprintf("PRES-%s-%04d", $year, $siguiente);
+
+            $this->db->query("SELECT COUNT(*) as cnt FROM table_presupuestos WHERE numero = :num");
+            $this->db->bind(':num', $candidato);
+            $existe = (int)$this->db->single()->cnt > 0;
+
+            if (!$existe) {
+                return $candidato;
+            }
+            $siguiente++;
+            $intentos++;
+        }
+
+        // Fallback: usar timestamp para garantizar unicidad
+        return sprintf("PRES-%s-%04d", $year, $siguiente);
+    }
     /**
      * Calcula la fecha de vencimiento a partir de fecha_emision + validez_dias.
      * Si ya viene una fecha_vencimiento explícita en $data, la respeta.
@@ -303,14 +333,48 @@ class ModelPresupuesto {
 
         if (!$presupuesto) return null;
 
-        $this->db->query("SELECT pd.*, i.nombre as producto_nombre, i.codigo as producto_codigo, 
-                                 i.imagen as producto_imagen, i.costo_promedio, i.stock as stock_actual
+                // ─── FIX OFERTA-P3 v3.8: Detectar si el item fue vendido con oferta ───
+        $this->db->query("SELECT 
+                            pd.*, 
+                            i.nombre as producto_nombre, 
+                            i.codigo as producto_codigo, 
+                            i.imagen as producto_imagen, 
+                            i.costo_promedio, 
+                            i.stock as stock_actual,
+                            i.precio as producto_precio_actual,
+                            i.oferta_porcentaje,
+                            CASE 
+                                WHEN i.oferta_activa = 1 
+                                     AND i.oferta_porcentaje > 0 
+                                     AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                                     AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                                THEN 1
+                                ELSE 0
+                            END as en_oferta_vigente
                           FROM table_presupuestos_detalle pd
                           LEFT JOIN table_inventario i ON pd.producto_id = i.id
                           WHERE pd.presupuesto_id = :id
                           ORDER BY pd.orden_visual, pd.id");
         $this->db->bind(':id', (int)$id);
-        $presupuesto->items = $this->db->resultSet();
+        $items = $this->db->resultSet();
+
+        // Enriquecer cada item con metadatos de oferta (precio_base, en_oferta)
+        foreach ($items as $it) {
+            $it->en_oferta = false;
+            $it->precio_base = null;
+
+            if ($it->producto_id && (int)$it->en_oferta_vigente === 1) {
+                $precioGuardado = (float)$it->precio_unitario;
+                $precioBaseActual = (float)$it->producto_precio_actual;
+
+                // Si el precio guardado es MENOR al base actual → fue con oferta
+                if ($precioGuardado < $precioBaseActual - 0.01) {
+                    $it->en_oferta = true;
+                    $it->precio_base = $precioBaseActual;
+                }
+            }
+        }
+        $presupuesto->items = $items;
 
         return $presupuesto;
     }
@@ -668,6 +732,19 @@ class ModelPresupuesto {
         }
     }
 
+    /**
+     * Libera el inventario y las reservas de un presupuesto, devolviéndolo a BORRADOR.
+     * 
+     * FIX v3.3 (2026-10-14):
+     *   • Ahora también limpia `table_facturas.presupuesto_activo_id` de cualquier
+     *     factura PENDIENTE que apunte a este presupuesto. Sin esto, el polling
+     *     de facturación "resucitaba" el presupuesto pegado en la UI aunque el
+     *     presupuesto ya estuviera en BORRADOR.
+     * 
+     *   • Se preserva el comportamiento original: devuelve stock físico si había
+     *     reservas FACTURADA, libera reservas RESERVADA, y marca el presupuesto
+     *     como BORRADOR.
+     */
     public function liberarInventario($id, $usuarioId, $motivo = 'CANCELACION') {
         try {
             $this->db->beginTransaction();
@@ -686,8 +763,18 @@ class ModelPresupuesto {
 
             $this->db->query("UPDATE table_presupuestos SET estado = 'BORRADOR' 
                               WHERE id = :id 
-                              AND estado IN ('ACTIVO', 'ANEXADO', 'ACEPTADO', 'EN_PROCESO')");
+                              AND estado IN ('ACTIVO', 'ANEXADO', 'ACEPTADO', 'EN_PROCESO', 'ENVIADO')");
             $this->db->bind(':id', (int)$id);
+            $this->db->execute();
+
+            // ─── FIX v3.3: Limpiar la referencia en las facturas PENDIENTES ───
+            // Sin esto, el polling de facturación seguía viendo el presupuesto
+            // "pegado" en la factura aunque el presupuesto ya estuviera en BORRADOR.
+            $this->db->query("UPDATE table_facturas 
+                              SET presupuesto_activo_id = NULL 
+                              WHERE presupuesto_activo_id = :pid 
+                                AND status = 'PENDIENTE'");
+            $this->db->bind(':pid', (int)$id);
             $this->db->execute();
 
             $this->db->commit();
@@ -698,7 +785,6 @@ class ModelPresupuesto {
             throw $e;
         }
     }
-
     public function buscarActivos($search = null) {
         $sql = "SELECT p.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.email as cliente_email
                 FROM table_presupuestos p
@@ -984,5 +1070,145 @@ class ModelPresupuesto {
                           ORDER BY pr.fecha_reserva");
         $this->db->bind(':id', (int)$id);
         return $this->db->resultSet();
+    }
+
+        /**
+     * Obtiene SOLO los metadatos básicos de un presupuesto (sin items).
+     * 
+     * v2.7 (2026-10-14):
+     *   • Nuevo método usado por facturación para rehidratar el estado visual
+     *     del presupuesto anexado a una factura, INDEPENDIENTEMENTE de su
+     *     estado actual (BORRADOR, ENVIADO, ACEPTADO, ANEXADO, CONVERTIDO...).
+     *   • Se separa de obtenerParaAnexar() porque ese método rechaza estados
+     *     terminales (CONVERTIDO, RECHAZADO, EXPIRADO, ANEXADO), lo cual
+     *     rompía la rehidratación de una factura ya vinculada.
+     * 
+     * @param int $id
+     * @return object|null  { id, numero, cliente_id, cliente_nombre, cliente_telefono,
+     *                        cliente_email, vehiculo_placa, vehiculo_marca, vehiculo_modelo,
+     *                        vehiculo_anio, vehiculo_color, subtotal, iva_monto, total,
+     *                        estado, fecha_emision, fecha_vencimiento, usuario_id,
+     *                        usuario_nombre }
+     */
+    public function obtenerInfoBasica($id) {
+        $this->db->query("SELECT 
+                            p.id, p.numero, 
+                            p.cliente_id, p.cliente_nombre, p.cliente_cedula, 
+                            p.cliente_telefono, p.cliente_email, p.cliente_direccion,
+                            p.vehiculo_placa, p.vehiculo_marca, p.vehiculo_modelo,
+                            p.vehiculo_anio, p.vehiculo_color,
+                            p.subtotal, p.iva_monto, p.total, p.iva_activo, p.tasa_iva,
+                            p.estado, p.validez_dias,
+                            p.fecha_emision, p.fecha_vencimiento, p.fecha_activacion,
+                            p.observaciones, p.condiciones,
+                            p.usuario_id,
+                            COALESCE(u.username, s.nombre, 'SISTEMA') as usuario_nombre
+                          FROM table_presupuestos p
+                          LEFT JOIN table_usuarios u ON p.usuario_id = u.id
+                          LEFT JOIN table_staff s ON u.staff_id = s.id
+                          WHERE p.id = :id");
+        $this->db->bind(':id', (int)$id);
+        return $this->db->single();
+    }
+
+        /**
+     * Resetea un presupuesto atascado en estado ANEXADO (o similar) devolviéndolo
+     * a BORRADOR o ENVIADO, sin tocar el stock físico.
+     * 
+     * v2.8 (2026-10-14):
+     *   • Nuevo método para resolver el bug donde los presupuestos quedaban
+     *     atascados en ANEXADO porque iniciarProceso() corría ANTES de
+     *     obtenerParaAnexar(). Como el segundo rechaza ANEXADO, el frontend
+     *     nunca cargaba los items y el presupuesto quedaba huérfano.
+     * 
+     *   • NO toca stock físico. Solo libera reservas RESERVADA (no FACTURADA).
+     *     Esto es seguro porque iniciarProceso() con crear_reservas:false
+     *     ya había liberado las reservas sin descontar stock.
+     * 
+     *   • Estados válidos de origen: ANEXADO, EN_PROCESO.
+     *   • Estados destino válidos: BORRADOR (default) o ENVIADO.
+     * 
+     * @param int    $id
+     * @param int    $usuarioId
+     * @param string $estadoDestino  'BORRADOR' | 'ENVIADO'
+     * @param string $motivo
+     * @return bool
+     * @throws Exception
+     */
+    public function resetearDesdeAnexado($id, $usuarioId, $estadoDestino = 'BORRADOR', $motivo = 'RESET_MANUAL') {
+        $estadoDestino = strtoupper(trim($estadoDestino));
+        if (!in_array($estadoDestino, ['BORRADOR', 'ENVIADO'], true)) {
+            throw new Exception("Estado destino no válido: $estadoDestino");
+        }
+
+        try {
+            $this->db->beginTransaction();
+
+            // 1. Verificar que el presupuesto existe y su estado actual
+            $this->db->query("SELECT id, numero, estado FROM table_presupuestos WHERE id = :id");
+            $this->db->bind(':id', (int)$id);
+            $presupuesto = $this->db->single();
+
+            if (!$presupuesto) {
+                throw new Exception("Presupuesto no encontrado.");
+            }
+
+            $estadoActual = strtoupper($presupuesto->estado);
+
+            // Solo permitimos resetear desde ANEXADO o EN_PROCESO.
+            // Si ya está en BORRADOR / ENVIADO, no hay nada que hacer.
+            // Si está CONVERTIDO, no se puede resetear (ya es una venta).
+            if (in_array($estadoActual, ['CONVERTIDO', 'RECHAZADO', 'EXPIRADO'], true)) {
+                throw new Exception("El presupuesto está en estado $estadoActual y no puede resetearse.");
+            }
+
+            if (in_array($estadoActual, ['BORRADOR', 'ENVIADO'], true)) {
+                // Ya está en el estado destino, no hacemos nada.
+                $this->db->commit();
+                return true;
+            }
+
+            // 2. Liberar reservas RESERVADA sin tocar stock físico.
+            //    (No tocamos FACTURADA porque eso implicaría reingresar stock).
+            $this->db->query("UPDATE table_presupuestos_reservas 
+                              SET estado = 'LIBERADA',
+                                  cantidad_liberada = cantidad_reservada,
+                                  fecha_liberacion = NOW(),
+                                  usuario_liberacion_id = :uid
+                              WHERE presupuesto_id = :pid 
+                                AND estado = 'RESERVADA'");
+            $this->db->bind(':uid', (int)$usuarioId);
+            $this->db->bind(':pid', (int)$id);
+            $this->db->execute();
+
+            // 3. Cambiar el estado del presupuesto
+            $this->db->query("UPDATE table_presupuestos 
+                              SET estado = :estado,
+                                  fecha_activacion = NULL,
+                                  usuario_activacion_id = NULL
+                              WHERE id = :id");
+            $this->db->bind(':estado', $estadoDestino);
+            $this->db->bind(':id', (int)$id);
+            $this->db->execute();
+
+            $this->db->commit();
+
+            // 4. Log de auditoría
+            try {
+                logAction(
+                    'PRESUPUESTO',
+                    'RESET_DESDE_ANEXADO',
+                    "Presupuesto #{$presupuesto->numero} (ID {$id}) reseteado de {$estadoActual} a {$estadoDestino}. Motivo: {$motivo}"
+                );
+            } catch (\Throwable $e) {
+                error_log("resetearDesdeAnexado logAction falló: " . $e->getMessage());
+            }
+
+            return true;
+
+        } catch (Exception $e) {
+            if ($this->db) $this->db->rollBack();
+            throw $e;
+        }
     }
 }

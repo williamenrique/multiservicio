@@ -1,27 +1,21 @@
 /**
  * Lógica de Facturación con Gestión de Colas
  * 
- * v2.7 (2026-10-09) — FIX cliente no persistente:
- *   • FIX: Al seleccionar un cliente desde el buscador, ahora se fuerza
- *     un sync inmediato (syncActiveInvoice(true)) en vez de esperar 1s
- *     al debounce. Antes, si algún render intermedio pisaba el estado,
- *     el cliente no se persistía.
- *   • FIX: El registro rápido de cliente también dispara el sync antes
- *     de hacer renderQueue + renderInvoice (evita race condition).
- *   • Toast actualizado: "Cliente vinculado y guardado" en vez de solo
- *     "Cliente vinculado".
+ * v3.9 (2026-10-15) — Dropdown flotante + ofertas:
+ *   • El buscador de repuestos ahora usa un dropdown flotante en el <body>
+ *     con position:fixed (igual que presupuesto). Ya no se recorta por
+ *     contenedores con overflow.
+ *   • Ancho mínimo 520px con auto-ajuste al viewport.
+ *   • Al hacer foco muestra TODOS los productos; al escribir filtra.
+ *   • Cada producto muestra badge OFERTA, precio base tachado, precio
+ *     final en verde y stock coloreado.
+ *   • Se cierra con scroll, resize o clic fuera.
  * 
- * v2.6 (P1-11): Polling de facturas vía PollingManager (30s).
- * v2.5: FIX CSRF (X-CSRF-TOKEN en todas las peticiones POST).
- * 
- * v2.8 (2026-10-09) — P2-09:
- *   • El botón "Registro Rápido de Cliente" (#btnQuickClient) ahora delega
- *     al helper unificado AppUtils.openQuickClientModal(), que también usa
- *     taller_nueva_orden.js → quickRegisterOS. Se eliminó el Swal.fire
- *     duplicado y el fetch propio del listener original (~60 líneas).
- *   • La lógica post-guardado (crear option en select oculto, vincular a
- *     factura activa, sync inmediato, renderQueue, renderInvoice) se
- *     conserva intacta dentro del callback onSuccess.
+ * v3.7 (2026-10-15): Soporte de ofertas en buscador y carrito.
+ * v3.3 (2026-10-14): Limpiar presupuesto_info + presupuesto_activo_id en desanexar.
+ * v3.2 (2026-10-14): Guardar presupuesto_info en la factura para reconstruir sin fetch.
+ * v3.1 (2026-10-14): Fix presupuesto "pegado" al cambiar de tarjeta.
+ * v3.0 (2026-10-14): FIX CRÍTICO (3 bugs: polling, orden anexar, rehidratación).
  * 
  * DEPENDENCIAS: polling.js, utils.js, DataTableRefactor.js, app.js.
  */
@@ -32,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputMecanico = document.getElementById('pos-mecanico-id');
     const displayFacturaId = document.getElementById('pos-factura-id');
     const searchInput = document.getElementById('pos-search');
-    const searchResults = document.getElementById('pos-search-results');
     const inputQty = document.getElementById('pos-qty');
     const btnAddItem = document.getElementById('btn-add-item');
     const inputServicioNombre = document.getElementById('pos-service-name');
@@ -60,7 +53,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastSearchResults = [];
     let lastClientResults = [];
 
+    // FIX v3.0: Bandera para pausar el polling mientras el usuario edita
+    let isEditingInvoice = false;
+    let editingBlurTimer = null;
+
     const presupuestosDetallesCache = new Set();
+
+    // FIX v3.1: Referencias del presupuesto
+    const inputPresupuestoFacturacion = document.getElementById('buscarPresupuestoActivoFacturacion');
+    const resultsContainerPresupuesto = document.getElementById('presupuesto-activo-results-facturacion');
+    const seleccionadoContainerPresupuesto = document.getElementById('presupuesto-seleccionado-facturacion');
+    const infoElementPresupuesto = document.getElementById('presupuesto-info-facturacion');
+    const clienteElementPresupuesto = document.getElementById('presupuesto-cliente-facturacion');
+
+    let presupuestoSeleccionadoIdFacturacion = null;
+    let searchTimeoutPresupuestoFacturacion = null;
 
     document.addEventListener('userLoaded', () => {
         renderQueue();
@@ -80,6 +87,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const loadInvoicesFromServer = async () => {
+        // FIX v3.0: Polling omitido si el usuario está editando activamente
+        if (isEditingInvoice) {
+            console.log('[Facturación] Polling omitido: el usuario está editando.');
+            return;
+        }
+
         try {
             const res = await fetch(`${URLROOT}/facturacion/listarBorradores`);
             const drafts = await res.json();
@@ -89,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const serverInvoices = drafts.map(d => {
                 const existingInv = openInvoices.find(inv => inv.id_db === d.id);
                 const preservedMecanicoId = (existingInv && !d.mecanico_id) ? existingInv.mecanico_id : d.mecanico_id;
-                const preservedPresupuestoId = existingInv ? existingInv.presupuesto_activo_id : null;
 
                 return {
                     id: 'FAC-' + String(d.id).padStart(3, '0'),
@@ -111,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     diagnostico_entrada: d.diagnostico_entrada || '',
                     diagnostico_salida: d.diagnostico_salida || d.observaciones || '',
                     observaciones: d.observaciones || '',
-                    presupuesto_activo_id: d.presupuesto_activo_id || preservedPresupuestoId || null
+                    presupuesto_activo_id: d.presupuesto_activo_id ?? null
                 };
             });
 
@@ -165,48 +177,74 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // ───────────────────────────────────────────────────────────────────────
-    // REGISTRO RÁPIDO DE CLIENTE (FIX P2-09: helper unificado)
-    // ───────────────────────────────────────────────────────────────────────
-    btnQuickClient.addEventListener('click', async () => {
-        await AppUtils.openQuickClientModal({
-            title: 'REGISTRO DE CLIENTE',
-            confirmText: 'REGISTRAR',
-            onSuccess: async (cliente) => {
-                // 1. Crear/actualizar la opción en el select oculto
-                let option = inputCliente.querySelector(`option[value="${cliente.id}"]`);
-                if (!option) {
-                    option = document.createElement('option');
-                    option.value = cliente.id;
-                    option.textContent = cliente.nombre;
-                    inputCliente.appendChild(option);
-                } else {
-                    option.textContent = cliente.nombre;
-                }
-                inputCliente.value = cliente.id;
-                if (clientSearchInput) clientSearchInput.value = cliente.nombre;
+    // FIX v3.0: PAUSAR POLLING MIENTRAS EL USUARIO EDITA
+    const formInputsToWatch = [
+        inputPlaca,
+        inputModelo,
+        inputMecanico,
+        clientSearchInput,
+        posObservaciones,
+        inputPagoEfectivo,
+        inputPagoTransferencia
+    ].filter(Boolean);
 
-                // 2. Vincular a la factura activa (o crear una nueva)
-                let activeInv = openInvoices.find(i => i.id === activeInvoiceId);
-                if (!activeInv) {
-                    await initNewInvoice(true);
-                    activeInv = openInvoices.find(i => i.id === activeInvoiceId);
-                }
-                if (activeInv) {
-                    activeInv.cliente_id = cliente.id;
-                    activeInv.cliente_nombre = cliente.nombre;
-
-                    // FIX: Sync inmediato antes de cualquier render
-                    await syncActiveInvoice(true);
-                }
-
-                // 3. Render final
-                renderQueue();
-                renderInvoice();
-                AppUtils.showToast('Cliente registrado y vinculado');
+    formInputsToWatch.forEach(input => {
+        input.addEventListener('focus', () => {
+            if (editingBlurTimer) {
+                clearTimeout(editingBlurTimer);
+                editingBlurTimer = null;
             }
+            isEditingInvoice = true;
+        });
+
+        input.addEventListener('blur', () => {
+            if (editingBlurTimer) clearTimeout(editingBlurTimer);
+            editingBlurTimer = setTimeout(() => {
+                const stillEditing = formInputsToWatch.some(i => i === document.activeElement);
+                if (!stillEditing) {
+                    isEditingInvoice = false;
+                }
+            }, 200);
         });
     });
+
+    // REGISTRO RÁPIDO DE CLIENTE
+    if (btnQuickClient) {
+        btnQuickClient.addEventListener('click', async () => {
+            await AppUtils.openQuickClientModal({
+                title: 'REGISTRO DE CLIENTE',
+                confirmText: 'REGISTRAR',
+                onSuccess: async (cliente) => {
+                    let option = inputCliente.querySelector(`option[value="${cliente.id}"]`);
+                    if (!option) {
+                        option = document.createElement('option');
+                        option.value = cliente.id;
+                        option.textContent = cliente.nombre;
+                        inputCliente.appendChild(option);
+                    } else {
+                        option.textContent = cliente.nombre;
+                    }
+                    inputCliente.value = cliente.id;
+                    if (clientSearchInput) clientSearchInput.value = cliente.nombre;
+
+                    let activeInv = openInvoices.find(i => i.id === activeInvoiceId);
+                    if (!activeInv) {
+                        await initNewInvoice(true);
+                        activeInv = openInvoices.find(i => i.id === activeInvoiceId);
+                    }
+                    if (activeInv) {
+                        activeInv.cliente_id = cliente.id;
+                        activeInv.cliente_nombre = cliente.nombre;
+                        await syncActiveInvoice(true);
+                    }
+
+                    renderQueue();
+                    renderInvoice();
+                    AppUtils.showToast('Cliente registrado y vinculado');
+                }
+            });
+        });
+    }
 
     const initNewInvoice = async (forceSave = false) => {
         const domPlaca = inputPlaca.value;
@@ -329,9 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInvoice();
     });
 
-    // ───────────────────────────────────────────────────────────────────────
-    // BÚSQUEDA DE CLIENTES (con fix de persistencia)
-    // ───────────────────────────────────────────────────────────────────────
+    // BÚSQUEDA DE CLIENTES
     if (clientSearchInput) {
         clientSearchInput.addEventListener('input', async (e) => {
             const term = e.target.value.trim();
@@ -344,7 +380,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            //const res = await fetch(`${URLROOT}/clientes/listar?q=${term}&limit=5&offset=0`);
             const res = await fetch(`${URLROOT}/clientes/listar?q=${term}&limit=20&offset=0`);
             const data = await res.json();
             lastClientResults = data.data || [];
@@ -368,20 +403,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * FIX: Maneja la selección de un cliente desde el buscador.
-     * 
-     * Cambios respecto a la versión anterior:
-     *   1. Actualiza la factura en memoria ANTES de cualquier render.
-     *   2. Fuerza un sync INMEDIATO (syncActiveInvoice(true)) en vez de
-     *      esperar 1s al debounce.
-     *   3. Renderiza la UI DESPUÉS del sync, para que no haya race conditions.
-     */
     window.selectClientFromResults = async (index) => {
         const client = lastClientResults[index];
         if (!client) return;
 
-        // 1. Crear la opción en el select oculto si no existe
         let option = inputCliente.querySelector(`option[value="${client.id}"]`);
         if (!option) {
             option = document.createElement('option');
@@ -390,63 +415,70 @@ document.addEventListener('DOMContentLoaded', () => {
             inputCliente.appendChild(option);
         }
 
-        // 2. Actualizar los inputs visuales
         inputCliente.value = client.id;
         if (clientSearchInput) clientSearchInput.value = client.nombre;
         clientSearchResults.classList.add('hidden');
 
-        // 3. Actualizar la factura activa EN MEMORIA (antes de cualquier render)
         const inv = openInvoices.find(i => i.id === activeInvoiceId);
         if (inv) {
             inv.cliente_id = client.id;
             inv.cliente_nombre = client.nombre;
-
-            // 4. FIX: Sync INMEDIATO (sin esperar al debounce de 1s)
             await syncActiveInvoice(true);
         }
 
-        // 5. Renderizar la UI DESPUÉS del sync
         renderQueue();
         renderInvoice();
         AppUtils.showToast('Cliente vinculado y guardado');
     };
 
-    /* ==================== BÚSQUEDA DE PRESUPUESTOS PARA ANEXAR ==================== */
-    const inputPresupuestoFacturacion = document.getElementById('buscarPresupuestoActivoFacturacion');
-    const resultsContainerPresupuesto = document.getElementById('presupuesto-activo-results-facturacion');
-    const seleccionadoContainerPresupuesto = document.getElementById('presupuesto-seleccionado-facturacion');
-    const infoElementPresupuesto = document.getElementById('presupuesto-info-facturacion');
-    const clienteElementPresupuesto = document.getElementById('presupuesto-cliente-facturacion');
-    let presupuestoSeleccionadoIdFacturacion = null;
-    let searchTimeoutPresupuestoFacturacion = null;
-
-    async function cargarDetallesPresupuestoAnexado(presupuestoId) {
-        if (!presupuestoId) return;
-        if (presupuestosDetallesCache.has(String(presupuestoId))) return;
+    // BÚSQUEDA DE PRESUPUESTOS PARA ANEXAR
+    async function cargarInfoPresupuestoParaFactura(presupuestoId, activeInvoice) {
+        if (!presupuestoId || !activeInvoice) return;
 
         try {
-            presupuestosDetallesCache.add(String(presupuestoId));
-            const res = await fetch(`${URLROOT}/presupuesto/obtener/${presupuestoId}`);
+            const res = await fetch(`${URLROOT}/presupuesto/infoBasica/${presupuestoId}`);
             if (!res.ok) return;
+
             const data = await res.json();
             if (!data.success || !data.data) return;
 
             const p = data.data;
 
-            if (infoElementPresupuesto) {
-                const totalFmt = parseFloat(p.total || 0).toLocaleString('es-CO', { minimumFractionDigits: 2 });
-                infoElementPresupuesto.textContent = `${p.numero} | Total: $${totalFmt}`;
-            }
-            if (clienteElementPresupuesto) {
-                clienteElementPresupuesto.textContent = `Cliente: ${p.cliente_nombre} | Tel: ${p.cliente_telefono || 'N/A'} | Estado: ${p.estado}`;
-            }
-            if (inputPresupuestoFacturacion) {
-                inputPresupuestoFacturacion.value = `${p.numero} - ${p.cliente_nombre}`;
-            }
+            activeInvoice.presupuesto_info = {
+                id: p.id,
+                numero: p.numero,
+                cliente_id: p.cliente_id,
+                cliente_nombre: p.cliente_nombre,
+                cliente_telefono: p.cliente_telefono,
+                cliente_email: p.cliente_email,
+                vehiculo_placa: p.vehiculo_placa,
+                vehiculo_marca: p.vehiculo_marca,
+                vehiculo_modelo: p.vehiculo_modelo,
+                total: parseFloat(p.total || 0),
+                estado: p.estado,
+                fecha_emision: p.fecha_emision
+            };
 
-            if (window.lucide) lucide.createIcons();
+            if (activeInvoiceId === activeInvoice.id) {
+                const totalFmt = parseFloat(p.total || 0).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+                const clienteNombre = p.cliente_nombre || 'N/A';
+                const clienteTelefono = p.cliente_telefono || 'N/A';
+                const fechaTxt = p.fecha_emision ? new Date(p.fecha_emision).toLocaleDateString('es-ES') : 'N/A';
+
+                if (inputPresupuestoFacturacion) {
+                    inputPresupuestoFacturacion.value = `${p.numero} - ${clienteNombre}`;
+                }
+                if (infoElementPresupuesto) {
+                    infoElementPresupuesto.textContent = `${p.numero} | Total: $${totalFmt}`;
+                }
+                if (clienteElementPresupuesto) {
+                    clienteElementPresupuesto.textContent = `Cliente: ${clienteNombre} | Tel: ${clienteTelefono} | Emitido: ${fechaTxt}`;
+                }
+
+                if (window.lucide) lucide.createIcons();
+            }
         } catch (e) {
-            presupuestosDetallesCache.delete(String(presupuestoId));
+            console.error('[Facturación] Error cargando info del presupuesto:', e);
         }
     }
 
@@ -554,6 +586,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (!id || id === 'undefined' || id === 'null') {
+            AppUtils.showToast('ID de presupuesto inválido', 'error');
+            return;
+        }
+
         presupuestoSeleccionadoIdFacturacion = id;
         inputPresupuestoFacturacion.value = `${numero} - ${clienteNombre}`;
         if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
@@ -563,45 +600,60 @@ document.addEventListener('DOMContentLoaded', () => {
         seleccionadoContainerPresupuesto.classList.remove('hidden');
 
         try {
-            AppUtils.showLoading('Anexando presupuesto...');
+            AppUtils.showLoading('Cargando items del presupuesto...');
+
+            // PASO 1: Obtener items ANTES de marcar ANEXADO
+            const resItems = await fetch(`${URLROOT}/presupuesto/obtenerParaAnexar/${id}`);
+            const dataItems = await resItems.json();
+
+            if (!dataItems.success || !dataItems.items) {
+                AppUtils.hideLoading();
+                presupuestoSeleccionadoIdFacturacion = null;
+                inputPresupuestoFacturacion.value = '';
+                if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+                AppUtils.showToast(dataItems.mensaje || 'No se pudieron cargar los items del presupuesto', 'error');
+                return;
+            }
+
+            // PASO 2: Marcar ANEXADO
             const resEstado = await postJSON(`${URLROOT}/presupuesto/iniciarProceso/${id}`, {
                 modulo: 'FACTURACION',
                 crear_reservas: false
             });
             const resultEstado = await resEstado.json();
-            AppUtils.hideLoading();
 
             if (!resultEstado.success) {
+                AppUtils.hideLoading();
                 presupuestoSeleccionadoIdFacturacion = null;
                 inputPresupuestoFacturacion.value = '';
                 if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
                 AppUtils.showToast(resultEstado.mensaje || 'No se pudo anexar el presupuesto', 'error');
                 return;
             }
-        } catch (e) {
-            AppUtils.hideLoading();
-            presupuestoSeleccionadoIdFacturacion = null;
-            inputPresupuestoFacturacion.value = '';
-            if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
-            AppUtils.showToast('Error de conexión al anexar presupuesto', 'error');
-            return;
-        }
 
-        activeInvoice.presupuesto_activo_id = id;
-        presupuestosDetallesCache.add(String(id));
-
-        try {
-            AppUtils.showLoading('Cargando items del presupuesto...');
-            const res = await fetch(`${URLROOT}/presupuesto/obtenerParaAnexar/${id}`);
-            const data = await res.json();
             AppUtils.hideLoading();
 
-            if (!data.success || !data.items) {
-                AppUtils.showToast(data.mensaje || 'No se pudieron cargar los items', 'error');
-                return;
-            }
+            // PASO 3: Vincular a la factura
+            activeInvoice.presupuesto_activo_id = id;
+            presupuestosDetallesCache.add(String(id));
 
-            data.items.forEach(item => {
+            activeInvoice.presupuesto_info = {
+                id: id,
+                numero: numero,
+                cliente_id: dataItems.data.cliente_id || null,
+                cliente_nombre: dataItems.data.cliente_nombre || clienteNombre || '',
+                cliente_telefono: dataItems.data.cliente_telefono || clienteTelefono || '',
+                cliente_email: dataItems.data.cliente_email || '',
+                vehiculo_placa: dataItems.data.vehiculo_placa || '',
+                vehiculo_marca: dataItems.data.vehiculo_marca || '',
+                vehiculo_modelo: dataItems.data.vehiculo_modelo || '',
+                total: parseFloat(total || 0),
+                estado: dataItems.data.estado || 'ANEXADO',
+                fecha_emision: dataItems.data.fecha_emision || fecha || null
+            };
+
+            // PASO 4: Agregar los items del presupuesto a la factura
+            dataItems.items.forEach(item => {
                 activeInvoice.items.push({
                     id: item.producto_id,
                     nombre: item.nombre,
@@ -612,36 +664,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
-            if (!activeInvoice.cliente_id && data.data.cliente_id) {
-                let option = inputCliente.querySelector(`option[value="${data.data.cliente_id}"]`);
+            // PASO 5: Copiar cliente/placa si están vacíos
+            if (!activeInvoice.cliente_id && dataItems.data.cliente_id) {
+                let option = inputCliente.querySelector(`option[value="${dataItems.data.cliente_id}"]`);
                 if (!option) {
                     option = document.createElement('option');
-                    option.value = data.data.cliente_id;
-                    option.textContent = data.data.cliente_nombre || data.data.cliente_id;
+                    option.value = dataItems.data.cliente_id;
+                    option.textContent = dataItems.data.cliente_nombre || dataItems.data.cliente_id;
                     inputCliente.appendChild(option);
                 }
-                inputCliente.value = data.data.cliente_id;
-                activeInvoice.cliente_id = data.data.cliente_id;
-                activeInvoice.cliente_nombre = data.data.cliente_nombre || '';
+                inputCliente.value = dataItems.data.cliente_id;
+                activeInvoice.cliente_id = dataItems.data.cliente_id;
+                activeInvoice.cliente_nombre = dataItems.data.cliente_nombre || '';
                 if (clientSearchInput) clientSearchInput.value = activeInvoice.cliente_nombre;
             }
 
-            if (!activeInvoice.placa && data.data.vehiculo_placa) {
-                activeInvoice.placa = data.data.vehiculo_placa;
-                inputPlaca.value = data.data.vehiculo_placa;
+            if (!activeInvoice.placa && dataItems.data.vehiculo_placa) {
+                activeInvoice.placa = dataItems.data.vehiculo_placa;
+                inputPlaca.value = dataItems.data.vehiculo_placa;
             }
-            if (!activeInvoice.modelo && data.data.vehiculo_modelo) {
-                activeInvoice.modelo = (data.data.vehiculo_marca || '') + ' ' + (data.data.vehiculo_modelo || '');
+            if (!activeInvoice.modelo && dataItems.data.vehiculo_modelo) {
+                activeInvoice.modelo = (dataItems.data.vehiculo_marca || '') + ' ' + (dataItems.data.vehiculo_modelo || '');
                 inputModelo.value = activeInvoice.modelo;
             }
 
+            // PASO 6: Render + persistir
             renderInvoice();
-            syncActiveInvoice();
+            await syncActiveInvoice(true);
 
-            AppUtils.showToast(`Presupuesto ${numero} anexado con ${data.items.length} item(s).`, 'success');
+            AppUtils.showToast(`Presupuesto ${numero} anexado con ${dataItems.items.length} item(s).`, 'success');
+
         } catch (e) {
             AppUtils.hideLoading();
-            AppUtils.showToast('Error al cargar los items del presupuesto', 'error');
+            presupuestoSeleccionadoIdFacturacion = null;
+            inputPresupuestoFacturacion.value = '';
+            if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+            AppUtils.showToast('Error de conexión al anexar presupuesto', 'error');
+            console.error("Error en seleccionarPresupuestoActivoFacturacion:", e);
         }
     };
 
@@ -663,20 +722,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 AppUtils.hideLoading();
+                console.error('Error liberando presupuesto:', e);
             }
         }
 
+        if (activeInvoice) {
+            activeInvoice.presupuesto_activo_id = null;
+            delete activeInvoice.presupuesto_info;
+            presupuestosDetallesCache.delete(String(presupuestoId));
+        }
+
         presupuestoSeleccionadoIdFacturacion = null;
-        inputPresupuestoFacturacion.value = '';
+
+        if (inputPresupuestoFacturacion) inputPresupuestoFacturacion.value = '';
+        if (infoElementPresupuesto) infoElementPresupuesto.textContent = '';
+        if (clienteElementPresupuesto) clienteElementPresupuesto.textContent = '';
         if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
         if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
 
         if (activeInvoice) {
-            delete activeInvoice.presupuesto_activo_id;
-            presupuestosDetallesCache.delete(String(presupuestoId));
+            await syncActiveInvoice(true);
         }
 
-        if (window.AppUtils) AppUtils.showToast('Presupuesto desanexado. Vuelve a estar disponible (items no eliminados).');
+        if (window.AppUtils) AppUtils.showToast('Presupuesto desanexado. Vuelve a estar disponible.', 'info');
     };
 
     if (inputIvaToggle) {
@@ -742,6 +810,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.switchInvoice = (id) => {
+        presupuestoSeleccionadoIdFacturacion = null;
+        if (inputPresupuestoFacturacion) inputPresupuestoFacturacion.value = '';
+        if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+        if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+        if (infoElementPresupuesto) infoElementPresupuesto.textContent = '';
+        if (clienteElementPresupuesto) clienteElementPresupuesto.textContent = '';
+
         activeInvoiceId = id;
         renderQueue();
         renderInvoice();
@@ -822,6 +897,9 @@ document.addEventListener('DOMContentLoaded', () => {
         presupuestoSeleccionadoIdFacturacion = null;
         if (inputPresupuestoFacturacion) inputPresupuestoFacturacion.value = '';
         if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+        if (resultsContainerPresupuesto) resultsContainerPresupuesto.classList.add('hidden');
+        if (infoElementPresupuesto) infoElementPresupuesto.textContent = '';
+        if (clienteElementPresupuesto) clienteElementPresupuesto.textContent = '';
 
         cartBody.innerHTML = '<tr><td class="py-32 text-center text-slate-300 uppercase text-xs font-bold tracking-widest opacity-50"><i data-lucide="shopping-cart" class="w-16 h-16 mx-auto mb-4"></i> No hay factura activa</td></tr>';
         document.getElementById('pos-subtotal').textContent = "$0.00";
@@ -901,26 +979,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!item) return;
         selectedItemFromSearch = item;
         searchInput.value = item.nombre;
-        searchResults.classList.add('hidden');
+        // Cerrar el dropdown flotante si sigue abierto
+        const dd = document.getElementById('facturacion-search-dropdown-float');
+        if (dd) dd.remove();
         inputQty.focus();
     };
 
-    window.selectItemFromResults = (index) => {
-        const item = lastSearchResults[parseInt(index)];
-        if (item) window.selectItemForAdd(item);
-    };
-
+    /**
+     * Agregar producto al carrito. Si tiene oferta vigente, usa el precio
+     * de oferta y guarda metadatos para reconstruir el badge.
+     */
     btnAddItem.addEventListener('click', () => {
         if (!activeInvoiceId) return AppUtils.showToast('Cree una factura primero', 'warning');
         if (!selectedItemFromSearch) return AppUtils.showToast('Busque un artículo primero', 'warning');
         const qty = parseInt(inputQty.value);
         if (qty <= 0 || qty > selectedItemFromSearch.stock_disponible) return AppUtils.showToast('Stock insuficiente', 'error');
 
+        const enOferta = parseInt(selectedItemFromSearch.en_oferta_vigente) === 1;
+        const precioBase = parseFloat(selectedItemFromSearch.precio);
+        const precioFinal = enOferta
+            ? parseFloat(selectedItemFromSearch.precio_final)
+            : precioBase;
+
         const activeInvoice = openInvoices.find(i => i.id === activeInvoiceId);
         activeInvoice.items.push({
             id: selectedItemFromSearch.id,
             nombre: selectedItemFromSearch.nombre,
-            precio: parseFloat(selectedItemFromSearch.precio),
+            precio: precioFinal,
+            precio_base: precioBase,
+            en_oferta: enOferta,
+            oferta_porcentaje: enOferta ? parseFloat(selectedItemFromSearch.oferta_porcentaje || 0) : 0,
             costo_promedio: parseFloat(selectedItemFromSearch.costo_promedio || 0),
             cantidad: qty,
             tipo: 'PRODUCTO'
@@ -929,9 +1017,14 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedItemFromSearch = null;
         searchInput.value = '';
         inputQty.value = 1;
-        searchResults.classList.add('hidden');
+        const dd = document.getElementById('facturacion-search-dropdown-float');
+        if (dd) dd.remove();
         renderInvoice();
         syncActiveInvoice();
+
+        if (enOferta) {
+            AppUtils.showToast('Producto agregado con OFERTA', 'success');
+        }
     });
 
     btnAddService.addEventListener('click', () => {
@@ -1002,35 +1095,69 @@ document.addEventListener('DOMContentLoaded', () => {
             inputPagoTransferencia.value = activeInvoice.pago_transferencia || 0;
         }
 
-        if (activeInvoice.presupuesto_activo_id && inputPresupuestoFacturacion && seleccionadoContainerPresupuesto) {
+        // Reset + reconstrucción del estado visual del presupuesto
+        presupuestoSeleccionadoIdFacturacion = null;
+        if (inputPresupuestoFacturacion) inputPresupuestoFacturacion.value = '';
+        if (infoElementPresupuesto) infoElementPresupuesto.textContent = '';
+        if (clienteElementPresupuesto) clienteElementPresupuesto.textContent = '';
+        if (seleccionadoContainerPresupuesto) seleccionadoContainerPresupuesto.classList.add('hidden');
+
+        if (activeInvoice.presupuesto_activo_id) {
             const pid = activeInvoice.presupuesto_activo_id;
             presupuestoSeleccionadoIdFacturacion = pid;
 
-            if (!inputPresupuestoFacturacion.value) {
-                inputPresupuestoFacturacion.value = 'Presupuesto #' + pid + (activeInvoice.orden_id ? ' (desde O.S.)' : '');
+            const info = activeInvoice.presupuesto_info || null;
+
+            if (info) {
+                const totalFmt = parseFloat(info.total || 0).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+                const numero = info.numero || ('#' + pid);
+                const clienteNombre = info.cliente_nombre || activeInvoice.cliente_nombre || 'N/A';
+                const clienteTelefono = info.cliente_telefono || 'N/A';
+                const fechaTxt = info.fecha_emision ? new Date(info.fecha_emision).toLocaleDateString('es-ES') : 'N/A';
+
+                if (inputPresupuestoFacturacion) {
+                    inputPresupuestoFacturacion.value = `${numero} - ${clienteNombre}`;
+                }
+                if (infoElementPresupuesto) {
+                    infoElementPresupuesto.textContent = `${numero} | Total: $${totalFmt}`;
+                }
+                if (clienteElementPresupuesto) {
+                    clienteElementPresupuesto.textContent = `Cliente: ${clienteNombre} | Tel: ${clienteTelefono} | Emitido: ${fechaTxt}`;
+                }
+            } else {
+                if (inputPresupuestoFacturacion) {
+                    inputPresupuestoFacturacion.value = 'Presupuesto #' + pid + (activeInvoice.orden_id ? ' (desde O.S.)' : '');
+                }
+                if (infoElementPresupuesto) {
+                    infoElementPresupuesto.textContent = 'Presupuesto #' + pid + ' anexado';
+                }
+                if (clienteElementPresupuesto && activeInvoice.cliente_nombre) {
+                    clienteElementPresupuesto.textContent = 'Cliente: ' + activeInvoice.cliente_nombre;
+                }
+
+                if (!presupuestosDetallesCache.has(String(pid))) {
+                    cargarInfoPresupuestoParaFactura(pid, activeInvoice);
+                }
             }
 
-            if (infoElementPresupuesto && !presupuestosDetallesCache.has(String(pid))) {
-                infoElementPresupuesto.textContent = 'Presupuesto #' + pid + ' anexado';
-            }
-            if (clienteElementPresupuesto && activeInvoice.cliente_nombre && !presupuestosDetallesCache.has(String(pid))) {
-                clienteElementPresupuesto.textContent = 'Cliente: ' + activeInvoice.cliente_nombre;
-            }
-
-            seleccionadoContainerPresupuesto.classList.remove('hidden');
-
-            if (!presupuestosDetallesCache.has(String(pid))) {
-                cargarDetallesPresupuestoAnexado(pid);
-            }
-        } else if (seleccionadoContainerPresupuesto) {
-            if (!presupuestoSeleccionadoIdFacturacion) {
-                seleccionadoContainerPresupuesto.classList.add('hidden');
+            if (seleccionadoContainerPresupuesto) {
+                seleccionadoContainerPresupuesto.classList.remove('hidden');
             }
         }
 
+        // Detalle del carrito con badge y precio doble si hay oferta
         cartBody.innerHTML = activeInvoice.items.length === 0
             ? '<tr><td class="py-32 text-center text-slate-300 uppercase text-xs font-bold tracking-widest opacity-50"><i data-lucide="shopping-cart" class="w-16 h-16 mx-auto mb-4"></i> No hay items en esta factura</td></tr>'
-            : activeInvoice.items.map((item, i) => `
+            : activeInvoice.items.map((item, i) => {
+                const tieneOferta = item.en_oferta === true && item.precio_base && item.precio_base > item.precio;
+                const ofertaBadge = tieneOferta
+                    ? `<span class="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-black uppercase">OFERTA ${parseFloat(item.oferta_porcentaje || 0).toFixed(0)}%</span>`
+                    : '';
+                const precioDetalle = tieneOferta
+                    ? `<span class="line-through text-slate-300">${AppUtils.formatCurrency(item.precio_base)}</span> <span class="text-emerald-600">${AppUtils.formatCurrency(item.precio)}</span>`
+                    : AppUtils.formatCurrency(item.precio);
+
+                return `
                 <tr class="group hover:bg-slate-50 transition-colors">
                     <td class="py-3 pr-4">
                         <div class="flex items-center justify-between">
@@ -1038,8 +1165,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm font-bold text-slate-800 uppercase leading-none mb-1">${item.nombre}</span>
                                     ${item.tipo === 'SERVICIO' ? '<span class="text-[8px] bg-blue-100 text-blue-600 px-1 rounded font-black">SRV</span>' : ''}
+                                    ${ofertaBadge}
                                 </div>
-                                <span class="text-[10px] text-slate-400 font-bold">${item.cantidad} x ${AppUtils.formatCurrency(item.precio)}</span>
+                                <span class="text-[10px] text-slate-400 font-bold">${item.cantidad} x ${precioDetalle}</span>
                             </div>
                             <div class="flex items-center gap-6">
                                 <span class="text-sm font-black text-navy-blue">${AppUtils.formatCurrency(item.precio * item.cantidad)}</span>
@@ -1050,7 +1178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </td>
                 </tr>
-            `).join('');
+            `}).join('');
 
         const subtotal = activeInvoice.items.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
         const isIvaEnabled = activeInvoice.iva_activo !== false;
@@ -1194,58 +1322,173 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // FIX OFERTA-F1 v3.9: BUSCADOR DE REPUESTOS CON DROPDOWN FLOTANTE
+    // ═══════════════════════════════════════════════════════════════════════
+    let searchTimeoutFacturacion = null;
+
+    searchInput.addEventListener('focus', async () => {
+        const term = searchInput.value.trim();
+        await ejecutarBusquedaFacturacion(term);
+    });
+
     searchInput.addEventListener('input', async (e) => {
+        clearTimeout(searchTimeoutFacturacion);
         const term = e.target.value.trim();
-        if (term.length < 2) {
-            searchResults.classList.add('hidden');
+        searchTimeoutFacturacion = setTimeout(async () => {
+            await ejecutarBusquedaFacturacion(term);
+        }, 250);
+    });
+
+    async function ejecutarBusquedaFacturacion(term) {
+        try {
+            const url = `${URLROOT}/facturacion/buscarItems?term=${encodeURIComponent(term)}`;
+            const res = await fetch(url);
+
+            if (!res.ok) {
+                console.error('Error al buscar items:', res.statusText);
+                return;
+            }
+
+            const contentType = res.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                console.error('Respuesta no JSON del servidor');
+                return;
+            }
+
+            const items = await res.json();
+            lastSearchResults = items;
+            renderizarDropdownFacturacion(items);
+        } catch (e) {
+            console.error('Error buscando items:', e);
+        }
+    }
+
+    function renderizarDropdownFacturacion(items) {
+        const existingFloat = document.getElementById('facturacion-search-dropdown-float');
+        if (existingFloat) existingFloat.remove();
+
+        if (!searchInput) return;
+
+        const rect = searchInput.getBoundingClientRect();
+
+        // Ancho mínimo 520px con auto-ajuste al viewport
+        const MIN_WIDTH = 520;
+        const PADDING = 16;
+        let dropdownWidth = Math.max(rect.width, MIN_WIDTH);
+        const maxWidthRight = window.innerWidth - rect.left - PADDING;
+        if (dropdownWidth > maxWidthRight) dropdownWidth = maxWidthRight;
+        if (dropdownWidth < 320) dropdownWidth = Math.min(320, window.innerWidth - PADDING * 2);
+
+        // Altura máxima disponible
+        const espacioDebajo = window.innerHeight - rect.bottom - 20;
+        const alturaMax = Math.min(360, Math.max(180, espacioDebajo));
+
+        const dropdown = document.createElement('div');
+        dropdown.id = 'facturacion-search-dropdown-float';
+        dropdown.style.cssText = `
+            position: fixed;
+            top: ${rect.bottom + 4}px;
+            left: ${rect.left}px;
+            width: ${dropdownWidth}px;
+            max-height: ${alturaMax}px;
+            overflow-y: auto;
+            z-index: 100000;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.1);
+        `;
+
+        if (!items || items.length === 0) {
+            dropdown.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs uppercase italic">Sin resultados</div>';
+            document.body.appendChild(dropdown);
             return;
         }
 
-        const res = await fetch(`${URLROOT}/facturacion/buscarItems?term=${term}`);
+        const html = items.map((item, index) => {
+            const isAgotado = parseFloat(item.stock_disponible) <= 0;
+            const enOferta = parseInt(item.en_oferta_vigente) === 1;
+            const precioBase = parseFloat(item.precio);
+            const precioFinal = parseFloat(item.precio_final || item.precio);
+            const stock = parseInt(item.stock_disponible || 0);
 
-        if (!res.ok) {
-            AppUtils.showToast('Error al buscar items: ' + res.statusText, 'error');
-            return;
-        }
-        const contentType = res.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            AppUtils.showToast('Respuesta inesperada del servidor al buscar items. Verifique la consola para más detalles.', 'error');
-            console.error('Respuesta del servidor no es JSON:', await res.text());
-            return;
-        }
-        const items = await res.json();
+            let stockColor = 'text-slate-400';
+            if (stock <= 0) stockColor = 'text-rose-500 font-black';
+            else if (stock <= 5) stockColor = 'text-amber-500 font-black';
 
-        lastSearchResults = items;
+            const ofertaBadge = enOferta
+                ? `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700 uppercase">OFERTA ${parseFloat(item.oferta_porcentaje).toFixed(0)}%</span>`
+                : '';
 
-        if (lastSearchResults.length > 0) {
-            const html = lastSearchResults.map((item, index) => {
-                const isAgotado = item.stock_disponible <= 0;
-                return `<div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 flex justify-between items-center last:border-0 ${isAgotado ? 'opacity-50 pointer-events-none' : ''}" onclick="selectItemFromResults('${index}')">
-                            <div>
-                                <p class="font-bold text-sm uppercase">${item.nombre}</p>
-                                <p class="text-[10px] ${item.stock_disponible <= 5 && item.stock_disponible > 0 ? 'text-cat-yellow font-black' : (item.stock_disponible <= 0 ? 'text-error-red font-black' : 'text-slate-400')} uppercase">
-                                    Disponible: ${item.stock_disponible} unidades
-                                </p>
+            const precioHtml = enOferta
+                ? `<div class="flex flex-col items-end">
+                       <span class="text-[10px] text-slate-400 line-through">${AppUtils.formatCurrency(precioBase)}</span>
+                       <span class="font-black text-emerald-600 text-sm">${AppUtils.formatCurrency(precioFinal)}</span>
+                   </div>`
+                : `<span class="font-bold text-navy-blue text-sm">${AppUtils.formatCurrency(precioBase)}</span>`;
+
+            return `<div class="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center transition-colors ${isAgotado ? 'opacity-50' : ''}"
+                         onclick="seleccionarItemDesdeDropdownFacturacion(${index})">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center flex-wrap">
+                                <span class="font-bold text-xs text-slate-800 uppercase truncate">${item.nombre}</span>
+                                ${ofertaBadge}
                             </div>
-                            <span class="font-bold text-navy-blue text-sm">${AppUtils.formatCurrency(parseFloat(item.precio))}</span>
-                        </div>`;
-            }).join('');
+                            <div class="text-[10px] text-slate-400 font-mono mt-0.5">
+                                ${item.categoria || ''} ${item.marca ? '· ' + item.marca : ''} · <span class="${stockColor}">Stock: ${stock}</span>
+                            </div>
+                        </div>
+                        <div class="ml-3 flex-shrink-0">${precioHtml}</div>
+                    </div>`;
+        }).join('');
 
-            searchResults.innerHTML = html;
-            searchResults.classList.remove('hidden');
-        } else {
-            searchResults.innerHTML = '<p class="p-3 text-center text-slate-400 text-xs uppercase">Sin stock disponible</p>';
-            searchResults.classList.remove('hidden');
+        dropdown.innerHTML = html;
+        document.body.appendChild(dropdown);
+    }
+
+    window.seleccionarItemDesdeDropdownFacturacion = (index) => {
+        const item = lastSearchResults[index];
+        if (!item) return;
+
+        const dropdown = document.getElementById('facturacion-search-dropdown-float');
+        if (dropdown) dropdown.remove();
+
+        window.selectItemForAdd(item);
+    };
+
+    const cerrarDropdownFacturacion = () => {
+        const dd = document.getElementById('facturacion-search-dropdown-float');
+        if (dd) dd.remove();
+    };
+
+    document.addEventListener('click', (e) => {
+        const dd = document.getElementById('facturacion-search-dropdown-float');
+        if (!dd) return;
+        if (searchInput && !searchInput.contains(e.target) && !dd.contains(e.target)) {
+            dd.remove();
         }
     });
+
+        // Cerrar el dropdown solo si el scroll ocurre FUERA de él (no cuando
+    // el usuario está scrolleando la propia lista de productos).
+    document.addEventListener('scroll', (e) => {
+        const dd = document.getElementById('facturacion-search-dropdown-float');
+        if (!dd) return;
+        // Si el scroll ocurre DENTRO del dropdown, no hacer nada
+        if (dd.contains(e.target)) return;
+        dd.remove();
+    }, true);
+    window.addEventListener('resize', cerrarDropdownFacturacion);
+
+    // FIN DEL BUSCADOR DE REPUESTOS
 
     document.getElementById('btn-new-invoice').addEventListener('click', () => {
         initNewInvoice(true);
     });
 
+    // Cerrar dropdowns secundarios al hacer clic fuera
     document.addEventListener('click', (e) => {
-        if (searchResults && !searchResults.contains(e.target) && e.target !== searchInput)
-            searchResults.classList.add('hidden');
         if (clientSearchResults && !clientSearchResults.contains(e.target) && e.target !== clientSearchInput)
             clientSearchResults.classList.add('hidden');
     });
@@ -1276,7 +1519,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await loadInvoicesFromServer();
                 }
             } catch (e) {
-                console.error("Error al cargar orden inicial:", e);
+                console.error("Error al cargar la orden inicial:", e);
             }
         }
     }

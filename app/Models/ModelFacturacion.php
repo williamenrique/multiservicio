@@ -16,6 +16,22 @@
  *       - ModelFacturacion::obtenerAbonosPorFactura
  *       - ModelFacturacion::obtenerReciboAbono
  *     Requiere migración: sql/migration_abonos_usuario_id.sql
+ * 
+ * v2.4 (2026-10-14) — FIX CRÍTICO:
+ *   • guardarCabeceraVenta() ahora vincula/crea el vehículo en
+ *     `table_vehiculos` cuando se guarda una factura con placa y
+ *     cliente_id. Antes la factura guardaba placa + cliente_id
+ *     pero la relación vehículo↔cliente quedaba huérfana en la BD,
+ *     lo que rompía búsquedas por placa y el historial del vehículo.
+ * 
+ *     Casos cubiertos:
+ *       1. Vehículo existe con cliente_id DIFERENTE → se reasigna al nuevo cliente.
+ *       2. Vehículo existe con cliente_id NULL → se asigna.
+ *       3. Vehículo NO existe → se crea con datos extraídos del campo
+ *          `modelo` (formato "MARCA MODELO" o solo "MODELO").
+ * 
+ *     IMPORTANTE: No se ejecuta si falta placa o cliente_id, o si la
+ *     factura viene de una O.S. (porque la O.S. ya gestionó el vínculo).
  */
 class ModelFacturacion {
     private $db;
@@ -47,13 +63,41 @@ class ModelFacturacion {
     }
 
     public function buscarItems($termino) {
-        $this->db->query("SELECT i.id, i.nombre, i.categoria, i.stock, i.precio, i.costo_promedio,
-                          (i.stock - COALESCE((
-                              SELECT SUM(vd.cantidad) 
-                              FROM table_facturas_detalle vd 
-                              JOIN table_facturas v ON vd.factura_id = v.id 
-                              WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
-                          ), 0)) as stock_disponible
+        $this->db->query("SELECT 
+                            i.id, 
+                            i.codigo,
+                            i.nombre, 
+                            i.marca,
+                            i.categoria, 
+                            i.stock, 
+                            i.precio, 
+                            i.costo_promedio,
+                            i.oferta_activa,
+                            i.oferta_porcentaje,
+                            i.oferta_fecha_inicio,
+                            i.oferta_fecha_fin,
+                            CASE 
+                                WHEN i.oferta_activa = 1 
+                                     AND i.oferta_porcentaje > 0 
+                                     AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                                     AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                                THEN ROUND(i.precio * (1 - i.oferta_porcentaje / 100), 2)
+                                ELSE i.precio
+                            END as precio_final,
+                            CASE 
+                                WHEN i.oferta_activa = 1 
+                                     AND i.oferta_porcentaje > 0 
+                                     AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                                     AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                                THEN 1
+                                ELSE 0
+                            END as en_oferta_vigente,
+                            (i.stock - COALESCE((
+                                SELECT SUM(vd.cantidad) 
+                                FROM table_facturas_detalle vd 
+                                JOIN table_facturas v ON vd.factura_id = v.id 
+                                WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
+                            ), 0)) as stock_disponible
                           FROM table_inventario i
                           WHERE (i.nombre LIKE :term OR i.categoria LIKE :term OR i.id LIKE :term) AND i.estado = 'ACTIVO'
                           ORDER BY (stock_disponible > 0) DESC, i.nombre ASC
@@ -81,13 +125,34 @@ class ModelFacturacion {
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id 
                           LEFT JOIN table_staff su ON u.staff_id = su.id 
-                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id
-                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'PENDIENTE' ORDER BY v.fecha DESC");
         $ventas = $this->db->resultSet();
 
-        foreach ($ventas as $key => $venta) {
-            $this->db->query("SELECT vd.*, i.id as prod_id
+                foreach ($ventas as $key => $venta) {
+            // ─── FIX v3.7: Recuperar info de oferta desde table_inventario ───
+            // Al cargar items desde la BD, los metadatos de oferta (en_oferta,
+            // precio_base, oferta_porcentaje) no se persisten en
+            // table_facturas_detalle. Para poder reconstruir el badge en el
+            // frontend, hacemos un JOIN con table_inventario y recalculamos
+            // si el producto tiene oferta vigente HOY.
+            $this->db->query("SELECT 
+                                vd.*, 
+                                i.id as prod_id,
+                                i.nombre as producto_nombre,
+                                i.precio as producto_precio_actual,
+                                i.oferta_activa,
+                                i.oferta_porcentaje,
+                                i.oferta_fecha_inicio,
+                                i.oferta_fecha_fin,
+                                CASE 
+                                    WHEN i.oferta_activa = 1 
+                                         AND i.oferta_porcentaje > 0 
+                                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                                    THEN 1
+                                    ELSE 0
+                                END as en_oferta_vigente
                               FROM table_facturas_detalle vd 
                               LEFT JOIN table_inventario i ON vd.producto_id = i.id
                               WHERE vd.factura_id = :vid");
@@ -95,10 +160,32 @@ class ModelFacturacion {
             $items = $this->db->resultSet();
             
             $ventas[$key]->items = array_map(function($it) {
+                // ─── FIX v3.7: Reconstruir metadatos de oferta ───
+                // Si el producto tiene oferta vigente Y el precio_unitario
+                // guardado es menor al precio base actual del producto,
+                // entonces el item fue vendido con oferta.
+                $enOferta = false;
+                $precioBase = null;
+                $ofertaPct = 0;
+
+                if ($it->producto_id && (int)$it->en_oferta_vigente === 1) {
+                    $precioUnitarioGuardado = (float)$it->precio_unitario;
+                    $precioBaseActual = (float)$it->producto_precio_actual;
+
+                    if ($precioUnitarioGuardado < $precioBaseActual - 0.01) {
+                        $enOferta = true;
+                        $precioBase = $precioBaseActual;
+                        $ofertaPct = (float)$it->oferta_porcentaje;
+                    }
+                }
+
                 return [
                     'id' => $it->producto_id,
                     'nombre' => $it->descripcion,
                     'precio' => (float)$it->precio_unitario,
+                    'precio_base' => $precioBase,
+                    'en_oferta' => $enOferta,
+                    'oferta_porcentaje' => $ofertaPct,
                     'costo_promedio' => (float)($it->costo_unitario ?? 0),
                     'cantidad' => (int)$it->cantidad,
                     'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO'
@@ -123,8 +210,25 @@ class ModelFacturacion {
         $this->db->bind(':oid', $ordenId);
         $venta = $this->db->single();
 
-        if ($venta) {
-            $this->db->query("SELECT vd.*, i.id as prod_id
+                if ($venta) {
+            // ─── FIX v3.7: Recuperar info de oferta desde table_inventario ───
+            $this->db->query("SELECT 
+                                vd.*, 
+                                i.id as prod_id,
+                                i.nombre as producto_nombre,
+                                i.precio as producto_precio_actual,
+                                i.oferta_activa,
+                                i.oferta_porcentaje,
+                                i.oferta_fecha_inicio,
+                                i.oferta_fecha_fin,
+                                CASE 
+                                    WHEN i.oferta_activa = 1 
+                                         AND i.oferta_porcentaje > 0 
+                                         AND (i.oferta_fecha_inicio IS NULL OR i.oferta_fecha_inicio <= CURDATE())
+                                         AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())
+                                    THEN 1
+                                    ELSE 0
+                                END as en_oferta_vigente
                               FROM table_facturas_detalle vd 
                               LEFT JOIN table_inventario i ON vd.producto_id = i.id
                               WHERE vd.factura_id = :vid");
@@ -132,10 +236,28 @@ class ModelFacturacion {
             $items = $this->db->resultSet();
             
             $venta->items = array_map(function($it) {
+                $enOferta = false;
+                $precioBase = null;
+                $ofertaPct = 0;
+
+                if ($it->producto_id && (int)$it->en_oferta_vigente === 1) {
+                    $precioUnitarioGuardado = (float)$it->precio_unitario;
+                    $precioBaseActual = (float)$it->producto_precio_actual;
+
+                    if ($precioUnitarioGuardado < $precioBaseActual - 0.01) {
+                        $enOferta = true;
+                        $precioBase = $precioBaseActual;
+                        $ofertaPct = (float)$it->oferta_porcentaje;
+                    }
+                }
+
                 return [
                     'id' => $it->producto_id,
                     'nombre' => $it->descripcion,
                     'precio' => (float)$it->precio_unitario,
+                    'precio_base' => $precioBase,
+                    'en_oferta' => $enOferta,
+                    'oferta_porcentaje' => $ofertaPct,
                     'costo_promedio' => (float)($it->costo_unitario ?? 0),
                     'cantidad' => (int)$it->cantidad,
                     'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO',
@@ -209,10 +331,98 @@ class ModelFacturacion {
                 );
             }
 
-            return $ventaId ?: $this->db->lastInsertId();
+            $ventaIdFinal = $ventaId ?: $this->db->lastInsertId();
+
+            // ─── FIX v2.4: Vincular cliente ↔ vehículo en table_vehiculos ───
+            // Solo se ejecuta si tenemos placa Y cliente_id, y NO viene de una
+            // O.S. (porque en ese flujo el vehículo ya existe y está vinculado).
+            if (!empty($datos['placa']) && !empty($datos['cliente_id']) && !$esFacturaOrdenServicio) {
+                $this->vincularClienteVehiculo(
+                    strtoupper(trim($datos['placa'])),
+                    $datos['cliente_id'],
+                    $datos['modelo'] ?? ''
+                );
+            }
+
+            return $ventaIdFinal;
         } catch (Exception $e) {
             error_log("Error en guardarCabeceraVenta: " . $e->getMessage());
             throw $e;
+        }
+    }
+
+    /**
+     * Vincula un cliente a un vehículo en `table_vehiculos`.
+     * 
+     * Casos:
+     *   1. El vehículo NO existe → se crea con datos básicos extraídos
+     *      del campo $modeloCompleto (formato "MARCA MODELO" o "MODELO").
+     *   2. El vehículo SÍ existe pero con cliente_id diferente → se reasigna.
+     *   3. El vehículo SÍ existe con el mismo cliente → no hace nada.
+     * 
+     * IMPORTANTE: Este método NUNCA lanza excepción hacia arriba. Si algo
+     * falla, solo se loguea. Motivo: no queremos que una falla al vincular
+     * el vehículo impida guardar la factura (que es lo importante).
+     * 
+     * @param string $placa           Placa ya normalizada (uppercase, trim).
+     * @param string $clienteId       ID del cliente (varchar).
+     * @param string $modeloCompleto  Texto libre con marca/modelo (ej: "CHEVROLET CORSA").
+     * @return void
+     */
+    private function vincularClienteVehiculo($placa, $clienteId, $modeloCompleto = '') {
+        try {
+            if (empty($placa) || empty($clienteId)) {
+                return;
+            }
+
+            $this->db->query("SELECT placa, cliente_id FROM table_vehiculos WHERE placa = :placa");
+            $this->db->bind(':placa', $placa);
+            $vehiculo = $this->db->single();
+
+            if ($vehiculo) {
+                // Caso 2: existe pero con otro cliente (o sin cliente) → reasignar
+                if ((string)$vehiculo->cliente_id !== (string)$clienteId) {
+                    $this->db->query("UPDATE table_vehiculos SET cliente_id = :cid WHERE placa = :placa");
+                    $this->db->bind(':cid', $clienteId);
+                    $this->db->bind(':placa', $placa);
+                    $this->db->execute();
+                    error_log("[Facturación] Vehículo $placa re-vinculado al cliente $clienteId (antes: " . ($vehiculo->cliente_id ?? 'NULL') . ").");
+                }
+                // Caso 3: ya está vinculado al mismo cliente → nada.
+                return;
+            }
+
+            // Caso 1: el vehículo NO existe → extraer marca/modelo y crearlo.
+            $marca = '';
+            $modelo = '';
+
+            $texto = trim((string)$modeloCompleto);
+            if ($texto !== '') {
+                // Intentar separar "MARCA MODELO" (primera palabra = marca)
+                $partes = preg_split('/\s+/', $texto, 2);
+                if (count($partes) === 2) {
+                    $marca = $partes[0];
+                    $modelo = $partes[1];
+                } else {
+                    // Solo hay un token, lo usamos como modelo y dejamos marca vacía.
+                    $modelo = $partes[0];
+                }
+            }
+
+            $this->db->query("INSERT INTO table_vehiculos (placa, cliente_id, marca, modelo) 
+                              VALUES (:placa, :cid, :marca, :modelo)");
+            $this->db->bind(':placa', $placa);
+            $this->db->bind(':cid', $clienteId);
+            $this->db->bind(':marca', $marca !== '' ? mb_strtoupper($marca, 'UTF-8') : null);
+            $this->db->bind(':modelo', $modelo !== '' ? mb_strtoupper($modelo, 'UTF-8') : null);
+            $this->db->execute();
+
+            error_log("[Facturación] Vehículo $placa creado y vinculado al cliente $clienteId (marca: $marca, modelo: $modelo).");
+
+        } catch (\Throwable $e) {
+            // No relanzamos la excepción: la factura ya se guardó, este es un
+            // efecto secundario que no debe romper el flujo principal.
+            error_log("[Facturación] Error al vincular vehículo $placa con cliente $clienteId: " . $e->getMessage());
         }
     }
 

@@ -22,9 +22,8 @@
                             <input type="text" id="buscarProducto" class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm" 
                                    placeholder="Escriba nombre, código o categoría del repuesto..." autocomplete="off">
                         </div>
-                        <div id="resultadosBusqueda" class="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-slate-100 hidden max-h-80 overflow-y-auto overflow-x-hidden">
-                            <!-- Resultados vía AJAX -->
-                        </div>
+                        <!-- FIX OFERTA-V1 v3.9: dropdown flotante en el body (el div inline queda como ancla oculta) -->
+                        <div id="resultadosBusqueda" class="hidden"></div>
                     </div>
 
                     <!-- Tabla de Items -->
@@ -243,19 +242,23 @@
 /**
  * VENTA MOSTRADOR - JS de la vista
  * 
- * v2.1 (2026-10-13) — FIX doble petición a /venta/historial:
- *   • Se eliminó la llamada explícita `historialTable.reload()` que estaba
- *     justo después del constructor. `DataTableRefactor` ya llama a
- *     `reload()` internamente desde su `init()`, por lo que la doble
- *     invocación disparaba DOS peticiones simultáneas al endpoint. La
- *     primera era abortada por el `AbortController` del DataTableRefactor,
- *     dejando un warning PHP en el log y rompiendo la Vista Previa del
- *     DevTools.
- *   • Se reemplazó `'d-none'` (Bootstrap) por `'hidden'` (Tailwind) en el
- *     buscador de productos. Antes el dropdown no se ocultaba correctamente
- *     cuando el término era muy corto.
- *   • El buscador inline de clientes ahora usa `?q=...` en lugar de
- *     `?search[value]=...` para ser consistente con el resto del sistema.
+ * v2.1 (2026-10-13) — FIX doble petición a /venta/historial.
+ * 
+ * v3.0 (2026-10-15) — FIX OFERTA-V1:
+ *   • El buscador de productos ahora usa un dropdown FLOTANTE en el
+ *     <body> con position:fixed (igual que facturación y presupuesto).
+ *     Ya no se recorta por contenedores con overflow.
+ *   • Ancho mínimo 520px con auto-ajuste al viewport.
+ *   • Al hacer foco muestra TODOS los productos.
+ *   • Cada producto con badge de OFERTA, precio base tachado, precio
+ *     final en verde y stock coloreado.
+ *   • Al agregar producto al carrito, se usa el precio de oferta si
+ *     está vigente y se guarda `precio_base`/`en_oferta` para mostrar
+ *     el badge en el carrito.
+ *   • Al cargar items de presupuesto anexado, se preserva el precio
+ *     que tenía el presupuesto.
+ *   • El dropdown se cierra con scroll/resize/clic fuera, pero NO cuando
+ *     el scroll ocurre dentro del propio dropdown.
  */
 document.addEventListener('DOMContentLoaded', function() {
     if (window.lucide) lucide.createIcons();
@@ -263,11 +266,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let carrito = [];
     let ultimaVentaId = null;
     let lastClientResults = [];
+    let lastSearchResults = [];
+    let searchTimeoutVenta = null;
     const inputCliSearch = document.getElementById('clienteSearch');
     const divCliResultados = document.getElementById('clienteResultados');
     const hiddenCliId = document.getElementById('clienteId');
     const inputBusqueda = document.getElementById('buscarProducto');
-    const resultados = document.getElementById('resultadosBusqueda');
     const inputPagoEfectivo = document.getElementById('pagoEfectivo');
     const inputPagoTransferencia = document.getElementById('pagoTransferencia');
 
@@ -287,10 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (inputDesde) inputDesde.value = `${year}-${month}-01`;
     if (inputHasta) inputHasta.value = today;
 
-    // ─── Motor de Tablas centralizado ───
-    // FIX v2.1: NO llamamos a `historialTable.reload()` después. El propio
-    // DataTableRefactor llama a reload() en su init() → init() se llama en
-    // el constructor. Llamarlo dos veces provocaba DOS peticiones simultáneas.
+    // Motor de Tablas centralizado
     const historialTable = new DataTableRefactor({
         tableBodyId: 'cuerpoHistorial',
         endpoint: `${URLROOT}/venta/historial`,
@@ -324,9 +325,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // FIX v2.1: El DataTableRefactor ya hizo reload() dentro de su constructor.
-    // NO agregar `historialTable.reload();` aquí — eso causa doble petición.
-
     if (inputDesde) inputDesde.addEventListener('change', () => historialTable.reload());
     if (inputHasta) inputHasta.addEventListener('change', () => historialTable.reload());
 
@@ -338,51 +336,155 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Búsqueda AJAX de productos
-    inputBusqueda.addEventListener('input', async (e) => {
-        const term = e.target.value;
-        if (term.length < 2) {
-            // FIX v2.1: 'd-none' (Bootstrap) → 'hidden' (Tailwind)
-            resultados.classList.add('hidden');
+    // ═══════════════════════════════════════════════════════════════════════
+    // FIX OFERTA-V1 v3.0: BUSCADOR DE PRODUCTOS CON DROPDOWN FLOTANTE
+    // ═══════════════════════════════════════════════════════════════════════
+
+    inputBusqueda.addEventListener('focus', async () => {
+        const term = inputBusqueda.value.trim();
+        await ejecutarBusquedaVenta(term);
+    });
+
+    inputBusqueda.addEventListener('input', (e) => {
+        clearTimeout(searchTimeoutVenta);
+        const term = e.target.value.trim();
+        searchTimeoutVenta = setTimeout(async () => {
+            await ejecutarBusquedaVenta(term);
+        }, 250);
+    });
+
+    async function ejecutarBusquedaVenta(term) {
+        try {
+            const url = `${URLROOT}/facturacion/buscarItems?term=${encodeURIComponent(term)}`;
+            const res = await fetch(url);
+            if (!res.ok) return;
+
+            const contentType = res.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) return;
+
+            const items = await res.json();
+            lastSearchResults = items;
+            renderizarDropdownVenta(items);
+        } catch (e) {
+            console.error('Error buscando productos:', e);
+        }
+    }
+
+    function renderizarDropdownVenta(items) {
+        const existingFloat = document.getElementById('venta-search-dropdown-float');
+        if (existingFloat) existingFloat.remove();
+
+        const rect = inputBusqueda.getBoundingClientRect();
+
+        // Ancho mínimo 520px con auto-ajuste
+        const MIN_WIDTH = 520;
+        const PADDING = 16;
+        let dropdownWidth = Math.max(rect.width, MIN_WIDTH);
+        const maxWidthRight = window.innerWidth - rect.left - PADDING;
+        if (dropdownWidth > maxWidthRight) dropdownWidth = maxWidthRight;
+        if (dropdownWidth < 320) dropdownWidth = Math.min(320, window.innerWidth - PADDING * 2);
+
+        const espacioDebajo = window.innerHeight - rect.bottom - 20;
+        const alturaMax = Math.min(360, Math.max(180, espacioDebajo));
+
+        const dropdown = document.createElement('div');
+        dropdown.id = 'venta-search-dropdown-float';
+        dropdown.style.cssText = `
+            position: fixed;
+            top: ${rect.bottom + 4}px;
+            left: ${rect.left}px;
+            width: ${dropdownWidth}px;
+            max-height: ${alturaMax}px;
+            overflow-y: auto;
+            z-index: 100000;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.1);
+        `;
+
+        if (!items || items.length === 0) {
+            dropdown.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs uppercase italic">Sin resultados</div>';
+            document.body.appendChild(dropdown);
             return;
         }
 
-        const res = await fetch(`<?php echo URLROOT; ?>/facturacion/buscarItems?term=${term}`);
-        const items = await res.json();
-        
-        resultados.innerHTML = '';
-        if (items.length > 0) {
-            items.forEach(item => {
-                const sinStock = Number(item.stock_disponible) <= 0;
-                const div = document.createElement('div');
-                div.className = sinStock
-                    ? 'flex items-center justify-between p-4 bg-slate-50/60 border-b border-slate-100 last:border-0 cursor-not-allowed opacity-60'
-                    : 'flex items-center justify-between p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-50 transition-colors last:border-0';
-                const stockLabel = sinStock
-                    ? '<span class="text-red-500 font-black">SIN STOCK</span>'
-                    : `<span class="text-emerald-600 font-black">${item.stock_disponible} DISP.</span>`;
-                div.innerHTML = `
-                    <div class="flex-1">
-                        <div class="text-sm font-bold text-slate-700 uppercase ${sinStock ? 'line-through text-slate-400' : ''}">${item.nombre}</div>
-                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">STOCK: ${stockLabel} | ${item.categoria}</div>
-                    </div>
-                    <div class="text-sm font-black ${sinStock ? 'text-slate-300' : 'text-blue-600'}">$ ${item.precio}</div>
-                `;
-                if (!sinStock) {
-                    div.onclick = () => {
-                        agregarAlCarrito(item);
-                        resultados.classList.add('hidden');
-                    };
-                }
-                resultados.appendChild(div);
-            });
-            resultados.classList.remove('hidden');
-        } else {
-            resultados.classList.add('hidden');
+        const html = items.map((item, index) => {
+            const sinStock = Number(item.stock_disponible) <= 0;
+            const enOferta = parseInt(item.en_oferta_vigente) === 1;
+            const precioBase = parseFloat(item.precio);
+            const precioFinal = parseFloat(item.precio_final || item.precio);
+            const stock = parseInt(item.stock_disponible || 0);
+
+            let stockColor = 'text-slate-400';
+            if (stock <= 0) stockColor = 'text-rose-500 font-black';
+            else if (stock <= 5) stockColor = 'text-amber-500 font-black';
+
+            const ofertaBadge = enOferta
+                ? `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700 uppercase">OFERTA ${parseFloat(item.oferta_porcentaje).toFixed(0)}%</span>`
+                : '';
+
+            const precioHtml = enOferta
+                ? `<div class="flex flex-col items-end">
+                       <span class="text-[10px] text-slate-400 line-through">$${precioBase.toFixed(2)}</span>
+                       <span class="font-black text-emerald-600 text-sm">$${precioFinal.toFixed(2)}</span>
+                   </div>`
+                : `<span class="font-bold text-blue-600 text-sm">$${precioBase.toFixed(2)}</span>`;
+
+            return `<div class="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center transition-colors ${sinStock ? 'opacity-50 pointer-events-none' : ''}"
+                         onclick="seleccionarItemDesdeDropdownVenta(${index})">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center flex-wrap">
+                                <span class="font-bold text-xs text-slate-800 uppercase truncate">${item.nombre}</span>
+                                ${ofertaBadge}
+                            </div>
+                            <div class="text-[10px] text-slate-400 font-mono mt-0.5">
+                                ${item.categoria || ''} ${item.marca ? '· ' + item.marca : ''} · <span class="${stockColor}">Stock: ${stock}</span>
+                            </div>
+                        </div>
+                        <div class="ml-3 flex-shrink-0">${precioHtml}</div>
+                    </div>`;
+        }).join('');
+
+        dropdown.innerHTML = html;
+        document.body.appendChild(dropdown);
+    }
+
+    window.seleccionarItemDesdeDropdownVenta = (index) => {
+        const item = lastSearchResults[index];
+        if (!item) return;
+
+        const dd = document.getElementById('venta-search-dropdown-float');
+        if (dd) dd.remove();
+
+        agregarAlCarrito(item);
+    };
+
+    // Cerrar dropdown al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        const dd = document.getElementById('venta-search-dropdown-float');
+        if (!dd) return;
+        if (!inputBusqueda.contains(e.target) && !dd.contains(e.target)) {
+            dd.remove();
         }
     });
 
-    // Buscador de Clientes en tiempo real (inline)
+    // Cerrar dropdown si el scroll ocurre FUERA de él
+    document.addEventListener('scroll', (e) => {
+        const dd = document.getElementById('venta-search-dropdown-float');
+        if (!dd) return;
+        if (dd.contains(e.target)) return;
+        dd.remove();
+    }, true);
+
+    window.addEventListener('resize', () => {
+        const dd = document.getElementById('venta-search-dropdown-float');
+        if (dd) dd.remove();
+    });
+
+    // FIN DEL BUSCADOR CON DROPDOWN FLOTANTE
+
+    // Buscador de Clientes en tiempo real
     inputCliSearch.addEventListener('input', async (e) => {
         const term = e.target.value.trim();
         if (term.length < 2) {
@@ -391,8 +493,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // FIX v2.1: usar ?q= en lugar de ?search[value]= para consistencia con el sistema
-        //const res = await fetch(`<?php echo URLROOT; ?>/clientes/listar?q=${encodeURIComponent(term)}&limit=5&offset=0`);
         const res = await fetch(`<?php echo URLROOT; ?>/clientes/listar?q=${encodeURIComponent(term)}&limit=20&offset=0`);
         const data = await res.json();
         lastClientResults = data.data || [];
@@ -425,7 +525,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Registro rápido de cliente con helper unificado
+    // Registro rápido de cliente
     document.getElementById('btnNuevoClienteVenta').addEventListener('click', async () => {
         await AppUtils.openQuickClientModal({
             title: 'REGISTRO RÁPIDO DE CLIENTE',
@@ -476,7 +576,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 300);
         });
 
-        // Delegación de eventos
         resultsContainerPresupuesto.addEventListener('click', (e) => {
             const item = e.target.closest('[data-presupuesto-id]');
             if (!item) return;
@@ -550,8 +649,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.seleccionarPresupuestoActivoVenta = async (id, numero, clienteNombre, clienteTelefono, total, fecha) => {
-        console.log('[VENTA] Presupuesto seleccionado:', { id, numero, clienteNombre });
-
         if (!id || id === 'undefined' || id === 'null') {
             AppUtils.showToast('ID de presupuesto inválido', 'error');
             return;
@@ -679,26 +776,53 @@ document.addEventListener('DOMContentLoaded', function() {
         renderizar();
     };
 
-    // Cerrar resultados al hacer clic fuera
+    // Cerrar resultados de cliente al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (!divCliResultados.contains(e.target) && e.target !== inputCliSearch) divCliResultados.classList.add('hidden');
-        if (!resultados.contains(e.target) && e.target !== inputBusqueda) resultados.classList.add('hidden');
     });
 
+    /**
+     * FIX OFERTA-V1 v3.0: Al agregar un producto al carrito, si tiene
+     * oferta vigente, se usa el precio final y se guardan metadatos
+     * (precio_base, en_oferta, oferta_porcentaje) para mostrar el badge.
+     */
     function agregarAlCarrito(item) {
         if (Number(item.stock_disponible) <= 0) {
             AppUtils.showToast('Este repuesto está SIN STOCK', 'error');
             return;
         }
+
+        const enOferta = parseInt(item.en_oferta_vigente) === 1;
+        const precioBase = parseFloat(item.precio);
+        const precioFinal = enOferta ? parseFloat(item.precio_final || item.precio) : precioBase;
+        const ofertaPct = enOferta ? parseFloat(item.oferta_porcentaje || 0) : 0;
+
         const existe = carrito.find(i => i.id === item.id);
         if (existe) {
             if (existe.cantidad < item.stock_disponible) existe.cantidad++;
         } else {
-            carrito.push({...item, cantidad: 1, tipo: 'PRODUCTO'});
+            carrito.push({
+                id: item.id,
+                nombre: item.nombre,
+                precio: precioFinal,
+                precio_base: precioBase,
+                en_oferta: enOferta,
+                oferta_porcentaje: ofertaPct,
+                costo_promedio: parseFloat(item.costo_promedio || 0),
+                stock_disponible: item.stock_disponible,
+                cantidad: 1,
+                tipo: 'PRODUCTO',
+                categoria: item.categoria || ''
+            });
         }
         inputBusqueda.value = '';
-        resultados.classList.add('hidden');
+        const dd = document.getElementById('venta-search-dropdown-float');
+        if (dd) dd.remove();
         renderizar();
+
+        if (enOferta) {
+            AppUtils.showToast('Producto agregado con OFERTA', 'success');
+        }
     }
 
     function renderizar() {
@@ -710,17 +834,33 @@ document.addEventListener('DOMContentLoaded', function() {
         carrito.forEach((item, index) => {
             const st = item.precio * item.cantidad;
             subtotal += st;
+
+            // FIX OFERTA-V1: badge de oferta y precio doble si aplica
+            const tieneOferta = item.en_oferta === true && item.precio_base && item.precio_base > item.precio;
+            const ofertaBadge = tieneOferta
+                ? `<span class="ml-2 text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-black uppercase">OFERTA ${parseFloat(item.oferta_porcentaje || 0).toFixed(0)}%</span>`
+                : '';
+            const precioDetalle = tieneOferta
+                ? `<div class="flex flex-col items-end">
+                       <span class="text-[10px] text-slate-400 line-through">$ ${item.precio_base.toFixed(2)}</span>
+                       <span class="font-black text-emerald-600">$ ${item.precio.toFixed(2)}</span>
+                   </div>`
+                : `$ ${item.precio.toFixed(2)}`;
+
             lista.innerHTML += `
                 <tr class="hover:bg-slate-50/50 transition-colors">
                     <td class="px-4 py-5">
-                        <div class="text-base font-bold text-slate-700 uppercase">${item.nombre}</div>
+                        <div class="text-base font-bold text-slate-700 uppercase flex items-center flex-wrap">
+                            ${item.nombre}
+                            ${ofertaBadge}
+                        </div>
                         <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">${item.categoria || ''}</div>
                     </td>
                     <td class="px-4 py-5 text-center">
                         <input type="number" class="w-16 text-center py-1 bg-white border border-slate-200 rounded text-base font-bold focus:border-blue-500 focus:outline-none" value="${item.cantidad}" 
                                onchange="actualizarCant(${index}, this.value)">
                     </td>
-                    <td class="px-4 py-5 text-right font-medium text-slate-500">$ ${item.precio}</td>
+                    <td class="px-4 py-5 text-right font-medium text-slate-500">${precioDetalle}</td>
                     <td class="px-4 py-5 text-right font-black text-slate-800">$ ${st.toFixed(2)}</td>
                     <td class="px-4 py-5 text-center">
                         <button class="p-2 text-slate-300 hover:text-red-500 transition-colors" onclick="eliminarItem(${index})">
