@@ -246,9 +246,16 @@
             <div class="product-card bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
                 <a href="<?php echo URLROOT; ?>/catalogo/detalle/<?php echo $repuesto->id; ?>"
                     class="block h-48 bg-gray-100 overflow-hidden relative">
-                    <?php if (!empty($repuesto->imagen) && file_exists(APPROOT . '/../public_html/' . $repuesto->imagen)): ?>
-                    <img src="<?php echo URLROOT . '/' . s($repuesto->imagen); ?>"
-                        alt="<?php echo s($repuesto->nombre); ?>" class="w-full h-full object-cover">
+                    <?php if (!empty($repuesto->imagen)): ?>
+                        <img src="<?php echo s($repuesto->imagen); ?>"
+                            alt="<?php echo s($repuesto->nombre); ?>"
+                            class="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                            onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="w-full h-full hidden items-center justify-center text-gray-300">
+                            <i data-lucide="package" class="w-16 h-16"></i>
+                        </div>
                     <?php else: ?>
                     <div class="w-full h-full flex items-center justify-center text-gray-300">
                         <i data-lucide="package" class="w-16 h-16"></i>

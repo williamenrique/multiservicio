@@ -57,12 +57,20 @@
     .total-val { font-weight: bold; font-size: 11px; }
     .grand-total { font-size: 14px; border-top: 2px solid #0f172a; padding-top: 4px; color: #0f172a; }
     .text-right { text-align: right; }
+    .text-center { text-align: center; }
 
     /* v3.0 — Badge de condición */
     .pill-cond { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 7.5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; }
     .pill-nuevo { background: #d1fae5; color: #065f46; }
     .pill-usado { background: #fef3c7; color: #92400e; }
     .pill-servicio { background: #dbeafe; color: #1e40af; }
+
+    /* v3.1 — Columna y bloque de garantía */
+    .garantia-dias { font-weight: 900; color: #0f172a; font-size: 10px; }
+    .garantia-block { margin-top: 12px; padding: 8px 10px; background: #fefce8; border: 1px solid #fde68a; border-radius: 4px; font-size: 8.5px; line-height: 1.5; color: #713f12; }
+    .garantia-block strong { color: #422006; }
+    .garantia-block ul { margin: 4px 0 0 0; padding-left: 14px; }
+    .garantia-block li { margin-bottom: 2px; }
 </style>
 </head>
 <body>
@@ -127,11 +135,12 @@
     <table class="items-table">
         <thead>
             <tr>
-                <th width="52%">Descripción del Servicio / Repuesto</th>
-                <th width="12%" class="text-right">Condición</th>
-                <th width="10%" class="text-right">Cant.</th>
-                <th width="13%" class="text-right">Unitario</th>
-                <th width="13%" class="text-right">Subtotal</th>
+                <th width="42%">Descripción del Servicio / Repuesto</th>
+                <th width="11%" class="text-center">Condición</th>
+                <th width="7%" class="text-center">Cant.</th>
+                <th width="11%" class="text-right">Unitario</th>
+                <th width="12%" class="text-right">Subtotal</th>
+                <th width="17%" class="text-center">Garantía</th>
             </tr>
         </thead>
         <tbody>
@@ -152,17 +161,86 @@
                         $pillClass = 'pill-nuevo';
                         $pillLabel = 'NUEVO';
                     }
+
+                    // v3.1: días de garantía con fallback defensivo
+                    $diasGar = isset($item->dias_garantia_aplicado) ? (int)$item->dias_garantia_aplicado : 0;
+                    if ($diasGar <= 0) {
+                        // Fallback por si el Model no resolvió (datos viejos)
+                        if ($condRaw === 'USADO') {
+                            $diasGar = 5;
+                        } elseif ($condRaw === 'SERVICIO') {
+                            $diasGar = 15;
+                        } else {
+                            $dProd = isset($item->producto_dias_garantia) ? (int)$item->producto_dias_garantia : 0;
+                            $diasGar = $dProd > 0 ? $dProd : 15;
+                        }
+                    }
+                    $garantiaTxt = $diasGar . ' día' . ($diasGar === 1 ? '' : 's');
                 ?>
                 <tr>
                     <td style="text-transform: uppercase;"><?php echo $item->descripcion; ?></td>
-                    <td class="text-right"><span class="pill-cond <?php echo $pillClass; ?>"><?php echo $pillLabel; ?></span></td>
-                    <td class="text-right" style="font-weight: bold;">x<?php echo $item->cantidad; ?></td>
+                    <td class="text-center"><span class="pill-cond <?php echo $pillClass; ?>"><?php echo $pillLabel; ?></span></td>
+                    <td class="text-center" style="font-weight: bold;">x<?php echo $item->cantidad; ?></td>
                     <td class="text-right">$ <?php echo number_format($item->precio_unitario, 2); ?></td>
                     <td class="text-right" style="font-weight: bold;">$ <?php echo number_format($item->cantidad * $item->precio_unitario, 2); ?></td>
+                    <td class="text-center"><span class="garantia-dias"><?php echo $garantiaTxt; ?></span></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
     </table>
+
+    <?php
+        // v3.1: Bloque "Condiciones de Garantía" agrupado por condición
+        $grupos = ['NUEVO' => [], 'USADO' => [], 'SERVICIO' => []];
+        foreach ($venta->items as $item) {
+            $condRaw = strtoupper(trim((string)($item->condicion_item ?? $item->producto_condicion_actual ?? '')));
+            if ($condRaw === '' && empty($item->producto_id)) $condRaw = 'SERVICIO';
+            if ($condRaw === '' ) $condRaw = 'NUEVO';
+
+            $dias = isset($item->dias_garantia_aplicado) ? (int)$item->dias_garantia_aplicado : 0;
+            if ($dias <= 0) {
+                if ($condRaw === 'USADO') $dias = 5;
+                elseif ($condRaw === 'SERVICIO') $dias = 15;
+                else {
+                    $dProd = isset($item->producto_dias_garantia) ? (int)$item->producto_dias_garantia : 0;
+                    $dias = $dProd > 0 ? $dProd : 15;
+                }
+            }
+
+            if (!isset($grupos[$condRaw])) $grupos[$condRaw] = [];
+            $grupos[$condRaw][] = [
+                'descripcion' => $item->descripcion,
+                'dias' => $dias,
+            ];
+        }
+        $hayGarantias = false;
+        foreach ($grupos as $g) { if (!empty($g)) { $hayGarantias = true; break; } }
+    ?>
+    <?php if ($hayGarantias): ?>
+    <div class="garantia-block">
+        <strong>CONDICIONES DE GARANTÍA</strong>
+        <ul>
+            <?php if (!empty($grupos['NUEVO'])): ?>
+                <?php foreach ($grupos['NUEVO'] as $g): ?>
+                    <li><strong>REPUESTO NUEVO:</strong> <?php echo strtoupper($g['descripcion']); ?> — <strong><?php echo $g['dias']; ?> día<?php echo $g['dias'] === 1 ? '' : 's'; ?></strong> desde la fecha de factura.</li>
+                <?php endforeach; ?>
+            <?php endif; ?>
+            <?php if (!empty($grupos['USADO'])): ?>
+                <?php foreach ($grupos['USADO'] as $g): ?>
+                    <li><strong>REPUESTO USADO:</strong> <?php echo strtoupper($g['descripcion']); ?> — <strong><?php echo $g['dias']; ?> día<?php echo $g['dias'] === 1 ? '' : 's'; ?></strong> desde la fecha de factura.</li>
+                <?php endforeach; ?>
+            <?php endif; ?>
+            <?php if (!empty($grupos['SERVICIO'])): ?>
+                <?php foreach ($grupos['SERVICIO'] as $g): ?>
+                    <li><strong>SERVICIO:</strong> <?php echo strtoupper($g['descripcion']); ?> — <strong><?php echo $g['dias']; ?> día<?php echo $g['dias'] === 1 ? '' : 's'; ?></strong> desde la fecha de factura.</li>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </ul>
+        <div style="margin-top: 4px; font-size: 7.5px; color: #92400e;">
+            * Los repuestos USADOS tienen una garantía fija de 5 días. Los NUEVOS y SERVICIOS varían según la política del taller.
+        </div>
+    </div>
+    <?php endif; ?>
 
     <table width="100%" style="margin-top: 10px;">
         <tr>

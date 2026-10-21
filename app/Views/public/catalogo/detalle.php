@@ -98,9 +98,19 @@
         <div class="bg-white rounded-2xl shadow-md overflow-hidden">
             <div class="grid md:grid-cols-2 gap-0">
                 <div class="bg-gray-100 p-8 flex items-center justify-center min-h-[300px] relative">
-                    <?php if ($repuesto->imagen && file_exists(APPROOT . '/../public_html/' . $repuesto->imagen)): ?>
-                    <img src="<?php echo URLROOT . '/' . $repuesto->imagen; ?>"
-                        alt="<?php echo s($repuesto->nombre); ?>" class="max-w-full max-h-80 object-contain">
+                    <?php if (!empty($repuesto->imagen)): ?>
+                        <img src="<?php echo s($repuesto->imagen); ?>"
+                            alt="<?php echo s($repuesto->nombre); ?>"
+                            class="max-w-full max-h-80 object-contain"
+                            loading="lazy"
+                            decoding="async"
+                            onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="hidden w-full h-full items-center justify-center text-gray-300" style="min-height:300px;">
+                            <svg class="w-32 h-32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </div>
                     <?php else: ?>
                     <svg class="w-32 h-32 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"

@@ -59,8 +59,16 @@
                         <div class="p-4 md:p-6 flex items-center gap-4" id="item-<?php echo $item['id']; ?>">
                             <!-- Image -->
                             <div class="w-20 h-20 bg-gray-100 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden">
-                                <?php if ($item['imagen'] && file_exists(APPROOT . '/../public_html/' . $item['imagen'])): ?>
-                                    <img src="<?php echo URLROOT . '/' . $item['imagen']; ?>" alt="<?php echo s($item['nombre']); ?>" class="w-full h-full object-contain p-2">
+                                <?php if (!empty($item['imagen'])): ?>
+                                    <img src="<?php echo s($item['imagen']); ?>"
+                                         alt="<?php echo s($item['nombre']); ?>"
+                                         class="w-full h-full object-contain p-2"
+                                         loading="lazy"
+                                         decoding="async"
+                                         onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <svg class="hidden w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                    </svg>
                                 <?php else: ?>
                                     <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>

@@ -1,4 +1,12 @@
 <?php
+/**
+ * Controlador de Facturas
+ * 
+ * v3.1 (2026-10-21): sin cambios funcionales.
+ *   El Modelo ahora resuelve condicion_item y dias_garantia_aplicado
+ *   en obtenerPorId() y obtenerVentaCompleta(). El controller solo
+ *   propaga el objeto a la vista.
+ */
 class ControllerFacturas extends Controller {
     private $facturasModel;
 
@@ -29,9 +37,7 @@ class ControllerFacturas extends Controller {
 
         $desde = $_GET['desde'] ?? null;
         $hasta = $_GET['hasta'] ?? null;
-        // MEJORA 9: filtro por estado
         $estado = $_GET['estado'] ?? null;
-        // MEJORA 10: filtro por cliente
         $clienteId = $_GET['cliente_id'] ?? null;
 
         $items = $this->facturasModel->listar($limit, $offset, $search, $desde, $hasta, $estado, $clienteId);

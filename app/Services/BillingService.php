@@ -2,6 +2,13 @@
 /**
  * BillingService
  * Orquestador de lógica de negocio para facturación, abonos y devoluciones.
+ * 
+ * v3.1 (2026-10-21) — CONDICIÓN + SNAPSHOT:
+ *   • procesarVentaCompleta() ahora persiste `condicion_item` en
+ *     table_facturas_detalle. Es el snapshot histórico de la condición
+ *     del repuesto al momento de la venta (NUEVO|USADO|SERVICIO).
+ *   • El payload `$datos['items'][]` puede traer `condicion_item`. Si no
+ *     viene, se infiere: SERVICIO si tipo=SERVICIO, NUEVO en otro caso.
  */
 class BillingService {
     private $db;
@@ -22,6 +29,8 @@ class BillingService {
 
     /**
      * Procesa una venta completa (Cabecera, Detalles, Stock, Caja)
+     * 
+     * v3.1: persiste condicion_item en table_facturas_detalle.
      */
     public function procesarVentaCompleta($datos, $usuarioId) {
         try {
@@ -31,11 +40,11 @@ class BillingService {
             $subtotal = 0;
             foreach($datos['items'] as $it) $subtotal += ($it['precio'] * $it['cantidad']);
             
-            $tasaIva = (float)($datos['tasa_iva'] ?? 19); // Alineado con database_schema_2.0.sql
+            $tasaIva = (float)($datos['tasa_iva'] ?? 19);
             $iva = ($datos['aplicar_iva'] ?? false || !empty($datos['iva_activo'])) ? ($subtotal * ($tasaIva / 100)) : 0;
             $totalVenta = $subtotal + $iva;
             
-                        $pagoEfe = (float)($datos['pago_efectivo'] ?? 0);
+            $pagoEfe = (float)($datos['pago_efectivo'] ?? 0);
             $pagoTra = (float)($datos['pago_transferencia'] ?? 0);
             $totalPagado = $pagoEfe + $pagoTra;
 
@@ -67,8 +76,17 @@ class BillingService {
             $this->db->execute();
 
             foreach ($datos['items'] as $item) {
-                $this->db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
-                                VALUES (:vid, :pid, :mid, :desc, :cant, :pre, :costo)");
+                // ─── v3.1: resolver condicion_item ───
+                if (isset($item['tipo']) && strtoupper($item['tipo']) === 'SERVICIO') {
+                    $condicionItem = 'SERVICIO';
+                } else {
+                    $rawCond = strtoupper(trim((string)($item['condicion_item'] ?? '')));
+                    $condicionItem = in_array($rawCond, ['NUEVO', 'USADO'], true) ? $rawCond : 'NUEVO';
+                }
+
+                $this->db->query("INSERT INTO table_facturas_detalle 
+                                  (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario, condicion_item) 
+                                  VALUES (:vid, :pid, :mid, :desc, :cant, :pre, :costo, :cond)");
                 $this->db->bind(':vid', $ventaId);
                 $this->db->bind(':pid', $item['tipo'] === 'PRODUCTO' ? $item['id'] : null);
                 $this->db->bind(':mid', $datos['mecanico_id'] ?? null);
@@ -76,6 +94,7 @@ class BillingService {
                 $this->db->bind(':cant', $item['cantidad']);
                 $this->db->bind(':pre', $item['precio']);
                 $this->db->bind(':costo', $item['costo_promedio'] ?? $item['ultimo_costo'] ?? 0);
+                $this->db->bind(':cond', $condicionItem); // v3.1
                 $this->db->execute();
 
                 if ($item['tipo'] === 'PRODUCTO' && $status !== 'PENDIENTE') {
@@ -127,14 +146,12 @@ class BillingService {
     }
 
     /**
-     * SOLUCIÓN AL ERROR: Procesa la devolución de un ítem de factura.
-     * Se encarga de la transacción para asegurar que el stock y el dinero se ajusten juntos.
+     * Procesa la devolución de un ítem de factura.
      */
     public function procesarDevolucionSegura($input) {
         try {
             $this->db->beginTransaction();
             
-            // Llamamos al modelo para ejecutar la lógica de resta de totales y suma de stock
             $res = $this->facturaModel->procesarDevolucion($input['factura_id'], $input['detalle_id'], $input['destino']);
             
             if (!$res) throw new Exception("Error interno al procesar la devolución en el modelo.");

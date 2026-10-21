@@ -210,7 +210,7 @@
         </div>
     </div>
 
-    <!-- MEJORA 3: Historial de Abonos (contenedor dinámico sin reload) -->
+    <!-- Historial de Abonos -->
     <div id="historial-abonos-wrapper">
         <?php if (!empty($data['factura']->abonos)): ?>
         <div class="glass-card rounded-2xl overflow-hidden shadow-xl mb-6">
@@ -270,41 +270,124 @@
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
-                        <th class="px-6 py-4">#</th>
-                        <th class="px-6 py-4">Descripción</th>
-                        <th class="px-6 py-4 text-center">Tipo</th>
-                        <th class="px-6 py-4 text-center">Cant.</th>
-                        <th class="px-6 py-4 text-right">Precio Unit.</th>
-                        <th class="px-6 py-4 text-right">Subtotal</th>
-                        <th class="px-6 py-4 text-center">Mecánico</th>
+                        <th class="px-4 py-4">#</th>
+                        <th class="px-4 py-4">Descripción</th>
+                        <th class="px-4 py-4 text-center">Tipo</th>
+                        <th class="px-4 py-4 text-center">Condición</th>
+                        <th class="px-4 py-4 text-center">Cant.</th>
+                        <th class="px-4 py-4 text-right">Precio Unit.</th>
+                        <th class="px-4 py-4 text-right">Subtotal</th>
+                        <th class="px-4 py-4 text-center">Garantía</th>
+                        <th class="px-4 py-4 text-center">Mecánico</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 text-sm text-slate-600">
                     <?php if (!empty($data['factura']->items)): ?>
-                        <?php $index = 1; foreach ($data['factura']->items as $item): ?>
+                        <?php 
+                            $index = 1;
+                            $gruposGarantia = ['NUEVO' => [], 'USADO' => [], 'SERVICIO' => []];
+                            foreach ($data['factura']->items as $item): 
+                                $tipo = $item->producto_id ? 'PRODUCTO' : 'SERVICIO';
+                                $badgeClass = $tipo === 'PRODUCTO' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
+                                $icon = $tipo === 'PRODUCTO' ? 'package' : 'wrench';
+
+                                // Condición
+                                $condRaw = strtoupper(trim((string)($item->condicion_item ?? $item->producto_condicion_actual ?? '')));
+                                if ($condRaw === '') $condRaw = $item->producto_id ? 'NUEVO' : 'SERVICIO';
+                                if ($condRaw === 'SERVICIO') {
+                                    $condBadge = 'bg-blue-100 text-blue-800'; $condLabel = 'SERVICIO';
+                                } elseif ($condRaw === 'USADO') {
+                                    $condBadge = 'bg-amber-100 text-amber-800'; $condLabel = 'USADO';
+                                } else {
+                                    $condBadge = 'bg-emerald-100 text-emerald-800'; $condLabel = 'NUEVO';
+                                }
+
+                                // Garantía
+                                $diasGar = isset($item->dias_garantia_aplicado) ? (int)$item->dias_garantia_aplicado : 0;
+                                if ($diasGar <= 0) {
+                                    if ($condRaw === 'USADO') $diasGar = 5;
+                                    elseif ($condRaw === 'SERVICIO') $diasGar = 15;
+                                    else {
+                                        $dProd = isset($item->producto_dias_garantia) ? (int)$item->producto_dias_garantia : 0;
+                                        $diasGar = $dProd > 0 ? $dProd : 15;
+                                    }
+                                }
+                                $garantiaTxt = $diasGar . ' día' . ($diasGar === 1 ? '' : 's');
+
+                                // Acumular para el bloque
+                                $gruposGarantia[$condRaw][] = [
+                                    'descripcion' => $item->descripcion,
+                                    'dias' => $diasGar,
+                                ];
+                        ?>
                         <tr class="hover:bg-slate-50/50">
-                            <td class="px-6 py-4 text-center font-mono text-slate-400"><?php echo $index++; ?></td>
-                            <td class="px-6 py-4 font-medium text-slate-700"><?php echo s($item->descripcion); ?></td>
-                            <td class="px-6 py-4 text-center">
-                                <?php $tipo = $item->producto_id ? 'PRODUCTO' : 'SERVICIO';
-                                      $badgeClass = $tipo === 'PRODUCTO' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
-                                      $icon = $tipo === 'PRODUCTO' ? 'package' : 'wrench'; ?>
+                            <td class="px-4 py-4 text-center font-mono text-slate-400"><?php echo $index++; ?></td>
+                            <td class="px-4 py-4 font-medium text-slate-700"><?php echo s($item->descripcion); ?></td>
+                            <td class="px-4 py-4 text-center">
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold <?php echo $badgeClass; ?>">
                                     <i data-lucide="<?php echo $icon; ?>" class="w-3 h-3 mr-1"></i><?php echo $tipo; ?>
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-center font-bold text-navy-blue"><?php echo (int)$item->cantidad; ?></td>
-                            <td class="px-6 py-4 text-right font-mono"><?php echo number_format($item->precio_unitario, 0, ',', '.'); ?></td>
-                            <td class="px-6 py-4 text-right font-bold text-navy-blue"><?php echo number_format($item->precio_unitario * $item->cantidad, 0, ',', '.'); ?></td>
-                            <td class="px-6 py-4 text-center text-slate-500"><?php echo s($item->mecanico_nombre ?? '-'); ?></td>
+                            <td class="px-4 py-4 text-center">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase <?php echo $condBadge; ?>">
+                                    <?php echo $condLabel; ?>
+                                </span>
+                            </td>
+                            <td class="px-4 py-4 text-center font-bold text-navy-blue"><?php echo (int)$item->cantidad; ?></td>
+                            <td class="px-4 py-4 text-right font-mono"><?php echo number_format($item->precio_unitario, 0, ',', '.'); ?></td>
+                            <td class="px-4 py-4 text-right font-bold text-navy-blue"><?php echo number_format($item->precio_unitario * $item->cantidad, 0, ',', '.'); ?></td>
+                            <td class="px-4 py-4 text-center font-black text-slate-700"><?php echo $garantiaTxt; ?></td>
+                            <td class="px-4 py-4 text-center text-slate-500"><?php echo s($item->mecanico_nombre ?? '-'); ?></td>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <tr><td colspan="7" class="px-8 py-16 text-center text-slate-400 italic">No hay items en esta factura</td></tr>
+                        <tr><td colspan="9" class="px-8 py-16 text-center text-slate-400 italic">No hay items en esta factura</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
+
+        <?php
+            // Bloque "Condiciones de Garantía" agrupado por condición
+            $hayGarantias = false;
+            foreach ($gruposGarantia as $g) { if (!empty($g)) { $hayGarantias = true; break; } }
+        ?>
+        <?php if (!empty($data['factura']->items) && $hayGarantias): ?>
+        <div class="m-6 mt-0 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <h4 class="text-xs font-black text-amber-900 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-4 h-4"></i> Condiciones de Garantía
+            </h4>
+            <ul class="space-y-1.5 text-xs text-amber-900">
+                <?php if (!empty($gruposGarantia['NUEVO'])): ?>
+                    <?php foreach ($gruposGarantia['NUEVO'] as $g): ?>
+                        <li class="flex items-start gap-2">
+                            <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700 uppercase mt-0.5">NUEVO</span>
+                            <span><strong><?php echo s($g['descripcion']); ?></strong> — <strong><?php echo $g['dias']; ?> día<?php echo $g['dias'] === 1 ? '' : 's'; ?></strong> desde la fecha de factura.</span>
+                        </li>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                <?php if (!empty($gruposGarantia['USADO'])): ?>
+                    <?php foreach ($gruposGarantia['USADO'] as $g): ?>
+                        <li class="flex items-start gap-2">
+                            <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-200 text-amber-800 uppercase mt-0.5">USADO</span>
+                            <span><strong><?php echo s($g['descripcion']); ?></strong> — <strong><?php echo $g['dias']; ?> día<?php echo $g['dias'] === 1 ? '' : 's'; ?></strong> desde la fecha de factura.</span>
+                        </li>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                <?php if (!empty($gruposGarantia['SERVICIO'])): ?>
+                    <?php foreach ($gruposGarantia['SERVICIO'] as $g): ?>
+                        <li class="flex items-start gap-2">
+                            <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-700 uppercase mt-0.5">SERVICIO</span>
+                            <span><strong><?php echo s($g['descripcion']); ?></strong> — <strong><?php echo $g['dias']; ?> día<?php echo $g['dias'] === 1 ? '' : 's'; ?></strong> desde la fecha de factura.</span>
+                        </li>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </ul>
+            <p class="mt-3 text-[10px] text-amber-700 italic">
+                * Los repuestos USADOS tienen garantía fija de 5 días. Los NUEVOS y SERVICIOS varían según la política del taller.
+            </p>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -317,10 +400,6 @@
         return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n || 0);
     }
 
-    /**
-     * FIX Ronda 5 (P2-01): Refresca el bloque de historial de abonos sin recargar la página.
-     * Hace fetch al mismo URL, parsea con DOMParser y reemplaza el contenido del wrapper.
-     */
     async function refrescarHistorialAbonos() {
         try {
             const url = window.location.pathname + window.location.search;
@@ -446,7 +525,6 @@
                 if (data.success) {
                     AppUtils.showToast(data.mensaje || 'Pago registrado');
                     refrescarResumen(monto, metodo);
-                    // FIX Ronda 5: refrescar solo el historial de abonos en vez de recargar
                     await refrescarHistorialAbonos();
                 } else {
                     AppUtils.showToast(data.mensaje || 'Error', 'error');

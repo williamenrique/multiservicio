@@ -496,16 +496,67 @@ class ModelFacturacion {
         $venta = $this->db->single();
 
         if ($venta) {
-            // ─── v3.0: vd.* ya incluye condicion_item; se mantiene el JOIN con staff ───
-            // ─── v3.0: producto_condicion_actual como fallback si condicion_item es NULL ───
+            // ─── v3.0: vd.* ya incluye condicion_item ───
+            // ─── v3.1: agregar días de garantía aplicados por item ───
             $this->db->query("SELECT vd.*, s.nombre as mecanico_nombre,
-                                     i.condicion as producto_condicion_actual
+                                     i.condicion as producto_condicion_actual,
+                                     i.dias_garantia as producto_dias_garantia,
+                                     i.categoria as producto_categoria
                               FROM table_facturas_detalle vd
                               LEFT JOIN table_staff s ON vd.mecanico_id = s.id 
                               LEFT JOIN table_inventario i ON vd.producto_id = i.id
                               WHERE vd.factura_id = :vid");
             $this->db->bind(':vid', $id);
             $venta->items = $this->db->resultSet();
+
+            // ─── v3.1: calcular días de garantía aplicados por item ───
+            // Regla:
+            //   - SERVICIO → dias_garantia_servicio global (15 por defecto).
+            //   - PRODUCTO USADO → 5 días fijos.
+            //   - PRODUCTO NUEVO → dias_garantia del producto → global → 15.
+            // Fallbacks duros para que NUNCA quede en 0 por datos mal cargados.
+            $diasServicioGlobal = 15;
+            $diasGlobalRepuesto = 5;
+
+            $this->db->query("SELECT dias_garantia_servicio, dias_garantia_devolucion FROM table_company_settings WHERE id = 1");
+            $cfg = $this->db->single();
+            if ($cfg) {
+                $dServ = isset($cfg->dias_garantia_servicio) ? (int)$cfg->dias_garantia_servicio : 0;
+                if ($dServ > 0) $diasServicioGlobal = $dServ;
+
+                $dRep = isset($cfg->dias_garantia_devolucion) ? (int)$cfg->dias_garantia_devolucion : 0;
+                if ($dRep > 0) $diasGlobalRepuesto = $dRep;
+            }
+
+            foreach ($venta->items as $item) {
+                // Resolver condición
+                $cond = strtoupper(trim((string)($item->condicion_item ?? '')));
+                if ($cond === '') {
+                    $cond = strtoupper(trim((string)($item->producto_condicion_actual ?? '')));
+                }
+                if ($cond === '' && empty($item->producto_id)) {
+                    $cond = 'SERVICIO';
+                }
+                if ($cond === '') {
+                    $cond = 'NUEVO';
+                }
+
+                // Calcular días con fallback duro
+                if ($cond === 'SERVICIO') {
+                    $dias = $diasServicioGlobal;
+                    if ($dias <= 0) $dias = 15;
+                } elseif ($cond === 'USADO') {
+                    $dias = 5; // USADO = 5 días fijos, sin excepciones
+                } else {
+                    // NUEVO
+                    $dProd = isset($item->producto_dias_garantia) ? (int)$item->producto_dias_garantia : 0;
+                    $dias = $dProd > 0 ? $dProd : $diasGlobalRepuesto;
+                    if ($dias <= 0) $dias = 15;
+                }
+
+                $item->dias_garantia_aplicado = $dias;
+                $item->condicion_item = $cond;
+            }
         }
 
         if ($venta && $venta->orden_id) {

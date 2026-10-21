@@ -1,43 +1,15 @@
 <?php
 /**
  * Modelo de Garantías
- * Gestiona el ciclo completo de garantías de servicios y repuestos:
- *  - Listado de facturas concretadas/pendientes con derecho a garantía
- *  - Validación de garantía de servicio (15 días excepto lavados) y de repuesto
- *  - Procesamiento: anula factura original, genera factura de garantía,
- *    retorno opcional de stock, ajuste de mano de obra y cuadre en caja.
- *  - Historial de garantías
- *
- * REGLAS:
- *  - 15 días de garantía por servicio (mano de obra) excepto lavados (categoria = 'LAVADO').
- *  - Repuestos usan dias_garantia propio → global (dias_garantia_devolucion) → 5.
- *  - Datos guardados en MAYÚSCULAS (mb_strtoupper UTF-8).
- *
- * v3.0 (2026-10-13) — REDISEÑO DEL FLUJO DE GARANTÍA:
- *   • Nuevo esquema de acciones por item:
- *       - REPUESTO:  REEMPLAZAR | DEVOLVER | DANADO
- *       - SERVICIO:  REHACER | DEVOLVER | AUMENTAR
- *   • La factura de garantía nueva muestra TODOS los items con precio $0
- *     (trazabilidad visual del cliente). Solo los items con acción AUMENTAR
- *     llevan precio real y suman al total de la factura.
- *   • Cada item con acción DEVOLVER:
- *       - Reingresa stock (STOCK) o lo descarta (DANADO).
- *       - Registra en table_devoluciones con motivo = 'GARANTIA - <motivo>'.
- *       - Registra EGRESO en table_transacciones con categoría DEVOLUCION.
- *       - El monto devuelto incluye el IVA proporcional de la factura original.
- *   • Cada item con acción REEMPLAZAR:
- *       - Reingresa stock (STOCK) o lo descarta (DANADO) + kardex tipo GARANTIA.
- *       - NO toca caja ni transacciones (la garantía no cobra ni devuelve).
- *   • Cada item con acción DANADO:
- *       - NO reingresa stock. Kardex con observación "DESCARTADO POR GARANTIA".
- *   • Cada item con acción REHACER (solo servicios):
- *       - NO toca caja ni stock (el trabajo se rehace sin cobro).
- *   • Cada item con acción AUMENTAR (solo servicios):
- *       - Registra INGRESO por monto_adicional en table_transacciones.
- *       - Suma al total de la factura de garantía nueva.
- *   • Se valida el rango de garantía ANTES de procesar (ya se hacía).
- *   • Se expone un resumen en la respuesta con: egreso_devolucion,
- *     ingreso_adicional, items_devueltos_stock, items_descartados.
+ * Gestiona el ciclo completo de garantías de servicios y repuestos.
+ * 
+ * v3.1 (2026-10-21) — CONDICIÓN USADO = 5 DÍAS:
+ *   • obtenerDiasGarantiaRepuesto() ahora respeta la condición del producto:
+ *       - Si condicion = 'USADO' → SIEMPRE 5 días (ignora dias_garantia del
+ *         producto y el global de empresa).
+ *       - Si condicion = 'NUEVO' → dias_garantia del producto → global → 5.
+ *   • Motivo: el repuesto usado siempre tiene 5 días de garantía por política
+ *     del taller, sin importar lo que el admin tenga cargado en el producto.
  */
 class ModelGarantia {
     private $db;
@@ -59,14 +31,38 @@ class ModelGarantia {
         return 15;
     }
 
+    /**
+     * Obtiene los días de garantía de un repuesto.
+     * 
+     * v3.1: Si el repuesto es USADO → 5 días fijos (política del taller).
+     *       Si es NUEVO → dias_garantia del producto → global → 5.
+     */
     public function obtenerDiasGarantiaRepuesto($productoId) {
-        $this->db->query("SELECT dias_garantia FROM table_inventario WHERE id = :id");
+        $this->db->query("SELECT dias_garantia, condicion FROM table_inventario WHERE id = :id");
         $this->db->bind(':id', $productoId);
         $row = $this->db->single();
-        if ($row && $row->dias_garantia !== null && (int)$row->dias_garantia > 0) {
+
+        if (!$row) {
+            // Producto inexistente → fallback global
+            return $this->obtenerGarantiaGlobalRepuesto();
+        }
+
+        // v3.1: USADO = 5 días fijos
+        $condicion = strtoupper(trim((string)($row->condicion ?? 'NUEVO')));
+        if ($condicion === 'USADO') {
+            return 5;
+        }
+
+        // NUEVO → dias_garantia del producto si tiene
+        if ($row->dias_garantia !== null && (int)$row->dias_garantia > 0) {
             return (int)$row->dias_garantia;
         }
 
+        // Fallback global de empresa
+        return $this->obtenerGarantiaGlobalRepuesto();
+    }
+
+    private function obtenerGarantiaGlobalRepuesto() {
         $this->db->query("SELECT dias_garantia_devolucion FROM table_company_settings WHERE id = 1");
         $cfg = $this->db->single();
         if ($cfg && $cfg->dias_garantia_devolucion !== null && (int)$cfg->dias_garantia_devolucion > 0) {
@@ -201,7 +197,7 @@ class ModelGarantia {
 
     public function obtenerItemsConGarantia($facturaId) {
         $this->db->query("SELECT vd.id AS detalle_id, vd.producto_id, vd.mecanico_id, vd.descripcion,
-                                 vd.cantidad, vd.precio_unitario, vd.costo_unitario,
+                                 vd.cantidad, vd.precio_unitario, vd.costo_unitario, vd.condicion_item,
                                  i.nombre AS producto_nombre, i.categoria AS producto_categoria,
                                  s.nombre AS mecanico_nombre
                           FROM table_facturas_detalle vd
@@ -233,7 +229,7 @@ class ModelGarantia {
                 $it->dias_garantia_servicio = $esLavado ? 0 : $diasServicioGlobal;
             }
 
-            $it->dias_transcurridos = $this->calcularDiferenciaDias($fechaFactura, date('Y-m-d H:i:s'));
+            $it->dias_transcurridos = $this->calcularDiferenciaDias($factura->fecha, date('Y-m-d H:i:s'));
             $it->garantia_vigente = ($it->dias_transcurridos <= $it->dias_garantia_aplicado);
             $it->dias_restantes = $it->dias_garantia_aplicado - $it->dias_transcurridos;
         }
@@ -245,23 +241,6 @@ class ModelGarantia {
      * PROCESAMIENTO DE GARANTÍA
      * ===================================================================== */
 
-    /**
-     * Procesa una garantía completa con el nuevo flujo v3.0.
-     *
-     * @param array $datos {
-     *   factura_id: int,
-     *   tipo_garantia: 'SERVICIO'|'REPUESTO'|'MIXTO',
-     *   motivo: string,
-     *   items: [
-     *      { detalle_id, accion, destino, monto_adicional }
-     *   ]
-     * }
-     * @return array {
-     *   success, mensaje, garantia_id, factura_garantia_id,
-     *   resumen: { egreso_devolucion, ingreso_adicional,
-     *              items_devueltos_stock, items_descartados }
-     * }
-     */
     public function procesarGarantia($datos) {
         $facturaId = (int)$datos['factura_id'];
         $tipoGarantia = mb_strtoupper(trim($datos['tipo_garantia']), 'UTF-8');
@@ -281,7 +260,6 @@ class ModelGarantia {
             return ['success' => false, 'mensaje' => 'LA FACTURA YA ESTÁ ANULADA'];
         }
 
-        // Validar que al menos un item tenga garantía vigente y exista en la factura
         $itemsFull = $this->obtenerItemsConGarantia($facturaId);
         $itemsFullMap = [];
         foreach ($itemsFull as $itf) {
@@ -303,7 +281,6 @@ class ModelGarantia {
             $destino = mb_strtoupper(trim($req['destino'] ?? 'N/A'), 'UTF-8');
             $montoAdicional = isset($req['monto_adicional']) ? (float)$req['monto_adicional'] : 0.0;
 
-            // Validar acción según tipo de item
             $esRepuesto = ($itf->tipo_item === 'REPUESTO');
             $accionesValidas = $esRepuesto
                 ? ['REEMPLAZAR', 'DEVOLVER', 'DANADO']
@@ -313,7 +290,6 @@ class ModelGarantia {
                 return ['success' => false, 'mensaje' => "ACCIÓN '{$accion}' NO VÁLIDA PARA EL ITEM '{$itf->descripcion}'"];
             }
 
-            // Validar destino según acción
             if (in_array($accion, ['REEMPLAZAR', 'DEVOLVER'], true) && $esRepuesto) {
                 if (!in_array($destino, ['STOCK', 'DANADO'], true)) {
                     $destino = 'STOCK';
@@ -341,19 +317,16 @@ class ModelGarantia {
         try {
             $this->db->beginTransaction();
 
-            // Factor IVA proporcional de la factura original
             $factorIva = ($factura->subtotal > 0) ? ((float)$factura->iva_monto / (float)$factura->subtotal) : 0.0;
 
-            // ─── Acumuladores ───
-            $montoManoObraRef = 0.00;   // valor referencial de mano de obra atendida
-            $montoRepuestoRef = 0.00;   // valor referencial de repuestos atendidos
-            $egresoDevolucion = 0.00;   // total de dinero a devolver al cliente
-            $ingresoAdicional = 0.00;   // total a cobrar por AUMENTAR
-            $itemsDevueltosStock = 0;   // unidades reingresadas a stock
-            $itemsDescartados = 0;      // unidades descartadas (DANADO)
+            $montoManoObraRef = 0.00;
+            $montoRepuestoRef = 0.00;
+            $egresoDevolucion = 0.00;
+            $ingresoAdicional = 0.00;
+            $itemsDevueltosStock = 0;
+            $itemsDescartados = 0;
             $itemsReemplazadosStock = 0;
 
-            // ─── 1. Procesar cada item ───
             foreach ($itemsValidos as $iv) {
                 $it = $iv['item'];
                 $accion = $iv['accion'];
@@ -368,9 +341,7 @@ class ModelGarantia {
 
                 $esRepuesto = ($it->tipo_item === 'REPUESTO');
 
-                // ─── 1.a DEVOLVER ───
                 if ($accion === 'DEVOLVER') {
-                    // Reingresar stock si aplica (repuesto y destino STOCK)
                     if ($esRepuesto && $destino === 'STOCK') {
                         $this->reingresarStock($it->producto_id, $cantidad, $facturaId, $usuarioId,
                             'REINGRESO POR GARANTIA (DEVOLUCION) - FACTURA #' . $facturaId);
@@ -381,7 +352,6 @@ class ModelGarantia {
                         $itemsDescartados += $cantidad;
                     }
 
-                    // Registrar la devolución en table_devoluciones
                     $this->db->query("INSERT INTO table_devoluciones
                         (factura_id, producto_id, descripcion, cantidad, monto_devuelto, destino, motivo,
                          dias_garantia_aplicado, dias_transcurridos, usuario_id)
@@ -398,7 +368,6 @@ class ModelGarantia {
                     $this->db->bind(':uid', $usuarioId);
                     $this->db->execute();
 
-                    // Acumular el egreso por devolución
                     $egresoDevolucion += $totalItemConIva;
 
                     if ($esRepuesto) {
@@ -407,8 +376,6 @@ class ModelGarantia {
                         $montoManoObraRef += $totalItemConIva;
                     }
                 }
-
-                // ─── 1.b REEMPLAZAR (solo repuesto) ───
                 elseif ($accion === 'REEMPLAZAR') {
                     if ($destino === 'STOCK') {
                         $this->reingresarStock($it->producto_id, $cantidad, $facturaId, $usuarioId,
@@ -422,30 +389,20 @@ class ModelGarantia {
                     }
                     $montoRepuestoRef += $totalItemConIva;
                 }
-
-                // ─── 1.c DANADO (solo repuesto) ───
                 elseif ($accion === 'DANADO') {
                     $this->registrarKardexDescarte($it->producto_id, $cantidad, $facturaId, $usuarioId,
                         'DESCARTADO POR GARANTIA - FACTURA #' . $facturaId);
                     $itemsDescartados += $cantidad;
                     $montoRepuestoRef += $totalItemConIva;
                 }
-
-                // ─── 1.d REHACER (solo servicio) ───
                 elseif ($accion === 'REHACER') {
-                    // No toca caja ni stock. Solo se documenta en la factura de garantía.
                     $montoManoObraRef += $totalItemConIva;
                 }
-
-                // ─── 1.e AUMENTAR (solo servicio) ───
                 elseif ($accion === 'AUMENTAR') {
-                    // Es un trabajo/repuesto ADICIONAL que el cliente SÍ paga.
-                    // Se registra como ingreso y suma al total de la factura de garantía.
                     $ingresoAdicional += $montoAdicional;
                 }
             }
 
-            // ─── 2. Anular factura original ───
             $this->db->query("UPDATE table_facturas
                               SET status = 'ANULADO',
                                   observaciones = CONCAT(IFNULL(observaciones,''), ' | ANULADA POR GARANTIA')
@@ -453,9 +410,6 @@ class ModelGarantia {
             $this->db->bind(':id', $facturaId);
             $this->db->execute();
 
-            // ─── 3. Crear factura de garantía nueva ───
-            // Los totales reflejan SOLO lo que el cliente paga (los AUMENTAR).
-            // Todos los demás items se registran a $0 para trazabilidad.
             $subtotalGarantia = 0.00;
             $ivaGarantia = 0.00;
             $totalGarantia = 0.00;
@@ -498,20 +452,15 @@ class ModelGarantia {
             $this->db->execute();
             $facturaGarantiaId = $this->db->lastInsertId();
 
-            // ─── 4. Detalle de la factura de garantía ───
-            // TODOS los items se registran. Los AUMENTAR con precio real,
-            // los demás con precio $0.
             foreach ($itemsValidos as $iv) {
                 $it = $iv['item'];
                 $accion = $iv['accion'];
                 $montoAdicional = $iv['monto_adicional'];
 
                 if ($accion === 'AUMENTAR' && $montoAdicional > 0) {
-                    // Item nuevo cobrado: precio real (monto_adicional)
                     $precioFactura = $montoAdicional;
                     $descFactura = mb_strtoupper($it->descripcion . ' [TRABAJO ADICIONAL]', 'UTF-8');
                 } else {
-                    // Item garantizado: precio $0 para trazabilidad
                     $precioFactura = 0.00;
                     $descFactura = mb_strtoupper($it->descripcion . ' [GARANTIA]', 'UTF-8');
                 }
@@ -529,7 +478,6 @@ class ModelGarantia {
                 $this->db->execute();
             }
 
-            // ─── 5. Cabecera de garantía ───
             $diasServicioGlobal = $this->obtenerDiasGarantiaServicio();
             $diasTranscurridos = $this->calcularDiferenciaDias($factura->fecha, date('Y-m-d H:i:s'));
 
@@ -558,7 +506,6 @@ class ModelGarantia {
             $this->db->execute();
             $garantiaId = $this->db->lastInsertId();
 
-            // ─── 6. Detalle de la garantía ───
             foreach ($itemsValidos as $iv) {
                 $it = $iv['item'];
                 $accion = $iv['accion'];
@@ -591,8 +538,6 @@ class ModelGarantia {
                 $this->db->execute();
             }
 
-            // ─── 7. Transacciones contables ───
-            // 7.a EGRESO por devolución al cliente
             if ($egresoDevolucion > 0.005) {
                 $this->db->query("INSERT INTO table_transacciones
                     (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id)
@@ -607,7 +552,6 @@ class ModelGarantia {
                 $this->db->execute();
             }
 
-            // 7.b INGRESO por items adicionales cobrados
             if ($ingresoAdicional > 0.005) {
                 $this->db->query("INSERT INTO table_transacciones
                     (cuenta_id, tipo, categoria, monto, referencia_id, descripcion, usuario_id)
@@ -644,12 +588,7 @@ class ModelGarantia {
         }
     }
 
-    /**
-     * Reingresa stock de un producto y registra el movimiento en el kardex.
-     * Devuelve void. Lanza excepción si el producto no existe.
-     */
     private function reingresarStock($productoId, $cantidad, $facturaId, $usuarioId, $observacion) {
-        // Traer stock actual
         $this->db->query("SELECT stock FROM table_inventario WHERE id = :id");
         $this->db->bind(':id', $productoId);
         $row = $this->db->single();
@@ -678,14 +617,9 @@ class ModelGarantia {
         $this->db->execute();
     }
 
-    /**
-     * Registra en kardex un item descartado (DANADO). NO reingresa stock.
-     * El movimiento se registra con cantidad 0 para dejar trazabilidad.
-     */
     private function registrarKardexDescarte($productoId, $cantidad, $facturaId, $usuarioId, $observacion) {
         if (!$productoId) return;
 
-        // Verificar existencia del producto
         $this->db->query("SELECT stock FROM table_inventario WHERE id = :id");
         $this->db->bind(':id', $productoId);
         $row = $this->db->single();
@@ -805,7 +739,7 @@ class ModelGarantia {
         if (!$factura) return null;
 
         $this->db->query("SELECT vd.id AS detalle_id, vd.producto_id, vd.mecanico_id, vd.descripcion,
-                                 vd.cantidad, vd.precio_unitario, vd.costo_unitario,
+                                 vd.cantidad, vd.precio_unitario, vd.costo_unitario, vd.condicion_item,
                                  i.nombre AS producto_nombre, i.categoria AS producto_categoria,
                                  s.nombre AS mecanico_nombre
                           FROM table_facturas_detalle vd

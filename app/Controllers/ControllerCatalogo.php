@@ -10,12 +10,21 @@
  * 
  * v3.0 (2026-10-21) — CONDICIÓN + VISIBILIDAD:
  *   • `index()` acepta y propaga `condicion` (null|NUEVO|USADO) al Model.
- *     Default: TODOS.
  *   • Se expone `condicionSeleccionada` a la vista para el filtro de faceta.
  *   • Todos los productos que llegan a la vista ya vienen filtrados por
  *     visible_catalogo=1 (lo hace ModelCatalogo).
  *   • `procesarPedido()` valida server-side la visibilidad de cada item
  *     antes de procesar (defensa en profundidad).
+ * 
+ * v3.1 (2026-10-21) — NORMALIZACIÓN DE IMAGEN:
+ *   • Se normaliza `$item->imagen` a URL absoluta en `index()`, `detalle()`,
+ *     `carrito()` y `checkout()`. Se usa `rtrim(URLROOT,'/')` + `ltrim()`
+ *     para evitar dobles slashes y prefijos duplicados.
+ *   • Se ELIMINA la dependencia de `file_exists()` en las vistas públicas
+ *     (el navegador maneja el fallback con `onerror`).
+ *   • Motivo: en Windows + XAMPP, `file_exists()` devuelve falsos negativos
+ *     intermitentes por `opcache`/`realpath_cache`, haciendo que la imagen
+ *     se muestre en inventario pero no en catálogo.
  */
 
 use App\Services\EmailService;
@@ -27,6 +36,40 @@ class ControllerCatalogo extends Controller {
     public function __construct() {
         // NOTA: No se llama a AuthGuard - es público
         $this->modelCatalogo = $this->model('Catalogo');
+    }
+
+    /**
+     * Normaliza la ruta de imagen a una URL absoluta robusta.
+     * 
+     * Casos:
+     *   - VACÍO → null
+     *   - data:... → se deja igual (base64)
+     *   - http(s)://... → se deja igual (URL externa)
+     *   - uploads/... o /uploads/... → se prefija con URLROOT
+     * 
+     * @param string|null $imagen
+     * @return string|null
+     */
+    private function normalizarImagen($imagen) {
+        if (empty($imagen)) return null;
+
+        $imagen = trim((string)$imagen);
+        if ($imagen === '') return null;
+
+        // Base64 embebida
+        if (str_starts_with(strtolower($imagen), 'data:')) {
+            return $imagen;
+        }
+
+        // URL externa
+        if (str_starts_with(strtolower($imagen), 'http://') || str_starts_with(strtolower($imagen), 'https://')) {
+            return $imagen;
+        }
+
+        // Ruta local → prefijar con URLROOT sin dobles slashes
+        $base = rtrim(URLROOT, '/');
+        $rel  = ltrim($imagen, '/');
+        return $base . '/' . $rel;
     }
 
     /**
@@ -56,6 +99,13 @@ class ControllerCatalogo extends Controller {
         $categorias = $this->modelCatalogo->obtenerCategorias();
         $totalPaginas = max(1, ceil($total / $limit));
 
+        // v3.1: normalizar imagen
+        if (!empty($repuestos)) {
+            foreach ($repuestos as $r) {
+                $r->imagen = $this->normalizarImagen($r->imagen);
+            }
+        }
+
         $carritoCount = array_sum($_SESSION['carrito_publico'] ?? []);
 
         $data = [
@@ -64,7 +114,7 @@ class ControllerCatalogo extends Controller {
             'categorias' => $categorias,
             'busqueda' => $busqueda,
             'categoriaSeleccionada' => $categoria,
-            'condicionSeleccionada' => $condicion, // v3.0
+            'condicionSeleccionada' => $condicion,
             'ofertaSeleccionada' => $oferta,
             'paginaActual' => $pagina,
             'totalPaginas' => $totalPaginas,
@@ -89,6 +139,9 @@ class ControllerCatalogo extends Controller {
             $this->view('errores/404', ['titulo' => 'Producto no encontrado']);
             return;
         }
+
+        // v3.1: normalizar imagen
+        $repuesto->imagen = $this->normalizarImagen($repuesto->imagen);
 
         $carritoCount = array_sum($_SESSION['carrito_publico'] ?? []);
 
@@ -131,7 +184,7 @@ class ControllerCatalogo extends Controller {
                         'oferta_porcentaje' => $repuesto->oferta_porcentaje ?? 0,
                         'cantidad' => $cantidad,
                         'subtotal' => $subtotal,
-                        'imagen' => $repuesto->imagen,
+                        'imagen' => $this->normalizarImagen($repuesto->imagen), // v3.1
                         'stock' => $repuesto->stock
                     ];
                 }
@@ -363,7 +416,8 @@ class ControllerCatalogo extends Controller {
                     'condicion' => $repuesto->condicion ?? 'NUEVO', // v3.0
                     'precio' => $repuesto->precio,
                     'cantidad' => $cantidad,
-                    'subtotal' => $subtotal
+                    'subtotal' => $subtotal,
+                    'imagen' => $this->normalizarImagen($repuesto->imagen) // v3.1
                 ];
             }
         }
