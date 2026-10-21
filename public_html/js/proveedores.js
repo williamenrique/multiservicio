@@ -1,17 +1,53 @@
 /**
  * Función Global para asignar un producto seleccionado al modal de compra
  */
-window.setProductoCompra = (id, nombre, cat, costo, precio) => {
+/**
+ * FIX v3.27: Al seleccionar un producto existente, consulta al backend
+ * si este proveedor ya le ha vendido ese producto antes. Si sí, usa el
+ * último costo pactado con ESE proveedor. Si no, usa el ultimo_costo
+ * general del inventario.
+ */
+window.setProductoCompra = async (id, nombre, cat, costo, precio) => {
     const modal = document.querySelector('.swal2-container');
     if (!modal) return;
+
+    // Valores por defecto (del inventario)
+    let costoFinal = parseFloat(costo) || 0;
+    let precioFinal = parseFloat(precio) || 0;
+    let origenCosto = 'inventario';
+
+    // Consultar al backend el último costo de ESTE proveedor para ESTE producto
+    const proveedorId = window._proveedorIdActualCompra;
+    if (proveedorId) {
+        try {
+            const res = await fetch(`${URLROOT}/proveedores/costoProveedorProducto/${proveedorId}/${id}`);
+            const data = await res.json();
+            if (data.success && data.tiene_historial && data.costo !== null) {
+                costoFinal = parseFloat(data.costo);
+                origenCosto = 'proveedor';
+            }
+        } catch (e) {
+            console.error('Error consultando costo del proveedor:', e);
+        }
+    }
 
     modal.querySelector('#compra-producto-id').value = id;
     modal.querySelector('#compra-producto-nombre').value = nombre;
     modal.querySelector('#compra-categoria').value = cat;
-    modal.querySelector('#compra-costo').value = costo;
-    modal.querySelector('#compra-precio-venta').value = precio;
+    modal.querySelector('#compra-costo').value = costoFinal.toFixed(2);
+    modal.querySelector('#compra-precio-venta').value = precioFinal.toFixed(2);
     modal.querySelector('#compra-search-results').classList.add('hidden');
-    AppUtils.showToast('Artículo vinculado del inventario');
+
+    // Actualizar el badge para indicar de dónde viene el costo
+    const statusDiv = document.getElementById('compra-vinculo-status');
+    if (statusDiv) {
+        const stockTxt = '';
+        if (origenCosto === 'proveedor') {
+            statusDiv.innerHTML = `<span class="text-emerald-600">🔗 VINCULADO · ÚLTIMO COSTO DE ESTE PROVEEDOR: $${costoFinal.toFixed(2)}</span>`;
+        } else {
+            statusDiv.innerHTML = `<span class="text-blue-600">🔗 VINCULADO · COSTO DEL INVENTARIO: $${costoFinal.toFixed(2)} (sin historial con este proveedor)</span>`;
+        }
+    }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -53,7 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setValidationIcon(inputElement, 'none');
             return;
         }
-        // Usamos el ID original (id_existente) para excluirlo de la validación al editar
         const currentId = document.getElementById('provIdExistente').value;
         try {
             const res = await fetch(`${URLROOT}/proveedores/${endpoint}?value=${encodeURIComponent(value)}&id=${currentId}`);
@@ -70,13 +105,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) { console.error(e); }
 
-        // Bloqueo visual del botón
         const btnSave = formProveedor.querySelector('button[type="submit"]');
         if (btnSave) btnSave.disabled = invalidFields.size > 0;
     };
 
     provEmailInput?.addEventListener('blur', () => checkUniqueness(provEmailInput, 'verificarEmail', 'correo electrónico'));
-    // Agregamos la validación dinámica para el ID/NIT
     provIdInput?.addEventListener('blur', () => checkUniqueness(provIdInput, 'verificarId', 'identificación (NIT/Cédula)'));
 
     window.handler_proveedores = new DataTableRefactor({
@@ -132,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('provId').readOnly = false;
             document.getElementById('provIdExistente').value = "";
             document.getElementById('modalTitle').textContent = "Registrar Proveedor";
-            // Limpiar estilos de validación
             if (provEmailInput) {
                 provEmailInput.classList.remove('border-red-500', 'ring-2', 'ring-red-500/20');
                 setValidationIcon(provEmailInput, 'none');
@@ -176,7 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnSave = formProveedor.querySelector('button[type="submit"]');
         const originalText = btnSave.innerHTML;
 
-        // Evitar doble envío y aplicar mayúsculas
         btnSave.disabled = true;
         btnSave.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i>';
         if (window.lucide) lucide.createIcons();
@@ -226,7 +257,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const topControls = document.getElementById('custom-top-controls');
         const bottomControls = document.getElementById('custom-bottom-controls');
 
-        // Resetear estilos de pestañas (quitar resaltado verde)
         [tabLista, tabDeudas, tabArticulos].forEach(t => {
             if (t) {
                 t.classList.remove('border-neon-green', 'text-navy-blue');
@@ -249,9 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tabDeudas) tabDeudas.classList.add('border-neon-green', 'text-navy-blue');
             if (topControls) topControls.classList.add('hidden');
             if (bottomControls) bottomControls.classList.add('hidden');
-            // Carga simple para deudas (no requiere paginación compleja)
 
-            // Inyectar botón de reporte global de deudas si no existe
             if (!document.getElementById('btn-print-global-debts')) {
                 const container = document.createElement('div');
                 container.className = "flex justify-end mb-4 px-8";
@@ -265,6 +293,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.lucide) lucide.createIcons();
             }
 
+            // FIX v3.29: Cargar alerta visual de vencimientos
+            cargarAlertaVencimientosProveedores();
+
             fetch(`${URLROOT}/proveedores/listarDeudas`)
                 .then(r => r.json())
                 .then(res => renderDeudas(res.data || []));
@@ -275,7 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tabArticulos) tabArticulos.classList.add('border-neon-green', 'text-navy-blue');
             if (topControls) topControls.classList.add('hidden');
             if (bottomControls) bottomControls.classList.add('hidden');
-            // Cargar artículos - requiere seleccionar un proveedor primero
             if (window.handler_articulos) {
                 window.handler_articulos.reload();
             }
@@ -317,9 +347,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) lucide.createIcons();
     };
 
-    /**
-     * Funciones de impresión (Disponibles localmente para el módulo)
-     */
     window.exportarCarteraProveedoresPdf = function () {
         AppUtils.showToast("Generando reporte global de proveedores...", "info");
         window.open(`${URLROOT}/reportes/imprimirCarteraProveedores`, '_blank');
@@ -332,19 +359,58 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * Abre el modal para registrar ingreso de mercancía (Compra)
+     * FIX v3.25: Modal de ingreso de mercancía con buscador flotante mejorado.
+     * 
+     * Cambios clave:
+     *   1. Al hacer FOCO en el buscador, muestra TODOS los productos del
+     *      inventario (no requiere escribir 2+ caracteres).
+     *   2. Cada resultado muestra el STOCK ACTUAL del producto para que el
+     *      usuario decida si es el mismo artículo que ya tiene.
+     *   3. Cuando el usuario SELECCIONA un producto existente, aparece un
+     *      indicador verde "🔗 VINCULADO AL INVENTARIO (ID #X)" y el sistema
+     *      ACTUALIZARÁ el stock en vez de crear un duplicado.
+     *   4. Cuando el usuario ESCRIBE un nombre sin seleccionar, el indicador
+     *      muestra "📝 Se creará como NUEVO artículo" para que sepa que va
+     *      a duplicar el inventario.
+     *   5. Se cerró el dropdown al hacer clic fuera.
+     * 
+     * El backend ya hace lo correcto: si `producto_id` viene con valor,
+     * actualiza el producto existente (recalcula CPP y suma stock). Si viene
+     * vacío, crea uno nuevo. La deuda con el proveedor se registra SIEMPRE
+     * por separado en `table_compras` sin importar si el producto es nuevo
+     * o existente.
      */
     window.registrarCompra = async (proveedorId, proveedorNombre) => {
+        // FIX v3.27: Guardar el proveedorId globalmente para que
+        // setProductoCompra pueda consultar el último costo de ese
+        // proveedor para el producto seleccionado.
+        window._proveedorIdActualCompra = proveedorId;
+
         const { value: formValues } = await Swal.fire({
             title: `<span class="text-xs uppercase text-slate-400 font-black">Ingreso de Mercancía</span><br><span class="text-navy-blue">${proveedorNombre}</span>`,
             html: `
                 <div class="text-left space-y-3 pt-4 relative">
                     <input type="hidden" id="compra-producto-id">
+
                     <div class="relative">
-                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Buscar o Escribir Producto</label>
-                        <input id="compra-producto-nombre" class="w-full p-2 bg-slate-50 border rounded-lg text-sm uppercase" placeholder="Ej: ACEITE 20W50">
-                        <div id="compra-search-results" class="hidden absolute z-50 w-full bg-white shadow-xl rounded-lg border border-slate-100 max-h-40 overflow-y-auto mt-1"></div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">
+                            Buscar Artículo Existente o Escribir Nuevo
+                        </label>
+                        <div class="relative">
+                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"></i>
+                            <input id="compra-producto-nombre"
+                                   class="w-full p-2 pl-9 bg-slate-50 border rounded-lg text-sm uppercase"
+                                   placeholder="Buscar por nombre, código, marca..."
+                                   autocomplete="off">
+                        </div>
+                        <div id="compra-search-results"
+                             class="hidden absolute z-50 w-full bg-white shadow-xl rounded-lg border border-slate-100 max-h-56 overflow-y-auto mt-1">
+                        </div>
+                        <div id="compra-vinculo-status" class="mt-2 text-[10px] font-black uppercase tracking-wider">
+                            <span class="text-slate-400">📝 Se creará como NUEVO artículo en inventario</span>
+                        </div>
                     </div>
+
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Categoría</label>
@@ -358,24 +424,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Cantidad</label>
-                            <input id="compra-cantidad" type="number" class="w-full p-2 bg-slate-50 border rounded-lg text-sm" value="1">
+                            <input id="compra-cantidad" type="number" class="w-full p-2 bg-slate-50 border rounded-lg text-sm" value="1" min="1">
                         </div>
                     </div>
+
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Costo Unitario</label>
-                            <input id="compra-costo" type="number" class="w-full p-2 bg-slate-50 border rounded-lg text-sm" placeholder="0">
+                            <input id="compra-costo" type="number" class="w-full p-2 bg-slate-50 border rounded-lg text-sm" placeholder="0" step="0.01">
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Precio Venta Sugerido</label>
-                            <input id="compra-precio-venta" type="number" class="w-full p-2 bg-slate-50 border rounded-lg text-sm" placeholder="0">
+                            <input id="compra-precio-venta" type="number" class="w-full p-2 bg-slate-50 border rounded-lg text-sm" placeholder="0" step="0.01">
                         </div>
                     </div>
+
                     <hr class="border-slate-100">
+
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Monto Abonado Hoy</label>
-                            <input id="compra-pagado" type="number" class="w-full p-2 bg-emerald-50 border-emerald-100 rounded-lg text-sm font-bold" value="0">
+                            <input id="compra-pagado" type="number" class="w-full p-2 bg-emerald-50 border-emerald-100 rounded-lg text-sm font-bold" value="0" step="0.01">
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Fecha de Cobro (Límite)</label>
@@ -386,70 +455,153 @@ document.addEventListener('DOMContentLoaded', () => {
             showCancelButton: true,
             confirmButtonText: 'REGISTRAR INGRESO',
             confirmButtonColor: '#10b981',
+            cancelButtonText: 'CANCELAR',
+            cancelButtonColor: '#64748b',
+            width: '560px',
             didOpen: () => {
+                if (window.lucide) lucide.createIcons();
+
                 const input = document.getElementById('compra-producto-nombre');
                 const results = document.getElementById('compra-search-results');
-                console.log('Search input:', input);
-                console.log('Results container:', results);
-                if (!results) {
-                    console.error('Results container NOT FOUND!');
-                    return;
-                }
-                input.addEventListener('input', async () => {
-                    const term = input.value.trim();
-                    console.log('Search term:', term);
-                    if (term.length < 2) {
-                        console.log('Term too short, hiding');
-                        results.classList.add('hidden');
+                const statusDiv = document.getElementById('compra-vinculo-status');
+                const hiddenId = document.getElementById('compra-producto-id');
+
+                if (!input || !results || !statusDiv || !hiddenId) return;
+
+                let searchTimeout = null;
+
+                const actualizarStatus = (producto) => {
+                    if (!producto) {
+                        statusDiv.innerHTML = '<span class="text-slate-400">📝 Se creará como NUEVO artículo en inventario</span>';
+                    } else {
+                        const stockTxt = (producto.stock !== undefined && producto.stock !== null)
+                            ? ` · Stock actual: ${producto.stock}`
+                            : '';
+                        statusDiv.innerHTML = `<span class="text-emerald-600">🔗 VINCULADO AL INVENTARIO (ID #${producto.id})${stockTxt}</span>`;
+                    }
+                };
+
+                const renderResultados = (items) => {
+                    if (!items || items.length === 0) {
+                        results.innerHTML = '<div class="p-3 text-center text-slate-400 text-xs italic">Sin resultados. Escriba un nombre nuevo para crearlo.</div>';
+                        results.classList.remove('hidden');
                         return;
                     }
-                    const res = await fetch(`${URLROOT}/facturacion/buscarItems?term=${term}`);
-                    const items = await res.json();
-                    console.log('Search results:', items);
-                    if (items.length > 0) {
-                        results.innerHTML = items.map(i => `
-                            <div class="p-3 hover:bg-slate-50 cursor-pointer text-[11px] uppercase border-b border-slate-50 last:border-0 flex justify-between item-selection" 
-                                 data-id='${i.id}' 
-                                 data-nombre='${i.nombre.replace(/'/g, "&apos;")}' 
-                                 data-cat='${i.categoria}' 
-                                 data-costo="${i.ultimo_costo}" 
-                                 data-precio="${i.precio}">
-                                <span class="uppercase">${i.nombre}</span>
-                                <span class="font-bold text-navy-blue">${AppUtils.formatCurrency(i.precio)}</span>
-                            </div>`).join('');
-                        results.classList.remove('hidden');
-                        console.log('Showing results');
-                    } else {
-                        // Si no hay coincidencias, ocultar la lista para permitir registrar nuevo repuesto
-                        results.classList.add('hidden');
-                        console.log('No results, hiding');
+
+                    results.innerHTML = items.map(i => {
+                        const stock = parseFloat(i.stock_disponible ?? i.stock ?? 0);
+                        const stockColor = stock <= 0
+                            ? 'text-rose-500'
+                            : (stock <= 5 ? 'text-amber-500' : 'text-emerald-600');
+                        const precio = parseFloat(i.precio || 0);
+
+                        return `<div class="p-3 hover:bg-emerald-50 cursor-pointer text-[11px] uppercase border-b border-slate-50 last:border-0 flex justify-between item-selection"
+                                     data-id='${i.id}'
+                                     data-nombre='${(i.nombre || '').replace(/'/g, "&apos;")}'
+                                     data-cat='${i.categoria || 'REPUESTOS'}'
+                                     data-costo="${i.ultimo_costo ?? i.costo_promedio ?? 0}"
+                                     data-precio="${precio}"
+                                     data-stock="${stock}">
+                                    <div class="flex flex-col min-w-0 flex-1">
+                                        <span class="uppercase font-bold truncate">${i.nombre}</span>
+                                        <span class="text-[9px] text-slate-400 font-mono">
+                                            ${i.categoria || ''} · Stock:
+                                            <span class="${stockColor} font-black">${stock}</span>
+                                        </span>
+                                    </div>
+                                    <span class="font-bold text-navy-blue flex-shrink-0 ml-2">${AppUtils.formatCurrency(precio)}</span>
+                                </div>`;
+                    }).join('');
+                    results.classList.remove('hidden');
+                };
+
+                const buscarProductos = async (term) => {
+                    try {
+                        const url = `${URLROOT}/facturacion/buscarItems?term=${encodeURIComponent(term || '')}`;
+                        const res = await fetch(url);
+                        if (!res.ok) return;
+                        const items = await res.json();
+                        renderResultados(items);
+                    } catch (e) {
+                        console.error('Error buscando productos:', e);
                     }
+                };
+
+                // Al hacer foco: mostrar TODOS los productos
+                input.addEventListener('focus', () => {
+                    buscarProductos(input.value.trim());
                 });
 
-                // Delegación de eventos para la selección
+                // Al escribir: desvincular el producto anterior y buscar
+                input.addEventListener('input', () => {
+                    clearTimeout(searchTimeout);
+                    // Desvincular ID anterior (ahora es "nuevo")
+                    hiddenId.value = '';
+                    actualizarStatus(null);
+
+                    searchTimeout = setTimeout(() => {
+                        buscarProductos(input.value.trim());
+                    }, 250);
+                });
+
+                // Al seleccionar un resultado: vincular al inventario
+                // FIX v3.26: NO llamar AppUtils.showToast aquí (cerraría el modal)
                 results.addEventListener('click', (e) => {
                     const target = e.target.closest('.item-selection');
-                    if (target) {
-                        const d = target.dataset;
-                        window.setProductoCompra(d.id, d.nombre, d.cat, d.costo, d.precio);
-                    }
+                    if (!target) return;
+                    const d = target.dataset;
+                    window.setProductoCompra(d.id, d.nombre, d.cat, d.costo, d.precio);
+                    actualizarStatus({ id: d.id, stock: d.stock });
                 });
+
+                // Cerrar el dropdown al hacer clic fuera
+                // FIX v3.26: Guardamos la referencia para poder limpiarla
+                const fueraHandler = (evt) => {
+                    if (!results.contains(evt.target) && evt.target !== input) {
+                        results.classList.add('hidden');
+                    }
+                };
+                document.addEventListener('click', fueraHandler);
+
+                // Cleanup: limpiar el listener cuando SweetAlert cierre
+                const swalContainer = document.querySelector('.swal2-container');
+                if (swalContainer) {
+                    const observer = new MutationObserver(() => {
+                        if (!document.body.contains(swalContainer)) {
+                            document.removeEventListener('click', fueraHandler);
+                            observer.disconnect();
+                        }
+                    });
+                    observer.observe(document.body, { childList: true, subtree: false });
+                }
             },
             preConfirm: () => {
-                const nombre = document.getElementById('compra-producto-nombre').value;
+                const nombre = document.getElementById('compra-producto-nombre').value.trim();
                 const cantidad = parseFloat(document.getElementById('compra-cantidad').value);
                 const costo = parseFloat(document.getElementById('compra-costo').value);
-                if (!nombre || isNaN(cantidad) || isNaN(costo) || cantidad <= 0 || costo < 0) {
-                    Swal.showValidationMessage('Complete nombre, cantidad y costo correctamente');
+
+                if (!nombre) {
+                    Swal.showValidationMessage('Debe indicar el nombre del artículo');
                     return false;
                 }
+                if (isNaN(cantidad) || cantidad <= 0) {
+                    Swal.showValidationMessage('La cantidad debe ser mayor a cero');
+                    return false;
+                }
+                if (isNaN(costo) || costo < 0) {
+                    Swal.showValidationMessage('El costo no puede ser negativo');
+                    return false;
+                }
+
+                const productoId = document.getElementById('compra-producto-id').value;
+
                 return {
                     proveedor_id: proveedorId,
-                    producto_id: document.getElementById('compra-producto-id').value,
+                    producto_id: productoId || null,
                     nombre: nombre.toUpperCase(),
                     categoria: (document.getElementById('compra-categoria').value || 'REPUESTOS').trim().toUpperCase(),
-                    cantidad,
-                    costo,
+                    cantidad: cantidad,
+                    costo: costo,
                     precio_venta: parseFloat(document.getElementById('compra-precio-venta').value) || 0,
                     pagado: parseFloat(document.getElementById('compra-pagado').value) || 0,
                     fecha_cobro: document.getElementById('compra-fecha-cobro').value
@@ -480,9 +632,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    /**
-     * Abre el modal para registrar un abono a una factura específica de un proveedor
-     */
     window.openPaymentModal = async (proveedorId) => {
         try {
             AppUtils.showLoading('Cargando facturas pendientes...');
@@ -545,11 +694,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Configuración para DataTableRefactor de Artículos (inicialización perezosa)
     const articulosConfig = {
         tableId: 'articulos',
         tableBodyId: 'tableArticulosBody',
-        endpoint: '', // Se establece dinámicamente
+        endpoint: '',
         searchInputId: 'searchArticulos',
         limitSelectorId: 'limitSelectorArticulos',
         paginationId: 'paginationControlsArticulos',
@@ -558,8 +706,6 @@ document.addEventListener('DOMContentLoaded', () => {
         endId: 'endIndexArticulos',
         renderRow: (item) => {
             const estadoClass = item.estado === 'ACTIVO' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
-            // Usar costo_unitario_proveedor (costo de la última compra a este proveedor) 
-            // o fallback a costo_promedio si no hay compras
             const costoProveedor = item.costo_unitario_proveedor ?? item.costo_promedio ?? 0;
             return `
                 <tr class="hover:bg-slate-50 transition-colors group border-b border-slate-100 animate-in fade-in duration-300">
@@ -584,20 +730,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Función para cargar artículos de un proveedor específico (inicialización perezosa)
     window.cargarArticulosProveedor = (proveedorId, proveedorNombre) => {
-        // Inicializar handler_articulos solo la primera vez
         if (!window.handler_articulos) {
             articulosConfig.endpoint = `${URLROOT}/proveedores/articulos/${proveedorId}`;
             window.handler_articulos = new DataTableRefactor(articulosConfig);
         } else {
-            // Actualizar el endpoint con el ID del proveedor y recargar
             window.handler_articulos.endpoint = `${URLROOT}/proveedores/articulos/${proveedorId}`;
             window.handler_articulos.reload();
         }
-        // Cambiar a la pestaña de artículos
         window.switchTab('articulos');
-        // Actualizar el nombre del proveedor en el header
         const nombreEl = document.getElementById('articulosProveedorNombre');
         if (nombreEl) {
             nombreEl.textContent = proveedorNombre;
@@ -616,4 +757,88 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     };
+
+        /**
+     * FIX v3.29: Carga la alerta visual de facturas próximas a vencer
+     * o vencidas al tope de la sección "Cuentas por Pagar".
+     */
+    async function cargarAlertaVencimientosProveedores() {
+        const contenedor = document.getElementById('alertas-vencimiento-proveedores');
+        if (!contenedor) return;
+
+        try {
+            const res = await fetch(`${URLROOT}/proveedores/alertasVencimiento?dias=7`);
+            const result = await res.json();
+
+            if (!result.success || !result.data || result.data.total_alertas === 0) {
+                contenedor.classList.add('hidden');
+                contenedor.innerHTML = '';
+                return;
+            }
+
+            const { vencidas, proximas } = result.data;
+
+            let html = '';
+
+            if (vencidas.length > 0) {
+                const deudaVencida = vencidas.reduce((s, v) => s + parseFloat(v.saldo), 0);
+                html += `
+                    <div class="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl shadow-sm mb-3">
+                        <div class="flex items-start gap-4">
+                            <div class="p-2 bg-rose-500 text-white rounded-lg">
+                                <i data-lucide="alert-octagon" class="w-5 h-5"></i>
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="text-rose-800 font-black uppercase text-xs tracking-tight">⚠ ${vencidas.length} Factura(s) Vencida(s)</h4>
+                                <p class="text-rose-700 text-[11px] font-bold mt-1">
+                                    Deuda vencida total: <span class="text-rose-900">${AppUtils.formatCurrency(deudaVencida)}</span>
+                                </p>
+                                <div class="mt-2 space-y-1">
+                                    ${vencidas.slice(0, 3).map(v => `
+                                        <div class="text-[10px] flex justify-between bg-white/60 px-2 py-1 rounded">
+                                            <span class="font-bold text-rose-900 uppercase">${v.proveedor_nombre} — Factura #${v.compra_id}</span>
+                                            <span class="text-rose-700 font-black">Hace ${v.dias_vencido}d · ${AppUtils.formatCurrency(v.saldo)}</span>
+                                        </div>`).join('')}
+                                    ${vencidas.length > 3 ? `<p class="text-[10px] text-rose-600 italic mt-1">+ ${vencidas.length - 3} más...</p>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            if (proximas.length > 0) {
+                const deudaProxima = proximas.reduce((s, p) => s + parseFloat(p.saldo), 0);
+                html += `
+                    <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-sm">
+                        <div class="flex items-start gap-4">
+                            <div class="p-2 bg-amber-500 text-white rounded-lg">
+                                <i data-lucide="clock" class="w-5 h-5"></i>
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="text-amber-800 font-black uppercase text-xs tracking-tight">⏰ ${proximas.length} Factura(s) por Vencer (7 días)</h4>
+                                <p class="text-amber-700 text-[11px] font-bold mt-1">
+                                    Monto próximo a vencer: <span class="text-amber-900">${AppUtils.formatCurrency(deudaProxima)}</span>
+                                </p>
+                                <div class="mt-2 space-y-1">
+                                    ${proximas.slice(0, 3).map(p => `
+                                        <div class="text-[10px] flex justify-between bg-white/60 px-2 py-1 rounded">
+                                            <span class="font-bold text-amber-900 uppercase">${p.proveedor_nombre} — Factura #${p.compra_id}</span>
+                                            <span class="text-amber-700 font-black">En ${p.dias_restantes}d · ${AppUtils.formatCurrency(p.saldo)}</span>
+                                        </div>`).join('')}
+                                    ${proximas.length > 3 ? `<p class="text-[10px] text-amber-600 italic mt-1">+ ${proximas.length - 3} más...</p>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            contenedor.innerHTML = html;
+            contenedor.classList.remove('hidden');
+
+            if (window.lucide) lucide.createIcons();
+        } catch (e) {
+            console.error('Error cargando alertas de vencimiento:', e);
+            contenedor.classList.add('hidden');
+        }
+    }
 });

@@ -305,6 +305,10 @@ class ModelReportes {
 
     /**
      * Obtiene el estado de cuenta detallado de un proveedor individual.
+     * 
+     * FIX v3.27: Ahora carga los items de cada compra para que el reporte
+     * PDF muestre el detalle de productos, cantidades y costos unitarios
+     * por factura (antes solo se veían los totales).
      */
     public function obtenerDetalleProveedor($id) {
         // 1. Información básica del proveedor
@@ -316,7 +320,28 @@ class ModelReportes {
             // 2. Resumen de facturas de compra
             $this->db->query("SELECT * FROM table_compras WHERE proveedor_id = :id ORDER BY fecha DESC");
             $this->db->bind(':id', $id);
-            $proveedor->compras = $this->db->resultSet() ?: [];
+            $compras = $this->db->resultSet() ?: [];
+
+            // ─── FIX v3.27: Cargar los items (productos) de cada factura ───
+            foreach ($compras as $compra) {
+                $this->db->query("SELECT 
+                                    cd.id,
+                                    cd.producto_id,
+                                    cd.descripcion,
+                                    cd.cantidad,
+                                    cd.costo_unitario,
+                                    COALESCE(i.nombre, cd.descripcion) as producto_nombre,
+                                    i.codigo as producto_codigo,
+                                    i.marca as producto_marca
+                                  FROM table_compras_detalle cd
+                                  LEFT JOIN table_inventario i ON cd.producto_id = i.id
+                                  WHERE cd.compra_id = :cid
+                                  ORDER BY cd.id ASC");
+                $this->db->bind(':cid', $compra->id);
+                $compra->items = $this->db->resultSet() ?: [];
+            }
+
+            $proveedor->compras = $compras;
 
             // 3. Historial de abonos realizados a este proveedor
             $this->db->query("SELECT a.*, c.total as total_compra FROM table_abonos_proveedores a 

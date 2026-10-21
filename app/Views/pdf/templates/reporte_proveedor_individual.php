@@ -40,6 +40,45 @@
         </tr>
     </table>
 
+       <?php
+    // ─── FIX v3.28: Calcular próxima factura a vencer y facturas vencidas ───
+    $proximaVencer = null;
+    $facturasVencidas = 0;
+    $deudaVencida = 0;
+    $hoy = new DateTime();
+    $hoy->setTime(0, 0, 0);
+
+    if (!empty($proveedor->compras)) {
+        foreach ($proveedor->compras as $c) {
+            $saldo = (float)($c->total ?? 0) - (float)($c->pagado ?? 0);
+            if ($saldo <= 0.01) continue; // Solo facturas con saldo
+
+            if (!empty($c->fecha_vencimiento)) {
+                $fechaVenc = new DateTime($c->fecha_vencimiento);
+                $fechaVenc->setTime(0, 0, 0);
+
+                // Detectar vencidas
+                if ($fechaVenc < $hoy) {
+                    $facturasVencidas++;
+                    $deudaVencida += $saldo;
+                }
+
+                // Detectar la más próxima a vencer (solo futuras)
+                if ($fechaVenc >= $hoy) {
+                    if ($proximaVencer === null || $fechaVenc < $proximaVencer['fecha']) {
+                        $proximaVencer = [
+                            'fecha' => $fechaVenc,
+                            'factura_id' => $c->id,
+                            'saldo' => $saldo,
+                            'dias' => (int)$hoy->diff($fechaVenc)->days
+                        ];
+                    }
+                }
+            }
+        }
+    }
+    ?>
+
     <div class="section-title">Resumen de Estado de Cuenta</div>
     <table class="summary-box">
         <tr>
@@ -58,12 +97,57 @@
         </tr>
     </table>
 
+    <?php if ($proximaVencer !== null || $facturasVencidas > 0): ?>
+    <div class="section-title" style="background: <?php echo ($facturasVencidas > 0) ? '#e11d48' : '#f59e0b'; ?>;">
+        Alerta de Vencimientos
+    </div>
+    <table class="summary-box">
+        <tr>
+            <?php if ($proximaVencer !== null): ?>
+            <td style="background: #fffbeb;">
+                <span class="summary-label" style="color: #b45309;">Próxima Factura a Vencer</span>
+                <span class="summary-value" style="color: #b45309; font-size: 13px;">
+                    Compra #<?php echo $proximaVencer['factura_id']; ?>
+                </span>
+                <div style="font-size: 10px; margin-top: 4px; color: #92400e;">
+                    <strong><?php echo $proximaVencer['fecha']->format('d/m/Y'); ?></strong>
+                    — Vence en <strong><?php echo $proximaVencer['dias']; ?> día(s)</strong>
+                </div>
+                <div style="font-size: 10px; margin-top: 2px;">
+                    Saldo: <strong style="color: #e11d48;">$<?php echo number_format($proximaVencer['saldo'], 2); ?></strong>
+                </div>
+            </td>
+            <?php endif; ?>
+
+            <?php if ($facturasVencidas > 0): ?>
+            <td style="background: #fee2e2;">
+                <span class="summary-label text-danger">⚠ Facturas Vencidas</span>
+                <span class="summary-value text-danger" style="font-size: 13px;">
+                    <?php echo $facturasVencidas; ?> factura(s)
+                </span>
+                <div style="font-size: 10px; margin-top: 4px; color: #991b1b;">
+                    Deuda vencida: <strong>$<?php echo number_format($deudaVencida, 2); ?></strong>
+                </div>
+            </td>
+            <?php else: ?>
+            <td style="background: #dcfce7;">
+                <span class="summary-label" style="color: #15803d;">✓ Sin Facturas Vencidas</span>
+                <span class="summary-value" style="color: #15803d; font-size: 12px;">
+                    Todas al día
+                </span>
+            </td>
+            <?php endif; ?>
+        </tr>
+    </table>
+    <?php endif; ?>
+
     <div class="section-title">Historial de Compras (Facturas)</div>
     <table class="data-table">
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Fecha</th>
+                <th>Vence</th>
                 <th>Estado</th>
                 <th class="text-right">Total Factura</th>
                 <th class="text-right">Abonado</th>
@@ -73,20 +157,82 @@
         <tbody>
             <?php if(!empty($proveedor->compras)): ?>
             <?php foreach($proveedor->compras as $c): ?>
+            <?php
+                // ─── FIX v3.28: Estilos y texto de vencimiento por factura ───
+                $saldoFactura = (float)($c->total ?? 0) - (float)($c->pagado ?? 0);
+                $vencimientoTxt = '---';
+                $vencimientoStyle = 'color: #94a3b8; font-size: 9px;';
+
+                if (!empty($c->fecha_vencimiento) && $saldoFactura > 0.01) {
+                    $fechaVenc = new DateTime($c->fecha_vencimiento);
+                    $fechaVenc->setTime(0, 0, 0);
+                    $dias = (int)$hoy->diff($fechaVenc)->days;
+                    $vencimientoTxt = $fechaVenc->format('d/m/Y');
+
+                    if ($fechaVenc < $hoy) {
+                        $vencimientoTxt .= ' · VENCIDA (' . $dias . 'd)';
+                        $vencimientoStyle = 'background: #fee2e2; color: #991b1b; font-weight: bold; padding: 2px 6px; border-radius: 4px; font-size: 9px;';
+                    } elseif ($dias <= 7) {
+                        $vencimientoTxt .= ' · ' . $dias . 'd';
+                        $vencimientoStyle = 'background: #fef3c7; color: #92400e; font-weight: bold; padding: 2px 6px; border-radius: 4px; font-size: 9px;';
+                    } else {
+                        $vencimientoTxt .= ' · ' . $dias . 'd';
+                        $vencimientoStyle = 'color: #15803d; font-size: 9px; font-weight: bold;';
+                    }
+                } elseif ($saldoFactura <= 0.01) {
+                    $vencimientoStyle = 'color: #94a3b8; font-size: 9px;';
+                }
+            ?>
             <tr>
                 <td>#<?php echo $c->id; ?></td>
                 <td><?php echo date('d/m/Y', strtotime($c->fecha)); ?></td>
+                <td style="<?php echo $vencimientoStyle; ?>"><?php echo $vencimientoTxt; ?></td>
                 <td><?php echo $c->status; ?></td>
                 <td class="text-right">$<?php echo number_format($c->total ?? 0, 2); ?></td>
                 <td class="text-right">$<?php echo number_format($c->pagado ?? 0, 2); ?></td>
-                <td class="text-right text-bold <?php echo (($c->total ?? 0) - ($c->pagado ?? 0) > 0) ? 'text-danger' : ''; ?>">
-                    $<?php echo number_format(($c->total ?? 0) - ($c->pagado ?? 0), 2); ?>
+                <td class="text-right text-bold <?php echo ($saldoFactura > 0) ? 'text-danger' : ''; ?>">
+                    $<?php echo number_format($saldoFactura, 2); ?>
                 </td>
             </tr>
+            <?php if (!empty($c->items)): ?>
+            <tr>
+                <td colspan="7" style="padding: 0; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                    <table style="width: 100%; border-collapse: collapse; margin: 0;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 5px 8px; font-size: 8px; text-align: left; color: #64748b; text-transform: uppercase; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">Código</th>
+                                <th style="padding: 5px 8px; font-size: 8px; text-align: left; color: #64748b; text-transform: uppercase; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">Producto</th>
+                                <th style="padding: 5px 8px; font-size: 8px; text-align: center; color: #64748b; text-transform: uppercase; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">Cant.</th>
+                                <th style="padding: 5px 8px; font-size: 8px; text-align: right; color: #64748b; text-transform: uppercase; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">Costo Unit.</th>
+                                <th style="padding: 5px 8px; font-size: 8px; text-align: right; color: #64748b; text-transform: uppercase; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach($c->items as $it): 
+                                $subtotalItem = (float)$it->cantidad * (float)$it->costo_unitario;
+                            ?>
+                            <tr>
+                                <td style="padding: 4px 8px; font-size: 9px; font-family: monospace; color: #94a3b8;"><?php echo htmlspecialchars($it->producto_codigo ?? '---'); ?></td>
+                                <td style="padding: 4px 8px; font-size: 9px; font-weight: bold; color: #334155;">
+                                    <?php echo htmlspecialchars($it->producto_nombre ?? $it->descripcion ?? '---'); ?>
+                                    <?php if (!empty($it->producto_marca)): ?>
+                                        <span style="color: #94a3b8; font-weight: normal; font-size: 8px;"> · <?php echo htmlspecialchars($it->producto_marca); ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="padding: 4px 8px; font-size: 9px; text-align: center; font-weight: bold; color: #0f172a;"><?php echo (int)$it->cantidad; ?></td>
+                                <td style="padding: 4px 8px; font-size: 9px; text-align: right; color: #64748b;">$<?php echo number_format((float)$it->costo_unitario, 2); ?></td>
+                                <td style="padding: 4px 8px; font-size: 9px; text-align: right; font-weight: bold; color: #0f172a;">$<?php echo number_format($subtotalItem, 2); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+            <?php endif; ?>
             <?php endforeach; ?>
             <?php else: ?>
             <tr>
-                <td colspan="6" style="text-align: center; padding: 20px; color: #94a3b8; font-style: italic;">El proveedor no posee historial de facturas registradas.</td>
+                <td colspan="7" style="text-align: center; padding: 20px; color: #94a3b8; font-style: italic;">El proveedor no posee historial de facturas registradas.</td>
             </tr>
             <?php endif; ?>
         </tbody>

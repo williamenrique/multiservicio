@@ -423,4 +423,65 @@ class ModelProveedor {
         }
         return (int)$this->db->single()->total;
     }
+        /**
+     * FIX v3.29: Devuelve las facturas de proveedores próximas a vencer
+     * (dentro de N días) y las ya vencidas, con saldo pendiente.
+     * 
+     * @param int $diasLimite Días de anticipación (default 7)
+     * @return array ['vencidas' => [...], 'proximas' => [...]]
+     */
+    public function obtenerFacturasPorVencer($diasLimite = 7) {
+        $vencidas = [];
+        $proximas = [];
+        $hoy = new DateTime();
+        $hoy->setTime(0, 0, 0);
+
+        // Vencidas: fecha_vencimiento < HOY, con saldo pendiente
+        $this->db->query("SELECT 
+                            c.id as compra_id,
+                            c.proveedor_id,
+                            c.total,
+                            c.pagado,
+                            (c.total - c.pagado) as saldo,
+                            c.fecha_vencimiento,
+                            p.nombre as proveedor_nombre,
+                            p.telefono as proveedor_telefono,
+                            DATEDIFF(CURDATE(), c.fecha_vencimiento) as dias_vencido
+                          FROM table_compras c
+                          INNER JOIN table_proveedores p ON c.proveedor_id = p.id
+                          WHERE c.status = 'PENDIENTE'
+                            AND (c.total - c.pagado) > 0.01
+                            AND c.fecha_vencimiento IS NOT NULL
+                            AND c.fecha_vencimiento < CURDATE()
+                          ORDER BY c.fecha_vencimiento ASC");
+        $vencidas = $this->db->resultSet() ?: [];
+
+        // Próximas: fecha_vencimiento entre HOY y HOY+dias, con saldo pendiente
+        $this->db->query("SELECT 
+                            c.id as compra_id,
+                            c.proveedor_id,
+                            c.total,
+                            c.pagado,
+                            (c.total - c.pagado) as saldo,
+                            c.fecha_vencimiento,
+                            p.nombre as proveedor_nombre,
+                            p.telefono as proveedor_telefono,
+                            DATEDIFF(c.fecha_vencimiento, CURDATE()) as dias_restantes
+                          FROM table_compras c
+                          INNER JOIN table_proveedores p ON c.proveedor_id = p.id
+                          WHERE c.status = 'PENDIENTE'
+                            AND (c.total - c.pagado) > 0.01
+                            AND c.fecha_vencimiento IS NOT NULL
+                            AND c.fecha_vencimiento >= CURDATE()
+                            AND c.fecha_vencimiento <= DATE_ADD(CURDATE(), INTERVAL :dias DAY)
+                          ORDER BY c.fecha_vencimiento ASC");
+        $this->db->bind(':dias', (int)$diasLimite);
+        $proximas = $this->db->resultSet() ?: [];
+
+        return [
+            'vencidas' => $vencidas,
+            'proximas' => $proximas,
+            'total_alertas' => count($vencidas) + count($proximas)
+        ];
+    }
 }

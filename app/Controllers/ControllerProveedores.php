@@ -186,4 +186,75 @@ class ControllerProveedores extends Controller {
             'totalFiltrados' => $totalFiltrados
         ]);
     }
+        /**
+     * FIX v3.27: Devuelve el último costo_unitario que un proveedor
+     * específico le vendió a un producto. Si nunca se lo ha vendido,
+     * devuelve null.
+     * 
+     * GET /proveedores/costoProveedorProducto/{proveedorId}/{productoId}
+     */
+    public function costoProveedorProducto($proveedorId = null, $productoId = null) {
+        try {
+            if (!$proveedorId || !$productoId) {
+                return $this->jsonResponse([
+                    'success' => false,
+                    'mensaje' => 'Proveedor y producto son requeridos'
+                ], 400);
+            }
+
+            $this->db->query = null;
+            $db = new Database();
+            $db->query("SELECT cd.costo_unitario, c.fecha
+                        FROM table_compras_detalle cd
+                        INNER JOIN table_compras c ON cd.compra_id = c.id
+                        WHERE c.proveedor_id = :prov 
+                          AND cd.producto_id = :prod
+                        ORDER BY c.fecha DESC, cd.id DESC
+                        LIMIT 1");
+            $db->bind(':prov', $proveedorId);
+            $db->bind(':prod', (int)$productoId);
+            $row = $db->single();
+
+            if ($row) {
+                return $this->jsonResponse([
+                    'success' => true,
+                    'tiene_historial' => true,
+                    'costo' => (float)$row->costo_unitario,
+                    'fecha' => $row->fecha
+                ]);
+            }
+
+            return $this->jsonResponse([
+                'success' => true,
+                'tiene_historial' => false,
+                'costo' => null
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'mensaje' => $e->getMessage()
+            ], 500);
+        }
+    }
+        /**
+     * FIX v3.29: Devuelve las facturas de proveedores próximas a vencer y vencidas.
+     * Endpoint: GET /proveedores/alertasVencimiento
+     */
+    public function alertasVencimiento() {
+        try {
+            $dias = isset($_GET['dias']) ? (int)$_GET['dias'] : 7;
+            $data = $this->proveedorModel->obtenerFacturasPorVencer($dias);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'mensaje' => $e->getMessage(),
+                'data' => ['vencidas' => [], 'proximas' => [], 'total_alertas' => 0]
+            ], 500);
+        }
+    }
 }

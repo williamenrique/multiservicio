@@ -85,9 +85,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         PollingManager.register('debtors-card',           initDebtorsCard,          300000);
         PollingManager.register('low-stock-notifications',initLowStockNotifications, 120000);
         PollingManager.register('profitability-card',     initProfitabilityCard,    600000);
+        PollingManager.register('facturas-abiertas-badge', actualizarBadgeFacturasAbiertas, 30000);
+        PollingManager.register('ordenes-activas-badge',   actualizarBadgeOrdenesActivas,   30000);
+        PollingManager.register('proveedores-vencimiento', initProveedoresNotifications, 120000);
     } else if (isMecanico) {
         PollingManager.register('workshop-alerts', initWorkshopAlerts, 60000);
         PollingManager.register('pedidos-alerts',  initPedidosAlerts,  60000);
+        PollingManager.register('facturas-abiertas-badge', actualizarBadgeFacturasAbiertas, 30000);
+        PollingManager.register('ordenes-activas-badge',   actualizarBadgeOrdenesActivas,   30000);
     }
 
     PollingManager.start();
@@ -976,7 +981,77 @@ async function initPedidosAlerts() {
         }
     } catch (e) {}
 }
+/**
+ * FIX v3.23: Actualiza el badge del sidebar que muestra cuántas facturas
+ * abiertas hay. Consulta al backend desde CUALQUIER página (no depende
+ * de la vista de facturación).
+ * 
+ * Se registra como tarea de PollingManager cada 30s en app.js.
+ */
+async function actualizarBadgeFacturasAbiertas() {
+    const badge = document.getElementById('sidebar-facturacion-badge');
+    if (!badge) return;
 
+    try {
+        const baseUrl = (typeof URLROOT !== 'undefined' && URLROOT) ? URLROOT : '';
+        const res = await fetch(`${baseUrl}/facturacion/contarBorradoresReales`);
+
+        if (!res.ok) return;
+
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) return;
+
+        const data = await res.json();
+        if (!data.success) return;
+
+        const total = parseInt(data.total) || 0;
+
+        if (total > 0) {
+            badge.textContent = total;
+            badge.classList.remove('hidden');
+        } else {
+            badge.textContent = '';
+            badge.classList.add('hidden');
+        }
+    } catch (e) {
+        // Fallo silencioso: no queremos spam de errores en consola
+    }
+}
+/**
+ * FIX v3.24: Actualiza el badge del sidebar que muestra cuántas órdenes
+ * de servicio activas hay. Consulta al backend desde CUALQUIER página.
+ * 
+ * Se registra como tarea de PollingManager cada 30s en app.js.
+ */
+async function actualizarBadgeOrdenesActivas() {
+    const badge = document.getElementById('sidebar-taller-badge');
+    if (!badge) return;
+
+    try {
+        const baseUrl = (typeof URLROOT !== 'undefined' && URLROOT) ? URLROOT : '';
+        const res = await fetch(`${baseUrl}/taller/contarActivas`);
+
+        if (!res.ok) return;
+
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) return;
+
+        const data = await res.json();
+        if (!data.success) return;
+
+        const total = parseInt(data.total) || 0;
+
+        if (total > 0) {
+            badge.textContent = total;
+            badge.classList.remove('hidden');
+        } else {
+            badge.textContent = '';
+            badge.classList.add('hidden');
+        }
+    } catch (e) {
+        // Fallo silencioso
+    }
+}
 async function initWorkshopAlerts() {
     const btnLlave = document.getElementById('btn-notificaciones-taller');
     const containerBell = document.getElementById('workshop-bell-container');
@@ -1059,7 +1134,104 @@ async function initWorkshopAlerts() {
         if (window.lucide) lucide.createIcons();
     } catch (e) {}
 }
+/**
+ * FIX v3.29: Notificación de facturas de proveedores próximas a vencer
+ * o ya vencidas. Muestra un ícono con badge en la barra superior y un
+ * dropdown con la lista de facturas al pasar el mouse.
+ */
+async function initProveedoresNotifications() {
+    const container = document.getElementById("proveedores-notifications-container");
+    if (!container) return;
 
+    try {
+        const baseUrl = (typeof URLROOT !== 'undefined' && URLROOT) ? URLROOT : '';
+        const res = await fetch(`${baseUrl}/proveedores/alertasVencimiento?dias=7`);
+
+        if (!res.ok) return;
+
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) return;
+
+        const result = await res.json();
+        if (!result.success || !result.data) return;
+
+        const { vencidas, proximas, total_alertas } = result.data;
+
+        if (total_alertas === 0) {
+            container.innerHTML = '';
+            container.classList.add('hidden');
+            return;
+        }
+
+        // Color del badge: rojo si hay vencidas, ámbar si solo hay próximas
+        const badgeClass = vencidas.length > 0
+            ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+            : 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+
+        const counterClass = vencidas.length > 0 ? 'bg-rose-600' : 'bg-amber-600';
+        const icon = vencidas.length > 0 ? 'alert-octagon' : 'clock';
+
+        // Construir HTML de la lista del dropdown
+        let listaHtml = '';
+
+        if (vencidas.length > 0) {
+            listaHtml += `<p class="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-1 mt-1">⚠ Vencidas (${vencidas.length})</p>`;
+            listaHtml += vencidas.slice(0, 4).map(v => `
+                <div class="text-xs border-b border-slate-700 pb-2 mb-2">
+                    <div class="flex justify-between items-start">
+                        <span class="font-bold text-white uppercase truncate w-40">${v.proveedor_nombre}</span>
+                        <span class="text-rose-500 font-black">${AppUtils.formatCurrency(v.saldo)}</span>
+                    </div>
+                    <p class="text-white opacity-70 text-[10px] flex justify-between mt-0.5">
+                        <span>Factura #${v.compra_id}</span>
+                        <span>Vencio hace ${v.dias_vencido} día(s)</span>
+                    </p>
+                </div>`).join('');
+        }
+
+        if (proximas.length > 0) {
+            listaHtml += `<p class="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1 mt-2">⏰ Por vencer (${proximas.length})</p>`;
+            listaHtml += proximas.slice(0, 4).map(p => `
+                <div class="text-xs border-b border-slate-700 pb-2 mb-2">
+                    <div class="flex justify-between items-start">
+                        <span class="font-bold text-white uppercase truncate w-40">${p.proveedor_nombre}</span>
+                        <span class="text-amber-400 font-black">${AppUtils.formatCurrency(p.saldo)}</span>
+                    </div>
+                    <p class="text-white opacity-70 text-[10px] flex justify-between mt-0.5">
+                        <span>Factura #${p.compra_id}</span>
+                        <span>Vence en ${p.dias_restantes} día(s)</span>
+                    </p>
+                </div>`).join('');
+        }
+
+        container.classList.remove('hidden');
+        container.innerHTML = `
+            <div class="relative group">
+                <button class="p-2 ${badgeClass} rounded-lg border alert-shake" title="Facturas de Proveedores por Vencer">
+                    <i data-lucide="${icon}" class="w-5 h-5"></i>
+                    <span class="absolute -top-1 -right-1 ${counterClass} text-white text-[10px] font-black px-1.5 rounded-full border-2 border-white">${total_alertas}</span>
+                </button>
+                <div class="hidden group-hover:block absolute top-full right-0 w-72 pt-2 z-50">
+                    <div class="bg-black shadow-2xl rounded-xl p-3 border border-slate-700">
+                        <div class="flex justify-between items-center mb-2">
+                            <p class="text-[10px] font-bold text-white uppercase">Cuentas por Pagar</p>
+                            <span class="text-[9px] text-slate-400 uppercase">${total_alertas} alerta(s)</span>
+                        </div>
+                        <div class="max-h-72 overflow-y-auto space-y-1 custom-scrollbar">
+                            ${listaHtml}
+                        </div>
+                        <a href="${baseUrl}/proveedores?tab=deudas" class="block text-center text-[10px] font-bold text-blue-500 mt-2 uppercase hover:underline">
+                            Ver todas las facturas
+                        </a>
+                    </div>
+                </div>
+            </div>`;
+
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        // Fallo silencioso
+    }
+}
 /**
  * Modal de gestión de Orden de Servicio en el taller.
  * 

@@ -264,6 +264,11 @@ async function cambiarEstado(id, selectEl) {
                 btnFacturar?.classList.add('hidden');
                 btnNoMec?.classList.add('hidden');
             }
+
+            // FIX v3.24: Actualizar badge de órdenes activas en el sidebar
+            if (typeof actualizarBadgeOrdenesActivas === 'function') {
+                actualizarBadgeOrdenesActivas();
+            }
         } else {
             AppUtils.showToast(result.mensaje || 'Error al actualizar', 'error');
         }
@@ -310,6 +315,10 @@ async function entregarVehiculo(id) {
                             badge.textContent = `${Math.max(0, currentCount - 1)} Activos`;
                         }
                         if (typeof initWorkshopAlerts === 'function') initWorkshopAlerts();
+                        // FIX v3.24: Actualizar badge de órdenes activas
+                        if (typeof actualizarBadgeOrdenesActivas === 'function') {
+                            actualizarBadgeOrdenesActivas();
+                        }
                     }, 400);
                 }
             } else {
@@ -391,6 +400,10 @@ async function eliminarOrden(id) {
                             badge.textContent = `${Math.max(0, currentCount - 1)} Activos`;
                         }
                         if (typeof initWorkshopAlerts === 'function') initWorkshopAlerts();
+                        // FIX v3.24: Actualizar badge de órdenes activas
+                        if (typeof actualizarBadgeOrdenesActivas === 'function') {
+                            actualizarBadgeOrdenesActivas();
+                        }
                     }, 400);
                 }
             } else {

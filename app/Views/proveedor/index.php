@@ -71,6 +71,9 @@
 
 <!-- Sección de Deudas -->
 <div id="sec-deudas" class="hidden">
+    <!-- FIX v3.29: Alerta visual de facturas próximas a vencer / vencidas -->
+    <div id="alertas-vencimiento-proveedores" class="hidden mb-6"></div>
+
     <div class="glass-card rounded-xl overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">

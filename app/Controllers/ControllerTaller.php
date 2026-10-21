@@ -870,4 +870,32 @@ class ControllerTaller extends Controller {
             ], 400);
         }
     }
+        /**
+     * FIX v3.24: Cuenta las órdenes de servicio ACTIVAS en BD.
+     * Una orden es "activa" si NO está en estado ENTREGADO ni CANCELADO.
+     * Se usa para mostrar el badge en el sidebar desde cualquier página.
+     * 
+     * Endpoint: GET /taller/contarActivas
+     */
+    public function contarActivas() {
+        try {
+            $db = new Database();
+            $db->query("SELECT COUNT(*) as total
+                        FROM table_ordenes_servicio
+                        WHERE estado NOT IN ('ENTREGADO', 'CANCELADO', 'ANULADO')");
+            $row = $db->single();
+            $total = (int)($row->total ?? 0);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'total' => $total
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'total' => 0,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

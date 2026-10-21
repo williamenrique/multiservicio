@@ -741,4 +741,44 @@ class ControllerFacturacion extends Controller {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
+
+        /**
+     * FIX v3.23: Cuenta las facturas PENDIENTES "reales" en BD.
+     * Una factura es "real" si tiene AL MENOS UNO de estos:
+     *   - Items cargados (table_facturas_detalle)
+     *   - Placa asignada
+     *   - Cliente asignado
+     *   - Presupuesto anexado
+     * 
+     * Se usa para mostrar el badge en el sidebar desde cualquier página.
+     * Endpoint: GET /facturacion/contarBorradoresReales
+     */
+    public function contarBorradoresReales() {
+        try {
+            $db = new Database();
+            $db->query("SELECT COUNT(DISTINCT v.id) as total
+                        FROM table_facturas v
+                        LEFT JOIN table_facturas_detalle vd ON vd.factura_id = v.id
+                        WHERE v.status = 'PENDIENTE'
+                          AND (
+                              vd.id IS NOT NULL
+                              OR (v.placa IS NOT NULL AND v.placa != '')
+                              OR (v.cliente_id IS NOT NULL AND v.cliente_id != '')
+                              OR v.presupuesto_activo_id IS NOT NULL
+                          )");
+            $row = $db->single();
+            $total = (int)($row->total ?? 0);
+
+            return $this->jsonResponse([
+                'success' => true,
+                'total' => $total
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse([
+                'success' => false,
+                'total' => 0,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

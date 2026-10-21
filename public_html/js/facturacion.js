@@ -871,13 +871,56 @@ document.addEventListener('DOMContentLoaded', () => {
             debounceSync();
         }
     };
+        /**
+    /**
+     * FIX v3.22: Cuenta las facturas "reales" abiertas (excluye la
+     * factura en blanco por defecto).
+     * 
+     * Una factura es "real" si tiene AL MENOS UNO de estos contenidos:
+     *   - Items cargados
+     *   - Placa con valor
+     *   - Cliente asignado
+     *   - Presupuesto anexado
+     * 
+     * NOTA: tener solo `id_db` NO cuenta como "real", porque el
+     * syncActiveInvoice guarda la factura vacía automáticamente al crear.
+     */
+    function contarFacturasReales() {
+        return openInvoices.filter(inv => {
+            const tieneItems = Array.isArray(inv.items) && inv.items.length > 0;
+            const tienePlaca = !!(inv.placa && String(inv.placa).trim() !== '');
+            const tieneCliente = !!(inv.cliente_id && String(inv.cliente_id).trim() !== '');
+            const tienePresupuesto = !!(inv.presupuesto_activo_id);
+            return tieneItems || tienePlaca || tieneCliente || tienePresupuesto;
+        }).length;
+    }
 
+    /**
+     * FIX v3.21: Actualiza el badge del sidebar con el número de facturas
+     * abiertas. Si no hay ninguna real, oculta el badge.
+     */
+    function actualizarBadgeFacturasAbiertasLocal() {
+        const badge = document.getElementById('sidebar-facturacion-badge');
+        if (!badge) return;
+
+        const cantidad = contarFacturasReales();
+
+        if (cantidad > 0) {
+            badge.textContent = cantidad;
+            badge.classList.remove('hidden');
+        } else {
+            badge.textContent = '';
+            badge.classList.add('hidden');
+        }
+    }
     const renderQueue = () => {
         const container = document.getElementById('pos-active-drafts');
         if (openInvoices.length === 0) {
             container.innerHTML = `<span class="text-[10px] font-bold text-amber-500 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 flex items-center gap-1 uppercase">
                 <i data-lucide="alert-circle" class="w-3 h-3"></i> No hay facturas abiertas
             </span>`;
+            // FIX v3.21: Actualizar badge del sidebar
+            actualizarBadgeFacturasAbiertasLocal();
             lucide.createIcons();
             return;
         }
@@ -911,6 +954,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             </div>
         `}).join('');
+        // FIX v3.21: Actualizar badge del sidebar
+        actualizarBadgeFacturasAbiertas();
         lucide.createIcons();
     };
 

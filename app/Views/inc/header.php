@@ -80,6 +80,7 @@
                     <?php endif; ?>
                     <a href="<?php echo URLROOT; ?>/facturacion" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'facturacion') !== false) ? 'active' : ''; ?>" data-section="facturacion">
                         <i data-lucide="receipt"></i> <span>Facturación</span>
+                        <span id="sidebar-facturacion-badge" class="hidden ml-auto px-2 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full leading-none"></span>
                     </a>
                     <a href="<?php echo URLROOT; ?>/facturas" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'facturas') !== false) ? 'active' : ''; ?>" data-section="facturas">
                         <i data-lucide="file-text"></i> <span>Facturas</span>
@@ -92,6 +93,7 @@
                     </a>
                     <a href="<?php echo URLROOT; ?>/taller" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'taller') !== false) ? 'active' : ''; ?>" data-section="taller">
                         <i data-lucide="wrench"></i> <span>Taller</span>
+                        <span id="sidebar-taller-badge" class="hidden ml-auto px-2 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-full leading-none"></span>
                     </a>
                     <a href="<?php echo URLROOT; ?>/proveedores" class="nav-link <?php echo (strpos($_GET['url'] ?? '', 'proveedores') !== false) ? 'active' : ''; ?>" data-section="proveedores">
                         <i data-lucide="truck"></i> <span>Proveedores</span>
@@ -153,6 +155,8 @@
                     <div id="low-stock-notifications-container" class="hidden"></div>
                     <div id="credit-notifications-container" class="hidden"></div>
                     <div id="notifications-area" class="hidden"></div>
+                    <!-- FIX v3.29: Notificación de facturas por vencer (proveedores) -->
+                    <div id="proveedores-notifications-container" class="hidden"></div>
                     <!-- Notificaciones de Pedidos Pendientes -->
                     <div id="pedidos-bell-container" class="relative group hidden">
                         <button id="btn-notificaciones-pedidos" class="p-2 bg-slate-800/50 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-amber-400 transition-all relative">
