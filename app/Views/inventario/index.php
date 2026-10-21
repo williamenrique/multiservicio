@@ -43,27 +43,29 @@
             <table id="inventoryTable" class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-slate-50 text-slate-500 text-[11px] font-black uppercase tracking-widest border-b border-slate-100">
-                        <th class="px-8 py-6">Imagen</th>
-                        <th class="px-8 py-6">Código</th>
-                        <th class="px-8 py-6">Producto</th>
-                        <th class="px-8 py-6">Marca</th>
-                        <th class="px-8 py-6">Categoría</th>
-                        <th class="px-8 py-6">Stock</th>
-                        <th class="px-8 py-6">Precio Unitario</th>
-                        <th class="px-8 py-6">Oferta</th>
-                        <th class="px-8 py-6">Estado</th>
-                        <th class="px-8 py-6 text-right">Acciones</th>
+                        <th class="px-3 py-3">Imagen</th>
+                        <th class="px-3 py-3">Código</th>
+                        <th class="px-3 py-3">Producto</th>
+                        <th class="px-3 py-3">Marca</th>
+                        <th class="px-3 py-3">Categoría</th>
+                        <th class="px-3 py-3">Condición</th>
+                        <th class="px-3 py-3">Stock</th>
+                        <th class="px-3 py-3 text-right">Precio</th>
+                        <th class="px-3 py-3 text-center">Catálogo</th>
+                        <th class="px-3 py-3 text-center">Oferta</th>
+                        <th class="px-3 py-3 text-center">Estado</th>
+                        <th class="px-3 py-3 text-right">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody" class="divide-y divide-slate-100 text-sm text-slate-600">
                     <tr>
-                        <td colspan="9" class="px-8 py-16 text-center text-slate-400 italic animate-pulse">SINCRONIZANDO INVENTARIO...</td>
+                        <td colspan="12" class="px-4 py-16 text-center text-slate-400 italic animate-pulse">SINCRONIZANDO INVENTARIO...</td>
                     </tr>
                 </tbody>
             </table>
         </div>
-        <!-- Paginación Manual (Acomodado tras eliminar DataTables) -->
-        <div class="px-8 py-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+        <!-- Paginación Manual -->
+        <div class="px-6 py-3 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-3">
             <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 Mostrando <span id="startIndex">0</span> - <span id="endIndex">0</span> de <span id="totalItemsDisplay">0</span> productos
             </div>
@@ -74,7 +76,7 @@
     </div>
 </div>
 
-<!-- Modal -->
+<!-- Modal Producto -->
 <div id="inventoryModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 hidden overflow-y-auto">
     <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden my-auto">
         <div class="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
@@ -145,8 +147,8 @@
                     class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green uppercase transition-all resize-none"></textarea>
             </div>
 
-            <!-- Sección: Stock y Precio (3 columnas en desktop, 2 en tablet) -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <!-- Sección: Categoría, Condición y Visibilidad -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Categoría</label>
                     <select name="categoria" id="prodCategoria" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
@@ -158,6 +160,26 @@
                     </select>
                 </div>
                 <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Condición</label>
+                    <select name="condicion" id="prodCondicion" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
+                        <option value="NUEVO">NUEVO</option>
+                        <option value="USADO">USADO</option>
+                    </select>
+                    <p class="text-[10px] text-slate-400 mt-1">USADO: garantía fija de 5 días.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Catálogo Público</label>
+                    <label class="flex items-center gap-2 cursor-pointer bg-slate-50 border border-slate-200 rounded-xl py-3 px-4">
+                        <input type="checkbox" name="visible_catalogo" id="prodVisibleCatalogo" value="1" class="w-5 h-5 rounded border-slate-300 text-neon-green focus:ring-neon-green cursor-pointer">
+                        <span class="text-xs font-bold text-slate-600 uppercase">Visible</span>
+                    </label>
+                    <p class="text-[10px] text-slate-400 mt-1">Desmarcado = solo uso interno.</p>
+                </div>
+            </div>
+
+            <!-- Sección: Stock y Precio (3 columnas en desktop) -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Existencia</label>
                     <input type="number" name="stock" id="prodStock" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
                 </div>
@@ -165,9 +187,14 @@
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Mínimo (Alerta)</label>
                     <input type="number" name="stock_minimo" id="prodStockMin" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
                 </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Días de Garantía</label>
+                    <input type="number" name="dias_garantia" id="prodDiasGarantia" min="1" placeholder="Vacío = global" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
+                    <p class="text-[10px] text-slate-400 mt-1">Ignorado si es USADO.</p>
+                </div>
             </div>
 
-            <!-- Sección: Precio y Garantía (2 columnas en desktop) -->
+            <!-- Sección: Precio -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Precio de Venta</label>
@@ -175,11 +202,6 @@
                         <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
                         <input type="number" step="0.01" name="precio" id="prodPrecio" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-8 pr-4 outline-none focus:border-neon-green transition-all">
                     </div>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Días de Garantía (Devoluciones)</label>
-                    <input type="number" name="dias_garantia" id="prodDiasGarantia" min="1" placeholder="Vacío = usar global" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-neon-green transition-all">
-                    <p class="text-[10px] text-slate-400 mt-1">Vacío = valor global de la empresa.</p>
                 </div>
             </div>
 

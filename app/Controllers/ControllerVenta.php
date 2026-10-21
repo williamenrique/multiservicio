@@ -2,6 +2,11 @@
 /**
  * Controlador para Venta de Repuestos (Mostrador)
  * Acceso exclusivo para administradores.
+ * 
+ * v3.0 (2026-10-21): SIN CAMBIOS FUNCIONALES.
+ *   La venta interna de mostrador NO filtra por visible_catalogo ni por
+ *   condicion: ve TODOS los productos ACTIVO, igual que taller y facturación.
+ *   El filtro de visibilidad es EXCLUSIVO del catálogo público (ModelCatalogo).
  */
 class ControllerVenta extends Controller {
     private $facturaModel;

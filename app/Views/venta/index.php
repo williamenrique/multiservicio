@@ -259,6 +259,14 @@
  *     que tenía el presupuesto.
  *   • El dropdown se cierra con scroll/resize/clic fuera, pero NO cuando
  *     el scroll ocurre dentro del propio dropdown.
+ * 
+ * v3.1 (2026-10-21) — CONDICIÓN + SNAPSHOT:
+ *   • Al agregar un producto al carrito, se guarda `condicion_item`
+ *     (NUEVO|USADO) del producto. Se envía al backend en el payload de
+ *     procesar() y queda registrado en table_facturas_detalle.
+ *   • Al cargar items de un presupuesto anexado, se preserva la
+ *     `condicion_item` que ya tenía el presupuesto (snapshot histórico).
+ *   • Badge de condición NUEVO/USADO en la fila del carrito.
  */
 document.addEventListener('DOMContentLoaded', function() {
     if (window.lucide) lucide.createIcons();
@@ -415,6 +423,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const precioBase = parseFloat(item.precio);
             const precioFinal = parseFloat(item.precio_final || item.precio);
             const stock = parseInt(item.stock_disponible || 0);
+            const condicion = (item.condicion || 'NUEVO').toUpperCase();
+            const condClass = condicion === 'USADO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
 
             let stockColor = 'text-slate-400';
             if (stock <= 0) stockColor = 'text-rose-500 font-black';
@@ -423,6 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const ofertaBadge = enOferta
                 ? `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700 uppercase">OFERTA ${parseFloat(item.oferta_porcentaje).toFixed(0)}%</span>`
                 : '';
+            const condBadge = `<span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${condClass}">${condicion}</span>`;
 
             const precioHtml = enOferta
                 ? `<div class="flex flex-col items-end">
@@ -437,6 +448,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="flex items-center flex-wrap">
                                 <span class="font-bold text-xs text-slate-800 uppercase truncate">${item.nombre}</span>
                                 ${ofertaBadge}
+                                ${condBadge}
                             </div>
                             <div class="text-[10px] text-slate-400 font-mono mt-0.5">
                                 ${item.categoria || ''} ${item.marca ? '· ' + item.marca : ''} · <span class="${stockColor}">Stock: ${stock}</span>
@@ -486,9 +498,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ═══════════════════════════════════════════════════════════════════════
     // FIX v3.20: BUSQUEDA DE CLIENTES CON DROPDOWN FLOTANTE
-    // Replica el sistema de facturación y presupuesto. Al hacer foco muestra
-    // TODOS los clientes; al escribir filtra en tiempo real. Se renderiza
-    // en el <body> con position:fixed para no recortarse.
     // ═══════════════════════════════════════════════════════════════════════
     let searchTimeoutClientesVenta = null;
 
@@ -815,6 +824,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            // v3.1: preservar condicion_item del presupuesto (snapshot histórico)
             data.items.forEach(item => {
                 carrito.push({
                     id: item.producto_id,
@@ -823,6 +833,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     costo_promedio: parseFloat(item.costo_promedio || 0),
                     cantidad: parseInt(item.cantidad),
                     tipo: item.tipo || 'PRODUCTO',
+                    condicion_item: (item.condicion_item || 'NUEVO').toUpperCase(),
                     categoria: item.tipo === 'SERVICIO' ? 'SERVICIO' : 'PRESUPUESTO'
                 });
             });
@@ -884,6 +895,8 @@ document.addEventListener('DOMContentLoaded', function() {
      * FIX OFERTA-V1 v3.0: Al agregar un producto al carrito, si tiene
      * oferta vigente, se usa el precio final y se guardan metadatos
      * (precio_base, en_oferta, oferta_porcentaje) para mostrar el badge.
+     * 
+     * v3.1: Se agrega condicion_item (NUEVO|USADO) del producto.
      */
     function agregarAlCarrito(item) {
         if (Number(item.stock_disponible) <= 0) {
@@ -895,6 +908,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const precioBase = parseFloat(item.precio);
         const precioFinal = enOferta ? parseFloat(item.precio_final || item.precio) : precioBase;
         const ofertaPct = enOferta ? parseFloat(item.oferta_porcentaje || 0) : 0;
+        const condicionItem = (item.condicion || 'NUEVO').toUpperCase(); // v3.1
 
         const existe = carrito.find(i => i.id === item.id);
         if (existe) {
@@ -907,6 +921,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 precio_base: precioBase,
                 en_oferta: enOferta,
                 oferta_porcentaje: ofertaPct,
+                condicion_item: condicionItem, // v3.1
                 costo_promedio: parseFloat(item.costo_promedio || 0),
                 stock_disponible: item.stock_disponible,
                 cantidad: 1,
@@ -939,6 +954,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const ofertaBadge = tieneOferta
                 ? `<span class="ml-2 text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-black uppercase">OFERTA ${parseFloat(item.oferta_porcentaje || 0).toFixed(0)}%</span>`
                 : '';
+            // v3.1: badge de condición
+            const condicion = (item.condicion_item || 'NUEVO').toUpperCase();
+            const condClass = condicion === 'USADO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+            const condBadge = `<span class="ml-1 text-[9px] ${condClass} px-1.5 py-0.5 rounded font-black uppercase">${condicion}</span>`;
+
             const precioDetalle = tieneOferta
                 ? `<div class="flex flex-col items-end">
                        <span class="text-[10px] text-slate-400 line-through">$ ${item.precio_base.toFixed(2)}</span>
@@ -952,6 +972,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="text-base font-bold text-slate-700 uppercase flex items-center flex-wrap">
                             ${item.nombre}
                             ${ofertaBadge}
+                            ${condBadge}
                         </div>
                         <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">${item.categoria || ''}</div>
                     </td>

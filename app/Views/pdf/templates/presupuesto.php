@@ -74,6 +74,12 @@
     .pill { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 8px; font-weight: 900; text-transform: uppercase; color: #fff; }
     .pill-producto { background: #10b981; }
     .pill-servicio { background: #3b82f6; }
+
+    /* v3.0 — Badge de condición */
+    .pill-cond { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 7.5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; }
+    .pill-nuevo { background: #d1fae5; color: #065f46; }
+    .pill-usado { background: #fef3c7; color: #92400e; }
+    .pill-servicio-cond { background: #dbeafe; color: #1e40af; }
 </style>
 </head>
 <body>
@@ -185,24 +191,42 @@
         <thead>
             <tr>
                 <th width="5%">#</th>
-                <th width="10%">Tipo</th>
-                <th width="35%">Descripción</th>
-                <th width="7%" class="text-center">Cant.</th>
-                <th width="11%" class="text-right">P. Unitario</th>
-                <th width="7%" class="text-center">Desc. %</th>
-                <th width="11%" class="text-right">Subtotal</th>
-                <th width="7%" class="text-center">IVA %</th>
-                <th width="12%" class="text-right">Total</th>
+                <th width="9%">Tipo</th>
+                <th width="10%">Condición</th>
+                <th width="30%">Descripción</th>
+                <th width="6%" class="text-center">Cant.</th>
+                <th width="10%" class="text-right">P. Unitario</th>
+                <th width="6%" class="text-center">Desc. %</th>
+                <th width="10%" class="text-right">Subtotal</th>
+                <th width="6%" class="text-center">IVA %</th>
+                <th width="10%" class="text-right">Total</th>
             </tr>
         </thead>
         <tbody>
             <?php foreach($items as $index => $item): ?>
                 <?php
                     $pill_tipo = $item->tipo_item === 'SERVICIO' ? 'pill-servicio' : 'pill-producto';
+
+                    // v3.0: condición del item
+                    $condRaw = strtoupper(trim((string)($item->condicion_item ?? '')));
+                    if ($condRaw === '') {
+                        $condRaw = $item->tipo_item === 'SERVICIO' ? 'SERVICIO' : 'NUEVO';
+                    }
+                    if ($condRaw === 'SERVICIO') {
+                        $pillCondClass = 'pill-servicio-cond';
+                        $pillCondLabel = 'SERVICIO';
+                    } elseif ($condRaw === 'USADO') {
+                        $pillCondClass = 'pill-usado';
+                        $pillCondLabel = 'USADO';
+                    } else {
+                        $pillCondClass = 'pill-nuevo';
+                        $pillCondLabel = 'NUEVO';
+                    }
                 ?>
                 <tr>
                     <td class="text-center" style="font-weight: bold;"><?php echo $index + 1; ?></td>
                     <td class="text-center"><span class="pill <?php echo $pill_tipo; ?>"><?php echo strtoupper($item->tipo_item); ?></span></td>
+                    <td class="text-center"><span class="pill-cond <?php echo $pillCondClass; ?>"><?php echo $pillCondLabel; ?></span></td>
                     <td style="text-transform: uppercase;"><?php echo strtoupper($item->descripcion); ?>
                         <?php if (!empty($item->notas)): ?>
                             <br><span style="font-size: 8px; color: #64748b; font-style: italic;"><?php echo strtoupper($item->notas); ?></span>

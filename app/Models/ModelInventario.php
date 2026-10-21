@@ -12,6 +12,20 @@
  *   - stock_disponible = stock_físico − reservado.
  * 
  * v2.1: Conflictos de Git merge resueltos. Sin marcadores HEAD/REGISTRO-EMAIL.
+ * 
+ * v3.0 (2026-10-21) — CONDICIÓN + VISIBILIDAD CATÁLOGO:
+ *   • Nuevos campos en table_inventario:
+ *       - condicion        ENUM('NUEVO','USADO')  → condición del repuesto
+ *       - visible_catalogo TINYINT(1)             → toggle de publicación pública
+ *   • listar() ahora devuelve condicion y visible_catalogo.
+ *   • crear() y actualizar() aceptan y persisten ambos campos.
+ *   • Nuevo método actualizarVisibilidadCatalogo() para el toggle inline
+ *     desde la tabla del inventario (PATCH rápido sin abrir el modal).
+ *   • Nuevo método contarPublicadosCatalogo() para métricas del dashboard.
+ * 
+ * IMPORTANTE: el filtro por visible_catalogo SOLO lo aplican las consultas del
+ * catálogo público (ModelCatalogo). El inventario interno, taller, facturación
+ * y presupuesto ven TODOS los productos ACTIVO sin importar la visibilidad.
  */
 class ModelInventario {
     private $db;
@@ -49,6 +63,8 @@ class ModelInventario {
     /**
      * Lista productos con cálculo completo de stock físico, reservado y disponible.
      * Soporta paginación y búsqueda.
+     * 
+     * v3.0: devuelve también condicion y visible_catalogo.
      */
     public function listar($limit = null, $offset = null, $search = null) {
         $reservadoSql = $this->getSqlReservado();
@@ -87,6 +103,10 @@ class ModelInventario {
     /**
      * Lista productos con información de ofertas (para catálogo público).
      * Incluye cálculo de reservas.
+     * 
+     * ⚠️ NOTA v3.0: este método NO filtra por visible_catalogo. Se mantiene
+     * por retrocompatibilidad, pero el catálogo público REAL usa ModelCatalogo.
+     * Si se usa desde el catálogo, el llamador debe filtrar la visibilidad.
      */
     public function listarConOfertas($limit = null, $offset = null, $search = null, $categoria = null) {
         $reservadoSql = $this->getSqlReservado();
@@ -188,6 +208,16 @@ class ModelInventario {
         return (int)$this->db->single()->total;
     }
 
+    /**
+     * v3.0: Cuenta productos publicados en el catálogo público.
+     * Útil para el dashboard / métricas.
+     */
+    public function contarPublicadosCatalogo() {
+        $this->db->query("SELECT COUNT(*) as total FROM table_inventario 
+                          WHERE estado = 'ACTIVO' AND visible_catalogo = 1");
+        return (int)$this->db->single()->total;
+    }
+
     public function buscar($termino) {
         $this->db->query("SELECT * FROM table_inventario 
                           WHERE nombre LIKE :term 
@@ -201,7 +231,8 @@ class ModelInventario {
      * Busca repuestos por código, nombre o categoría para el buscador global.
      */
     public function searchRepuestos($term) {
-        $this->db->query("SELECT id, codigo, nombre, categoria, stock FROM table_inventario
+        $this->db->query("SELECT id, codigo, nombre, categoria, stock, condicion 
+                          FROM table_inventario
                           WHERE (codigo LIKE :term OR nombre LIKE :term OR categoria LIKE :term OR id LIKE :term)
                           AND estado = 'ACTIVO'
                           ORDER BY nombre ASC LIMIT 5");
@@ -226,14 +257,32 @@ class ModelInventario {
         return $this->db->single();
     }
 
+    /**
+     * Crea un producto.
+     * 
+     * v3.0: acepta y persiste condicion y visible_catalogo.
+     *   - condicion: DEFAULT 'NUEVO' si no viene.
+     *   - visible_catalogo: DEFAULT 0 si no viene.
+     */
     public function crear($datos) {
-        $this->db->query("INSERT INTO table_inventario (codigo, nombre, marca, categoria, descripcion, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen, dias_garantia, oferta_activa, oferta_porcentaje, oferta_fecha_inicio, oferta_fecha_fin) 
-                          VALUES (:codigo, :nombre, :marca, :categoria, :descripcion, :stock, :smin, :costo, :cprom, :precio, :imagen, :diasGarantia, :ofertaActiva, :ofertaPorcentaje, :ofertaFechaInicio, :ofertaFechaFin)");
+        $condicion = isset($datos['condicion']) ? strtoupper(trim($datos['condicion'])) : 'NUEVO';
+        if (!in_array($condicion, ['NUEVO', 'USADO'], true)) {
+            $condicion = 'NUEVO';
+        }
+        $visibleCatalogo = isset($datos['visible_catalogo']) ? (int)$datos['visible_catalogo'] : 0;
+        if ($visibleCatalogo !== 0 && $visibleCatalogo !== 1) {
+            $visibleCatalogo = 0;
+        }
+
+        $this->db->query("INSERT INTO table_inventario (codigo, nombre, marca, categoria, condicion, visible_catalogo, descripcion, stock, stock_minimo, ultimo_costo, costo_promedio, precio, imagen, dias_garantia, oferta_activa, oferta_porcentaje, oferta_fecha_inicio, oferta_fecha_fin) 
+                          VALUES (:codigo, :nombre, :marca, :categoria, :condicion, :visible_catalogo, :descripcion, :stock, :smin, :costo, :cprom, :precio, :imagen, :diasGarantia, :ofertaActiva, :ofertaPorcentaje, :ofertaFechaInicio, :ofertaFechaFin)");
         
         $this->db->bind(':codigo', $datos['codigo'] ?? null);
         $this->db->bind(':nombre', mb_strtoupper($datos['nombre'], 'UTF-8'));
         $this->db->bind(':marca', !empty($datos['marca']) ? mb_strtoupper($datos['marca'], 'UTF-8') : null);
         $this->db->bind(':categoria', mb_strtoupper($datos['categoria'], 'UTF-8'));
+        $this->db->bind(':condicion', $condicion);
+        $this->db->bind(':visible_catalogo', $visibleCatalogo);
         $this->db->bind(':descripcion', !empty($datos['descripcion']) ? mb_strtoupper($datos['descripcion'], 'UTF-8') : null);
         $this->db->bind(':stock', $datos['stock']);
         $this->db->bind(':smin', $datos['stock_minimo'] ?? 5);
@@ -253,6 +302,12 @@ class ModelInventario {
         return true;
     }
 
+    /**
+     * Actualiza un producto.
+     * 
+     * v3.0: acepta y persiste condicion y visible_catalogo.
+     *   Si no se envían, conserva los valores actuales del producto.
+     */
     public function actualizar($datos) {
         // Si solo se pasan campos de oferta (id + campos de oferta), obtener el producto actual y fusionar
         $camposOferta = ['oferta_activa', 'oferta_porcentaje', 'oferta_fecha_inicio', 'oferta_fecha_fin'];
@@ -272,12 +327,32 @@ class ModelInventario {
         if ($soloOferta) {
             $datos = array_merge((array)$productoActual, $datos);
         }
-        
+
+        // Resolver condicion (payload > actual > 'NUEVO')
+        $condicion = isset($datos['condicion'])
+            ? strtoupper(trim((string)$datos['condicion']))
+            : strtoupper(trim((string)($productoActual->condicion ?? 'NUEVO')));
+        if (!in_array($condicion, ['NUEVO', 'USADO'], true)) {
+            $condicion = 'NUEVO';
+        }
+
+        // Resolver visible_catalogo (payload > actual > 0)
+        if (array_key_exists('visible_catalogo', $datos)) {
+            $visibleCatalogo = (int)$datos['visible_catalogo'];
+        } else {
+            $visibleCatalogo = (int)($productoActual->visible_catalogo ?? 0);
+        }
+        if ($visibleCatalogo !== 0 && $visibleCatalogo !== 1) {
+            $visibleCatalogo = 0;
+        }
+
         $this->db->query("UPDATE table_inventario 
                           SET codigo = :codigo,
                               nombre = :nombre,
                               marca = :marca,
                               categoria = :categoria,
+                              condicion = :condicion,
+                              visible_catalogo = :visible_catalogo,
                               descripcion = :descripcion,
                               stock = :stock,
                               stock_minimo = :smin,
@@ -297,6 +372,8 @@ class ModelInventario {
         $this->db->bind(':nombre', isset($datos['nombre']) ? mb_strtoupper($datos['nombre'], 'UTF-8') : '');
         $this->db->bind(':marca', !empty($datos['marca']) ? mb_strtoupper($datos['marca'], 'UTF-8') : null);
         $this->db->bind(':categoria', isset($datos['categoria']) ? mb_strtoupper($datos['categoria'], 'UTF-8') : '');
+        $this->db->bind(':condicion', $condicion);
+        $this->db->bind(':visible_catalogo', $visibleCatalogo);
         $this->db->bind(':descripcion', !empty($datos['descripcion']) ? mb_strtoupper($datos['descripcion'], 'UTF-8') : null);
         $this->db->bind(':stock', $datos['stock'] ?? 0);
         $this->db->bind(':smin', $datos['stock_minimo'] ?? 5);
@@ -335,6 +412,46 @@ class ModelInventario {
 
         if (!$this->db->execute()) {
             throw new Exception("Error al actualizar la oferta del producto.");
+        }
+        return true;
+    }
+
+    /**
+     * v3.0: Actualiza SOLO el flag visible_catalogo (toggle inline desde la tabla).
+     * 
+     * @param int $id
+     * @param int $visible 0|1
+     * @return bool
+     * @throws Exception si el producto no existe o el valor no es válido
+     */
+    public function actualizarVisibilidadCatalogo($id, $visible) {
+        $visible = (int)$visible;
+        if ($visible !== 0 && $visible !== 1) {
+            throw new Exception("Valor de visibilidad inválido. Debe ser 0 o 1.");
+        }
+
+        // Verificar existencia
+        $this->db->query("SELECT id, estado FROM table_inventario WHERE id = :id");
+        $this->db->bind(':id', (int)$id);
+        $producto = $this->db->single();
+        if (!$producto) {
+            throw new Exception("Producto no encontrado.");
+        }
+
+        // Advertir si intentan publicar un INACTIVO (no bloquea, solo se ignora)
+        if ($visible === 1 && strtoupper((string)$producto->estado) !== 'ACTIVO') {
+            // El catálogo público filtra por estado='ACTIVO' AND visible_catalogo=1,
+            // así que publicar un INACTIVO no tendría efecto visible.
+            // No bloqueamos, pero el admin debe saberlo.
+            // Dejamos que se guarde el flag igual; el filtro de estado lo oculta.
+        }
+
+        $this->db->query("UPDATE table_inventario SET visible_catalogo = :vis WHERE id = :id");
+        $this->db->bind(':vis', $visible);
+        $this->db->bind(':id', (int)$id);
+
+        if (!$this->db->execute()) {
+            throw new Exception("Error al actualizar la visibilidad del producto.");
         }
         return true;
     }

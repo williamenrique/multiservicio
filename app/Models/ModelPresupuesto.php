@@ -85,6 +85,13 @@ class ModelPresupuesto {
 
     /**
      * Normaliza un item para asegurar que todos los campos requeridos existan.
+     * 
+     * v3.0: agrega `condicion_item` (NUEVO|USADO|SERVICIO). Si no viene en el
+     * payload, se infiere:
+     *   - Si es SERVICIO → 'SERVICIO'
+     *   - Si es PRODUCTO y trae condicion_item del cliente → se respeta
+     *   - Si es PRODUCTO y NO trae → se resuelve contra table_inventario
+     *     (al momento de insertar en crear()/actualizar(), ver nota abajo)
      */
     private function normalizarItem($item, $index) {
         $tipo = strtoupper($item['tipo_item'] ?? 'PRODUCTO');
@@ -96,9 +103,23 @@ class ModelPresupuesto {
             $descripcion = 'ITEM SIN DESCRIPCIÓN';
         }
 
+        // ─── v3.0: resolver condicion_item ───
+        $condicionItem = null;
+        if ($tipo === 'SERVICIO') {
+            $condicionItem = 'SERVICIO';
+        } else {
+            $rawCond = isset($item['condicion_item']) ? strtoupper(trim((string)$item['condicion_item'])) : '';
+            if (in_array($rawCond, ['NUEVO', 'USADO'], true)) {
+                $condicionItem = $rawCond;
+            }
+            // Si no vino, se intentará resolver desde table_inventario
+            // en crear()/actualizar() antes del INSERT (ver resolverCondicionProducto()).
+        }
+
         return [
             'producto_id'           => $productoId,
             'tipo_item'             => $tipo,
+            'condicion_item'        => $condicionItem, // v3.0
             'descripcion'           => $descripcion,
             'cantidad'              => max(1, (int)($item['cantidad'] ?? 1)),
             'precio_unitario'       => (float)($item['precio_unitario'] ?? 0),
@@ -111,6 +132,24 @@ class ModelPresupuesto {
             'orden_visual'          => (int)($item['orden_visual'] ?? $index),
             'notas'                 => $item['notas'] ?? null,
         ];
+    }
+
+    /**
+     * v3.0: Resuelve la condición de un producto consultando table_inventario.
+     * Se usa como fallback cuando el item no trae condicion_item explícito.
+     * Retorna 'NUEVO'|'USADO' o null si el producto no existe.
+     */
+    private function resolverCondicionProducto($productoId) {
+        if (empty($productoId)) return null;
+
+        $this->db->query("SELECT condicion FROM table_inventario WHERE id = :id");
+        $this->db->bind(':id', (int)$productoId);
+        $row = $this->db->single();
+        if ($row && !empty($row->condicion)) {
+            $c = strtoupper(trim((string)$row->condicion));
+            return in_array($c, ['NUEVO', 'USADO'], true) ? $c : 'NUEVO';
+        }
+        return null;
     }
 
     /**
@@ -333,7 +372,8 @@ class ModelPresupuesto {
 
         if (!$presupuesto) return null;
 
-                // ─── FIX OFERTA-P3 v3.8: Detectar si el item fue vendido con oferta ───
+        // ─── FIX OFERTA-P3 v3.8: Detectar si el item fue vendido con oferta ───
+        // ─── v3.0: pd.* ya incluye condicion_item (snapshot histórico) ───
         $this->db->query("SELECT 
                             pd.*, 
                             i.nombre as producto_nombre, 
@@ -439,18 +479,24 @@ class ModelPresupuesto {
                 foreach ($data['items'] as $index => $item) {
                     $it = $this->normalizarItem($item, $index);
 
+                    // ─── v3.0: resolver condicion_item si quedó null ───
+                    if ($it['condicion_item'] === null && $it['producto_id'] !== null) {
+                        $it['condicion_item'] = $this->resolverCondicionProducto($it['producto_id']);
+                    }
+
                     $this->db->query("INSERT INTO table_presupuestos_detalle 
-                                      (presupuesto_id, producto_id, tipo_item, descripcion, cantidad, 
+                                      (presupuesto_id, producto_id, tipo_item, condicion_item, descripcion, cantidad, 
                                        precio_unitario, descuento_porcentaje, descuento_monto, subtotal,
                                        iva_porcentaje, iva_monto, total, orden_visual, notas)
                                       VALUES 
-                                      (:pid, :producto_id, :tipo_item, :descripcion, :cantidad,
+                                      (:pid, :producto_id, :tipo_item, :condicion_item, :descripcion, :cantidad,
                                        :precio_unitario, :descuento_porcentaje, :descuento_monto, :subtotal,
                                        :iva_porcentaje, :iva_monto, :total, :orden_visual, :notas)");
 
                     $this->db->bind(':pid', $presupuestoId);
                     $this->db->bind(':producto_id', $it['producto_id']);
                     $this->db->bind(':tipo_item', $it['tipo_item']);
+                    $this->db->bind(':condicion_item', $it['condicion_item']); // v3.0
                     $this->db->bind(':descripcion', mb_strtoupper($it['descripcion'], 'UTF-8'));
                     $this->db->bind(':cantidad', $it['cantidad']);
                     $this->db->bind(':precio_unitario', $it['precio_unitario']);
@@ -548,18 +594,24 @@ class ModelPresupuesto {
                 foreach ($data['items'] as $index => $item) {
                     $it = $this->normalizarItem($item, $index);
 
+                    // ─── v3.0: resolver condicion_item si quedó null ───
+                    if ($it['condicion_item'] === null && $it['producto_id'] !== null) {
+                        $it['condicion_item'] = $this->resolverCondicionProducto($it['producto_id']);
+                    }
+
                     $this->db->query("INSERT INTO table_presupuestos_detalle 
-                                      (presupuesto_id, producto_id, tipo_item, descripcion, cantidad, 
+                                      (presupuesto_id, producto_id, tipo_item, condicion_item, descripcion, cantidad, 
                                        precio_unitario, descuento_porcentaje, descuento_monto, subtotal,
                                        iva_porcentaje, iva_monto, total, orden_visual, notas)
                                       VALUES 
-                                      (:pid, :producto_id, :tipo_item, :descripcion, :cantidad,
+                                      (:pid, :producto_id, :tipo_item, :condicion_item, :descripcion, :cantidad,
                                        :precio_unitario, :descuento_porcentaje, :descuento_monto, :subtotal,
                                        :iva_porcentaje, :iva_monto, :total, :orden_visual, :notas)");
 
                     $this->db->bind(':pid', (int)$id);
                     $this->db->bind(':producto_id', $it['producto_id']);
                     $this->db->bind(':tipo_item', $it['tipo_item']);
+                    $this->db->bind(':condicion_item', $it['condicion_item']); // v3.0
                     $this->db->bind(':descripcion', mb_strtoupper($it['descripcion'], 'UTF-8'));
                     $this->db->bind(':cantidad', $it['cantidad']);
                     $this->db->bind(':precio_unitario', $it['precio_unitario']);
@@ -828,6 +880,7 @@ class ModelPresupuesto {
                 'tipo'           => $item->tipo_item === 'SERVICIO' ? 'SERVICIO' : 'PRODUCTO',
                 'tipo_item'      => $item->tipo_item,
                 'producto_id'    => $item->producto_id,
+                'condicion_item' => $item->condicion_item ?? null, // v3.0 snapshot
                 'costo_promedio' => (float)($item->costo_promedio ?? 0),
                 'notas'          => $item->notas,
             ];
@@ -991,10 +1044,19 @@ class ModelPresupuesto {
 
             // 2. Detalle de la factura
             foreach ($presupuesto->items as $item) {
+                // ─── v3.0: resolver condicion_item con fallback si es null ───
+                $condicionItem = $item->condicion_item ?? null;
+                if ($condicionItem === null && !empty($item->producto_id)) {
+                    $condicionItem = $this->resolverCondicionProducto($item->producto_id);
+                }
+                if ($condicionItem === null && $item->tipo_item === 'SERVICIO') {
+                    $condicionItem = 'SERVICIO';
+                }
+
                 $this->db->query("INSERT INTO table_facturas_detalle 
-                                  (factura_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario) 
+                                  (factura_id, producto_id, descripcion, cantidad, precio_unitario, costo_unitario, condicion_item) 
                                   VALUES 
-                                  (:fid, :pid, :desc, :cant, :pre, :costo)");
+                                  (:fid, :pid, :desc, :cant, :pre, :costo, :cond)");
 
                 $this->db->bind(':fid', $ventaId);
                 $this->db->bind(':pid', $item->tipo_item === 'PRODUCTO' ? $item->producto_id : null);
@@ -1002,6 +1064,7 @@ class ModelPresupuesto {
                 $this->db->bind(':cant', $item->cantidad);
                 $this->db->bind(':pre', $item->precio_unitario);
                 $this->db->bind(':costo', $item->tipo_item === 'PRODUCTO' ? ($item->costo_promedio ?? 0) : 0);
+                $this->db->bind(':cond', $condicionItem); // v3.0
                 $this->db->execute();
             }
 

@@ -7,6 +7,15 @@
  * NOTA: El logging en `table_emails` lo hace `EmailService` de forma
  * automática (ver App\Services\EmailService::logEnvio). Este controlador
  * ya NO registra manualmente para evitar duplicados.
+ * 
+ * v3.0 (2026-10-21) — CONDICIÓN + VISIBILIDAD:
+ *   • `index()` acepta y propaga `condicion` (null|NUEVO|USADO) al Model.
+ *     Default: TODOS.
+ *   • Se expone `condicionSeleccionada` a la vista para el filtro de faceta.
+ *   • Todos los productos que llegan a la vista ya vienen filtrados por
+ *     visible_catalogo=1 (lo hace ModelCatalogo).
+ *   • `procesarPedido()` valida server-side la visibilidad de cada item
+ *     antes de procesar (defensa en profundidad).
  */
 
 use App\Services\EmailService;
@@ -32,8 +41,18 @@ class ControllerCatalogo extends Controller {
         $limit = 12;
         $offset = ($pagina - 1) * $limit;
 
-        $repuestos = $this->modelCatalogo->listarRepuestos($busqueda, $categoria, $limit, $offset, $oferta);
-        $total = $this->modelCatalogo->contarRepuestos($busqueda, $categoria, $oferta);
+        // v3.0: filtro por condición (null = TODOS)
+        $condicionRaw = $_GET['condicion'] ?? null;
+        $condicion = null;
+        if ($condicionRaw !== null && $condicionRaw !== '') {
+            $cond = strtoupper(trim((string)$condicionRaw));
+            if (in_array($cond, ['NUEVO', 'USADO'], true)) {
+                $condicion = $cond;
+            }
+        }
+
+        $repuestos = $this->modelCatalogo->listarRepuestos($busqueda, $categoria, $limit, $offset, $oferta, $condicion);
+        $total = $this->modelCatalogo->contarRepuestos($busqueda, $categoria, $oferta, $condicion);
         $categorias = $this->modelCatalogo->obtenerCategorias();
         $totalPaginas = max(1, ceil($total / $limit));
 
@@ -45,6 +64,7 @@ class ControllerCatalogo extends Controller {
             'categorias' => $categorias,
             'busqueda' => $busqueda,
             'categoriaSeleccionada' => $categoria,
+            'condicionSeleccionada' => $condicion, // v3.0
             'ofertaSeleccionada' => $oferta,
             'paginaActual' => $pagina,
             'totalPaginas' => $totalPaginas,
@@ -104,6 +124,7 @@ class ControllerCatalogo extends Controller {
                         'id' => $repuesto->id,
                         'nombre' => $repuesto->nombre,
                         'codigo' => $repuesto->codigo,
+                        'condicion' => $repuesto->condicion ?? 'NUEVO', // v3.0
                         'precio' => $precioVenta,
                         'precio_original' => $repuesto->precio,
                         'en_oferta' => (!empty($repuesto->en_oferta_vigente) && $repuesto->en_oferta_vigente),
@@ -339,6 +360,7 @@ class ControllerCatalogo extends Controller {
                     'id' => $repuesto->id,
                     'nombre' => $repuesto->nombre,
                     'codigo' => $repuesto->codigo,
+                    'condicion' => $repuesto->condicion ?? 'NUEVO', // v3.0
                     'precio' => $repuesto->precio,
                     'cantidad' => $cantidad,
                     'subtotal' => $subtotal
@@ -366,6 +388,9 @@ class ControllerCatalogo extends Controller {
      * Integrado con BillingService para generar factura, descontar stock y registrar transacción.
      * 
      * El registro del email en `table_emails` lo hace EmailService::logEnvio().
+     * 
+     * v3.0: valida server-side que cada producto siga siendo visible
+     * (visible_catalogo=1 y estado=ACTIVO) antes de procesar.
      */
     public function procesarPedido() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -414,11 +439,12 @@ class ControllerCatalogo extends Controller {
             $repuesto = $this->modelCatalogo->obtenerRepuesto($id);
             if ($repuesto && $repuesto->stock >= $cantidad) {
                 $items[] = [
-                    'id'          => $repuesto->id,
-                    'nombre'      => $repuesto->nombre,
-                    'precio'      => $repuesto->precio,
-                    'cantidad'    => $cantidad,
-                    'tipo'        => 'PRODUCTO',
+                    'id'             => $repuesto->id,
+                    'nombre'         => $repuesto->nombre,
+                    'precio'         => $repuesto->precio,
+                    'cantidad'       => $cantidad,
+                    'tipo'           => 'PRODUCTO',
+                    'condicion_item' => $repuesto->condicion ?? 'NUEVO', // v3.0 snapshot
                     'costo_promedio' => $repuesto->costo_promedio ?? $repuesto->ultimo_costo ?? 0
                 ];
                 $itemsPedido[] = [

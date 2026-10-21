@@ -91,4 +91,8 @@ return [
     'catalogo/cancelar-pedido-staff'         => 'Catalogo@cancelarPedidoStaff',
     'catalogo/notificaciones-pedidos'        => 'Catalogo@notificacionesPedidos',
     'catalogo/listar-pedidos-pendientes-api' => 'Catalogo@listarPedidosPendientesApi',
+     // Inventario — v3.0: toggle inline de visibilidad en catálogo público
+    'inventario/actualizar-visibilidad' => 'Inventario@actualizarVisibilidad',
+    // Inventario — v3.0: toggle inline de visibilidad en catálogo público
+    'inventario/actualizar-visibilidad' => 'Inventario@actualizarVisibilidad',
 ];

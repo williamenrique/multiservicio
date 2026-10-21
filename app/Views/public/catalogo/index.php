@@ -62,6 +62,11 @@
     .toast-error {
         background: #dc2626 !important;
     }
+
+    /* v3.0 — Badges de condición */
+    .cond-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+    .cond-nuevo { background: #d1fae5; color: #065f46; }
+    .cond-usado { background: #fef3c7; color: #92400e; }
     </style>
 </head>
 
@@ -97,11 +102,19 @@
     <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
 
         <div class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900">Catalogo de Repuestos</h1>
+            <h1 class="text-3xl font-bold text-gray-900">Catálogo de Repuestos</h1>
             <p class="text-gray-500 mt-1">Encuentra los repuestos que necesitas para tu vehículo</p>
         </div>
 
         <form method="GET" action="<?php echo URLROOT; ?>/catalogo" class="mb-6">
+            <!-- v3.0: preservar condicion y oferta al buscar -->
+            <?php if (!empty($condicionSeleccionada)): ?>
+                <input type="hidden" name="condicion" value="<?php echo s($condicionSeleccionada); ?>">
+            <?php endif; ?>
+            <?php if (!empty($ofertaSeleccionada)): ?>
+                <input type="hidden" name="oferta" value="1">
+            <?php endif; ?>
+
             <div class="flex gap-3">
                 <div class="flex-1 relative">
                     <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
@@ -123,14 +136,57 @@
             </div>
         </form>
 
+        <!-- v3.0: FACETA DE CONDICIÓN (TODOS / NUEVO / USADO) -->
+        <?php
+            // URL base preservando busqueda, categoria y oferta
+            $qsBase = [];
+            if (!empty($busqueda)) $qsBase['busqueda'] = $busqueda;
+            if (!empty($categoriaSeleccionada)) $qsBase['categoria'] = $categoriaSeleccionada;
+            if (!empty($ofertaSeleccionada)) $qsBase['oferta'] = 1;
+
+            $urlCond = function($cond) use ($qsBase) {
+                $qs = $qsBase;
+                if ($cond !== null) $qs['condicion'] = $cond;
+                $q = http_build_query($qs);
+                return URLROOT . '/catalogo' . ($q ? ('?' . $q) : '');
+            };
+        ?>
+        <div class="flex flex-wrap items-center gap-2 mb-6">
+            <span class="text-xs font-bold text-gray-500 uppercase tracking-widest mr-1">Condición:</span>
+            <a href="<?php echo $urlCond(null); ?>"
+               class="category-pill px-4 py-2 rounded-full border text-sm font-medium transition <?php echo empty($condicionSeleccionada) ? 'active' : 'border-gray-300 text-gray-600 hover:border-blue-400'; ?>">
+                TODOS
+            </a>
+            <a href="<?php echo $urlCond('NUEVO'); ?>"
+               class="category-pill px-4 py-2 rounded-full border text-sm font-medium transition <?php echo $condicionSeleccionada === 'NUEVO' ? 'active' : 'border-gray-300 text-gray-600 hover:border-blue-400'; ?>">
+                NUEVO
+            </a>
+            <a href="<?php echo $urlCond('USADO'); ?>"
+               class="category-pill px-4 py-2 rounded-full border text-sm font-medium transition <?php echo $condicionSeleccionada === 'USADO' ? 'active' : 'border-gray-300 text-gray-600 hover:border-blue-400'; ?>">
+                USADO
+            </a>
+        </div>
+
         <?php if (!empty($categorias)): ?>
         <div class="flex flex-wrap gap-2 mb-8">
-            <a href="<?php echo URLROOT; ?>/catalogo<?php echo $busqueda ? '?busqueda='.urlencode($busqueda) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
+            <a href="<?php echo URLROOT; ?>/catalogo<?php 
+                $qsCat = [];
+                if ($busqueda) $qsCat['busqueda'] = $busqueda;
+                if ($condicionSeleccionada) $qsCat['condicion'] = $condicionSeleccionada;
+                if ($ofertaSeleccionada) $qsCat['oferta'] = 1;
+                echo $qsCat ? ('?' . http_build_query($qsCat)) : '';
+            ?>"
                 class="category-pill px-4 py-2 rounded-full border border-gray-300 text-sm font-medium transition <?php echo !$categoriaSeleccionada && !$ofertaSeleccionada ? 'active' : 'text-gray-600 hover:border-blue-400'; ?>">
                 Todas
             </a>
             <?php foreach ($categorias as $cat): ?>
-            <a href="<?php echo URLROOT; ?>/catalogo?categoria=<?php echo urlencode($cat->categoria); ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
+            <a href="<?php echo URLROOT; ?>/catalogo?<?php 
+                $qsCat = ['categoria' => $cat->categoria];
+                if ($busqueda) $qsCat['busqueda'] = $busqueda;
+                if ($condicionSeleccionada) $qsCat['condicion'] = $condicionSeleccionada;
+                if ($ofertaSeleccionada) $qsCat['oferta'] = 1;
+                echo http_build_query($qsCat);
+            ?>"
                 class="category-pill px-4 py-2 rounded-full border text-sm font-medium transition <?php echo $categoriaSeleccionada === $cat->categoria ? 'active' : 'border-gray-300 text-gray-600 hover:border-blue-400'; ?>">
                 <?php echo s($cat->categoria); ?>
             </a>
@@ -138,7 +194,14 @@
         </div>
         <?php endif; ?>
 
-        <a href="<?php echo URLROOT; ?>/catalogo<?php echo $busqueda ? '?busqueda='.urlencode($busqueda) : '?'; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?><?php echo $ofertaSeleccionada ? '' : '&oferta=1'; ?>"
+        <a href="<?php echo URLROOT; ?>/catalogo<?php 
+            $qsOf = [];
+            if ($busqueda) $qsOf['busqueda'] = $busqueda;
+            if ($categoriaSeleccionada) $qsOf['categoria'] = $categoriaSeleccionada;
+            if ($condicionSeleccionada) $qsOf['condicion'] = $condicionSeleccionada;
+            if (!$ofertaSeleccionada) $qsOf['oferta'] = 1;
+            echo $qsOf ? ('?' . http_build_query($qsOf)) : '';
+        ?>"
             id="btnOfertasFlotante"
             class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3 rounded-full shadow-xl transition-all duration-300 
                 <?php echo $ofertaSeleccionada 
@@ -200,6 +263,15 @@
                         </span>
                     </div>
                     <?php endif; ?>
+
+                    <?php
+                        // v3.0: badge de condición sobre la imagen (arriba derecha)
+                        $cond = strtoupper($repuesto->condicion ?? 'NUEVO');
+                        $condClass = $cond === 'USADO' ? 'cond-usado' : 'cond-nuevo';
+                    ?>
+                    <div class="absolute top-3 right-3 z-10">
+                        <span class="cond-badge <?php echo $condClass; ?>"><?php echo $cond; ?></span>
+                    </div>
                 </a>
 
                 <div class="p-4 flex flex-col flex-1">
@@ -253,22 +325,33 @@
 
         <?php if ($totalPaginas > 1): ?>
         <div class="flex justify-center items-center gap-2 mt-10">
+            <?php
+                // Helper para construir URLs de paginación preservando filtros
+                $buildPageUrl = function($page) use ($busqueda, $categoriaSeleccionada, $condicionSeleccionada, $ofertaSeleccionada) {
+                    $qs = ['pagina' => $page];
+                    if ($busqueda) $qs['busqueda'] = $busqueda;
+                    if ($categoriaSeleccionada) $qs['categoria'] = $categoriaSeleccionada;
+                    if ($condicionSeleccionada) $qs['condicion'] = $condicionSeleccionada;
+                    if ($ofertaSeleccionada) $qs['oferta'] = 1;
+                    return URLROOT . '/catalogo?' . http_build_query($qs);
+                };
+            ?>
             <?php if ($paginaActual > 1): ?>
-            <a href="<?php echo URLROOT; ?>/catalogo?pagina=<?php echo $paginaActual - 1; ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
+            <a href="<?php echo $buildPageUrl($paginaActual - 1); ?>"
                 class="pagination-btn px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 transition">
                 <i data-lucide="chevron-left" class="w-4 h-4 inline"></i> Anterior
             </a>
             <?php endif; ?>
 
             <?php for ($i = 1; $i <= $totalPaginas; $i++): ?>
-            <a href="<?php echo URLROOT; ?>/catalogo?pagina=<?php echo $i; ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
+            <a href="<?php echo $buildPageUrl($i); ?>"
                 class="pagination-btn w-10 h-10 flex items-center justify-center border rounded-lg text-sm font-medium transition <?php echo $i === $paginaActual ? 'bg-blue-700 text-white border-blue-700' : 'border-gray-300 text-gray-600 hover:bg-blue-50'; ?>">
                 <?php echo $i; ?>
             </a>
             <?php endfor; ?>
 
             <?php if ($paginaActual < $totalPaginas): ?>
-            <a href="<?php echo URLROOT; ?>/catalogo?pagina=<?php echo $paginaActual + 1; ?><?php echo $busqueda ? '&busqueda='.urlencode($busqueda) : ''; ?><?php echo $categoriaSeleccionada ? '&categoria='.urlencode($categoriaSeleccionada) : ''; ?><?php echo $ofertaSeleccionada ? '&oferta=1' : ''; ?>"
+            <a href="<?php echo $buildPageUrl($paginaActual + 1); ?>"
                 class="pagination-btn px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-blue-50 transition">
                 Siguiente <i data-lucide="chevron-right" class="w-4 h-4 inline"></i>
             </a>
@@ -280,7 +363,7 @@
         <div class="text-center py-20">
             <i data-lucide="package-x" class="w-20 h-20 mx-auto text-gray-300 mb-4"></i>
             <h2 class="text-2xl font-semibold text-gray-600">No se encontraron productos</h2>
-            <p class="text-gray-400 mt-2">Intenta con otros términos de búsqueda o categoría.</p>
+            <p class="text-gray-400 mt-2">Intenta con otros términos de búsqueda, categoría o condición.</p>
             <a href="<?php echo URLROOT; ?>/catalogo"
                 class="inline-block mt-6 px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition">
                 Ver todos los productos

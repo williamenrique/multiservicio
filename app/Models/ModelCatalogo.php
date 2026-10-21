@@ -8,6 +8,20 @@
  *   • `buscarPorCodigo($id)` ahora delega a `buscarPorId($id)`, que a su vez
  *     delega a `obtenerRepuesto($id)`. Antes tenía su propia query idéntica
  *     a `obtenerRepuesto`, duplicando ~15 líneas de SQL.
+ * 
+ * v3.0 (2026-10-21) — CONDICIÓN + VISIBILIDAD CATÁLOGO:
+ *   • TODAS las queries que alimentan el catálogo público ahora filtran
+ *     por `i.visible_catalogo = 1` (además de `i.estado = 'ACTIVO'`).
+ *     Esto evita que productos internos se muestren o se manipulen vía
+ *     carrito/checkout con IDs directos.
+ *   • Nuevo parámetro `$condicion` en listarRepuestos() y contarRepuestos():
+ *     null = TODOS, 'NUEVO', 'USADO'. La vista expone el filtro como faceta.
+ *   • Las queries de obtenerRepuesto / buscarPorIds / obtenerDestacados
+ *     también incluyen el filtro de visibilidad.
+ *   • procesarPedido() valida server-side que cada producto siga siendo
+ *     visible antes de descontar stock (defensa en profundidad).
+ *   • crearPedido() (legacy) idem: valida visibilidad de cada item.
+ *   • obtenerCategorias() solo lista categorías de productos publicados.
  */
 class ModelCatalogo {
     private $db;
@@ -17,10 +31,17 @@ class ModelCatalogo {
     }
 
     /**
-     * Lista repuestos activos con búsqueda y filtro por categoría
-     * Incluye cálculo de precio con oferta si está activa y vigente
+     * Lista repuestos publicados en el catálogo público.
+     * Incluye cálculo de precio con oferta si está activa y vigente.
+     * 
+     * @param string|null $busqueda
+     * @param string|null $categoria
+     * @param int         $limit
+     * @param int         $offset
+     * @param int         $oferta      1 = solo con oferta vigente
+     * @param string|null $condicion   null = TODOS, 'NUEVO' o 'USADO'
      */
-    public function listarRepuestos($busqueda = null, $categoria = null, $limit = 12, $offset = 0, $oferta = 0) {
+    public function listarRepuestos($busqueda = null, $categoria = null, $limit = 12, $offset = 0, $oferta = 0, $condicion = null) {
         $sql = "SELECT i.*,
                 CASE 
                     WHEN i.oferta_activa = 1 
@@ -39,7 +60,7 @@ class ModelCatalogo {
                     ELSE 0
                 END as en_oferta_vigente
                 FROM table_inventario i
-                WHERE i.estado = 'ACTIVO'";
+                WHERE i.estado = 'ACTIVO' AND i.visible_catalogo = 1";
         $params = [];
 
         if ($busqueda) {
@@ -60,6 +81,14 @@ class ModelCatalogo {
                          AND (i.oferta_fecha_fin IS NULL OR i.oferta_fecha_fin >= CURDATE())";
         }
 
+        if ($condicion !== null && $condicion !== '') {
+            $cond = strtoupper(trim($condicion));
+            if (in_array($cond, ['NUEVO', 'USADO'], true)) {
+                $sql .= " AND i.condicion = :condicion";
+                $params[':condicion'] = $cond;
+            }
+        }
+
         $sql .= " ORDER BY i.nombre ASC LIMIT :limit OFFSET :offset";
         $params[':limit'] = (int)$limit;
         $params[':offset'] = (int)$offset;
@@ -72,8 +101,17 @@ class ModelCatalogo {
         return $this->db->resultSet();
     }
 
-    public function contarRepuestos($busqueda = null, $categoria = null, $oferta = 0) {
-        $sql = "SELECT COUNT(*) as total FROM table_inventario WHERE estado = 'ACTIVO'";
+    /**
+     * Cuenta repuestos publicados en el catálogo público.
+     * 
+     * @param string|null $busqueda
+     * @param string|null $categoria
+     * @param int         $oferta
+     * @param string|null $condicion  null = TODOS, 'NUEVO' o 'USADO'
+     */
+    public function contarRepuestos($busqueda = null, $categoria = null, $oferta = 0, $condicion = null) {
+        $sql = "SELECT COUNT(*) as total FROM table_inventario 
+                WHERE estado = 'ACTIVO' AND visible_catalogo = 1";
         $params = [];
 
         if ($busqueda) {
@@ -93,6 +131,14 @@ class ModelCatalogo {
                          AND (oferta_fecha_fin IS NULL OR oferta_fecha_fin >= CURDATE())";
         }
 
+        if ($condicion !== null && $condicion !== '') {
+            $cond = strtoupper(trim($condicion));
+            if (in_array($cond, ['NUEVO', 'USADO'], true)) {
+                $sql .= " AND condicion = :condicion";
+                $params[':condicion'] = $cond;
+            }
+        }
+
         $this->db->query($sql);
         foreach ($params as $key => $val) {
             $this->db->bind($key, $val);
@@ -101,13 +147,22 @@ class ModelCatalogo {
         return (int)$this->db->single()->total;
     }
 
+    /**
+     * Lista categorías SOLO de productos publicados en el catálogo público.
+     */
     public function obtenerCategorias() {
         $this->db->query("SELECT DISTINCT categoria FROM table_inventario 
-                          WHERE estado = 'ACTIVO' AND categoria IS NOT NULL 
+                          WHERE estado = 'ACTIVO' 
+                            AND visible_catalogo = 1 
+                            AND categoria IS NOT NULL 
                           ORDER BY categoria ASC");
         return $this->db->resultSet();
     }
 
+    /**
+     * Obtiene un repuesto por ID, SOLO si está publicado en el catálogo público.
+     * Retorna null si no existe o si no es visible (evita manipulación de IDs).
+     */
     public function obtenerRepuesto($id) {
         $this->db->query("SELECT i.*,
                 CASE 
@@ -127,7 +182,9 @@ class ModelCatalogo {
                     ELSE 0
                 END as en_oferta_vigente
                 FROM table_inventario i
-                WHERE i.id = :id AND i.estado = 'ACTIVO'");
+                WHERE i.id = :id 
+                  AND i.estado = 'ACTIVO' 
+                  AND i.visible_catalogo = 1");
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
@@ -147,6 +204,10 @@ class ModelCatalogo {
         return $this->obtenerRepuesto($id);
     }
 
+    /**
+     * Obtiene un lote de repuestos por IDs, SOLO si están publicados.
+     * Se usa desde el carrito para calcular totales sin exponer productos internos.
+     */
     public function buscarPorIds($ids) {
         if (empty($ids)) return [];
         $placeholders = [];
@@ -175,13 +236,18 @@ class ModelCatalogo {
                     ELSE 0
                 END as en_oferta_vigente
                 FROM table_inventario i
-                WHERE i.id IN ($in) AND i.estado = 'ACTIVO'");
+                WHERE i.id IN ($in) 
+                  AND i.estado = 'ACTIVO' 
+                  AND i.visible_catalogo = 1");
         foreach ($params as $key => $val) {
             $this->db->bind($key, $val);
         }
         return $this->db->resultSet();
     }
 
+    /**
+     * Obtiene productos destacados aleatorios, SOLO publicados con stock > 0.
+     */
     public function obtenerDestacados($limit = 8) {
         $this->db->query("SELECT i.*,
                 CASE 
@@ -201,7 +267,9 @@ class ModelCatalogo {
                     ELSE 0
                 END as en_oferta_vigente
                 FROM table_inventario i
-                WHERE i.estado = 'ACTIVO' AND i.stock > 0 
+                WHERE i.estado = 'ACTIVO' 
+                  AND i.visible_catalogo = 1 
+                  AND i.stock > 0 
                 ORDER BY RAND() LIMIT :limit");
         $this->db->bind(':limit', (int)$limit);
         return $this->db->resultSet();
@@ -211,10 +279,43 @@ class ModelCatalogo {
     // GESTIÓN DE PEDIDOS PÚBLICOS
     // ============================================================
 
+    /**
+     * Crea un pedido legacy (pedidos_clientes + pedido_detalles).
+     * 
+     * v3.0: valida server-side que cada producto siga siendo visible en el
+     * catálogo antes de insertarlo. Si algún item no es visible, se omite
+     * (defensa en profundidad; el Controller también valida).
+     * 
+     * @param array $datosCliente
+     * @param array $items  Cada item: ['id' => int, 'precio' => float, 'cantidad' => int]
+     * @return int  ID del pedido creado
+     */
     public function crearPedido($datosCliente, $items) {
-        $subtotal = 0;
+        // ─── v3.0: filtrar items no publicados ───
+        $itemsValidos = [];
         foreach ($items as $item) {
-            $subtotal += $item['precio'] * $item['cantidad'];
+            $prodId = (int)($item['id'] ?? 0);
+            if ($prodId <= 0) continue;
+
+            $this->db->query("SELECT id FROM table_inventario 
+                              WHERE id = :id 
+                                AND estado = 'ACTIVO' 
+                                AND visible_catalogo = 1");
+            $this->db->bind(':id', $prodId);
+            if (!$this->db->single()) {
+                // Producto no publicado o inexistente → se omite
+                continue;
+            }
+            $itemsValidos[] = $item;
+        }
+
+        if (empty($itemsValidos)) {
+            throw new Exception("Los productos del carrito ya no están disponibles en el catálogo.");
+        }
+
+        $subtotal = 0;
+        foreach ($itemsValidos as $item) {
+            $subtotal += (float)$item['precio'] * (int)$item['cantidad'];
         }
 
         // IVA DESHABILITADO — Se usará 0 hasta que se active
@@ -242,14 +343,14 @@ class ModelCatalogo {
 
         $pedidoId = $this->db->lastInsertId();
 
-        foreach ($items as $item) {
-            $itemSubtotal = $item['precio'] * $item['cantidad'];
+        foreach ($itemsValidos as $item) {
+            $itemSubtotal = (float)$item['precio'] * (int)$item['cantidad'];
             $this->db->query("INSERT INTO pedido_detalles (pedido_id, producto_id, cantidad, precio_unitario, subtotal) 
                               VALUES (:pedido_id, :producto_id, :cantidad, :precio, :subtotal)");
             $this->db->bind(':pedido_id', $pedidoId);
-            $this->db->bind(':producto_id', $item['id']);
-            $this->db->bind(':cantidad', $item['cantidad']);
-            $this->db->bind(':precio', $item['precio']);
+            $this->db->bind(':producto_id', (int)$item['id']);
+            $this->db->bind(':cantidad', (int)$item['cantidad']);
+            $this->db->bind(':precio', (float)$item['precio']);
             $this->db->bind(':subtotal', $itemSubtotal);
             $this->db->execute();
         }
@@ -316,6 +417,13 @@ class ModelCatalogo {
         return $this->db->resultSet();
     }
 
+    /**
+     * Procesa un pedido legacy: descuenta stock y registra kardex.
+     * 
+     * v3.0: valida server-side que cada producto del pedido siga siendo
+     * visible en el catálogo ANTES de descontar stock. Si algún producto
+     * dejó de ser visible, se bloquea el procesamiento completo.
+     */
     public function procesarPedido($pedidoId, $usuarioId) {
         $this->db->query("SELECT * FROM pedidos_clientes WHERE id = :id AND estado = 'PENDIENTE'");
         $this->db->bind(':id', $pedidoId);
@@ -326,6 +434,18 @@ class ModelCatalogo {
         }
 
         $detalles = $this->obtenerDetallesPedido($pedidoId);
+
+        // ─── v3.0: validación de visibilidad ANTES de descontar stock ───
+        foreach ($detalles as $detalle) {
+            $this->db->query("SELECT id FROM table_inventario 
+                              WHERE id = :id 
+                                AND estado = 'ACTIVO' 
+                                AND visible_catalogo = 1");
+            $this->db->bind(':id', (int)$detalle->producto_id);
+            if (!$this->db->single()) {
+                throw new Exception("El producto '{$detalle->nombre}' ya no está disponible en el catálogo. No se puede procesar el pedido.");
+            }
+        }
 
         $this->db->query("START TRANSACTION");
 

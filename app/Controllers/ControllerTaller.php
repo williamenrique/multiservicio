@@ -1,4 +1,16 @@
 <?php
+/**
+ * Controlador del Taller
+ * 
+ * v3.1 (2026-10-21) — CONDICIÓN + SNAPSHOT:
+ *   • sincronizarItemsOrden() ahora persiste condicion_item en
+ *     table_facturas_detalle (NUEVO|USADO para productos, SERVICIO para
+ *     servicios). Si el item no trae condicion_item, se guarda NULL
+ *     (el PDF y los listados caerán al fallback producto_condicion_actual).
+ *   • obtenerDetalle() incluye condicion_item al devolver items.
+ *   • El resto de la lógica (asignación de mecánicos, cambios de estado,
+ *     entrega de la orden, etc.) queda idéntica.
+ */
 class ControllerTaller extends Controller {
     private $ordenModel;
     private $vehiculoModel;
@@ -301,6 +313,9 @@ class ControllerTaller extends Controller {
         }
     }
 
+    /**
+     * v3.1: persiste condicion_item (NUEVO|USADO|SERVICIO) en table_facturas_detalle.
+     */
     private function sincronizarItemsOrden($ordenId, $input) {
         try {
             $modelFacturacion = $this->model('Facturacion');
@@ -364,8 +379,17 @@ class ControllerTaller extends Controller {
 
                 $productoIdSanitizado = ($esProducto && !empty($item['id'])) ? (int)$item['id'] : null;
 
-                $db->query("INSERT INTO table_facturas_detalle (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario) 
-                            VALUES (:fid, :pid, :mid, :desc, :cant, :pre, :costo)");
+                // v3.1: resolver condicion_item
+                if ($esProducto) {
+                    $rawCond = strtoupper(trim((string)($item['condicion_item'] ?? '')));
+                    $condicionItem = in_array($rawCond, ['NUEVO', 'USADO'], true) ? $rawCond : null;
+                } else {
+                    $condicionItem = 'SERVICIO';
+                }
+
+                $db->query("INSERT INTO table_facturas_detalle 
+                              (factura_id, producto_id, mecanico_id, descripcion, cantidad, precio_unitario, costo_unitario, condicion_item) 
+                              VALUES (:fid, :pid, :mid, :desc, :cant, :pre, :costo, :cond)");
                 $db->bind(':fid', $ventaId);
                 $db->bind(':pid', $productoIdSanitizado);
                 $db->bind(':mid', $mecanicoIdSanitizado);
@@ -373,6 +397,7 @@ class ControllerTaller extends Controller {
                 $db->bind(':cant', (int)($item['cantidad'] ?? 0));
                 $db->bind(':pre', (float)($item['precio'] ?? 0));
                 $db->bind(':costo', $esProducto ? (float)($item['costo_promedio'] ?? $item['costo'] ?? 0) : 0);
+                $db->bind(':cond', $condicionItem);
 
                 if ($db->execute()) {
                     $itemsInsertados++;
@@ -414,7 +439,8 @@ class ControllerTaller extends Controller {
                             'nombre' => $it->descripcion,
                             'precio' => (float)$it->precio_unitario,
                             'cantidad' => (int)$it->cantidad,
-                            'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO'
+                            'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO',
+                            'condicion_item' => $it->condicion_item ?? null // v3.1
                         ];
                     }, $venta->items);
                 }
@@ -479,15 +505,8 @@ class ControllerTaller extends Controller {
                     $orden = $this->ordenModel->obtenerDetalleOrden($input['id']);
                     if ($orden && !empty($orden->cliente_email)) {
                         $logs = $this->ordenModel->obtenerLogsEstado($input['id']);
-                        // ─── FIX v3.1: La columna correcta es estado_anterior, no estado.
-                        // El último log registrado (el más reciente) contiene el estado
-                        // que tenía la orden antes del cambio actual. Si no hay logs
-                        // previos, asumimos 'RECIBIDO' como estado inicial.
                         $estadoAnterior = 'RECIBIDO';
                         if (!empty($logs)) {
-                            // Los logs vienen ordenados ASC por fecha, así que el último
-                            // elemento es el más reciente. Su estado_anterior es el que
-                            // tenía la orden justo antes del cambio que acabamos de hacer.
                             $ultimoLog = end($logs);
                             if (!empty($ultimoLog->estado_anterior)) {
                                 $estadoAnterior = $ultimoLog->estado_anterior;
@@ -628,14 +647,6 @@ class ControllerTaller extends Controller {
         ]);
     }
 
-    /**
-     * Asigna o quita el mecánico responsable de una orden de servicio.
-     * 
-     * FIX v2.1 (2026-10-09):
-     *   • Se permite `mecanico_id` vacío/nulo para poder DESASIGNAR el mecánico.
-     *   • Se acepta tanto `id` como `orden_id` como identificador de la orden
-     *     (fallback defensivo por si el frontend cambia el nombre del campo).
-     */
     public function asignarMecanico() {
         if ($_SERVER['REQUEST_METHOD'] != 'POST') return;
 
@@ -757,9 +768,6 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * RONDA 13 — T-01: Eliminar una orden de servicio y limpiar todo lo asociado.
-     */
     public function eliminarOrden($id = null) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             return $this->jsonResponse(['success' => false, 'error' => 'Método no permitido'], 405);
@@ -798,14 +806,6 @@ class ControllerTaller extends Controller {
         }
     }
 
-    /**
-     * RONDA 13 — T-02: Actualizar campos editables de la orden de servicio.
-     * 
-     * v2.4 (2026-10-13):
-     *   • Ahora devuelve los valores efectivamente persistidos para que el
-     *     frontend pueda actualizar la fila sin recargar.
-     *   • El modelo valida que `fecha_entrega_estimada` sea > fecha/hora actual.
-     */
     public function actualizarOrden() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             return $this->jsonResponse(['success' => false, 'error' => 'Método no permitido'], 405);
@@ -870,13 +870,7 @@ class ControllerTaller extends Controller {
             ], 400);
         }
     }
-        /**
-     * FIX v3.24: Cuenta las órdenes de servicio ACTIVAS en BD.
-     * Una orden es "activa" si NO está en estado ENTREGADO ni CANCELADO.
-     * Se usa para mostrar el badge en el sidebar desde cualquier página.
-     * 
-     * Endpoint: GET /taller/contarActivas
-     */
+
     public function contarActivas() {
         try {
             $db = new Database();

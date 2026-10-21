@@ -9,6 +9,12 @@
  *   • Header `X-CSRF-TOKEN` añadido al AJAX de agregar-carrito (además del
  *     `csrf_token` en el body, que ya se enviaba).
  * 
+ * v3.0 (2026-10-21):
+ *   • SIN CAMBIOS FUNCIONALES. El filtro por condición se maneja en el
+ *     servidor vía `?condicion=NUEVO|USADO` (GET) y se renderiza en la
+ *     vista con la faceta. Este archivo solo se actualizó el docblock para
+ *     mantener consistencia con la migración de condición/visibilidad.
+ * 
  * Dependencias: jQuery, SweetAlert2, AppUtils (utils.js), Lucide, URLROOT global
  */
 
@@ -41,7 +47,7 @@ function agregarCarrito(productoId) {
                 badge.text(res.total_items).removeClass('hidden');
                 AppUtils.showToast('Producto agregado al carrito', 'success', 'light');
             } else {
-                AppUtils.showToast(res.error || 'No se pudo agregar', 'error', 'light');
+                AppUtils.showToast(res.mensaje || res.error || 'No se pudo agregar', 'error', 'light');
             }
         },
         error: function () {

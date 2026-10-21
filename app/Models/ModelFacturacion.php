@@ -69,6 +69,7 @@ class ModelFacturacion {
                             i.nombre, 
                             i.marca,
                             i.categoria, 
+                            i.condicion,
                             i.stock, 
                             i.precio, 
                             i.costo_promedio,
@@ -125,22 +126,20 @@ class ModelFacturacion {
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_usuarios u ON v.usuario_id = u.id 
                           LEFT JOIN table_staff su ON u.staff_id = su.id 
-                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
+                          LEFT JOIN table_staff sm ON os.mecanico_id = sm.id                          
+                          LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           WHERE v.status = 'PENDIENTE' ORDER BY v.fecha DESC");
         $ventas = $this->db->resultSet();
 
-                foreach ($ventas as $key => $venta) {
+        foreach ($ventas as $key => $venta) {
             // ─── FIX v3.7: Recuperar info de oferta desde table_inventario ───
-            // Al cargar items desde la BD, los metadatos de oferta (en_oferta,
-            // precio_base, oferta_porcentaje) no se persisten en
-            // table_facturas_detalle. Para poder reconstruir el badge en el
-            // frontend, hacemos un JOIN con table_inventario y recalculamos
-            // si el producto tiene oferta vigente HOY.
+            // ─── v3.0: vd.* ya incluye condicion_item (snapshot histórico) ───
             $this->db->query("SELECT 
                                 vd.*, 
                                 i.id as prod_id,
                                 i.nombre as producto_nombre,
                                 i.precio as producto_precio_actual,
+                                i.condicion as producto_condicion_actual,
                                 i.oferta_activa,
                                 i.oferta_porcentaje,
                                 i.oferta_fecha_inicio,
@@ -186,6 +185,7 @@ class ModelFacturacion {
                     'precio_base' => $precioBase,
                     'en_oferta' => $enOferta,
                     'oferta_porcentaje' => $ofertaPct,
+                    'condicion_item' => $it->condicion_item ?? $it->producto_condicion_actual ?? null, // v3.0
                     'costo_promedio' => (float)($it->costo_unitario ?? 0),
                     'cantidad' => (int)$it->cantidad,
                     'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO'
@@ -194,7 +194,6 @@ class ModelFacturacion {
         }
         return $ventas;
     }
-
     public function obtenerBorradorPorOrden($ordenId) {
         $this->db->query("SELECT v.*, v.observaciones as observaciones, 
                                  os.diagnostico_entrada as diagnostico_entrada, os.observaciones as observaciones_orden,
@@ -210,13 +209,15 @@ class ModelFacturacion {
         $this->db->bind(':oid', $ordenId);
         $venta = $this->db->single();
 
-                if ($venta) {
+        if ($venta) {
             // ─── FIX v3.7: Recuperar info de oferta desde table_inventario ───
+            // ─── v3.0: vd.* ya incluye condicion_item ───
             $this->db->query("SELECT 
                                 vd.*, 
                                 i.id as prod_id,
                                 i.nombre as producto_nombre,
                                 i.precio as producto_precio_actual,
+                                i.condicion as producto_condicion_actual,
                                 i.oferta_activa,
                                 i.oferta_porcentaje,
                                 i.oferta_fecha_inicio,
@@ -258,6 +259,7 @@ class ModelFacturacion {
                     'precio_base' => $precioBase,
                     'en_oferta' => $enOferta,
                     'oferta_porcentaje' => $ofertaPct,
+                    'condicion_item' => $it->condicion_item ?? $it->producto_condicion_actual ?? null, // v3.0
                     'costo_promedio' => (float)($it->costo_unitario ?? 0),
                     'cantidad' => (int)$it->cantidad,
                     'tipo' => $it->producto_id ? 'PRODUCTO' : 'SERVICIO',
@@ -267,7 +269,6 @@ class ModelFacturacion {
         }
         return $venta;
     }
-
     public function guardarCabeceraVenta($datos, $status, $totales, $usuarioId) {
         try {
             $ventaId = !empty($datos['id_db']) ? $datos['id_db'] : null;
@@ -495,9 +496,13 @@ class ModelFacturacion {
         $venta = $this->db->single();
 
         if ($venta) {
-            $this->db->query("SELECT vd.*, s.nombre as mecanico_nombre 
+            // ─── v3.0: vd.* ya incluye condicion_item; se mantiene el JOIN con staff ───
+            // ─── v3.0: producto_condicion_actual como fallback si condicion_item es NULL ───
+            $this->db->query("SELECT vd.*, s.nombre as mecanico_nombre,
+                                     i.condicion as producto_condicion_actual
                               FROM table_facturas_detalle vd
                               LEFT JOIN table_staff s ON vd.mecanico_id = s.id 
+                              LEFT JOIN table_inventario i ON vd.producto_id = i.id
                               WHERE vd.factura_id = :vid");
             $this->db->bind(':vid', $id);
             $venta->items = $this->db->resultSet();

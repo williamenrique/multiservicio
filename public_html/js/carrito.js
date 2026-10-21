@@ -7,9 +7,12 @@
  * 
  * v2.1 (2026-10-09) — P3-10:
  *   • Se añade el header `X-CSRF-TOKEN` a todos los fetch POST, además del
- *     `csrf_token` en FormData (que ya se enviaba). Esto alinea el catálogo
- *     público con el resto del sistema (que usa el header) sin romper la
- *     compatibilidad con el backend actual.
+ *     `csrf_token` en FormData (que ya se enviaba).
+ * 
+ * v3.0 (2026-10-21):
+ *   • SIN CAMBIOS FUNCIONALES. La condición del producto ya viene en los
+ *     items del carrito desde el Controller (`carrito()` expone
+ *     `condicion`). Este archivo solo actualizó el docblock.
  * 
  * Dependencias: AppUtils (utils.js), URLROOT global, csrfToken global
  */

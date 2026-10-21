@@ -57,6 +57,12 @@
     .total-val { font-weight: bold; font-size: 11px; }
     .grand-total { font-size: 14px; border-top: 2px solid #0f172a; padding-top: 4px; color: #0f172a; }
     .text-right { text-align: right; }
+
+    /* v3.0 — Badge de condición */
+    .pill-cond { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 7.5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; }
+    .pill-nuevo { background: #d1fae5; color: #065f46; }
+    .pill-usado { background: #fef3c7; color: #92400e; }
+    .pill-servicio { background: #dbeafe; color: #1e40af; }
 </style>
 </head>
 <body>
@@ -121,20 +127,39 @@
     <table class="items-table">
         <thead>
             <tr>
-                <th width="65%">Descripción del Servicio / Repuesto</th>
+                <th width="52%">Descripción del Servicio / Repuesto</th>
+                <th width="12%" class="text-right">Condición</th>
                 <th width="10%" class="text-right">Cant.</th>
-                <th width="12%" class="text-right">Unitario</th>
+                <th width="13%" class="text-right">Unitario</th>
                 <th width="13%" class="text-right">Subtotal</th>
             </tr>
         </thead>
         <tbody>
             <?php foreach($venta->items as $item): ?>
-            <tr>
-                <td style="text-transform: uppercase;"><?php echo $item->descripcion; ?></td>
-                <td class="text-right" style="font-weight: bold;">x<?php echo $item->cantidad; ?></td>
-                <td class="text-right">$ <?php echo number_format($item->precio_unitario, 2); ?></td>
-                <td class="text-right" style="font-weight: bold;">$ <?php echo number_format($item->cantidad * $item->precio_unitario, 2); ?></td>
-            </tr>
+                <?php
+                    // v3.0: condición del item
+                    $condRaw = strtoupper(trim((string)($item->condicion_item ?? $item->producto_condicion_actual ?? '')));
+                    if ($condRaw === '') {
+                        $condRaw = $item->producto_id ? 'NUEVO' : 'SERVICIO';
+                    }
+                    if ($condRaw === 'SERVICIO') {
+                        $pillClass = 'pill-servicio';
+                        $pillLabel = 'SERVICIO';
+                    } elseif ($condRaw === 'USADO') {
+                        $pillClass = 'pill-usado';
+                        $pillLabel = 'USADO';
+                    } else {
+                        $pillClass = 'pill-nuevo';
+                        $pillLabel = 'NUEVO';
+                    }
+                ?>
+                <tr>
+                    <td style="text-transform: uppercase;"><?php echo $item->descripcion; ?></td>
+                    <td class="text-right"><span class="pill-cond <?php echo $pillClass; ?>"><?php echo $pillLabel; ?></span></td>
+                    <td class="text-right" style="font-weight: bold;">x<?php echo $item->cantidad; ?></td>
+                    <td class="text-right">$ <?php echo number_format($item->precio_unitario, 2); ?></td>
+                    <td class="text-right" style="font-weight: bold;">$ <?php echo number_format($item->cantidad * $item->precio_unitario, 2); ?></td>
+                </tr>
             <?php endforeach; ?>
         </tbody>
     </table>

@@ -1,21 +1,20 @@
 /**
  * Lógica de Facturación con Gestión de Colas
  * 
- * v3.9 (2026-10-15) — Dropdown flotante + ofertas:
- *   • El buscador de repuestos ahora usa un dropdown flotante en el <body>
- *     con position:fixed (igual que presupuesto). Ya no se recorta por
- *     contenedores con overflow.
- *   • Ancho mínimo 520px con auto-ajuste al viewport.
- *   • Al hacer foco muestra TODOS los productos; al escribir filtra.
- *   • Cada producto muestra badge OFERTA, precio base tachado, precio
- *     final en verde y stock coloreado.
- *   • Se cierra con scroll, resize o clic fuera.
- * 
+ * v3.9 (2026-10-15) — Dropdown flotante + ofertas.
  * v3.7 (2026-10-15): Soporte de ofertas en buscador y carrito.
  * v3.3 (2026-10-14): Limpiar presupuesto_info + presupuesto_activo_id en desanexar.
  * v3.2 (2026-10-14): Guardar presupuesto_info en la factura para reconstruir sin fetch.
  * v3.1 (2026-10-14): Fix presupuesto "pegado" al cambiar de tarjeta.
  * v3.0 (2026-10-14): FIX CRÍTICO (3 bugs: polling, orden anexar, rehidratación).
+ * 
+ * v3.10 (2026-10-21) — CONDICIÓN + SNAPSHOT:
+ *   • Cada item del carrito guarda `condicion_item` (NUEVO|USADO) del producto.
+ *   • Se muestra badge de condición en el dropdown y en el carrito.
+ *   • Al cargar items de un presupuesto anexado, se preserva su
+ *     `condicion_item` (snapshot histórico).
+ *   • Los items se envían al backend con `condicion_item` para que se
+ *     persista en `table_facturas_detalle`.
  * 
  * DEPENDENCIAS: polling.js, utils.js, DataTableRefactor.js, app.js.
  */
@@ -369,9 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ═══════════════════════════════════════════════════════════════════════
     // FIX v3.19: BUSQUEDA DE CLIENTES CON DROPDOWN FLOTANTE
-    // Replica el sistema del dropdown de productos. Al hacer foco muestra
-    // TODOS los clientes; al escribir filtra en tiempo real. Se renderiza
-    // en el <body> con position:fixed para no recortarse.
     // ═══════════════════════════════════════════════════════════════════════
     if (clientSearchInput) {
         let searchTimeoutClientes = null;
@@ -763,6 +759,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             // PASO 4: Agregar los items del presupuesto a la factura
+            // v3.10: preservar condicion_item del presupuesto (snapshot histórico)
             dataItems.items.forEach(item => {
                 activeInvoice.items.push({
                     id: item.producto_id,
@@ -770,7 +767,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     precio: parseFloat(item.precio),
                     costo_promedio: parseFloat(item.costo_promedio || 0),
                     cantidad: parseInt(item.cantidad),
-                    tipo: item.tipo
+                    tipo: item.tipo,
+                    condicion_item: (item.condicion_item || 'NUEVO').toUpperCase()
                 });
             });
 
@@ -871,19 +869,9 @@ document.addEventListener('DOMContentLoaded', () => {
             debounceSync();
         }
     };
-        /**
     /**
      * FIX v3.22: Cuenta las facturas "reales" abiertas (excluye la
      * factura en blanco por defecto).
-     * 
-     * Una factura es "real" si tiene AL MENOS UNO de estos contenidos:
-     *   - Items cargados
-     *   - Placa con valor
-     *   - Cliente asignado
-     *   - Presupuesto anexado
-     * 
-     * NOTA: tener solo `id_db` NO cuenta como "real", porque el
-     * syncActiveInvoice guarda la factura vacía automáticamente al crear.
      */
     function contarFacturasReales() {
         return openInvoices.filter(inv => {
@@ -1143,6 +1131,8 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Agregar producto al carrito. Si tiene oferta vigente, usa el precio
      * de oferta y guarda metadatos para reconstruir el badge.
+     * 
+     * v3.10: guarda condicion_item del producto (NUEVO|USADO).
      */
     btnAddItem.addEventListener('click', () => {
         if (!activeInvoiceId) return AppUtils.showToast('Cree una factura primero', 'warning');
@@ -1155,6 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const precioFinal = enOferta
             ? parseFloat(selectedItemFromSearch.precio_final)
             : precioBase;
+        const condicionItem = (selectedItemFromSearch.condicion || 'NUEVO').toUpperCase(); // v3.10
 
         const activeInvoice = openInvoices.find(i => i.id === activeInvoiceId);
         activeInvoice.items.push({
@@ -1164,6 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
             precio_base: precioBase,
             en_oferta: enOferta,
             oferta_porcentaje: enOferta ? parseFloat(selectedItemFromSearch.oferta_porcentaje || 0) : 0,
+            condicion_item: condicionItem, // v3.10
             costo_promedio: parseFloat(selectedItemFromSearch.costo_promedio || 0),
             cantidad: qty,
             tipo: 'PRODUCTO'
@@ -1194,7 +1186,8 @@ document.addEventListener('DOMContentLoaded', () => {
             nombre: nombre.toUpperCase(),
             precio: precio,
             cantidad: 1,
-            tipo: 'SERVICIO'
+            tipo: 'SERVICIO',
+            condicion_item: 'SERVICIO' // v3.10
         });
 
         inputServicioNombre.value = '';
@@ -1301,6 +1294,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Detalle del carrito con badge y precio doble si hay oferta
+        // v3.10: badge de condición NUEVO/USADO
         cartBody.innerHTML = activeInvoice.items.length === 0
             ? '<tr><td class="py-32 text-center text-slate-300 uppercase text-xs font-bold tracking-widest opacity-50"><i data-lucide="shopping-cart" class="w-16 h-16 mx-auto mb-4"></i> No hay items en esta factura</td></tr>'
             : activeInvoice.items.map((item, i) => {
@@ -1312,6 +1306,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? `<span class="line-through text-slate-300">${AppUtils.formatCurrency(item.precio_base)}</span> <span class="text-emerald-600">${AppUtils.formatCurrency(item.precio)}</span>`
                     : AppUtils.formatCurrency(item.precio);
 
+                const condicion = (item.condicion_item || (item.tipo === 'SERVICIO' ? 'SERVICIO' : 'NUEVO')).toUpperCase();
+                const condClass = condicion === 'SERVICIO'
+                    ? 'bg-blue-100 text-blue-700'
+                    : (condicion === 'USADO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700');
+                const condBadge = `<span class="text-[8px] ${condClass} px-1.5 py-0.5 rounded font-black uppercase">${condicion}</span>`;
+
                 return `
                 <tr class="group hover:bg-slate-50 transition-colors">
                     <td class="py-3 pr-4">
@@ -1321,6 +1321,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <span class="text-sm font-bold text-slate-800 uppercase leading-none mb-1">${item.nombre}</span>
                                     ${item.tipo === 'SERVICIO' ? '<span class="text-[8px] bg-blue-100 text-blue-600 px-1 rounded font-black">SRV</span>' : ''}
                                     ${ofertaBadge}
+                                    ${condBadge}
                                 </div>
                                 <span class="text-[10px] text-slate-400 font-bold">${item.cantidad} x ${precioDetalle}</span>
                             </div>
@@ -1351,9 +1352,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('pos-total').textContent = AppUtils.formatCurrency(total);
 
-                // ─── FIX v3.10: Validación de pago vs total ───
-        // Si la suma de pagos (efectivo + transferencia) EXCEDE el total,
-        // mostramos alerta visual y bloqueamos el botón de procesar.
+        // ─── FIX v3.10: Validación de pago vs total ───
         const totalPagado = parseFloat(activeInvoice.pago_efectivo || 0) + parseFloat(activeInvoice.pago_transferencia || 0);
         const saldoPendiente = total - totalPagado;
         const pagoExcede = totalPagado > total + 0.01;
@@ -1373,7 +1372,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const containerDeuda = document.getElementById('pos-container-deuda');
             if (containerDeuda) {
                 if (pagoExcede) {
-                    // Cambiar el label a "EXCEDENTE" temporalmente
                     const labelEl = containerDeuda.querySelector('span');
                     if (labelEl) labelEl.textContent = 'PAGO EXCEDE EL TOTAL';
                     containerDeuda.classList.remove('opacity-40');
@@ -1386,7 +1384,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // ─── FIX v3.10: Mostrar/ocultar alerta de exceso y bloquear botón ───
         let alertaExceso = document.getElementById('alerta-pago-excede');
         if (!alertaExceso) {
             alertaExceso = document.createElement('div');
@@ -1402,7 +1399,6 @@ document.addEventListener('DOMContentLoaded', () => {
             else alertaExceso.classList.add('hidden');
         }
 
-        // Bloquear el botón de procesar si hay exceso
         if (btnProcessSale) {
             if (pagoExcede) {
                 btnProcessSale.disabled = true;
@@ -1439,7 +1435,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
     };
 
-       btnProcessSale.addEventListener('click', async () => {
+    btnProcessSale.addEventListener('click', async () => {
         const activeInvoice = openInvoices.find(i => i.id === activeInvoiceId);
         if (!activeInvoice) return;
         if (activeInvoice.items.length === 0) return AppUtils.showToast('La factura está vacía', 'warning');
@@ -1542,6 +1538,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ═══════════════════════════════════════════════════════════════════════
     // FIX OFERTA-F1 v3.9: BUSCADOR DE REPUESTOS CON DROPDOWN FLOTANTE
+    // v3.10: badge de condición NUEVO/USADO
     // ═══════════════════════════════════════════════════════════════════════
     let searchTimeoutFacturacion = null;
 
@@ -1590,7 +1587,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const rect = searchInput.getBoundingClientRect();
 
-        // Ancho mínimo 520px con auto-ajuste al viewport
         const MIN_WIDTH = 520;
         const PADDING = 16;
         let dropdownWidth = Math.max(rect.width, MIN_WIDTH);
@@ -1598,7 +1594,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dropdownWidth > maxWidthRight) dropdownWidth = maxWidthRight;
         if (dropdownWidth < 320) dropdownWidth = Math.min(320, window.innerWidth - PADDING * 2);
 
-        // Altura máxima disponible
         const espacioDebajo = window.innerHeight - rect.bottom - 20;
         const alturaMax = Math.min(360, Math.max(180, espacioDebajo));
 
@@ -1630,6 +1625,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const precioBase = parseFloat(item.precio);
             const precioFinal = parseFloat(item.precio_final || item.precio);
             const stock = parseInt(item.stock_disponible || 0);
+            const condicion = (item.condicion || 'NUEVO').toUpperCase();
+            const condClass = condicion === 'USADO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
 
             let stockColor = 'text-slate-400';
             if (stock <= 0) stockColor = 'text-rose-500 font-black';
@@ -1638,6 +1635,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const ofertaBadge = enOferta
                 ? `<span class="ml-2 px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700 uppercase">OFERTA ${parseFloat(item.oferta_porcentaje).toFixed(0)}%</span>`
                 : '';
+            const condBadge = `<span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${condClass}">${condicion}</span>`;
 
             const precioHtml = enOferta
                 ? `<div class="flex flex-col items-end">
@@ -1652,6 +1650,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="flex items-center flex-wrap">
                                 <span class="font-bold text-xs text-slate-800 uppercase truncate">${item.nombre}</span>
                                 ${ofertaBadge}
+                                ${condBadge}
                             </div>
                             <div class="text-[10px] text-slate-400 font-mono mt-0.5">
                                 ${item.categoria || ''} ${item.marca ? '· ' + item.marca : ''} · <span class="${stockColor}">Stock: ${stock}</span>
@@ -1688,12 +1687,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-        // Cerrar el dropdown solo si el scroll ocurre FUERA de él (no cuando
-    // el usuario está scrolleando la propia lista de productos).
+    // Cerrar el dropdown solo si el scroll ocurre FUERA de él
     document.addEventListener('scroll', (e) => {
         const dd = document.getElementById('facturacion-search-dropdown-float');
         if (!dd) return;
-        // Si el scroll ocurre DENTRO del dropdown, no hacer nada
         if (dd.contains(e.target)) return;
         dd.remove();
     }, true);
@@ -1705,7 +1702,6 @@ document.addEventListener('DOMContentLoaded', () => {
         initNewInvoice(true);
     });
 
-    // Cerrar dropdowns secundarios al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (clientSearchResults && !clientSearchResults.contains(e.target) && e.target !== clientSearchInput)
             clientSearchResults.classList.add('hidden');

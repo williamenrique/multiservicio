@@ -16,14 +16,16 @@
  * v2.3 (2026-10-09) — P2-09:
  *   • quickRegisterOS delega a AppUtils.openQuickClientModal().
  * 
- * v2.4 (2026-10-09) — FIX búsqueda de clientes:
- *   • ANTES: cargaba TODOS los clientes al inicio con fetch('/clientes/listar')
- *     (que por defecto devuelve solo 10) y luego filtraba en el cliente.
- *     Resultado: solo aparecían coincidencias dentro de los 10 más recientes.
- *   • AHORA: búsqueda server-side. Cada pulsación (con debounce 300ms) hace
- *     fetch('/clientes/listar?q=TERM&limit=20') y muestra hasta 20
- *     coincidencias reales de toda la base de datos.
- *   • Se eliminó la variable `allClients` (ya no se necesita).
+ * v2.4 (2026-10-09) — FIX búsqueda de clientes (server-side).
+ * 
+ * v3.0 (2026-10-21) — CONDICIÓN + SNAPSHOT:
+ *   • Cada item del presupuesto anexado conserva su `condicion_item`
+ *     (NUEVO|USADO|SERVICIO) tal como estaba registrado al crear el
+ *     presupuesto (snapshot histórico).
+ *   • Badge de condición en la sección de items del presupuesto.
+ *   • Los items se envían al backend con `condicion_item`, donde
+ *     ControllerTaller::sincronizarItemsOrden los persiste en
+ *     table_facturas_detalle.
  */
 
 // ============================================================================
@@ -474,10 +476,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? '<span class="text-[8px] bg-blue-100 text-blue-600 px-1 rounded font-black">SRV</span>'
                 : '<span class="text-[8px] bg-amber-100 text-amber-700 px-1 rounded font-black">PROD</span>';
 
+            // v3.0: badge de condición
+            const condicion = (item.condicion_item || (item.tipo === 'SERVICIO' ? 'SERVICIO' : 'NUEVO')).toUpperCase();
+            const condClass = condicion === 'SERVICIO'
+                ? 'bg-blue-100 text-blue-700'
+                : (condicion === 'USADO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700');
+            const condBadge = `<span class="text-[8px] ${condClass} px-1 rounded font-black ml-1">${condicion}</span>`;
+
             rowsHtml += `
                 <tr class="border-b border-emerald-100 last:border-0">
                     <td class="py-2 pr-2 text-xs font-medium text-slate-700">
-                        ${tipoBadge} ${item.nombre}
+                        ${tipoBadge}${condBadge} ${item.nombre}
                     </td>
                     <td class="py-2 px-2 text-center text-xs font-bold">${item.cantidad}</td>
                     <td class="py-2 px-2 text-right text-xs text-slate-500">$${parseFloat(item.precio).toFixed(2)}</td>

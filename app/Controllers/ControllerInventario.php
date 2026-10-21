@@ -1,4 +1,17 @@
 <?php
+/**
+ * Controlador de Inventario
+ * 
+ * v3.0 (2026-10-21) — CONDICIÓN + VISIBILIDAD CATÁLOGO:
+ *   • Nuevo endpoint `actualizar-visibilidad` (POST) para el toggle inline
+ *     de `visible_catalogo` desde la tabla del inventario.
+ *   • `guardar()` acepta y normaliza `condicion` ('NUEVO'|'USADO') y
+ *     `visible_catalogo` (0|1) del payload.
+ *   • `listar()` ahora propaga `condicion` y `visible_catalogo` (ya vienen
+ *     del ModelInventario::listar con i.*).
+ *   • Los métodos de Kardex y PDF no se tocan: siguen viendo todos los
+ *     productos sin importar visibilidad (regla de negocio).
+ */
 class ControllerInventario extends Controller {
     private $inventarioModel;
 
@@ -41,6 +54,10 @@ class ControllerInventario extends Controller {
             } else {
                 $item->imagen = null;
             }
+
+            // v3.0: normalizar tipos para el frontend
+            $item->condicion = strtoupper($item->condicion ?? 'NUEVO');
+            $item->visible_catalogo = (int)($item->visible_catalogo ?? 0);
         }
 
         $total = $this->inventarioModel->contarTotal();
@@ -172,6 +189,9 @@ class ControllerInventario extends Controller {
 
     /**
      * Guarda o actualiza un producto del inventario
+     * 
+     * v3.0: acepta y normaliza condicion ('NUEVO'|'USADO') y
+     * visible_catalogo (0|1) del payload (FormData o JSON).
      */
     public function guardar() {
         RoleGuard::isAdmin();
@@ -212,6 +232,19 @@ class ControllerInventario extends Controller {
                 // Normalizar código a mayúsculas
                 if (!empty($input['codigo'])) {
                     $input['codigo'] = mb_strtoupper(trim($input['codigo']), 'UTF-8');
+                }
+
+                // ─── v3.0: Normalizar condicion y visible_catalogo ───
+                $condicion = isset($input['condicion']) ? strtoupper(trim((string)$input['condicion'])) : null;
+                if ($condicion !== null && !in_array($condicion, ['NUEVO', 'USADO'], true)) {
+                    $condicion = 'NUEVO';
+                }
+                if ($condicion !== null) {
+                    $input['condicion'] = $condicion;
+                }
+
+                if (array_key_exists('visible_catalogo', $input)) {
+                    $input['visible_catalogo'] = (int)$input['visible_catalogo'] === 1 ? 1 : 0;
                 }
 
                 // Obtener el producto actual si es edición para gestionar el archivo viejo
@@ -430,4 +463,63 @@ class ControllerInventario extends Controller {
             return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
         }
     }
-} 
+
+    /**
+     * v3.0: Actualiza SOLO el flag visible_catalogo de un producto (toggle inline).
+     * 
+     * POST /inventario/actualizar-visibilidad
+     * Payload JSON: { "id": <int>, "visible_catalogo": 0|1 }
+     * 
+     * Regla:
+     *   - Solo ADMINISTRADOR puede cambiar la visibilidad.
+     *   - El producto debe existir.
+     *   - No valida stock ni estado: si está INACTIVO, el catálogo público
+     *     lo seguirá ocultando por el filtro estado='ACTIVO'.
+     */
+    public function actualizarVisibilidad() {
+        RoleGuard::isAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Método no permitido'], 405);
+        }
+
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+        $input = [];
+        if (strpos($contentType, 'application/json') !== false) {
+            $json = json_decode(file_get_contents('php://input'), true);
+            $input = $json ?? [];
+        } else {
+            $input = $_POST;
+        }
+
+        $id = (int)($input['id'] ?? 0);
+        if (!$id) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'ID de producto requerido'], 400);
+        }
+
+        if (!array_key_exists('visible_catalogo', $input)) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'Campo visible_catalogo requerido'], 400);
+        }
+
+        $visible = (int)$input['visible_catalogo'];
+        if ($visible !== 0 && $visible !== 1) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => 'visible_catalogo debe ser 0 o 1'], 400);
+        }
+
+        try {
+            $this->inventarioModel->actualizarVisibilidadCatalogo($id, $visible);
+
+            $mensaje = $visible
+                ? 'Producto publicado en el catálogo.'
+                : 'Producto oculto del catálogo.';
+
+            return $this->jsonResponse([
+                'success' => true,
+                'mensaje' => $mensaje,
+                'visible_catalogo' => $visible
+            ]);
+        } catch (Exception $e) {
+            return $this->jsonResponse(['success' => false, 'mensaje' => $e->getMessage()], 500);
+        }
+    }
+}

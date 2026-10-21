@@ -55,6 +55,11 @@
         border-radius: 999px;
         font-weight: 600;
     }
+
+    /* v3.0 — Badges de condición */
+    .cond-badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+    .cond-nuevo { background: #d1fae5; color: #065f46; }
+    .cond-usado { background: #fef3c7; color: #92400e; }
     </style>
 </head>
 
@@ -113,6 +118,15 @@
                         </span>
                     </div>
                     <?php endif; ?>
+
+                    <?php
+                        // v3.0: badge de condición
+                        $condDetalle = strtoupper($repuesto->condicion ?? 'NUEVO');
+                        $condClassDetalle = $condDetalle === 'USADO' ? 'cond-usado' : 'cond-nuevo';
+                    ?>
+                    <div class="absolute top-4 right-4 z-10">
+                        <span class="cond-badge <?php echo $condClassDetalle; ?> shadow-lg"><?php echo $condDetalle; ?></span>
+                    </div>
                 </div>
                 <div class="p-6 md:p-8 flex flex-col">
                     <?php if ($repuesto->codigo): ?>
