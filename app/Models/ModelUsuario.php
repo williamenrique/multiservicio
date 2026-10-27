@@ -16,22 +16,30 @@
 class ModelUsuario {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    public function __construct(Database $db = null) {
+        $this->db = $db ?? Database::getInstance();
     }
 
     /**
      * Busca un usuario activo cruzando datos con el personal y sus roles.
      * Permite identificar al usuario por su Username, Email o Cédula.
+     *
+     * v2.2 (2026-10-27) — FIX HY093:
+     *   Con ATTR_EMULATE_PREPARES=false, un mismo placeholder NO puede
+     *   repetirse. Antes el WHERE usaba :id tres veces (username, email,
+     *   cédula) y PDO lanzaba "Invalid parameter number". Ahora se usan
+     *   :id_user, :id_email y :id_cedula con el mismo valor.
      */
     public function buscarPorIdentificador($identificador) {
         $this->db->query("SELECT u.*, s.nombre, s.email, s.foto, r.nombre_rol 
                           FROM table_usuarios u
                           LEFT JOIN table_staff s ON u.staff_id = s.id
                           LEFT JOIN table_roles r ON u.role_id = r.id
-                          WHERE (u.username = :id OR s.email = :id OR s.cedula = :id)
+                          WHERE (u.username = :id_user OR s.email = :id_email OR s.cedula = :id_cedula)
                           AND u.estado = 'ACTIVO'");
-        $this->db->bind(':id', $identificador);
+        $this->db->bind(':id_user',  $identificador);
+        $this->db->bind(':id_email', $identificador);
+        $this->db->bind(':id_cedula', $identificador);
         return $this->db->single();
     }
 

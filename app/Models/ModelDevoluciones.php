@@ -62,21 +62,25 @@ class ModelDevoluciones {
      */
     public function listarFacturasConRepuestos($limit = 10, $offset = 0, $search = null) {
         $where = "WHERE vd.producto_id IS NOT NULL";
+        $params = [];
         if ($search) {
-            $where .= " AND (v.id LIKE :search OR v.placa LIKE :search 
-                        OR c.nombre LIKE :search)";
+            $where .= " AND (v.id LIKE :search_id 
+                        OR v.placa LIKE :search_placa 
+                        OR c.nombre LIKE :search_cli)";
+            $like = "%$search%";
+            $params[':search_id']    = $like;
+            $params[':search_placa'] = $like;
+            $params[':search_cli']   = $like;
         }
 
-        // Contar total de facturas distintas
         $this->db->query("SELECT COUNT(DISTINCT v.id) as total 
                           FROM table_facturas v
                           JOIN table_facturas_detalle vd ON vd.factura_id = v.id
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
                           $where");
-        if ($search) $this->db->bind(':search', "%$search%");
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         $total = (int)$this->db->single()->total;
 
-        // Obtener datos
         $this->db->query("SELECT v.id, v.fecha, v.total, v.saldo_pendiente, v.status,
                                  IFNULL(c.nombre,'Consumidor Final') as cliente,
                                  v.placa,
@@ -89,7 +93,7 @@ class ModelDevoluciones {
                           GROUP BY v.id
                           ORDER BY v.fecha DESC
                           LIMIT :limit OFFSET :offset");
-        if ($search) $this->db->bind(':search', "%$search%");
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         $this->db->bind(':limit', (int)$limit);
         $this->db->bind(':offset', (int)$offset);
 
@@ -275,26 +279,39 @@ class ModelDevoluciones {
      */
     public function listarDevoluciones($limit = 10, $offset = 0, $search = null, $desde = null, $hasta = null) {
         $where = "WHERE 1=1";
+        $params = [];
         if ($search) {
-            $where .= " AND (d.id LIKE :search OR v.id LIKE :search OR v.placa LIKE :search
-                        OR d.descripcion LIKE :search OR d.motivo LIKE :search
-                        OR i.nombre LIKE :search)";
+            $where .= " AND (d.id LIKE :search_d 
+                        OR v.id LIKE :search_v 
+                        OR v.placa LIKE :search_placa
+                        OR d.descripcion LIKE :search_desc 
+                        OR d.motivo LIKE :search_mot
+                        OR i.nombre LIKE :search_prod)";
+            $like = "%$search%";
+            $params[':search_d']     = $like;
+            $params[':search_v']     = $like;
+            $params[':search_placa'] = $like;
+            $params[':search_desc']  = $like;
+            $params[':search_mot']   = $like;
+            $params[':search_prod']  = $like;
         }
-        if ($desde) $where .= " AND DATE(d.fecha) >= :desde";
-        if ($hasta) $where .= " AND DATE(d.fecha) <= :hasta";
+        if ($desde) {
+            $where .= " AND DATE(d.fecha) >= :desde";
+            $params[':desde'] = $desde;
+        }
+        if ($hasta) {
+            $where .= " AND DATE(d.fecha) <= :hasta";
+            $params[':hasta'] = $hasta;
+        }
 
-        // Contar total
         $this->db->query("SELECT COUNT(*) as total 
                           FROM table_devoluciones d
                           LEFT JOIN table_facturas v ON d.factura_id = v.id
                           LEFT JOIN table_inventario i ON d.producto_id = i.id
                           $where");
-        if ($search) $this->db->bind(':search', "%$search%");
-        if ($desde) $this->db->bind(':desde', $desde);
-        if ($hasta) $this->db->bind(':hasta', $hasta);
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         $total = (int)$this->db->single()->total;
 
-        // Obtener datos
         $this->db->query("SELECT d.*, v.placa,
                                  i.nombre as producto_nombre, i.codigo as producto_codigo,
                                  IFNULL(c.nombre,'Consumidor Final') as cliente,
@@ -309,9 +326,7 @@ class ModelDevoluciones {
                           $where
                           ORDER BY d.fecha DESC 
                           LIMIT :limit OFFSET :offset");
-        if ($search) $this->db->bind(':search', "%$search%");
-        if ($desde) $this->db->bind(':desde', $desde);
-        if ($hasta) $this->db->bind(':hasta', $hasta);
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         $this->db->bind(':limit', (int)$limit);
         $this->db->bind(':offset', (int)$offset);
 

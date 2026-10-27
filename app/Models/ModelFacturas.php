@@ -53,8 +53,15 @@ class ModelFacturas {
         $params = [];
         
         if ($search) {
-            $sql .= " AND (v.id LIKE :search OR c.nombre LIKE :search OR vh.placa LIKE :search OR v.placa LIKE :search)";
-            $params[':search'] = "%$search%";
+            $sql .= " AND (v.id LIKE :search_id 
+                        OR c.nombre LIKE :search_cli 
+                        OR vh.placa LIKE :search_placa_h 
+                        OR v.placa LIKE :search_placa_v)";
+            $like = "%$search%";
+            $params[':search_id']      = $like;
+            $params[':search_cli']     = $like;
+            $params[':search_placa_h'] = $like;
+            $params[':search_placa_v'] = $like;
         }
         
         if ($desde) {
@@ -81,7 +88,7 @@ class ModelFacturas {
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
-            $params[':limit'] = (int)$limit;
+            $params[':limit']  = (int)$limit;
             $params[':offset'] = (int)$offset;
         }
         
@@ -107,8 +114,15 @@ class ModelFacturas {
         $params = [];
         
         if ($search) {
-            $sql .= " AND (v.id LIKE :search OR c.nombre LIKE :search OR vh.placa LIKE :search OR v.placa LIKE :search)";
-            $params[':search'] = "%$search%";
+            $sql .= " AND (v.id LIKE :search_id 
+                        OR c.nombre LIKE :search_cli 
+                        OR vh.placa LIKE :search_placa_h 
+                        OR v.placa LIKE :search_placa_v)";
+            $like = "%$search%";
+            $params[':search_id']      = $like;
+            $params[':search_cli']     = $like;
+            $params[':search_placa_h'] = $like;
+            $params[':search_placa_v'] = $like;
         }
         if ($desde) {
             $sql .= " AND DATE(v.fecha) >= :desde";

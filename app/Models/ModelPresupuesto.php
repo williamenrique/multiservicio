@@ -339,8 +339,13 @@ class ModelPresupuesto {
             $params[':hasta'] = $filters['hasta'];
         }
         if (!empty($filters['search'])) {
-            $where .= " AND (p.numero LIKE :search OR p.cliente_nombre LIKE :search OR p.cliente_cedula LIKE :search)";
-            $params[':search'] = "%{$filters['search']}%";
+            $where .= " AND (p.numero LIKE :search_num 
+                        OR p.cliente_nombre LIKE :search_cli 
+                        OR p.cliente_cedula LIKE :search_ced)";
+            $like = "%{$filters['search']}%";
+            $params[':search_num'] = $like;
+            $params[':search_cli'] = $like;
+            $params[':search_ced'] = $like;
         }
 
         $this->db->query("SELECT COUNT(*) as total FROM table_presupuestos p $where");
@@ -721,10 +726,14 @@ class ModelPresupuesto {
                 WHERE i.estado = 'ACTIVO'";
         
         $params = [];
-        
         if ($search) {
-            $sql .= " AND (i.nombre LIKE :search OR i.codigo LIKE :search OR i.categoria LIKE :search)";
-            $params[':search'] = "%$search%";
+            $sql .= " AND (i.nombre LIKE :search_nom 
+                        OR i.codigo LIKE :search_cod 
+                        OR i.categoria LIKE :search_cat)";
+            $like = "%$search%";
+            $params[':search_nom'] = $like;
+            $params[':search_cod'] = $like;
+            $params[':search_cat'] = $like;
         }
         
         $sql .= " ORDER BY i.nombre ASC LIMIT 50";
@@ -748,10 +757,16 @@ class ModelPresupuesto {
                 WHERE 1=1";
         
         $params = [];
-        
         if ($search) {
-            $sql .= " AND (c.nombre LIKE :search OR c.id LIKE :search OR c.telefono LIKE :search OR c.email LIKE :search)";
-            $params[':search'] = "%$search%";
+            $sql .= " AND (c.nombre LIKE :search_nom 
+                        OR c.id LIKE :search_id 
+                        OR c.telefono LIKE :search_tel 
+                        OR c.email LIKE :search_email)";
+            $like = "%$search%";
+            $params[':search_nom']   = $like;
+            $params[':search_id']    = $like;
+            $params[':search_tel']   = $like;
+            $params[':search_email'] = $like;
         }
         
         $sql .= " ORDER BY c.nombre ASC LIMIT 50";
@@ -844,10 +859,16 @@ class ModelPresupuesto {
                 WHERE p.estado NOT IN ('CONVERTIDO', 'RECHAZADO', 'EXPIRADO', 'ANEXADO')";
         
         $params = [];
-        
         if ($search) {
-            $sql .= " AND (p.numero LIKE :search OR p.cliente_nombre LIKE :search OR p.cliente_cedula LIKE :search OR p.vehiculo_placa LIKE :search)";
-            $params[':search'] = "%$search%";
+            $sql .= " AND (p.numero LIKE :search_num 
+                        OR p.cliente_nombre LIKE :search_cli 
+                        OR p.cliente_cedula LIKE :search_ced 
+                        OR p.vehiculo_placa LIKE :search_placa)";
+            $like = "%$search%";
+            $params[':search_num']   = $like;
+            $params[':search_cli']   = $like;
+            $params[':search_ced']   = $like;
+            $params[':search_placa'] = $like;
         }
         
         $sql .= " ORDER BY p.fecha_emision DESC, p.id DESC LIMIT 50";

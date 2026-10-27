@@ -125,17 +125,22 @@ class ModelGarantia {
                       )
                   )";
 
+        $params = [];
         if ($search) {
-            $sql .= " AND (f.id LIKE :search OR f.placa LIKE :search OR c.nombre LIKE :search)";
+            $sql .= " AND (f.id LIKE :search_id 
+                        OR f.placa LIKE :search_placa 
+                        OR c.nombre LIKE :search_cli)";
+            $like = "%{$search}%";
+            $params[':search_id']    = $like;
+            $params[':search_placa'] = $like;
+            $params[':search_cli']   = $like;
         }
         $sql .= " ORDER BY f.fecha DESC LIMIT :limit OFFSET :offset";
+        $params[':limit']  = (int)$limit;
+        $params[':offset'] = (int)$offset;
 
         $this->db->query($sql);
-        if ($search) {
-            $this->db->bind(':search', "%{$search}%");
-        }
-        $this->db->bind(':limit', (int)$limit, PDO::PARAM_INT);
-        $this->db->bind(':offset', (int)$offset, PDO::PARAM_INT);
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         return $this->db->resultset();
     }
 
@@ -159,13 +164,18 @@ class ModelGarantia {
                            AND UPPER(IFNULL(i.categoria,'')) NOT IN ('LAVADO','ASPIRADO'))
                       )
                   )";
+        $params = [];
         if ($search) {
-            $sql .= " AND (f.id LIKE :search OR f.placa LIKE :search OR c.nombre LIKE :search)";
+            $sql .= " AND (f.id LIKE :search_id 
+                        OR f.placa LIKE :search_placa 
+                        OR c.nombre LIKE :search_cli)";
+            $like = "%{$search}%";
+            $params[':search_id']    = $like;
+            $params[':search_placa'] = $like;
+            $params[':search_cli']   = $like;
         }
         $this->db->query($sql);
-        if ($search) {
-            $this->db->bind(':search', "%{$search}%");
-        }
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         $row = $this->db->single();
         return $row ? (int)$row->total : 0;
     }
@@ -643,7 +653,6 @@ class ModelGarantia {
     /* =====================================================================
      * HISTORIAL DE GARANTÍAS
      * ===================================================================== */
-
     public function listarGarantias($limit, $offset, $search = null, $desde = null, $hasta = null) {
         $sql = "SELECT g.id, g.factura_original_id, g.factura_garantia_id, g.tipo_garantia, g.motivo,
                        g.monto_mano_obra, g.monto_repuesto, g.monto_total, g.destino_repuesto,
@@ -655,38 +664,62 @@ class ModelGarantia {
                 LEFT JOIN table_usuarios u ON g.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
                 WHERE 1=1";
+        
+        $params = [];
         if ($search) {
-            $sql .= " AND (g.id LIKE :search OR g.placa LIKE :search OR c.nombre LIKE :search OR g.motivo LIKE :search)";
+            $sql .= " AND (g.id LIKE :search_id 
+                        OR g.placa LIKE :search_placa 
+                        OR c.nombre LIKE :search_cli 
+                        OR g.motivo LIKE :search_mot)";
+            $like = "%{$search}%";
+            $params[':search_id']    = $like;
+            $params[':search_placa'] = $like;
+            $params[':search_cli']   = $like;
+            $params[':search_mot']   = $like;
         }
         if ($desde) {
             $sql .= " AND DATE(g.fecha) >= :desde";
+            $params[':desde'] = $desde;
         }
         if ($hasta) {
             $sql .= " AND DATE(g.fecha) <= :hasta";
+            $params[':hasta'] = $hasta;
         }
         $sql .= " ORDER BY g.fecha DESC LIMIT :limit OFFSET :offset";
+        $params[':limit']  = (int)$limit;
+        $params[':offset'] = (int)$offset;
 
         $this->db->query($sql);
-        if ($search) $this->db->bind(':search', "%{$search}%");
-        if ($desde) $this->db->bind(':desde', $desde);
-        if ($hasta) $this->db->bind(':hasta', $hasta);
-        $this->db->bind(':limit', (int)$limit, PDO::PARAM_INT);
-        $this->db->bind(':offset', (int)$offset, PDO::PARAM_INT);
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         return $this->db->resultset();
     }
 
     public function contarGarantias($search = null, $desde = null, $hasta = null) {
         $sql = "SELECT COUNT(g.id) AS total FROM table_garantias g
                 LEFT JOIN table_clientes c ON g.cliente_id = c.id WHERE 1=1";
+        
+        $params = [];
         if ($search) {
-            $sql .= " AND (g.id LIKE :search OR g.placa LIKE :search OR c.nombre LIKE :search OR g.motivo LIKE :search)";
+            $sql .= " AND (g.id LIKE :search_id 
+                        OR g.placa LIKE :search_placa 
+                        OR c.nombre LIKE :search_cli 
+                        OR g.motivo LIKE :search_mot)";
+            $like = "%{$search}%";
+            $params[':search_id']    = $like;
+            $params[':search_placa'] = $like;
+            $params[':search_cli']   = $like;
+            $params[':search_mot']   = $like;
         }
-        if ($desde) $sql .= " AND DATE(g.fecha) >= :desde";
-        if ($hasta) $sql .= " AND DATE(g.fecha) <= :hasta";
+        if ($desde) {
+            $sql .= " AND DATE(g.fecha) >= :desde";
+            $params[':desde'] = $desde;
+        }
+        if ($hasta) {
+            $sql .= " AND DATE(g.fecha) <= :hasta";
+            $params[':hasta'] = $hasta;
+        }
         $this->db->query($sql);
-        if ($search) $this->db->bind(':search', "%{$search}%");
-        if ($desde) $this->db->bind(':desde', $desde);
-        if ($hasta) $this->db->bind(':hasta', $hasta);
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         $row = $this->db->single();
         return $row ? (int)$row->total : 0;
     }

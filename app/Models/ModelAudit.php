@@ -6,8 +6,8 @@
 class ModelAudit {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    public function __construct(Database $db = null) {
+        $this->db = $db ?? Database::getInstance();
     }
 
     public function listarLogs($limit = 50, $offset = 0, $filters = []) {

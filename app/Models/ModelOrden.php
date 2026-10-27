@@ -161,16 +161,25 @@ class ModelOrden {
                 LEFT JOIN table_staff s ON os.mecanico_id = s.id
                 WHERE os.estado = 'ENTREGADO'";
         
+        $params = [];
         if ($search) {
-            $sql .= " AND (os.id LIKE :search OR os.placa LIKE :search OR c.nombre LIKE :search OR s.nombre LIKE :search)";
+            $sql .= " AND (os.id LIKE :search_id 
+                        OR os.placa LIKE :search_placa 
+                        OR c.nombre LIKE :search_cli 
+                        OR s.nombre LIKE :search_mec)";
+            $like = "%$search%";
+            $params[':search_id']    = $like;
+            $params[':search_placa'] = $like;
+            $params[':search_cli']   = $like;
+            $params[':search_mec']   = $like;
         }
 
         $sql .= " ORDER BY os.fecha_entrega_real DESC LIMIT :limit OFFSET :offset";
+        $params[':limit']  = (int)$limit;
+        $params[':offset'] = (int)$offset;
         
         $this->db->query($sql);
-        if ($search) $this->db->bind(':search', "%$search%");
-        $this->db->bind(':limit', (int)$limit);
-        $this->db->bind(':offset', (int)$offset);
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         
         return $this->db->resultSet();
     }
@@ -181,12 +190,21 @@ class ModelOrden {
                 LEFT JOIN table_staff s ON os.mecanico_id = s.id
                 WHERE os.estado = 'ENTREGADO'";
         
+        $params = [];
         if ($search) {
-            $sql .= " AND (os.id LIKE :search OR os.placa LIKE :search OR c.nombre LIKE :search OR s.nombre LIKE :search)";
+            $sql .= " AND (os.id LIKE :search_id 
+                        OR os.placa LIKE :search_placa 
+                        OR c.nombre LIKE :search_cli 
+                        OR s.nombre LIKE :search_mec)";
+            $like = "%$search%";
+            $params[':search_id']    = $like;
+            $params[':search_placa'] = $like;
+            $params[':search_cli']   = $like;
+            $params[':search_mec']   = $like;
         }
         
         $this->db->query($sql);
-        if ($search) $this->db->bind(':search', "%$search%");
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         return (int)$this->db->single()->total;
     }
 

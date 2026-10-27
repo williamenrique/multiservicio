@@ -41,6 +41,7 @@ class ModelFacturacion {
     }
 
     public function searchInvoices($term) {
+        $like = "%$term%";
         $this->db->query("SELECT v.id, CONCAT('FAC-', LPAD(v.id, 3, '0')) as id_formateado,
                                   COALESCE(vh.placa, v.placa) as placa, c.nombre as cliente_nombre,
                                   v.status, v.origen, v.total,
@@ -50,19 +51,25 @@ class ModelFacturacion {
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
                           LEFT JOIN table_clientes c ON v.cliente_id = c.id
-                          WHERE (CAST(v.id AS CHAR) LIKE :term
-                                 OR CONCAT('FAC-', LPAD(v.id, 3, '0')) LIKE :term
-                                 OR CAST(os.id AS CHAR) LIKE :term
-                                 OR vh.placa LIKE :term
-                                 OR c.nombre LIKE :term
-                                 OR v.placa LIKE :term)
+                          WHERE (CAST(v.id AS CHAR) LIKE :term_id
+                                 OR CONCAT('FAC-', LPAD(v.id, 3, '0')) LIKE :term_fac
+                                 OR CAST(os.id AS CHAR) LIKE :term_os
+                                 OR vh.placa LIKE :term_placa_h
+                                 OR c.nombre LIKE :term_cli
+                                 OR v.placa LIKE :term_placa_v)
                           AND v.status != 'ANULADO'
                           ORDER BY v.id DESC LIMIT 8");
-        $this->db->bind(':term', "%$term%");
+        $this->db->bind(':term_id',      $like);
+        $this->db->bind(':term_fac',     $like);
+        $this->db->bind(':term_os',      $like);
+        $this->db->bind(':term_placa_h', $like);
+        $this->db->bind(':term_cli',     $like);
+        $this->db->bind(':term_placa_v', $like);
         return $this->db->resultSet();
     }
 
     public function buscarItems($termino) {
+        $like = "%$termino%";
         $this->db->query("SELECT 
                             i.id, 
                             i.codigo,
@@ -100,10 +107,15 @@ class ModelFacturacion {
                                 WHERE vd.producto_id = i.id AND v.status = 'PENDIENTE'
                             ), 0)) as stock_disponible
                           FROM table_inventario i
-                          WHERE (i.nombre LIKE :term OR i.categoria LIKE :term OR i.id LIKE :term) AND i.estado = 'ACTIVO'
+                          WHERE (i.nombre LIKE :term_nom 
+                              OR i.categoria LIKE :term_cat 
+                              OR i.id LIKE :term_id) 
+                            AND i.estado = 'ACTIVO'
                           ORDER BY (stock_disponible > 0) DESC, i.nombre ASC
                           LIMIT 30");
-        $this->db->bind(':term', "%$termino%");
+        $this->db->bind(':term_nom', $like);
+        $this->db->bind(':term_cat', $like);
+        $this->db->bind(':term_id',  $like);
         return $this->db->resultSet();
     }
 
@@ -570,21 +582,25 @@ class ModelFacturacion {
 
     public function obtenerVentasMostrador($limit = 10, $offset = 0, $search = null, $desde = null, $hasta = null) {
         $where = "WHERE v.orden_id IS NULL AND (v.placa IS NULL OR v.placa = '') AND v.status IN ('COMPLETADO', 'CREDITO')";
+        $params = [];
         
         if ($search) {
-            $where .= " AND (v.id LIKE :search OR c.nombre LIKE :search)";
+            $where .= " AND (v.id LIKE :search_id OR c.nombre LIKE :search_cli)";
+            $like = "%$search%";
+            $params[':search_id']  = $like;
+            $params[':search_cli'] = $like;
         }
         if ($desde) {
             $where .= " AND DATE(v.fecha) >= :desde";
+            $params[':desde'] = $desde;
         }
         if ($hasta) {
             $where .= " AND DATE(v.fecha) <= :hasta";
+            $params[':hasta'] = $hasta;
         }
 
         $this->db->query("SELECT COUNT(*) as total FROM table_facturas v LEFT JOIN table_clientes c ON v.cliente_id = c.id $where");
-        if ($search) $this->db->bind(':search', "%$search%");
-        if ($desde) $this->db->bind(':desde', $desde);
-        if ($hasta) $this->db->bind(':hasta', $hasta);
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         $total = (int)$this->db->single()->total;
 
         $this->db->query("SELECT v.*, c.nombre as cliente_nombre, 
@@ -597,9 +613,7 @@ class ModelFacturacion {
                           $where
                           ORDER BY v.fecha DESC 
                           LIMIT :limit OFFSET :offset");
-        if ($search) $this->db->bind(':search', "%$search%");
-        if ($desde) $this->db->bind(':desde', $desde);
-        if ($hasta) $this->db->bind(':hasta', $hasta);
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         $this->db->bind(':limit', (int)$limit);
         $this->db->bind(':offset', (int)$offset);
         

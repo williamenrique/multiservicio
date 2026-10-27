@@ -20,23 +20,30 @@ class ModelHistorial {
                 LEFT JOIN table_usuarios u ON v.usuario_id = u.id
                 LEFT JOIN table_staff s ON u.staff_id = s.id
                 WHERE v.orden_id IS NULL AND (v.placa IS NULL OR v.placa = '') AND v.status IN ('COMPLETADO', 'CREDITO')";
-
+        
+        $params = [];
         if ($search) {
-            $sql .= " AND (v.id LIKE :search OR vh.placa LIKE :search OR v.placa LIKE :search OR c.nombre LIKE :search)";
+            $sql .= " AND (v.id LIKE :search_id 
+                        OR vh.placa LIKE :search_placa_h 
+                        OR v.placa LIKE :search_placa_v 
+                        OR c.nombre LIKE :search_cli)";
+            $like = "%$search%";
+            $params[':search_id']      = $like;
+            $params[':search_placa_h'] = $like;
+            $params[':search_placa_v'] = $like;
+            $params[':search_cli']     = $like;
         }
 
         $sql .= " ORDER BY v.fecha DESC";
 
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
+            $params[':limit']  = (int)$limit;
+            $params[':offset'] = (int)$offset;
         }
 
         $this->db->query($sql);
-        if ($search) $this->db->bind(':search', "%$search%");
-        if ($limit !== null && $offset !== null) {
-            $this->db->bind(':limit', (int)$limit);
-            $this->db->bind(':offset', (int)$offset);
-        }
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         return $this->db->resultSet();
     }
 
@@ -45,10 +52,24 @@ class ModelHistorial {
                 FROM table_facturas v 
                 LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                 LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
-                LEFT JOIN table_clientes c ON v.cliente_id = c.id WHERE v.orden_id IS NULL AND (v.placa IS NULL OR v.placa = '') AND v.status IN ('COMPLETADO', 'CREDITO')";
-        if ($search) $sql .= " AND (v.id LIKE :search OR vh.placa LIKE :search OR v.placa LIKE :search OR c.nombre LIKE :search)";
+                LEFT JOIN table_clientes c ON v.cliente_id = c.id 
+                WHERE v.orden_id IS NULL AND (v.placa IS NULL OR v.placa = '') AND v.status IN ('COMPLETADO', 'CREDITO')";
+        
+        $params = [];
+        if ($search) {
+            $sql .= " AND (v.id LIKE :search_id 
+                        OR vh.placa LIKE :search_placa_h 
+                        OR v.placa LIKE :search_placa_v 
+                        OR c.nombre LIKE :search_cli)";
+            $like = "%$search%";
+            $params[':search_id']      = $like;
+            $params[':search_placa_h'] = $like;
+            $params[':search_placa_v'] = $like;
+            $params[':search_cli']     = $like;
+        }
+        
         $this->db->query($sql);
-        if ($search) $this->db->bind(':search', "%$search%");
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         return (int)$this->db->single()->total;
     }
 

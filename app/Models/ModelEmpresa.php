@@ -6,8 +6,8 @@
 class ModelEmpresa {
     private $db;
 
-    public function __construct() {
-        $this->db = new Database();
+    public function __construct(Database $db = null) {
+        $this->db = $db ?? Database::getInstance();
     }
 
     /**
@@ -24,37 +24,50 @@ class ModelEmpresa {
      * Si no existe, la crea; si existe, la actualiza.
      */
     public function guardarConfiguracion($datos) {
-        // Aseguramos que los datos importantes estén en mayúsculas
-        $name = mb_strtoupper($datos['name'] ?? '', 'UTF-8');
-        $nit = mb_strtoupper($datos['nit'] ?? '', 'UTF-8');
-        $iva = $datos['iva'] ?? 0.00;
+        $name      = mb_strtoupper($datos['name'] ?? '', 'UTF-8');
+        $nit       = mb_strtoupper($datos['nit'] ?? '', 'UTF-8');
+        $iva       = $datos['iva'] ?? 0.00;
         $direccion = mb_strtoupper($datos['direccion'] ?? '', 'UTF-8');
-        $telefono = $datos['telefono'] ?? '';
-        $diasGarantia = isset($datos['dias_garantia_devolucion']) && $datos['dias_garantia_devolucion'] !== '' ? (int)$datos['dias_garantia_devolucion'] : 5;
-        
-        // Si no se envía un logo nuevo en los datos, intentamos mantener el que ya existe en la DB
+        $telefono  = $datos['telefono'] ?? '';
+        $diasGarantia = isset($datos['dias_garantia_devolucion']) && $datos['dias_garantia_devolucion'] !== ''
+            ? (int)$datos['dias_garantia_devolucion'] : 5;
+
         $configActual = $this->obtenerConfiguracion();
         $logo = $datos['logo'] ?? ($configActual ? $configActual->logo : null);
 
-        // Intentar actualizar, si no existe, insertar
-        $this->db->query("INSERT INTO table_company_settings (id, name, nit, iva, logo, direccion, telefono, dias_garantia_devolucion) 
-                          VALUES (1, :name, :nit, :iva, :logo, :direccion, :telefono, :diasGarantia)
+        // v2.1 (2026-10-27) — FIX HY093:
+        // Con ATTR_EMULATE_PREPARES=false, un placeholder no puede repetirse.
+        // Antes cada campo aparecía 2 veces (VALUES + UPDATE) y PDO lanzaba
+        // "Invalid parameter number". Se usan placeholders distintos para
+        // VALUES (:x_ins) y para ON DUPLICATE KEY UPDATE (:x_upd).
+        $this->db->query("INSERT INTO table_company_settings
+                              (id, name, nit, iva, logo, direccion, telefono, dias_garantia_devolucion)
+                          VALUES
+                              (1, :name_ins, :nit_ins, :iva_ins, :logo_ins, :direccion_ins, :telefono_ins, :dias_ins)
                           ON DUPLICATE KEY UPDATE
-                              name = :name,
-                              nit = :nit,
-                              iva = :iva,
-                              logo = :logo,
-                              direccion = :direccion,
-                              telefono = :telefono,
-                              dias_garantia_devolucion = :diasGarantia");
-        
-        $this->db->bind(':name', $name);
-        $this->db->bind(':nit', $nit);
-        $this->db->bind(':iva', $iva);
-        $this->db->bind(':logo', $logo);
-        $this->db->bind(':direccion', $direccion);
-        $this->db->bind(':telefono', $telefono);
-        $this->db->bind(':diasGarantia', $diasGarantia);
+                              name                     = :name_upd,
+                              nit                      = :nit_upd,
+                              iva                      = :iva_upd,
+                              logo                     = :logo_upd,
+                              direccion                = :direccion_upd,
+                              telefono                 = :telefono_upd,
+                              dias_garantia_devolucion = :dias_upd");
+
+        $this->db->bind(':name_ins',      $name);
+        $this->db->bind(':nit_ins',       $nit);
+        $this->db->bind(':iva_ins',       $iva);
+        $this->db->bind(':logo_ins',      $logo);
+        $this->db->bind(':direccion_ins', $direccion);
+        $this->db->bind(':telefono_ins',  $telefono);
+        $this->db->bind(':dias_ins',      $diasGarantia);
+
+        $this->db->bind(':name_upd',      $name);
+        $this->db->bind(':nit_upd',       $nit);
+        $this->db->bind(':iva_upd',       $iva);
+        $this->db->bind(':logo_upd',      $logo);
+        $this->db->bind(':direccion_upd', $direccion);
+        $this->db->bind(':telefono_upd',  $telefono);
+        $this->db->bind(':dias_upd',      $diasGarantia);
 
         return $this->db->execute();
     }

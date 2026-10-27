@@ -67,7 +67,7 @@ class ModelInventario {
      * v3.0: devuelve también condicion y visible_catalogo.
      */
     public function listar($limit = null, $offset = null, $search = null) {
-        $reservadoSql = $this->getSqlReservado();
+        $reservadoSql  = $this->getSqlReservado();
         $pendientesSql = $this->getSqlPendientesFactura();
 
         $sql = "SELECT i.*, 
@@ -76,26 +76,27 @@ class ModelInventario {
                 (i.stock - ($reservadoSql) - ($pendientesSql)) as stock_disponible
                 FROM table_inventario i";
         
+        $params = [];
         if ($search) {
-            $sql .= " WHERE i.nombre LIKE :search OR i.categoria LIKE :search OR i.codigo LIKE :search";
+            $sql .= " WHERE i.nombre LIKE :search_nom 
+                        OR i.categoria LIKE :search_cat 
+                        OR i.codigo LIKE :search_cod";
+            $like = "%$search%";
+            $params[':search_nom'] = $like;
+            $params[':search_cat'] = $like;
+            $params[':search_cod'] = $like;
         }
 
         $sql .= " ORDER BY i.nombre ASC";
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
+            $params[':limit']  = (int)$limit;
+            $params[':offset'] = (int)$offset;
         }
         
         $this->db->query($sql);
-        
-        if ($search) {
-            $this->db->bind(':search', "%$search%");
-        }
-        
-        if ($limit !== null && $offset !== null) {
-            $this->db->bind(':limit', (int)$limit);
-            $this->db->bind(':offset', (int)$offset);
-        }
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
 
         return $this->db->resultSet();
     }
@@ -109,7 +110,7 @@ class ModelInventario {
      * Si se usa desde el catálogo, el llamador debe filtrar la visibilidad.
      */
     public function listarConOfertas($limit = null, $offset = null, $search = null, $categoria = null) {
-        $reservadoSql = $this->getSqlReservado();
+        $reservadoSql  = $this->getSqlReservado();
         $pendientesSql = $this->getSqlPendientesFactura();
 
         $sql = "SELECT i.*, 
@@ -138,8 +139,10 @@ class ModelInventario {
         $params = [];
         
         if ($search) {
-            $sql .= " AND (i.nombre LIKE :search OR i.categoria LIKE :search)";
-            $params[':search'] = "%$search%";
+            $sql .= " AND (i.nombre LIKE :search_nom OR i.categoria LIKE :search_cat)";
+            $like = "%$search%";
+            $params[':search_nom'] = $like;
+            $params[':search_cat'] = $like;
         }
         
         if ($categoria) {
@@ -151,7 +154,7 @@ class ModelInventario {
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
-            $params[':limit'] = (int)$limit;
+            $params[':limit']  = (int)$limit;
             $params[':offset'] = (int)$offset;
         }
         
@@ -171,8 +174,10 @@ class ModelInventario {
         $params = [];
         
         if ($search) {
-            $sql .= " AND (i.nombre LIKE :search OR i.categoria LIKE :search)";
-            $params[':search'] = "%$search%";
+            $sql .= " AND (i.nombre LIKE :search_nom OR i.categoria LIKE :search_cat)";
+            $like = "%$search%";
+            $params[':search_nom'] = $like;
+            $params[':search_cat'] = $like;
         }
         
         if ($categoria) {
@@ -200,11 +205,14 @@ class ModelInventario {
      * Retorna la cantidad de registros que coinciden con la búsqueda.
      */
     public function contarFiltrados($search) {
+        $like = "%$search%";
         $this->db->query("SELECT COUNT(*) as total FROM table_inventario 
-                          WHERE nombre LIKE :search 
-                          OR categoria LIKE :search
-                          OR codigo LIKE :search");
-        $this->db->bind(':search', "%$search%");
+                          WHERE nombre LIKE :search_nom 
+                             OR categoria LIKE :search_cat
+                             OR codigo LIKE :search_cod");
+        $this->db->bind(':search_nom', $like);
+        $this->db->bind(':search_cat', $like);
+        $this->db->bind(':search_cod', $like);
         return (int)$this->db->single()->total;
     }
 
@@ -231,12 +239,19 @@ class ModelInventario {
      * Busca repuestos por código, nombre o categoría para el buscador global.
      */
     public function searchRepuestos($term) {
+        $like = "%$term%";
         $this->db->query("SELECT id, codigo, nombre, categoria, stock, condicion 
                           FROM table_inventario
-                          WHERE (codigo LIKE :term OR nombre LIKE :term OR categoria LIKE :term OR id LIKE :term)
+                          WHERE (codigo LIKE :term_cod 
+                              OR nombre LIKE :term_nom 
+                              OR categoria LIKE :term_cat 
+                              OR id LIKE :term_id)
                           AND estado = 'ACTIVO'
                           ORDER BY nombre ASC LIMIT 5");
-        $this->db->bind(':term', "%$term%");
+        $this->db->bind(':term_cod', $like);
+        $this->db->bind(':term_nom', $like);
+        $this->db->bind(':term_cat', $like);
+        $this->db->bind(':term_id',  $like);
         return $this->db->resultSet();
     }
 

@@ -30,27 +30,30 @@ class ModelCliente {
      */
     public function listar($limit = null, $offset = null, $search = null) {
         $sql = "SELECT * FROM table_clientes";
+        $params = [];
         
         if ($search) {
-            $sql .= " WHERE nombre LIKE :search OR id LIKE :search OR telefono LIKE :search OR email LIKE :search";
+            $sql .= " WHERE nombre LIKE :search_nom 
+                        OR id LIKE :search_id 
+                        OR telefono LIKE :search_tel 
+                        OR email LIKE :search_email";
+            $like = "%$search%";
+            $params[':search_nom']   = $like;
+            $params[':search_id']    = $like;
+            $params[':search_tel']   = $like;
+            $params[':search_email'] = $like;
         }
 
         $sql .= " ORDER BY fecha_registro DESC";
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
+            $params[':limit']  = (int)$limit;
+            $params[':offset'] = (int)$offset;
         }
         
         $this->db->query($sql);
-        
-        if ($search) {
-            $this->db->bind(':search', "%$search%");
-        }
-        
-        if ($limit !== null && $offset !== null) {
-            $this->db->bind(':limit', (int)$limit);
-            $this->db->bind(':offset', (int)$offset);
-        }
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
 
         return $this->db->resultSet();
     }
@@ -61,12 +64,16 @@ class ModelCliente {
     }
 
     public function contarFiltrados($search) {
+        $like = "%$search%";
         $this->db->query("SELECT COUNT(*) as total FROM table_clientes 
-                          WHERE nombre LIKE :search 
-                          OR id LIKE :search 
-                          OR telefono LIKE :search
-                          OR email LIKE :search");
-        $this->db->bind(':search', "%$search%");
+                          WHERE nombre LIKE :search_nom 
+                             OR id LIKE :search_id 
+                             OR telefono LIKE :search_tel
+                             OR email LIKE :search_email");
+        $this->db->bind(':search_nom',   $like);
+        $this->db->bind(':search_id',    $like);
+        $this->db->bind(':search_tel',   $like);
+        $this->db->bind(':search_email', $like);
         return (int)$this->db->single()->total;
     }
 
@@ -152,31 +159,35 @@ class ModelCliente {
             return [];
         }
 
-        $like = '%' . $term . '%';
+        $like      = '%' . $term . '%';
         $startLike = $term . '%';
 
         $this->db->query("
             SELECT id, nombre, telefono, email, direccion
             FROM table_clientes
-            WHERE id LIKE :term
-               OR nombre LIKE :term
-               OR telefono LIKE :term
-               OR email LIKE :term
+            WHERE id LIKE :term_id
+               OR nombre LIKE :term_nom
+               OR telefono LIKE :term_tel
+               OR email LIKE :term_email
             ORDER BY 
                 CASE
                     WHEN id = :term_exact THEN 1
                     WHEN nombre LIKE :term_start THEN 2
-                    WHEN nombre LIKE :term THEN 3
+                    WHEN nombre LIKE :term_contains THEN 3
                     ELSE 4
                 END,
                 nombre ASC
             LIMIT :limit
         ");
 
-        $this->db->bind(':term', $like);
-        $this->db->bind(':term_exact', $term);
-        $this->db->bind(':term_start', $startLike);
-        $this->db->bind(':limit', (int)$limit);
+        $this->db->bind(':term_id',       $like);
+        $this->db->bind(':term_nom',      $like);
+        $this->db->bind(':term_tel',      $like);
+        $this->db->bind(':term_email',    $like);
+        $this->db->bind(':term_exact',    $term);
+        $this->db->bind(':term_start',    $startLike);
+        $this->db->bind(':term_contains', $like);
+        $this->db->bind(':limit',         (int)$limit);
 
         return $this->db->resultSet();
     }
