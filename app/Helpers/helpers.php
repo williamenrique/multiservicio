@@ -79,7 +79,7 @@ function renderView($view, $data = []) {
         // Cargar configuración de empresa solo la primera vez por request
         if ($companyCache === null) {
             try {
-                $db = new Database();
+                $db = Database::getInstance();   // ← antes: new Database();
                 $db->query("SELECT * FROM table_company_settings WHERE id = 1");
                 $result = $db->single();
                 $companyCache = $result ?: (object) [
@@ -177,7 +177,7 @@ function detectarTipoCliente() {
  */
 function logAction($modulo, $accion, $descripcion = '') {
     try {
-        $db = new Database();
+        $db = Database::getInstance();
         $db->query("INSERT INTO table_audit_logs (usuario_id, modulo, accion, descripcion, ip_address, fecha) 
                     VALUES (:uid, :mod, :acc, :des, :ip, NOW())");
         $db->bind(':uid', $_SESSION['user_id'] ?? null);

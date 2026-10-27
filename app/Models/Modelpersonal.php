@@ -28,22 +28,27 @@ class ModelPersonal {
                 LEFT JOIN table_usuarios u ON s.id = u.staff_id 
                 LEFT JOIN table_roles r ON u.role_id = r.id";
         
+        $params = [];
         if ($search) {
-            $sql .= " WHERE s.nombre LIKE :search OR s.id LIKE :search OR s.cedula LIKE :search";
+            $sql .= " WHERE s.nombre LIKE :search_nom 
+                        OR s.id LIKE :search_id 
+                        OR s.cedula LIKE :search_ced";
+            $like = "%$search%";
+            $params[':search_nom'] = $like;
+            $params[':search_id']  = $like;
+            $params[':search_ced'] = $like;
         }
 
         $sql .= " ORDER BY s.nombre ASC";
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
+            $params[':limit']  = (int)$limit;
+            $params[':offset'] = (int)$offset;
         }
 
         $this->db->query($sql);
-        if ($search) $this->db->bind(':search', "%$search%");
-        if ($limit !== null && $offset !== null) {
-            $this->db->bind(':limit', (int)$limit);
-            $this->db->bind(':offset', (int)$offset);
-        }
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         return $this->db->resultSet();
     }
 
@@ -53,8 +58,14 @@ class ModelPersonal {
     }
 
     public function contarFiltrados($search) {
-        $this->db->query("SELECT COUNT(*) as total FROM table_staff WHERE nombre LIKE :search OR id LIKE :search OR cedula LIKE :search");
-        $this->db->bind(':search', "%$search%");
+        $like = "%$search%";
+        $this->db->query("SELECT COUNT(*) as total FROM table_staff 
+                          WHERE nombre LIKE :search_nom 
+                             OR id LIKE :search_id 
+                             OR cedula LIKE :search_ced");
+        $this->db->bind(':search_nom', $like);
+        $this->db->bind(':search_id',  $like);
+        $this->db->bind(':search_ced', $like);
         return (int)$this->db->single()->total;
     }
 

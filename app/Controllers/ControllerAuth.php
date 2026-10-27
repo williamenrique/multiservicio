@@ -31,10 +31,19 @@ class ControllerAuth extends Controller {
 
     /**
      * Procesa la petición AJAX de inicio de sesión.
+     *
+     * v2.2 (2026-10-26) — PERFORMANCE:
+     *   • Se movieron NotificationChecker::verificarYNotificar() a un
+     *     shutdown function registrada ANTES de responder. Así la respuesta
+     *     HTTP al navegador se envía de inmediato y los envíos SMTP
+     *     (proveedores + resumen mensual) corren en segundo plano dentro
+     *     del mismo request, sin bloquear el login.
+     *   • Si el servidor es php-fpm, además se cierra la conexión con
+     *     fastcgi_finish_request() para liberar al navegador antes aún.
      */
     public function login() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            
+
             $input = json_decode(file_get_contents('php://input'), true);
 
             // 1. Validación de Campos (CSRF ahora se maneja en index.php)
@@ -48,10 +57,8 @@ class ControllerAuth extends Controller {
             // Limpiamos entradas de posibles espacios accidentales
             $usuarioInput = trim($input['usuario']);
             $password = trim($input['password']);
-            // El flag 'force' indica si el usuario decidió cerrar la sesión activa previa
             $force = isset($input['force']) ? (bool)$input['force'] : false;
 
-            // Busca al usuario por Email o por Nick (username)
             $userFound = $this->userModel->buscarPorIdentificador($usuarioInput);
 
             if ($userFound) {
@@ -66,17 +73,13 @@ class ControllerAuth extends Controller {
                         $this->userModel->actualizarPassword($userFound->id, $newHash);
                     }
 
-                    // Detectar origen de la petición (WEB o APP)
                     $tipoCliente = detectarTipoCliente();
-
-                    // Control de sesión por plataforma: solo verifica conflicto en el MISMO tipo
                     $sesionActiva = $this->userModel->obtenerSesionActiva($userFound->id, $tipoCliente);
 
                     if ($sesionActiva && !$force) {
-                        // Hay sesión activa en la MISMA plataforma y no se forzó
                         return $this->jsonResponse([
-                            'success' => false, 
-                            'session_exists' => true, 
+                            'success' => false,
+                            'session_exists' => true,
                             'error' => 'Ya tienes una sesión abierta en otro dispositivo (' . $tipoCliente . ').'
                         ]);
                     }
@@ -92,7 +95,6 @@ class ControllerAuth extends Controller {
                     $_SESSION['user_foto'] = $userFound->foto;
                     $_SESSION['tipo_cliente'] = $tipoCliente;
 
-                    // Registrar sesión con el tipo detectado (REPLACE por UK usuario_id+tipo)
                     $this->userModel->registrarSesion([
                         'session_id' => session_id(),
                         'usuario_id' => $userFound->id,
@@ -101,11 +103,12 @@ class ControllerAuth extends Controller {
                         'usuario_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido'
                     ]);
 
-                    // Auditoría de inicio de sesión
                     logAction('AUTH', 'LOGIN', "El usuario {$userFound->username} ha ingresado al sistema.");
 
-                    // Verificar y enviar notificaciones automáticas
-                    NotificationChecker::verificarYNotificar();
+                    // ─── PERFORMANCE FIX ─────────────────────────────
+                    // Encolar notificaciones en segundo plano (post-response).
+                    // NO se ejecutan antes de responder al navegador.
+                    $this->_encolarNotificacionesPostLogin();
 
                     return $this->jsonResponse(['success' => true, 'redirect' => URLROOT . '/dashboard']);
                 } else {
@@ -117,6 +120,39 @@ class ControllerAuth extends Controller {
         } else {
             redirect('auth');
         }
+    }
+
+    /**
+     * Ejecuta NotificationChecker después de que la respuesta HTTP ya
+     * fue enviada al cliente. Usa `register_shutdown_function` y, si
+     * está disponible, `fastcgi_finish_request()` para liberar la
+     * conexión con el navegador lo antes posible.
+     *
+     * @return void
+     */
+    private function _encolarNotificacionesPostLogin(): void {
+        register_shutdown_function(function () {
+            // Liberar al navegador si estamos en php-fpm
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+
+            // Dar un pequeño margen para que el cliente reciba el JSON
+            // (en Apache/mod_php no hay fastcgi_finish_request, así que
+            // este sleep evita que el browser quede esperando mientras
+            // PHPMailer hace su handshake SMTP).
+            if (!function_exists('fastcgi_finish_request')) {
+                // Flush manual del buffer al cliente.
+                while (ob_get_level() > 0) { @ob_end_flush(); }
+                @flush();
+            }
+
+            try {
+                NotificationChecker::verificarYNotificar();
+            } catch (\Throwable $e) {
+                error_log('PostLogin notificaciones fallaron: ' . $e->getMessage());
+            }
+        });
     }
 
     /**

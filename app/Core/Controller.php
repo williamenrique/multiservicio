@@ -12,18 +12,12 @@ class Controller {
      * @return object Instancia del modelo solicitado
      */
     public function model($model) {
-        // Forzamos PascalCase para compatibilidad con servidores Linux
         $modelName = 'Model' . ucfirst($model);
-        
-        // Intentar con "Models" (PascalCase)
         $path = APPROOT . '/Models/' . $modelName . '.php';
-        
-        // Si no existe, intentar con "models" (lowercase) por si acaso el servidor está configurado así
+
         if (!file_exists($path)) {
             $path = APPROOT . '/models/' . $modelName . '.php';
         }
-
-        // Fallback adicional: Intentar con el nombre del archivo totalmente en minúsculas
         if (!file_exists($path)) {
             $modelLower = strtolower($modelName);
             $path = APPROOT . '/Models/' . $modelLower . '.php';
@@ -34,9 +28,9 @@ class Controller {
 
         if (file_exists($path)) {
             require_once $path;
-            return new $modelName();
+            // v2.1 — inyectar la conexión compartida
+            return new $modelName(Database::getInstance());
         } else {
-            // Error crítico si el modelo no existe
             throw new AppException("El modelo de datos '{$modelName}' no pudo ser cargado.", 500);
         }
     }

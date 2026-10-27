@@ -50,6 +50,13 @@ class EmailService
         $this->mailer->SMTPSecure = MAIL_ENCRYPTION;
         $this->mailer->CharSet    = 'UTF-8';
         $this->mailer->setFrom(MAIL_FROM_ADDRESS, MAIL_FROM_NAME);
+
+        // v3.0.1 (2026-10-26) — PERFORMANCE:
+        // Timeouts agresivos para que un SMTP lento NO bloquee el login
+        // (especialmente dentro de register_shutdown_function).
+        $this->mailer->Timeout        = 8;   // timeout total de la conexión SMTP
+        $this->mailer->SMTPKeepAlive  = false;
+        $this->mailer->SMTPDebug      = 0;
     }
 
     private function getEmpresa(): object {
@@ -96,7 +103,6 @@ class EmailService
             return false;
         }
     }
-
     /* ============================================================
      * LOGGING CENTRALIZADO — todos los métodos públicos llaman aquí
      * ============================================================ */

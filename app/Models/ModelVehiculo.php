@@ -57,9 +57,15 @@ class ModelVehiculo {
      * Busca vehículos por placa, marca o modelo para el buscador global.
      */
     public function searchVehicles($term) {
+        $like = '%' . $term . '%';
         $this->db->query("SELECT placa, marca, modelo FROM table_vehiculos
-                          WHERE placa LIKE :term OR marca LIKE :term OR modelo LIKE :term LIMIT 5");
-        $this->db->bind(':term', "%$term%");
+                          WHERE placa LIKE :term_placa 
+                             OR marca LIKE :term_marca 
+                             OR modelo LIKE :term_modelo 
+                          LIMIT 5");
+        $this->db->bind(':term_placa', $like);
+        $this->db->bind(':term_marca', $like);
+        $this->db->bind(':term_modelo', $like);
         return $this->db->resultSet();
     }
 }

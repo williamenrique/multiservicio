@@ -391,7 +391,6 @@ class ModelReportes {
      * Obtiene los trabajos (servicios) y pagos de un empleado en un periodo.
      */
     public function obtenerNominaEmpleado($staff_id, $desde, $hasta) {
- 
         $this->db->query("SELECT v.id as venta_id, v.fecha, COALESCE(vh.placa, v.placa) as placa, COALESCE(vh.modelo, v.modelo_vehiculo) as modelo_vehiculo, 
                                  vd.id as detalle_id, vd.descripcion, vd.cantidad, 
                                  vd.precio_unitario as monto_trabajo, vd.pago_nomina_id, COALESCE(NULLIF(vh.modelo, ''), NULLIF(v.modelo_vehiculo, ''), 'N/A') as modelo_vehiculo_display,
@@ -400,25 +399,26 @@ class ModelReportes {
                           JOIN table_facturas_detalle vd ON vd.factura_id = v.id
                           LEFT JOIN table_ordenes_servicio os ON v.orden_id = os.id
                           LEFT JOIN table_vehiculos vh ON v.placa = vh.placa
-                          WHERE (vd.mecanico_id = :staff_id OR os.mecanico_id = :staff_id OR :staff_id_alt = '0')
+                          WHERE (vd.mecanico_id = :staff_id_a OR os.mecanico_id = :staff_id_b OR :staff_id_c = '0')
                           AND vd.producto_id IS NULL 
                           AND v.status IN ('COMPLETADO', 'CREDITO')
                           AND DATE(v.fecha) BETWEEN :desde AND :hasta
                           ORDER BY v.fecha DESC");
-        $this->db->bind(':staff_id', $staff_id);
-        $this->db->bind(':staff_id_alt', $staff_id);
+        $this->db->bind(':staff_id_a', $staff_id);
+        $this->db->bind(':staff_id_b', $staff_id);
+        $this->db->bind(':staff_id_c', $staff_id);
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $trabajos = $this->db->resultSet() ?: [];
 
-        // 2. Pagos y Adelantos
         $this->db->query("SELECT p.*, u.username as registrado_por 
                           FROM table_pagos_empleados p
                           LEFT JOIN table_usuarios u ON p.usuario_id = u.id
-                          WHERE (p.staff_id = :staff_id OR :staff_id = '0')
+                          WHERE (p.staff_id = :staff_id_p OR :staff_id_q = '0')
                           AND DATE(p.fecha) BETWEEN :desde AND :hasta
                           ORDER BY p.fecha DESC");
-        $this->db->bind(':staff_id', $staff_id);
+        $this->db->bind(':staff_id_p', $staff_id);
+        $this->db->bind(':staff_id_q', $staff_id);
         $this->db->bind(':desde', $desde);
         $this->db->bind(':hasta', $hasta);
         $pagos = $this->db->resultSet() ?: [];

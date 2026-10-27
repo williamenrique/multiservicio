@@ -52,7 +52,7 @@ class AuthGuard {
         $currentUa = $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido';
 
         try {
-            $db = new Database();
+            $db = Database::getInstance();
             $db->query("SELECT session_id, ip_address, usuario_agent, last_activity 
                         FROM table_usuario_sessions 
                         WHERE usuario_id = :uid AND tipo = :tipo");

@@ -8,31 +8,31 @@ class ModelGasto {
 
     public function listar($limit = null, $offset = null, $search = null, $desde = null, $hasta = null) {
         $sql = "SELECT g.* FROM table_gastos g WHERE 1=1";
+        $params = [];
         
         if ($search) {
-            $sql .= " AND (g.descripcion LIKE :search OR g.categoria LIKE :search)";
+            $sql .= " AND (g.descripcion LIKE :search_desc OR g.categoria LIKE :search_cat)";
+            $like = "%$search%";
+            $params[':search_desc'] = $like;
+            $params[':search_cat']  = $like;
         }
 
         if ($desde && $hasta) {
             $sql .= " AND g.fecha BETWEEN :desde AND :hasta";
+            $params[':desde'] = $desde;
+            $params[':hasta'] = $hasta;
         }
 
         $sql .= " ORDER BY g.fecha DESC, g.id DESC";
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
+            $params[':limit']  = (int)$limit;
+            $params[':offset'] = (int)$offset;
         }
 
         $this->db->query($sql);
-        if ($search) $this->db->bind(':search', "%$search%");
-        if ($desde && $hasta) {
-            $this->db->bind(':desde', $desde);
-            $this->db->bind(':hasta', $hasta);
-        }
-        if ($limit !== null && $offset !== null) {
-            $this->db->bind(':limit', (int)$limit);
-            $this->db->bind(':offset', (int)$offset);
-        }
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         return $this->db->resultSet();
     }
 
@@ -43,15 +43,22 @@ class ModelGasto {
 
     public function contarFiltrados($search, $desde = null, $hasta = null) {
         $sql = "SELECT COUNT(*) as total FROM table_gastos WHERE 1=1";
-        if ($search) $sql .= " AND (descripcion LIKE :search OR categoria LIKE :search)";
-        if ($desde && $hasta) $sql .= " AND fecha BETWEEN :desde AND :hasta";
+        $params = [];
+
+        if ($search) {
+            $sql .= " AND (descripcion LIKE :search_desc OR categoria LIKE :search_cat)";
+            $like = "%$search%";
+            $params[':search_desc'] = $like;
+            $params[':search_cat']  = $like;
+        }
+        if ($desde && $hasta) {
+            $sql .= " AND fecha BETWEEN :desde AND :hasta";
+            $params[':desde'] = $desde;
+            $params[':hasta'] = $hasta;
+        }
         
         $this->db->query($sql);
-        if ($search) $this->db->bind(':search', "%$search%");
-        if ($desde && $hasta) {
-            $this->db->bind(':desde', $desde);
-            $this->db->bind(':hasta', $hasta);
-        }
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         return (int)$this->db->single()->total;
     }
 

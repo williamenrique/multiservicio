@@ -11,27 +11,27 @@ class ModelProveedor {
      */
     public function listar($limit = null, $offset = null, $search = null) {
         $sql = "SELECT * FROM table_proveedores";
-        
+        $params = [];
+
         if ($search) {
-            $sql .= " WHERE nombre LIKE :search OR id LIKE :search OR telefono LIKE :search";
+            $sql .= " WHERE nombre LIKE :search_nom 
+                         OR id LIKE :search_id 
+                         OR telefono LIKE :search_tel";
+            $params[':search_nom'] = "%$search%";
+            $params[':search_id']  = "%$search%";
+            $params[':search_tel'] = "%$search%";
         }
 
         $sql .= " ORDER BY nombre ASC";
-        
+
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
+            $params[':limit']  = (int)$limit;
+            $params[':offset'] = (int)$offset;
         }
-        
+
         $this->db->query($sql);
-        
-        if ($search) {
-            $this->db->bind(':search', "%$search%");
-        }
-        
-        if ($limit !== null && $offset !== null) {
-            $this->db->bind(':limit', (int)$limit);
-            $this->db->bind(':offset', (int)$offset);
-        }
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
 
         return $this->db->resultSet();
     }
@@ -40,10 +40,17 @@ class ModelProveedor {
      * Busca proveedores por ID, nombre, teléfono o email para el buscador global.
      */
     public function searchProveedores($term) {
+        $like = "%$term%";
         $this->db->query("SELECT id, nombre, telefono, email FROM table_proveedores
-                          WHERE (id LIKE :term OR nombre LIKE :term OR telefono LIKE :term OR email LIKE :term)
+                          WHERE (id LIKE :term_id 
+                              OR nombre LIKE :term_nom 
+                              OR telefono LIKE :term_tel 
+                              OR email LIKE :term_email)
                           ORDER BY nombre ASC LIMIT 5");
-        $this->db->bind(':term', "%$term%");
+        $this->db->bind(':term_id',    $like);
+        $this->db->bind(':term_nom',   $like);
+        $this->db->bind(':term_tel',   $like);
+        $this->db->bind(':term_email', $like);
         return $this->db->resultSet();
     }
 
@@ -53,11 +60,14 @@ class ModelProveedor {
     }
 
     public function contarFiltrados($search) {
+        $like = "%$search%";
         $this->db->query("SELECT COUNT(*) as total FROM table_proveedores 
-                          WHERE nombre LIKE :search 
-                          OR id LIKE :search 
-                          OR telefono LIKE :search");
-        $this->db->bind(':search', "%$search%");
+                          WHERE nombre LIKE :search_nom 
+                             OR id LIKE :search_id 
+                             OR telefono LIKE :search_tel");
+        $this->db->bind(':search_nom', $like);
+        $this->db->bind(':search_id',  $like);
+        $this->db->bind(':search_tel', $like);
         return (int)$this->db->single()->total;
     }
 
@@ -363,11 +373,10 @@ class ModelProveedor {
                             i.precio as precio_venta,
                             i.estado,
                             SUM(cd.cantidad) as total_comprado,
-                            -- Costo unitario de la última compra a este proveedor
                             (SELECT cd2.costo_unitario 
                              FROM table_compras_detalle cd2
                              INNER JOIN table_compras c2 ON cd2.compra_id = c2.id
-                             WHERE cd2.producto_id = i.id AND c2.proveedor_id = :proveedor_id
+                             WHERE cd2.producto_id = i.id AND c2.proveedor_id = :prov_sub
                              ORDER BY c2.fecha DESC LIMIT 1) as costo_unitario_proveedor,
                             COUNT(DISTINCT c.id) as num_facturas,
                             MAX(c.fecha) as ultima_compra,
@@ -377,19 +386,29 @@ class ModelProveedor {
                           INNER JOIN table_compras c ON cd.compra_id = c.id
                           WHERE c.proveedor_id = :proveedor_id";
         
-        $params = [':proveedor_id' => $proveedorId];
+        $params = [
+            ':prov_sub'      => $proveedorId,
+            ':proveedor_id'  => $proveedorId,
+        ];
         
         if ($search) {
-            $sql .= " AND (i.nombre LIKE :search OR i.codigo LIKE :search OR i.marca LIKE :search OR i.categoria LIKE :search)";
-            $params[':search'] = "%$search%";
+            $sql .= " AND (i.nombre LIKE :search_nom 
+                        OR i.codigo LIKE :search_cod 
+                        OR i.marca LIKE :search_mar 
+                        OR i.categoria LIKE :search_cat)";
+            $like = "%$search%";
+            $params[':search_nom'] = $like;
+            $params[':search_cod'] = $like;
+            $params[':search_mar'] = $like;
+            $params[':search_cat'] = $like;
         }
         
         $sql .= " GROUP BY i.id, i.codigo, i.nombre, i.marca, i.categoria, i.stock, i.ultimo_costo, i.costo_promedio, i.precio, i.estado
-                          ORDER BY i.nombre ASC";
+                  ORDER BY i.nombre ASC";
         
         if ($limit !== null && $offset !== null) {
             $sql .= " LIMIT :limit OFFSET :offset";
-            $params[':limit'] = (int)$limit;
+            $params[':limit']  = (int)$limit;
             $params[':offset'] = (int)$offset;
         }
         
@@ -413,8 +432,15 @@ class ModelProveedor {
         $params = [':proveedor_id' => $proveedorId];
         
         if ($search) {
-            $sql .= " AND (i.nombre LIKE :search OR i.codigo LIKE :search OR i.marca LIKE :search OR i.categoria LIKE :search)";
-            $params[':search'] = "%$search%";
+            $sql .= " AND (i.nombre LIKE :search_nom 
+                        OR i.codigo LIKE :search_cod 
+                        OR i.marca LIKE :search_mar 
+                        OR i.categoria LIKE :search_cat)";
+            $like = "%$search%";
+            $params[':search_nom'] = $like;
+            $params[':search_cod'] = $like;
+            $params[':search_mar'] = $like;
+            $params[':search_cat'] = $like;
         }
         
         $this->db->query($sql);

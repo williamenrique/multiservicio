@@ -64,9 +64,10 @@ class ModelCatalogo {
         $params = [];
 
         if ($busqueda) {
-            $sql .= " AND (i.nombre LIKE :busqueda 
-                      OR i.categoria LIKE :busqueda)";
-            $params[':busqueda'] = "%$busqueda%";
+            $sql .= " AND (i.nombre LIKE :busqueda_nom OR i.categoria LIKE :busqueda_cat)";
+            $like = "%$busqueda%";
+            $params[':busqueda_nom'] = $like;
+            $params[':busqueda_cat'] = $like;
         }
 
         if ($categoria) {
@@ -90,7 +91,7 @@ class ModelCatalogo {
         }
 
         $sql .= " ORDER BY i.nombre ASC LIMIT :limit OFFSET :offset";
-        $params[':limit'] = (int)$limit;
+        $params[':limit']  = (int)$limit;
         $params[':offset'] = (int)$offset;
 
         $this->db->query($sql);
@@ -115,8 +116,10 @@ class ModelCatalogo {
         $params = [];
 
         if ($busqueda) {
-            $sql .= " AND (nombre LIKE :busqueda OR categoria LIKE :busqueda)";
-            $params[':busqueda'] = "%$busqueda%";
+            $sql .= " AND (nombre LIKE :busqueda_nom OR categoria LIKE :busqueda_cat)";
+            $like = "%$busqueda%";
+            $params[':busqueda_nom'] = $like;
+            $params[':busqueda_cat'] = $like;
         }
 
         if ($categoria) {
